@@ -1,3 +1,4 @@
+using System.IO.Hashing;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -7,8 +8,8 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Processes subtitle files and integrates them with the RAG pipeline.
-/// Converts SRT subtitles to content chunks for indexing.
+///     Processes subtitle files and integrates them with the RAG pipeline.
+///     Converts SRT subtitles to content chunks for indexing.
 /// </summary>
 public partial class SubtitleProcessingService
 {
@@ -20,7 +21,7 @@ public partial class SubtitleProcessingService
     }
 
     /// <summary>
-    /// Parse an SRT file into subtitle entries.
+    ///     Parse an SRT file into subtitle entries.
     /// </summary>
     public async Task<List<SrtSubtitleEntry>> ParseSrtAsync(
         string srtPath,
@@ -51,7 +52,7 @@ public partial class SubtitleProcessingService
     }
 
     /// <summary>
-    /// Parse SRT content string into subtitle entries.
+    ///     Parse SRT content string into subtitle entries.
     /// </summary>
     public List<SrtSubtitleEntry> ParseSrtContent(string content)
     {
@@ -107,8 +108,8 @@ public partial class SubtitleProcessingService
     }
 
     /// <summary>
-    /// Convert subtitle entries to content chunks for RAG indexing.
-    /// Groups subtitles into chunks based on time windows.
+    ///     Convert subtitle entries to content chunks for RAG indexing.
+    ///     Groups subtitles into chunks based on time windows.
     /// </summary>
     public List<ContentChunk> ToContentChunks(
         List<SrtSubtitleEntry> entries,
@@ -170,8 +171,8 @@ public partial class SubtitleProcessingService
     }
 
     /// <summary>
-    /// Create utterances from subtitle entries.
-    /// These can be used alongside or instead of audio transcription.
+    ///     Create utterances from subtitle entries.
+    ///     These can be used alongside or instead of audio transcription.
     /// </summary>
     public List<Utterance> ToUtterances(
         List<SrtSubtitleEntry> entries,
@@ -191,8 +192,8 @@ public partial class SubtitleProcessingService
     }
 
     /// <summary>
-    /// Merge subtitle-derived utterances with transcription utterances.
-    /// Prefers subtitle text when timestamps overlap (usually more accurate).
+    ///     Merge subtitle-derived utterances with transcription utterances.
+    ///     Prefers subtitle text when timestamps overlap (usually more accurate).
     /// </summary>
     public List<Utterance> MergeWithTranscription(
         List<Utterance> subtitleUtterances,
@@ -214,7 +215,7 @@ public partial class SubtitleProcessingService
             var bestMatch = -1;
             var bestOverlap = 0.0;
 
-            for (int i = 0; i < subtitleUtterances.Count; i++)
+            for (var i = 0; i < subtitleUtterances.Count; i++)
             {
                 if (usedSubtitleIndices.Contains(i))
                     continue;
@@ -248,13 +249,9 @@ public partial class SubtitleProcessingService
         }
 
         // Add remaining subtitles that didn't match any transcription
-        for (int i = 0; i < subtitleUtterances.Count; i++)
-        {
+        for (var i = 0; i < subtitleUtterances.Count; i++)
             if (!usedSubtitleIndices.Contains(i))
-            {
                 merged.Add(subtitleUtterances[i]);
-            }
-        }
 
         return merged.OrderBy(u => u.StartTime).ToList();
     }
@@ -313,7 +310,7 @@ public partial class SubtitleProcessingService
 
     private static string ComputeHash(string text)
     {
-        var hash = System.IO.Hashing.XxHash64.Hash(Encoding.UTF8.GetBytes(text));
+        var hash = XxHash64.Hash(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(hash);
     }
 
@@ -331,7 +328,7 @@ public partial class SubtitleProcessingService
 }
 
 /// <summary>
-/// Single subtitle entry from an SRT file.
+///     Single subtitle entry from an SRT file.
 /// </summary>
 public record SrtSubtitleEntry
 {

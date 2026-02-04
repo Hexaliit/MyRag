@@ -4,10 +4,10 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for GoogleNewsFetcher static helper methods:
-/// URL extraction from HTML, article ID parsing, URL validation.
-/// These methods are private static — we use reflection to test them
-/// since they contain the logic that previously caused IndexOutOfRange crashes.
+///     Tests for GoogleNewsFetcher static helper methods:
+///     URL extraction from HTML, article ID parsing, URL validation.
+///     These methods are private static — we use reflection to test them
+///     since they contain the logic that previously caused IndexOutOfRange crashes.
 /// </summary>
 public class GoogleNewsFetcherTests
 {
@@ -40,6 +40,26 @@ public class GoogleNewsFetcherTests
             BindingFlags.NonPublic | BindingFlags.Static);
         return (string?)method?.Invoke(null, [body]);
     }
+
+    #region IsValidArticleUrl
+
+    [Theory]
+    [InlineData("https://www.bbc.com/news/article", true)]
+    [InlineData("http://example.com/article", true)]
+    [InlineData("https://news.google.com/stories", false)]
+    [InlineData("https://consent.google.com/something", false)]
+    [InlineData("https://accounts.google.com/login", false)]
+    [InlineData("https://google.com/sorry/index", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    [InlineData("ftp://example.com/file", false)]
+    [InlineData("not-a-url", false)]
+    public void IsValidArticleUrl_VariousInputs(string? url, bool expected)
+    {
+        InvokeIsValidArticleUrl(url).Should().Be(expected);
+    }
+
+    #endregion
 
     #region ExtractUrlFromGoogleNewsHtml
 
@@ -117,26 +137,6 @@ public class GoogleNewsFetcherTests
     public void ExtractArticleId_ShortId_ReturnsNull()
     {
         InvokeExtractArticleId("https://news.google.com/rss/articles/abc").Should().BeNull();
-    }
-
-    #endregion
-
-    #region IsValidArticleUrl
-
-    [Theory]
-    [InlineData("https://www.bbc.com/news/article", true)]
-    [InlineData("http://example.com/article", true)]
-    [InlineData("https://news.google.com/stories", false)]
-    [InlineData("https://consent.google.com/something", false)]
-    [InlineData("https://accounts.google.com/login", false)]
-    [InlineData("https://google.com/sorry/index", false)]
-    [InlineData("", false)]
-    [InlineData(null, false)]
-    [InlineData("ftp://example.com/file", false)]
-    [InlineData("not-a-url", false)]
-    public void IsValidArticleUrl_VariousInputs(string? url, bool expected)
-    {
-        InvokeIsValidArticleUrl(url).Should().Be(expected);
     }
 
     #endregion

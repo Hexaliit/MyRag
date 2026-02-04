@@ -2,35 +2,25 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Options;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace LucidRAG.Services.Sentinel;
 
 /// <summary>
-/// The Sentinel query decomposition service.
-///
-/// Analyzes user queries and creates executable plans by:
-/// 1. Understanding intent through tiny LLM or pattern matching
-/// 2. Decomposing complex queries into sub-queries
-/// 3. Determining filters and graph traversals
-/// 4. Validating assumptions against schema
-/// 5. Requesting clarification when needed
+///     The Sentinel query decomposition service.
+///     Analyzes user queries and creates executable plans by:
+///     1. Understanding intent through tiny LLM or pattern matching
+///     2. Decomposing complex queries into sub-queries
+///     3. Determining filters and graph traversals
+///     4. Validating assumptions against schema
+///     5. Requesting clarification when needed
 /// </summary>
 public class SentinelService : ISentinelService
 {
-    private readonly RagDocumentsDbContext _db;
-    private readonly IVectorStore _vectorStore;
-    private readonly IEmbeddingService _embedding;
-    private readonly SentinelConfig _config;
-    private readonly IMemoryCache _cache;
-    private readonly HttpClient _http;
-    private readonly ILogger<SentinelService> _logger;
-
     // Pattern matchers for traditional decomposition
     private static readonly Regex ComparisonPattern = new(
         @"\b(compare|difference|differ|vs|versus|between)\b",
@@ -66,6 +56,14 @@ public class SentinelService : ISentinelService
         @"^[\w\s\.\-#\+]+$",
         RegexOptions.Compiled);
 
+    private readonly IMemoryCache _cache;
+    private readonly SentinelConfig _config;
+    private readonly RagDocumentsDbContext _db;
+    private readonly IEmbeddingService _embedding;
+    private readonly HttpClient _http;
+    private readonly ILogger<SentinelService> _logger;
+    private readonly IVectorStore _vectorStore;
+
     public SentinelService(
         RagDocumentsDbContext db,
         IVectorStore vectorStore,
@@ -99,9 +97,7 @@ public class SentinelService : ISentinelService
         // Step 1: Correct spelling/grammar before processing
         var correctedQuery = await CorrectSpellingAsync(query, ct);
         if (correctedQuery != query)
-        {
             _logger.LogInformation("Query spelling corrected: '{Original}' -> '{Corrected}'", query, correctedQuery);
-        }
 
         // Check cache first (use corrected query for cache key)
         var cacheKey = $"sentinel:plan:{correctedQuery.GetHashCode()}:{schema.GetHashCode()}:{options.Mode}";
@@ -154,22 +150,17 @@ public class SentinelService : ISentinelService
                 // Lower confidence and potentially ask for clarification
                 var newConfidence = plan.Confidence * 0.5;
                 if (newConfidence < options.ClarificationThreshold)
-                {
                     plan = plan with
                     {
                         Confidence = newConfidence,
                         NeedsClarification = true,
                         ClarificationQuestion = BuildClarificationQuestion(query, failedAssumptions)
                     };
-                }
             }
         }
 
         // Cache the plan
-        if (_config.CachePlans)
-        {
-            _cache.Set(cacheKey, plan, _config.PlanCacheTtl);
-        }
+        if (_config.CachePlans) _cache.Set(cacheKey, plan, _config.PlanCacheTtl);
 
         return plan;
     }
@@ -252,7 +243,6 @@ public class SentinelService : ISentinelService
 
             // Check if we have tabular data
             if (schema.ContentTypes.Contains(ContentTypes.Data))
-            {
                 assumptions.Add(new SentinelAssumption
                 {
                     Description = "Tabular data available for aggregation",
@@ -263,16 +253,12 @@ public class SentinelService : ISentinelService
                     },
                     Confidence = 0.9
                 });
-            }
             else
-            {
                 confidence *= 0.7; // Lower confidence without tabular data
-            }
         }
 
         // If time-based, try to extract date references
         if (hasTimeRef)
-        {
             // Add time-focused sub-query
             subQueries.Add(new SubQuery
             {
@@ -281,14 +267,11 @@ public class SentinelService : ISentinelService
                 Priority = 2,
                 TopK = 5
             });
-        }
 
         // If relationship-focused, add graph traversal
         if (hasRelationship && schema.RelationshipTypes.Count > 0)
-        {
             // Try to identify entities for graph traversal
             foreach (var term in specificTerms.Take(2))
-            {
                 subQueries.Add(new SubQuery
                 {
                     Query = term,
@@ -296,14 +279,9 @@ public class SentinelService : ISentinelService
                     Priority = 3,
                     TopK = 3
                 });
-            }
-        }
 
         // If listing, ensure broader search
-        if (isList)
-        {
-            subQueries[0] = subQueries[0] with { TopK = 20 };
-        }
+        if (isList) subQueries[0] = subQueries[0] with { TopK = 20 };
 
         // Build intent description
         var intentParts = new List<string>();
@@ -330,36 +308,6 @@ public class SentinelService : ISentinelService
             QueryType = queryType,
             ProducerModel = "pattern-based"
         };
-    }
-
-    /// <summary>
-    /// Classify the query type to determine if synthesis is needed.
-    /// Keyword queries skip synthesis and just show matching documents.
-    /// </summary>
-    private QueryType ClassifyQueryType(string query, bool isComparison, bool isAggregation, bool isList)
-    {
-        // Comparisons need synthesis
-        if (isComparison) return QueryType.Comparison;
-
-        // Aggregations need synthesis
-        if (isAggregation) return QueryType.Aggregation;
-
-        // List/navigation queries don't need synthesis
-        if (isList) return QueryType.Navigation;
-
-        // Check for question words - semantic queries need synthesis
-        if (QuestionPattern.IsMatch(query)) return QueryType.Semantic;
-
-        // Short keyword-only queries (no question marks, no verbs)
-        var words = query.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length <= 3 && KeywordOnlyPattern.IsMatch(query) && !query.Contains('?'))
-        {
-            _logger.LogDebug("Query '{Query}' classified as keyword (short, no question words)", query);
-            return QueryType.Keyword;
-        }
-
-        // Default to semantic for longer or complex queries
-        return QueryType.Semantic;
     }
 
     /// <inheritdoc />
@@ -423,13 +371,11 @@ public class SentinelService : ISentinelService
             .ToListAsync(ct);
 
         foreach (var doc in documents)
-        {
             if (!string.IsNullOrEmpty(doc.MimeType))
             {
-                var ct_ = Entities.ContentTypes.FromMimeType(doc.MimeType);
+                var ct_ = ContentTypes.FromMimeType(doc.MimeType);
                 contentTypes.Add(ct_);
             }
-        }
 
         sampleNames.AddRange(documents.Take(10).Select(d => d.Name));
 
@@ -441,10 +387,8 @@ public class SentinelService : ISentinelService
             .ToListAsync(ct);
 
         foreach (var e in entities)
-        {
             if (!string.IsNullOrEmpty(e.ContentType))
                 contentTypes.Add(e.ContentType);
-        }
 
         // Get GraphRAG entities and relationships
         var graphEntities = await _db.Entities
@@ -487,6 +431,160 @@ public class SentinelService : ISentinelService
             LatestDocument = latest,
             SampleDocumentNames = sampleNames
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<FollowUpDetectionResult> DetectFollowUpAsync(
+        string query,
+        string? previousQuery,
+        IReadOnlyList<string>? conversationHistory = null,
+        CancellationToken ct = default)
+    {
+        // If no previous query, can't be a follow-up
+        if (string.IsNullOrWhiteSpace(previousQuery))
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = false,
+                Confidence = 1.0,
+                Reason = "No previous query to follow up on"
+            };
+
+        var queryLower = query.ToLowerInvariant().Trim();
+
+        // 1. Check for coreference patterns (pronouns referring to previous topic)
+        var (hasCoreference, coreferences, resolvedQuery) = DetectCoreferences(query, previousQuery);
+
+        if (hasCoreference)
+        {
+            _logger.LogDebug("Detected coreference in query: '{Query}' -> '{Resolved}'", query, resolvedQuery);
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = true,
+                Confidence = 0.9,
+                Reason = $"Coreference detected: {string.Join(", ", coreferences.Keys)}",
+                ResolvedQuery = resolvedQuery,
+                ResolvedCoreferences = coreferences,
+                UseSameDocumentSet = true
+            };
+        }
+
+        // 2. Check for explicit continuation markers
+        var continuationMarkers = new[]
+        {
+            "tell me more", "more about", "go on", "continue", "what else",
+            "and also", "additionally", "furthermore", "in addition",
+            "can you explain", "could you elaborate", "please explain",
+            "why is that", "how does that", "what about"
+        };
+
+        var hasContinuationMarker = continuationMarkers.Any(m => queryLower.Contains(m));
+        if (hasContinuationMarker)
+        {
+            _logger.LogDebug("Detected continuation marker in query: '{Query}'", query);
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = true,
+                Confidence = 0.85,
+                Reason = "Continuation marker detected",
+                ResolvedQuery = query,
+                UseSameDocumentSet = true
+            };
+        }
+
+        // 3. Check semantic similarity between queries
+        try
+        {
+            var currentEmbedding = await _embedding.EmbedAsync(query, ct);
+            var previousEmbedding = await _embedding.EmbedAsync(previousQuery, ct);
+            var similarity = CosineSimilarity(currentEmbedding, previousEmbedding);
+
+            _logger.LogDebug("Query similarity: {Similarity:F3} between '{Current}' and '{Previous}'",
+                similarity, query, previousQuery);
+
+            // High similarity suggests same topic
+            if (similarity > 0.7)
+                return new FollowUpDetectionResult
+                {
+                    IsFollowUp = true,
+                    Confidence = similarity,
+                    Reason = $"High semantic similarity ({similarity:F2})",
+                    ResolvedQuery = query,
+                    UseSameDocumentSet = true
+                };
+
+            // Medium similarity - might be related but could be new topic
+            if (similarity > 0.5)
+                return new FollowUpDetectionResult
+                {
+                    IsFollowUp = true,
+                    Confidence = similarity * 0.8,
+                    Reason = $"Medium semantic similarity ({similarity:F2})",
+                    ResolvedQuery = query,
+                    UseSameDocumentSet = false // Search fresh but keep conversation context
+                };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to compute semantic similarity for follow-up detection");
+        }
+
+        // 4. Check for shared keywords/entities
+        var previousKeywords = ExtractKeywords(previousQuery);
+        var currentKeywords = ExtractKeywords(query);
+        var sharedKeywords = previousKeywords.Intersect(currentKeywords, StringComparer.OrdinalIgnoreCase).ToList();
+
+        if (sharedKeywords.Count > 0 && sharedKeywords.Count >= currentKeywords.Count * 0.3)
+        {
+            var overlap = (double)sharedKeywords.Count / Math.Max(currentKeywords.Count, 1);
+            return new FollowUpDetectionResult
+            {
+                IsFollowUp = true,
+                Confidence = Math.Min(0.7, 0.4 + overlap * 0.5),
+                Reason = $"Shared keywords: {string.Join(", ", sharedKeywords.Take(3))}",
+                ResolvedQuery = query,
+                UseSameDocumentSet = overlap > 0.5
+            };
+        }
+
+        // Not a follow-up - new topic
+        return new FollowUpDetectionResult
+        {
+            IsFollowUp = false,
+            Confidence = 0.8,
+            Reason = "New topic detected",
+            ResolvedQuery = query,
+            UseSameDocumentSet = false
+        };
+    }
+
+    /// <summary>
+    ///     Classify the query type to determine if synthesis is needed.
+    ///     Keyword queries skip synthesis and just show matching documents.
+    /// </summary>
+    private QueryType ClassifyQueryType(string query, bool isComparison, bool isAggregation, bool isList)
+    {
+        // Comparisons need synthesis
+        if (isComparison) return QueryType.Comparison;
+
+        // Aggregations need synthesis
+        if (isAggregation) return QueryType.Aggregation;
+
+        // List/navigation queries don't need synthesis
+        if (isList) return QueryType.Navigation;
+
+        // Check for question words - semantic queries need synthesis
+        if (QuestionPattern.IsMatch(query)) return QueryType.Semantic;
+
+        // Short keyword-only queries (no question marks, no verbs)
+        var words = query.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length <= 3 && KeywordOnlyPattern.IsMatch(query) && !query.Contains('?'))
+        {
+            _logger.LogDebug("Query '{Query}' classified as keyword (short, no question words)", query);
+            return QueryType.Keyword;
+        }
+
+        // Default to semantic for longer or complex queries
+        return QueryType.Semantic;
     }
 
     private async Task<QueryPlan> DecomposeWithLlmAsync(
@@ -560,8 +658,8 @@ JSON only, no explanation: /no_think";
     {
         var request = new
         {
-            model = model,
-            prompt = prompt,
+            model,
+            prompt,
             stream = false,
             options = new
             {
@@ -705,141 +803,12 @@ JSON only, no explanation: /no_think";
     private string BuildClarificationQuestion(string query, List<SentinelAssumption> failedAssumptions)
     {
         var issues = string.Join("; ", failedAssumptions.Select(a => a.ValidationResult ?? a.Description));
-        return $"I need some clarification about your query \"{query}\". {issues}. Could you rephrase or provide more context?";
-    }
-
-    /// <inheritdoc />
-    public async Task<FollowUpDetectionResult> DetectFollowUpAsync(
-        string query,
-        string? previousQuery,
-        IReadOnlyList<string>? conversationHistory = null,
-        CancellationToken ct = default)
-    {
-        // If no previous query, can't be a follow-up
-        if (string.IsNullOrWhiteSpace(previousQuery))
-        {
-            return new FollowUpDetectionResult
-            {
-                IsFollowUp = false,
-                Confidence = 1.0,
-                Reason = "No previous query to follow up on"
-            };
-        }
-
-        var queryLower = query.ToLowerInvariant().Trim();
-
-        // 1. Check for coreference patterns (pronouns referring to previous topic)
-        var (hasCoreference, coreferences, resolvedQuery) = DetectCoreferences(query, previousQuery);
-
-        if (hasCoreference)
-        {
-            _logger.LogDebug("Detected coreference in query: '{Query}' -> '{Resolved}'", query, resolvedQuery);
-            return new FollowUpDetectionResult
-            {
-                IsFollowUp = true,
-                Confidence = 0.9,
-                Reason = $"Coreference detected: {string.Join(", ", coreferences.Keys)}",
-                ResolvedQuery = resolvedQuery,
-                ResolvedCoreferences = coreferences,
-                UseSameDocumentSet = true
-            };
-        }
-
-        // 2. Check for explicit continuation markers
-        var continuationMarkers = new[]
-        {
-            "tell me more", "more about", "go on", "continue", "what else",
-            "and also", "additionally", "furthermore", "in addition",
-            "can you explain", "could you elaborate", "please explain",
-            "why is that", "how does that", "what about"
-        };
-
-        var hasContinuationMarker = continuationMarkers.Any(m => queryLower.Contains(m));
-        if (hasContinuationMarker)
-        {
-            _logger.LogDebug("Detected continuation marker in query: '{Query}'", query);
-            return new FollowUpDetectionResult
-            {
-                IsFollowUp = true,
-                Confidence = 0.85,
-                Reason = "Continuation marker detected",
-                ResolvedQuery = query,
-                UseSameDocumentSet = true
-            };
-        }
-
-        // 3. Check semantic similarity between queries
-        try
-        {
-            var currentEmbedding = await _embedding.EmbedAsync(query, ct);
-            var previousEmbedding = await _embedding.EmbedAsync(previousQuery, ct);
-            var similarity = CosineSimilarity(currentEmbedding, previousEmbedding);
-
-            _logger.LogDebug("Query similarity: {Similarity:F3} between '{Current}' and '{Previous}'",
-                similarity, query, previousQuery);
-
-            // High similarity suggests same topic
-            if (similarity > 0.7)
-            {
-                return new FollowUpDetectionResult
-                {
-                    IsFollowUp = true,
-                    Confidence = similarity,
-                    Reason = $"High semantic similarity ({similarity:F2})",
-                    ResolvedQuery = query,
-                    UseSameDocumentSet = true
-                };
-            }
-
-            // Medium similarity - might be related but could be new topic
-            if (similarity > 0.5)
-            {
-                return new FollowUpDetectionResult
-                {
-                    IsFollowUp = true,
-                    Confidence = similarity * 0.8,
-                    Reason = $"Medium semantic similarity ({similarity:F2})",
-                    ResolvedQuery = query,
-                    UseSameDocumentSet = false // Search fresh but keep conversation context
-                };
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to compute semantic similarity for follow-up detection");
-        }
-
-        // 4. Check for shared keywords/entities
-        var previousKeywords = ExtractKeywords(previousQuery);
-        var currentKeywords = ExtractKeywords(query);
-        var sharedKeywords = previousKeywords.Intersect(currentKeywords, StringComparer.OrdinalIgnoreCase).ToList();
-
-        if (sharedKeywords.Count > 0 && sharedKeywords.Count >= currentKeywords.Count * 0.3)
-        {
-            var overlap = (double)sharedKeywords.Count / Math.Max(currentKeywords.Count, 1);
-            return new FollowUpDetectionResult
-            {
-                IsFollowUp = true,
-                Confidence = Math.Min(0.7, 0.4 + overlap * 0.5),
-                Reason = $"Shared keywords: {string.Join(", ", sharedKeywords.Take(3))}",
-                ResolvedQuery = query,
-                UseSameDocumentSet = overlap > 0.5
-            };
-        }
-
-        // Not a follow-up - new topic
-        return new FollowUpDetectionResult
-        {
-            IsFollowUp = false,
-            Confidence = 0.8,
-            Reason = "New topic detected",
-            ResolvedQuery = query,
-            UseSameDocumentSet = false
-        };
+        return
+            $"I need some clarification about your query \"{query}\". {issues}. Could you rephrase or provide more context?";
     }
 
     /// <summary>
-    /// Detect and resolve coreferences (pronouns referring to previous entities).
+    ///     Detect and resolve coreferences (pronouns referring to previous entities).
     /// </summary>
     private (bool hasCoreference, Dictionary<string, string> coreferences, string resolvedQuery)
         DetectCoreferences(string query, string previousQuery)
@@ -850,22 +819,18 @@ JSON only, no explanation: /no_think";
         // Common coreference pronouns and patterns
         var pronounPatterns = new Dictionary<string, Regex>
         {
-            ["it"] = new Regex(@"\b(it|it's|its)\b", RegexOptions.IgnoreCase),
-            ["that"] = new Regex(@"\b(that|that's)\b", RegexOptions.IgnoreCase),
-            ["this"] = new Regex(@"\b(this|this is)\b", RegexOptions.IgnoreCase),
-            ["they"] = new Regex(@"\b(they|them|their|they're)\b", RegexOptions.IgnoreCase),
-            ["those"] = new Regex(@"\b(those|these)\b", RegexOptions.IgnoreCase)
+            ["it"] = new(@"\b(it|it's|its)\b", RegexOptions.IgnoreCase),
+            ["that"] = new(@"\b(that|that's)\b", RegexOptions.IgnoreCase),
+            ["this"] = new(@"\b(this|this is)\b", RegexOptions.IgnoreCase),
+            ["they"] = new(@"\b(they|them|their|they're)\b", RegexOptions.IgnoreCase),
+            ["those"] = new(@"\b(those|these)\b", RegexOptions.IgnoreCase)
         };
 
         // Extract the main subject from previous query
         var previousSubject = ExtractMainSubject(previousQuery);
-        if (string.IsNullOrEmpty(previousSubject))
-        {
-            return (false, coreferences, query);
-        }
+        if (string.IsNullOrEmpty(previousSubject)) return (false, coreferences, query);
 
         foreach (var (pronoun, pattern) in pronounPatterns)
-        {
             if (pattern.IsMatch(query))
             {
                 // Check if this looks like a reference to the previous topic
@@ -874,23 +839,19 @@ JSON only, no explanation: /no_think";
                 var surroundingContext = GetSurroundingContext(query, match.Index);
 
                 // Skip if the pronoun is followed by structural patterns
-                if (IsStructuralUse(query, match.Index))
-                {
-                    continue;
-                }
+                if (IsStructuralUse(query, match.Index)) continue;
 
                 coreferences[pronoun] = previousSubject;
 
                 // Replace the first occurrence for the resolved query
                 resolvedQuery = pattern.Replace(resolvedQuery, previousSubject, 1);
             }
-        }
 
         return (coreferences.Count > 0, coreferences, resolvedQuery);
     }
 
     /// <summary>
-    /// Extract the main subject/topic from a query.
+    ///     Extract the main subject/topic from a query.
     /// </summary>
     private string ExtractMainSubject(string query)
     {
@@ -900,12 +861,10 @@ JSON only, no explanation: /no_think";
             "", RegexOptions.IgnoreCase).Trim();
 
         // Take first significant phrase (up to preposition or verb)
-        var match = Regex.Match(cleaned, @"^([A-Za-z\s\-]+?)(?:\s+(?:in|on|at|with|for|to|from|by|is|are|does|do|\?))", RegexOptions.IgnoreCase);
+        var match = Regex.Match(cleaned, @"^([A-Za-z\s\-]+?)(?:\s+(?:in|on|at|with|for|to|from|by|is|are|does|do|\?))",
+            RegexOptions.IgnoreCase);
 
-        if (match.Success && match.Groups[1].Value.Length > 2)
-        {
-            return match.Groups[1].Value.Trim();
-        }
+        if (match.Success && match.Groups[1].Value.Length > 2) return match.Groups[1].Value.Trim();
 
         // Fall back to first few words
         var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -913,8 +872,8 @@ JSON only, no explanation: /no_think";
     }
 
     /// <summary>
-    /// Check if a pronoun use is structural (not referential).
-    /// E.g., "it is important" vs "tell me about it"
+    ///     Check if a pronoun use is structural (not referential).
+    ///     E.g., "it is important" vs "tell me about it"
     /// </summary>
     private bool IsStructuralUse(string query, int pronounIndex)
     {
@@ -937,7 +896,7 @@ JSON only, no explanation: /no_think";
     }
 
     /// <summary>
-    /// Extract significant keywords from text.
+    ///     Extract significant keywords from text.
     /// </summary>
     private HashSet<string> ExtractKeywords(string text)
     {
@@ -958,7 +917,7 @@ JSON only, no explanation: /no_think";
     }
 
     /// <summary>
-    /// Compute cosine similarity between two vectors.
+    ///     Compute cosine similarity between two vectors.
     /// </summary>
     private static double CosineSimilarity(ReadOnlyMemory<float> a, ReadOnlyMemory<float> b)
     {
@@ -969,7 +928,7 @@ JSON only, no explanation: /no_think";
             return 0;
 
         double dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < spanA.Length; i++)
+        for (var i = 0; i < spanA.Length; i++)
         {
             dot += spanA[i] * spanB[i];
             normA += spanA[i] * spanA[i];
@@ -981,8 +940,8 @@ JSON only, no explanation: /no_think";
     }
 
     /// <summary>
-    /// Correct spelling and normalize common shorthand in the query.
-    /// Uses a fast LLM call for spelling, plus regex for document type normalization.
+    ///     Correct spelling and normalize common shorthand in the query.
+    ///     Uses a fast LLM call for spelling, plus regex for document type normalization.
     /// </summary>
     private async Task<string> CorrectSpellingAsync(string query, CancellationToken ct)
     {
@@ -999,7 +958,8 @@ JSON only, no explanation: /no_think";
 
         try
         {
-            var prompt = $@"Fix any spelling/grammar mistakes in this search query. Return ONLY the corrected query, nothing else. If no fixes needed, return the original. /no_think
+            var prompt =
+                $@"Fix any spelling/grammar mistakes in this search query. Return ONLY the corrected query, nothing else. If no fixes needed, return the original. /no_think
 
 Query: {normalizedQuery}
 
@@ -1018,9 +978,7 @@ Corrected:";
             if (!string.IsNullOrEmpty(corrected) &&
                 corrected.Length >= normalizedQuery.Length * 0.5 &&
                 corrected.Length <= normalizedQuery.Length * 2)
-            {
                 return corrected;
-            }
         }
         catch (Exception ex)
         {
@@ -1031,8 +989,8 @@ Corrected:";
     }
 
     /// <summary>
-    /// Normalize common document type shorthand to their full forms.
-    /// E.g., "pdfs" -> "PDF documents", "docs" -> "documents", "word docs" -> "Word documents"
+    ///     Normalize common document type shorthand to their full forms.
+    ///     E.g., "pdfs" -> "PDF documents", "docs" -> "documents", "word docs" -> "Word documents"
     /// </summary>
     private static string NormalizeDocumentTypeTerms(string query)
     {
@@ -1057,21 +1015,18 @@ Corrected:";
             (new Regex(@"\bxlsx?\s*files?\b", RegexOptions.IgnoreCase), "Excel spreadsheets"),
             (new Regex(@"\bcsv\s*files?\b", RegexOptions.IgnoreCase), "CSV data files"),
             // Generic "docs" should stay last as it's most general
-            (new Regex(@"\bdocs\b", RegexOptions.IgnoreCase), "documents"),
+            (new Regex(@"\bdocs\b", RegexOptions.IgnoreCase), "documents")
         };
 
         var result = query;
-        foreach (var (pattern, replacement) in replacements)
-        {
-            result = pattern.Replace(result, replacement);
-        }
+        foreach (var (pattern, replacement) in replacements) result = pattern.Replace(result, replacement);
 
         return result;
     }
 
     /// <summary>
-    /// Quick heuristic to detect if query likely has spelling issues.
-    /// Avoids LLM call for clean queries.
+    ///     Quick heuristic to detect if query likely has spelling issues.
+    ///     Avoids LLM call for clean queries.
     /// </summary>
     private static bool LooksLikeHasSpellingIssues(string query)
     {
@@ -1126,8 +1081,8 @@ Corrected:";
     {
         public string? Query { get; init; }
         public string? Purpose { get; init; }
-        public int Priority { get; init; } = 1;
-        public int TopK { get; init; } = 5;
+        public int Priority { get; } = 1;
+        public int TopK { get; } = 5;
         public bool UseSparse { get; init; }
     }
 

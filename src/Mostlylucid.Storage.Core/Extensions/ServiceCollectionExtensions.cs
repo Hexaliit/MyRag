@@ -8,12 +8,12 @@ using Mostlylucid.Storage.Core.Implementations;
 namespace Mostlylucid.Storage.Core.Extensions;
 
 /// <summary>
-/// Dependency injection extensions for vector storage.
+///     Dependency injection extensions for vector storage.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add vector store with default configuration (DuckDB for standalone mode).
+    ///     Add vector store with default configuration (DuckDB for standalone mode).
     /// </summary>
     public static IServiceCollection AddVectorStore(this IServiceCollection services)
     {
@@ -21,7 +21,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add vector store with custom configuration.
+    ///     Add vector store with custom configuration.
     /// </summary>
     public static IServiceCollection AddVectorStore(
         this IServiceCollection services,
@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add vector store for tool/MCP mode (InMemory, no persistence).
+    ///     Add vector store for tool/MCP mode (InMemory, no persistence).
     /// </summary>
     public static IServiceCollection AddVectorStoreForToolMode(this IServiceCollection services)
     {
@@ -59,7 +59,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add vector store for standalone mode (DuckDB with persistence).
+    ///     Add vector store for standalone mode (DuckDB with persistence).
     /// </summary>
     public static IServiceCollection AddVectorStoreForStandaloneMode(
         this IServiceCollection services,
@@ -77,7 +77,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add vector store for production mode (Qdrant).
+    ///     Add vector store for production mode (Qdrant).
     /// </summary>
     public static IServiceCollection AddVectorStoreForProductionMode(
         this IServiceCollection services,
@@ -96,8 +96,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Create the appropriate vector store implementation based on configuration.
-    /// All implementations now implement IMultiVectorStore.
+    ///     Create the appropriate vector store implementation based on configuration.
+    ///     All implementations now implement IMultiVectorStore.
     /// </summary>
     private static IMultiVectorStore CreateVectorStore(VectorStoreOptions options, IServiceProvider serviceProvider)
     {

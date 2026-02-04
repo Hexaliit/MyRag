@@ -1,7 +1,7 @@
 namespace DoomSummarizer.Models;
 
 /// <summary>
-/// Detected hardware capabilities for dynamic profile resolution.
+///     Detected hardware capabilities for dynamic profile resolution.
 /// </summary>
 public record HardwareCapabilities
 {

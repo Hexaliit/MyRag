@@ -21,29 +21,39 @@ Write-Host "──────────────────────�
 # and checking if the motion data is available that the tool would use
 $result = dotnet run --project $ProjectPath -- $testGif --pipeline simpleocr --output json 2>&1 | Out-String
 
-if ($result -match '"motion"' -or $result -match '"frame_count"' -or $result -match '"identity"') {
+if ($result -match '"motion"' -or $result -match '"frame_count"' -or $result -match '"identity"')
+{
     Write-Host "✓ Motion/Identity data available for summarize_animated_gif" -ForegroundColor Green
 
     # Parse and show what the tool would return
-    try {
+    try
+    {
         $data = $result | ConvertFrom-Json
         Write-Host "`n  Would generate summary with:" -ForegroundColor White
-        if ($data.ledger.motion.frame_count) {
-            Write-Host "    • Frame count: $($data.ledger.motion.frame_count)" -ForegroundColor White
+        if ($data.ledger.motion.frame_count)
+        {
+            Write-Host "    • Frame count: $( $data.ledger.motion.frame_count )" -ForegroundColor White
         }
-        if ($data.ledger.motion.duration) {
-            Write-Host "    • Duration: $($data.ledger.motion.duration)s" -ForegroundColor White
+        if ($data.ledger.motion.duration)
+        {
+            Write-Host "    • Duration: $( $data.ledger.motion.duration )s" -ForegroundColor White
         }
-        if ($data.ledger.identity.format) {
-            Write-Host "    • Format: $($data.ledger.identity.format)" -ForegroundColor White
+        if ($data.ledger.identity.format)
+        {
+            Write-Host "    • Format: $( $data.ledger.identity.format )" -ForegroundColor White
         }
-        if ($data.text) {
-            Write-Host "    • Text: $($data.text)" -ForegroundColor White
+        if ($data.text)
+        {
+            Write-Host "    • Text: $( $data.text )" -ForegroundColor White
         }
-    } catch {
+    }
+    catch
+    {
         Write-Host "  (Data available but parsing skipped)" -ForegroundColor Gray
     }
-} else {
+}
+else
+{
     Write-Host "✗ Motion data not found in output" -ForegroundColor Red
     Write-Host $result
 }
@@ -53,11 +63,14 @@ Write-Host "`n[Test 2/6] generate_caption - Accessibility-optimized captions" -F
 Write-Host "─────────────────────────────────────────────────────────" -ForegroundColor Gray
 
 # The caption tool uses ledger.ToAltTextContext() - verify JSON output has this data
-if ($result -match '"text"' -or $result -match '"ledger"') {
+if ($result -match '"text"' -or $result -match '"ledger"')
+{
     Write-Host "✓ Caption generation data available (uses ToAltTextContext)" -ForegroundColor Green
     Write-Host "  - Max length: 150 characters (configurable)" -ForegroundColor White
     Write-Host "  - Returns accessibility-friendly description" -ForegroundColor White
-} else {
+}
+else
+{
     Write-Host "✗ Ledger data not available" -ForegroundColor Red
 }
 
@@ -65,14 +78,17 @@ if ($result -match '"text"' -or $result -match '"ledger"') {
 Write-Host "`n[Test 3/6] generate_detailed_description - Comprehensive analysis" -ForegroundColor Yellow
 Write-Host "─────────────────────────────────────────────────────────" -ForegroundColor Gray
 
-if ($result -match '"ledger"') {
+if ($result -match '"ledger"')
+{
     Write-Host "✓ Detailed description data available (uses ToLlmSummary)" -ForegroundColor Green
     Write-Host "  - Includes technical details (format, dimensions, size)" -ForegroundColor White
     Write-Host "  - Visual analysis (colors, complexity, edges)" -ForegroundColor White
     Write-Host "  - Content analysis (text, quality)" -ForegroundColor White
     Write-Host "  - Motion analysis (for GIFs: frames, duration, intensity)" -ForegroundColor White
     Write-Host "  - Quality metrics (sharpness, exposure)" -ForegroundColor White
-} else {
+}
+else
+{
     Write-Host "✗ Ledger data not available" -ForegroundColor Red
 }
 
@@ -81,15 +97,26 @@ Write-Host "`n[Test 4/6] list_output_templates - Template discovery" -Foreground
 Write-Host "─────────────────────────────────────────────────────────" -ForegroundColor Gray
 
 $templatesFile = "src/Mostlylucid.ImageSummarizer.Cli/Config/output-templates.json"
-if (Test-Path $templatesFile) {
+if (Test-Path $templatesFile)
+{
     $templates = Get-Content $templatesFile | ConvertFrom-Json
-    Write-Host "✓ Found $($templates.templates.Count) output templates:" -ForegroundColor Green
-    foreach ($template in $templates.templates) {
-        $maxLen = if ($template.max_length) { " (max: $($template.max_length) chars)" } else { "" }
-        Write-Host "  - $($template.name)$maxLen" -ForegroundColor White
-        Write-Host "    $($template.description)" -ForegroundColor Gray
+    Write-Host "✓ Found $( $templates.templates.Count ) output templates:" -ForegroundColor Green
+    foreach ($template in $templates.templates)
+    {
+        $maxLen = if ($template.max_length)
+        {
+            " (max: $( $template.max_length ) chars)"
+        }
+        else
+        {
+            ""
+        }
+        Write-Host "  - $( $template.name )$maxLen" -ForegroundColor White
+        Write-Host "    $( $template.description )" -ForegroundColor Gray
     }
-} else {
+}
+else
+{
     Write-Host "✗ Templates file not found at $templatesFile" -ForegroundColor Red
     exit 1
 }
@@ -106,8 +133,9 @@ Write-Host "  - Comparison operators: greater, less, equals" -ForegroundColor Wh
 Write-Host "  - Array indexing: {colors.dominant[0].name}" -ForegroundColor White
 
 Write-Host "`n  Template examples:" -ForegroundColor White
-foreach ($template in $templates.templates | Select-Object -First 3) {
-    Write-Host "    - $($template.name): $($template.description)" -ForegroundColor Gray
+foreach ($template in $templates.templates | Select-Object -First 3)
+{
+    Write-Host "    - $( $template.name ): $( $template.description )" -ForegroundColor Gray
 }
 
 # Test 6: Template Variables
@@ -123,8 +151,9 @@ $varCategories = @{
     "Quality" = @("quality.sharpness", "quality.overall", "quality.exposure")
 }
 
-Write-Host "✓ Available variables ($($varRef.PSObject.Properties.Count) total):" -ForegroundColor Green
-foreach ($category in $varCategories.Keys) {
+Write-Host "✓ Available variables ($( $varRef.PSObject.Properties.Count ) total):" -ForegroundColor Green
+foreach ($category in $varCategories.Keys)
+{
     Write-Host "  - $category`: " -ForegroundColor White -NoNewline
     Write-Host ($varCategories[$category] -join ", ") -ForegroundColor Gray
 }
@@ -145,11 +174,14 @@ $mcpOutput = Receive-Job $job
 Stop-Job $job
 Remove-Job $job
 
-if ($mcpOutput -match "transport reading messages") {
+if ($mcpOutput -match "transport reading messages")
+{
     Write-Host "✓ MCP server started successfully" -ForegroundColor Green
     Write-Host "✓ Server name: imagesummarizer" -ForegroundColor Green
     Write-Host "✓ Transport: stdio (Claude Desktop compatible)" -ForegroundColor Green
-} else {
+}
+else
+{
     Write-Host "✗ MCP server failed to start" -ForegroundColor Red
     Write-Host $mcpOutput
 }

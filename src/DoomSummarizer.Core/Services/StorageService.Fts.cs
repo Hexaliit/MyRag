@@ -1,19 +1,20 @@
+using System.Text.Json;
 using DoomSummarizer.Models;
 using Microsoft.Data.Sqlite;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// FTS5 full-text search index, keyword corpus for IDF, and related item retrieval.
-/// Tables: items_fts, keyword_corpus
+///     FTS5 full-text search index, keyword corpus for IDF, and related item retrieval.
+///     Tables: items_fts, keyword_corpus
 /// </summary>
 public partial class StorageService
 {
     // --- FTS5 Pre-Filter & Keyword Corpus Methods ---
 
     /// <summary>
-    /// Index a document into the FTS5 virtual table for fast keyword pre-filtering.
-    /// Called during ingestion after keyword extraction.
+    ///     Index a document into the FTS5 virtual table for fast keyword pre-filtering.
+    ///     Called during ingestion after keyword extraction.
     /// </summary>
     public async Task IndexDocumentFtsAsync(string itemId, string title, string keywordsText, string contentPreview)
     {
@@ -25,9 +26,9 @@ public partial class StorageService
 
         await using var cmd = _connection.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO items_fts (item_id, title, keywords_text, content_preview)
-            VALUES (@id, @title, @keywords, @preview)
-            """;
+                          INSERT INTO items_fts (item_id, title, keywords_text, content_preview)
+                          VALUES (@id, @title, @keywords, @preview)
+                          """;
         cmd.Parameters.AddWithValue("@id", itemId);
         cmd.Parameters.AddWithValue("@title", title);
         cmd.Parameters.AddWithValue("@keywords", keywordsText);
@@ -36,11 +37,11 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Pre-filter documents using FTS5 keyword match (Layer 1).
-    /// Uses IDF-aware query construction: distinctive (high-IDF) tokens are required
-    /// via AND, common tokens are optional (OR) but boost rank.
-    /// Falls back to pure OR if too few results.
-    /// Returns item IDs that match the query text, optionally filtered by source.
+    ///     Pre-filter documents using FTS5 keyword match (Layer 1).
+    ///     Uses IDF-aware query construction: distinctive (high-IDF) tokens are required
+    ///     via AND, common tokens are optional (OR) but boost rank.
+    ///     Falls back to pure OR if too few results.
+    ///     Returns item IDs that match the query text, optionally filtered by source.
     /// </summary>
     public async Task<List<string>> FtsPreFilterAsync(string query, string? source = null, int limit = 50)
     {
@@ -58,7 +59,10 @@ public partial class StorageService
             else
                 corpus = null;
         }
-        catch { /* corpus not yet populated */ }
+        catch
+        {
+            /* corpus not yet populated */
+        }
 
         // Build IDF-aware query: require distinctive terms, OR common ones
         var smartQuery = BuildIdfAwareFtsQuery(tokens, corpus, corpusSize);
@@ -67,7 +71,7 @@ public partial class StorageService
         // Graceful fallback: if smart query too restrictive (<3 results), try pure OR
         if (ids.Count < 3 && tokens.Count > 1)
         {
-            var orQuery = BuildFtsQuery(tokens, useAnd: false);
+            var orQuery = BuildFtsQuery(tokens, false);
             ids = await ExecuteFtsQueryAsync(orQuery, source, limit);
         }
 
@@ -75,7 +79,7 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Execute an FTS5 query and return matching item IDs.
+    ///     Execute an FTS5 query and return matching item IDs.
     /// </summary>
     private async Task<List<string>> ExecuteFtsQueryAsync(string ftsQuery, string? source, int limit)
     {
@@ -87,47 +91,44 @@ public partial class StorageService
         if (source != null)
         {
             cmd.CommandText = """
-                SELECT f.item_id
-                FROM items_fts f
-                JOIN items i ON f.item_id = i.id
-                WHERE items_fts MATCH @query AND i.source = @source
-                ORDER BY rank
-                LIMIT @limit
-                """;
+                              SELECT f.item_id
+                              FROM items_fts f
+                              JOIN items i ON f.item_id = i.id
+                              WHERE items_fts MATCH @query AND i.source = @source
+                              ORDER BY rank
+                              LIMIT @limit
+                              """;
             cmd.Parameters.AddWithValue("@source", source);
         }
         else
         {
             cmd.CommandText = """
-                SELECT item_id
-                FROM items_fts
-                WHERE items_fts MATCH @query
-                ORDER BY rank
-                LIMIT @limit
-                """;
+                              SELECT item_id
+                              FROM items_fts
+                              WHERE items_fts MATCH @query
+                              ORDER BY rank
+                              LIMIT @limit
+                              """;
         }
 
         cmd.Parameters.AddWithValue("@query", ftsQuery);
         cmd.Parameters.AddWithValue("@limit", limit);
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            ids.Add(reader.GetString(0));
-        }
+        while (await reader.ReadAsync()) ids.Add(reader.GetString(0));
 
         return ids;
     }
 
     /// <summary>
-    /// Build an IDF-aware FTS5 query: distinctive (high-IDF) tokens are required
-    /// via AND, common (low-IDF) tokens are grouped with OR as optional boosters.
-    /// Example: query "How does HTMX work with ASP.NET?"
-    ///   tokens: ["htmx", "work", "asp", "net"]
-    ///   IDF: htmx=high, work=low, asp=medium, net=low
-    ///   → FTS5: "htmx" "asp" ("work" OR "net")
-    /// This ensures the distinctive terms are required while common terms don't
-    /// exclude documents that match the important keywords.
+    ///     Build an IDF-aware FTS5 query: distinctive (high-IDF) tokens are required
+    ///     via AND, common (low-IDF) tokens are grouped with OR as optional boosters.
+    ///     Example: query "How does HTMX work with ASP.NET?"
+    ///     tokens: ["htmx", "work", "asp", "net"]
+    ///     IDF: htmx=high, work=low, asp=medium, net=low
+    ///     → FTS5: "htmx" "asp" ("work" OR "net")
+    ///     This ensures the distinctive terms are required while common terms don't
+    ///     exclude documents that match the important keywords.
     /// </summary>
     private static string BuildIdfAwareFtsQuery(
         List<string> tokens,
@@ -139,7 +140,7 @@ public partial class StorageService
 
         // Without corpus, fall back to AND for all terms
         if (corpus == null || corpusSize is null or <= 0)
-            return BuildFtsQuery(tokens, useAnd: true);
+            return BuildFtsQuery(tokens, true);
 
         var n = corpusSize.Value;
 
@@ -167,18 +168,18 @@ public partial class StorageService
 
         // Edge case: all tokens have same IDF → all required
         if (distinctive.Count == 0)
-            return BuildFtsQuery(tokens, useAnd: true);
+            return BuildFtsQuery(tokens, true);
 
         // Edge case: no common tokens → all required
         if (common.Count == 0)
-            return BuildFtsQuery(tokens, useAnd: true);
+            return BuildFtsQuery(tokens, true);
 
         // Build: distinctive1 distinctive2 (common1 OR common2)
         var requiredPart = string.Join(" ", distinctive.Select(t => $"\"{EscapeFtsToken(t)}\""));
 
         // Validate required part isn't empty (edge case protection)
         if (string.IsNullOrWhiteSpace(requiredPart))
-            return BuildFtsQuery(tokens, useAnd: true);
+            return BuildFtsQuery(tokens, true);
 
         // If we have common tokens, add them as optional boosters
         // FTS5 syntax: term1 term2 (term3 OR term4) doesn't work reliably
@@ -197,9 +198,9 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Build an FTS5 query from tokenized input.
-    /// AND mode: all terms must appear (implicit FTS5 default with space separator).
-    /// OR mode: any term can match (broad fallback when AND is too restrictive).
+    ///     Build an FTS5 query from tokenized input.
+    ///     AND mode: all terms must appear (implicit FTS5 default with space separator).
+    ///     OR mode: any term can match (broad fallback when AND is too restrictive).
     /// </summary>
     private static string BuildFtsQuery(List<string> tokens, bool useAnd)
     {
@@ -214,13 +215,13 @@ public partial class StorageService
 
         var escaped = validTokens.Select(t => $"\"{t}\"");
         return useAnd
-            ? string.Join(" ", escaped)       // FTS5 implicit AND
-            : string.Join(" OR ", escaped);   // Explicit OR for fallback
+            ? string.Join(" ", escaped) // FTS5 implicit AND
+            : string.Join(" OR ", escaped); // Explicit OR for fallback
     }
 
     /// <summary>
-    /// Escape a token for FTS5 query syntax: double any internal quotes,
-    /// remove special FTS5 characters that could cause syntax errors.
+    ///     Escape a token for FTS5 query syntax: double any internal quotes,
+    ///     remove special FTS5 characters that could cause syntax errors.
     /// </summary>
     private static string EscapeFtsToken(string token)
     {
@@ -228,22 +229,22 @@ public partial class StorageService
 
         // Remove FTS5 special characters that could cause syntax errors
         var cleaned = token
-            .Replace("\"", "")      // Remove quotes entirely (we wrap in quotes)
-            .Replace("*", "")       // Wildcard
-            .Replace("(", "")       // Grouping
+            .Replace("\"", "") // Remove quotes entirely (we wrap in quotes)
+            .Replace("*", "") // Wildcard
+            .Replace("(", "") // Grouping
             .Replace(")", "")
-            .Replace(":", "")       // Column prefix
-            .Replace("^", "")       // Boost
-            .Replace("-", " ")      // Negation → space
-            .Replace("+", " ")      // Required → space
+            .Replace(":", "") // Column prefix
+            .Replace("^", "") // Boost
+            .Replace("-", " ") // Negation → space
+            .Replace("+", " ") // Required → space
             .Trim();
 
         return cleaned;
     }
 
     /// <summary>
-    /// Update global keyword corpus IDF counters.
-    /// UPSERT: increment document_count for each keyword.
+    ///     Update global keyword corpus IDF counters.
+    ///     UPSERT: increment document_count for each keyword.
     /// </summary>
     public async Task UpdateKeywordCorpusAsync(IEnumerable<string> keywords)
     {
@@ -260,12 +261,12 @@ public partial class StorageService
                 await using var cmd = _connection.CreateCommand();
                 cmd.Transaction = (SqliteTransaction)transaction;
                 cmd.CommandText = """
-                    INSERT INTO keyword_corpus (keyword, document_count, updated_at)
-                    VALUES (@kw, 1, @now)
-                    ON CONFLICT(keyword) DO UPDATE SET
-                        document_count = document_count + 1,
-                        updated_at = @now
-                    """;
+                                  INSERT INTO keyword_corpus (keyword, document_count, updated_at)
+                                  VALUES (@kw, 1, @now)
+                                  ON CONFLICT(keyword) DO UPDATE SET
+                                      document_count = document_count + 1,
+                                      updated_at = @now
+                                  """;
                 cmd.Parameters.AddWithValue("@kw", keyword.ToLowerInvariant());
                 cmd.Parameters.AddWithValue("@now", now);
                 await cmd.ExecuteNonQueryAsync();
@@ -281,8 +282,8 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Load the global keyword corpus for IDF computation.
-    /// Returns keyword → document_count mapping.
+    ///     Load the global keyword corpus for IDF computation.
+    ///     Returns keyword → document_count mapping.
     /// </summary>
     public async Task<Dictionary<string, int>> GetKeywordCorpusAsync()
     {
@@ -291,16 +292,13 @@ public partial class StorageService
         cmd.CommandText = "SELECT keyword, document_count FROM keyword_corpus";
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            corpus[reader.GetString(0)] = reader.GetInt32(1);
-        }
+        while (await reader.ReadAsync()) corpus[reader.GetString(0)] = reader.GetInt32(1);
 
         return corpus;
     }
 
     /// <summary>
-    /// Get the total number of distinct documents in the keyword corpus.
+    ///     Get the total number of distinct documents in the keyword corpus.
     /// </summary>
     public async Task<int> GetKeywordCorpusSizeAsync()
     {
@@ -311,7 +309,7 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Load ContentItems by their IDs (for FTS5 pre-filter results).
+    ///     Load ContentItems by their IDs (for FTS5 pre-filter results).
     /// </summary>
     public async Task<List<ContentItem>> LoadItemsByIdsAsync(List<string> ids)
     {
@@ -322,7 +320,7 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Get all items from the database (for backfilling FTS5 index).
+    ///     Get all items from the database (for backfilling FTS5 index).
     /// </summary>
     public async Task<List<StoredItem>> GetAllItemsAsync()
     {
@@ -331,16 +329,13 @@ public partial class StorageService
         cmd.CommandText = "SELECT * FROM items ORDER BY fetched_at DESC";
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            items.Add(ReadStoredItem(reader));
-        }
+        while (await reader.ReadAsync()) items.Add(ReadStoredItem(reader));
 
         return items;
     }
 
     /// <summary>
-    /// Check if the FTS5 index has any entries (used to trigger backfill).
+    ///     Check if the FTS5 index has any entries (used to trigger backfill).
     /// </summary>
     public async Task<bool> IsFtsIndexEmptyAsync()
     {
@@ -351,8 +346,8 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Batch save items + FTS index + keyword corpus in a single SQLite transaction.
-    /// Much faster than per-item writes due to reduced fsync overhead.
+    ///     Batch save items + FTS index + keyword corpus in a single SQLite transaction.
+    ///     Much faster than per-item writes due to reduced fsync overhead.
     /// </summary>
     public async Task SaveAndIndexBatchAsync(List<(ContentItem item, DocumentProfile profile)> batch)
     {
@@ -370,11 +365,11 @@ public partial class StorageService
                 await using var saveCmd = _connection.CreateCommand();
                 saveCmd.Transaction = (SqliteTransaction)transaction;
                 saveCmd.CommandText = """
-                    INSERT OR REPLACE INTO items
-                    (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords)
-                    VALUES
-                    (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords)
-                    """;
+                                      INSERT OR REPLACE INTO items
+                                      (id, source, title, url, summary, content, sentiment_score, detected_topic, tags, score, created_at, fetched_at, embedding, keywords)
+                                      VALUES
+                                      (@id, @source, @title, @url, @summary, @content, @sentiment, @topic, @tags, @score, @created, @fetched, @embedding, @keywords)
+                                      """;
                 saveCmd.Parameters.AddWithValue("@id", item.Id);
                 saveCmd.Parameters.AddWithValue("@source", item.Source);
                 saveCmd.Parameters.AddWithValue("@title", item.Title);
@@ -383,11 +378,13 @@ public partial class StorageService
                 saveCmd.Parameters.AddWithValue("@content", (object?)item.Content ?? DBNull.Value);
                 saveCmd.Parameters.AddWithValue("@sentiment", item.SentimentScore);
                 saveCmd.Parameters.AddWithValue("@topic", (object?)item.DetectedTopic ?? DBNull.Value);
-                saveCmd.Parameters.AddWithValue("@tags", item.Tags.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(item.Tags) : DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@tags",
+                    item.Tags.Count > 0 ? JsonSerializer.Serialize(item.Tags) : DBNull.Value);
                 saveCmd.Parameters.AddWithValue("@score", item.Score);
                 saveCmd.Parameters.AddWithValue("@created", item.CreatedAt.ToString("O"));
                 saveCmd.Parameters.AddWithValue("@fetched", item.FetchedAt.ToString("O"));
-                saveCmd.Parameters.AddWithValue("@embedding", item.Embedding != null ? EmbeddingCompat.ToBytes(item.Embedding) : DBNull.Value);
+                saveCmd.Parameters.AddWithValue("@embedding",
+                    item.Embedding != null ? EmbeddingCompat.ToBytes(item.Embedding) : DBNull.Value);
                 saveCmd.Parameters.AddWithValue("@keywords", (object?)item.Keywords ?? DBNull.Value);
                 await saveCmd.ExecuteNonQueryAsync();
 
@@ -403,9 +400,9 @@ public partial class StorageService
                 await using var ftsCmd = _connection.CreateCommand();
                 ftsCmd.Transaction = (SqliteTransaction)transaction;
                 ftsCmd.CommandText = """
-                    INSERT INTO items_fts (item_id, title, keywords_text, content_preview)
-                    VALUES (@id, @title, @keywords, @preview)
-                    """;
+                                     INSERT INTO items_fts (item_id, title, keywords_text, content_preview)
+                                     VALUES (@id, @title, @keywords, @preview)
+                                     """;
                 ftsCmd.Parameters.AddWithValue("@id", item.Id);
                 ftsCmd.Parameters.AddWithValue("@title", item.Title);
                 ftsCmd.Parameters.AddWithValue("@keywords", profile.KeywordsText);
@@ -424,12 +421,12 @@ public partial class StorageService
                     await using var kwCmd = _connection.CreateCommand();
                     kwCmd.Transaction = (SqliteTransaction)transaction;
                     kwCmd.CommandText = """
-                        INSERT INTO keyword_corpus (keyword, document_count, updated_at)
-                        VALUES (@kw, 1, @now)
-                        ON CONFLICT(keyword) DO UPDATE SET
-                            document_count = document_count + 1,
-                            updated_at = @now
-                        """;
+                                        INSERT INTO keyword_corpus (keyword, document_count, updated_at)
+                                        VALUES (@kw, 1, @now)
+                                        ON CONFLICT(keyword) DO UPDATE SET
+                                            document_count = document_count + 1,
+                                            updated_at = @now
+                                        """;
                     kwCmd.Parameters.AddWithValue("@kw", keyword.ToLowerInvariant());
                     kwCmd.Parameters.AddWithValue("@now", now);
                     await kwCmd.ExecuteNonQueryAsync();

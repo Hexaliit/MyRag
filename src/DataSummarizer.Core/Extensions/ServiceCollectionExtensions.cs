@@ -10,12 +10,12 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 namespace Mostlylucid.DocSummarizer.Data.Extensions;
 
 /// <summary>
-/// Extension methods for registering DataSummarizer.Core services.
+///     Extension methods for registering DataSummarizer.Core services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add DataSummarizer.Core services for processing CSV, JSON, Excel, and Parquet files.
+    ///     Add DataSummarizer.Core services for processing CSV, JSON, Excel, and Parquet files.
     /// </summary>
     public static IServiceCollection AddDataSummarizer(this IServiceCollection services)
     {
@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add DataSummarizer.Core services with custom configuration.
+    ///     Add DataSummarizer.Core services with custom configuration.
     /// </summary>
     public static IServiceCollection AddDataSummarizer(
         this IServiceCollection services,
@@ -46,16 +46,16 @@ public static class ServiceCollectionExtensions
 
         // Register analysis waves (use AddSingleton for multiple IDataAnalysisWave implementations)
         // Priority order: higher priority waves run first
-        services.AddSingleton<IDataAnalysisWave, IdentityWave>();       // P=110
-        services.AddSingleton<IDataAnalysisWave, SamplingWave>();       // P=100
-        services.AddSingleton<IDataAnalysisWave, TypeInferenceWave>();  // P=95
-        services.AddSingleton<IDataAnalysisWave, ProfileWave>();        // P=90
-        services.AddSingleton<IDataAnalysisWave, RelationshipWave>();   // P=85 - FK detection for databases
-        services.AddSingleton<IDataAnalysisWave, QualityWave>();        // P=80
-        services.AddSingleton<IDataAnalysisWave, StatisticsWave>();     // P=70
-        services.AddSingleton<IDataAnalysisWave, OutlierWave>();        // P=60
-        services.AddSingleton<IDataAnalysisWave, CorrelationWave>();    // P=50
-        services.AddSingleton<IDataAnalysisWave, PiiDetectionWave>();   // P=40
+        services.AddSingleton<IDataAnalysisWave, IdentityWave>(); // P=110
+        services.AddSingleton<IDataAnalysisWave, SamplingWave>(); // P=100
+        services.AddSingleton<IDataAnalysisWave, TypeInferenceWave>(); // P=95
+        services.AddSingleton<IDataAnalysisWave, ProfileWave>(); // P=90
+        services.AddSingleton<IDataAnalysisWave, RelationshipWave>(); // P=85 - FK detection for databases
+        services.AddSingleton<IDataAnalysisWave, QualityWave>(); // P=80
+        services.AddSingleton<IDataAnalysisWave, StatisticsWave>(); // P=70
+        services.AddSingleton<IDataAnalysisWave, OutlierWave>(); // P=60
+        services.AddSingleton<IDataAnalysisWave, CorrelationWave>(); // P=50
+        services.AddSingleton<IDataAnalysisWave, PiiDetectionWave>(); // P=40
         services.AddSingleton<IDataAnalysisWave, DataCharacterizationWave>(); // P=30
 
         // Analysis orchestrator

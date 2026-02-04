@@ -1,32 +1,30 @@
-using System.Collections.Concurrent;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 namespace Mostlylucid.DocSummarizer.Images.Services;
 
 /// <summary>
-/// Background service for offline salience evolution.
-/// Runs the FULL analysis pipeline with all LLMs to assess quality and improve signal weights.
-/// This enables continuous improvement without blocking the main analysis pipeline.
+///     Background service for offline salience evolution.
+///     Runs the FULL analysis pipeline with all LLMs to assess quality and improve signal weights.
+///     This enables continuous improvement without blocking the main analysis pipeline.
 /// </summary>
 public class SalienceEvolutionService : IDisposable
 {
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Channel<EvolutionJob> _jobQueue;
     private readonly SalienceLearner _learner;
     private readonly ILogger<SalienceEvolutionService>? _logger;
-    private readonly Channel<EvolutionJob> _jobQueue;
-    private readonly CancellationTokenSource _cts = new();
-    private Task? _processingTask;
     private bool _disposed;
+    private int _errorCount;
 
     // Optional: full pipeline for re-analysis
     private Func<string, CancellationToken, Task<DynamicImageProfile?>>? _fullPipelineAnalyzer;
+    private int _improvedCount;
 
     // Metrics
     private int _processedCount;
-    private int _improvedCount;
-    private int _errorCount;
+    private Task? _processingTask;
     private int _reanalyzedCount;
 
     public SalienceEvolutionService(SalienceLearner learner, ILogger<SalienceEvolutionService>? logger = null)
@@ -39,9 +37,19 @@ public class SalienceEvolutionService : IDisposable
         });
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _cts.Cancel();
+        _cts.Dispose();
+        _disposed = true;
+    }
+
     /// <summary>
-    /// Configure the full pipeline analyzer for re-analysis.
-    /// This allows running complete analysis with all LLMs in background.
+    ///     Configure the full pipeline analyzer for re-analysis.
+    ///     This allows running complete analysis with all LLMs in background.
     /// </summary>
     public void SetFullPipelineAnalyzer(Func<string, CancellationToken, Task<DynamicImageProfile?>> analyzer)
     {
@@ -49,7 +57,7 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Start the background processing task.
+    ///     Start the background processing task.
     /// </summary>
     public void Start()
     {
@@ -61,24 +69,22 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Stop the background processing task.
+    ///     Stop the background processing task.
     /// </summary>
     public async Task StopAsync()
     {
         _cts.Cancel();
         _jobQueue.Writer.Complete();
 
-        if (_processingTask != null)
-        {
-            await _processingTask;
-        }
+        if (_processingTask != null) await _processingTask;
 
-        _logger?.LogInformation("Salience evolution service stopped. Processed: {Processed}, Improved: {Improved}, Errors: {Errors}",
+        _logger?.LogInformation(
+            "Salience evolution service stopped. Processed: {Processed}, Improved: {Improved}, Errors: {Errors}",
             _processedCount, _improvedCount, _errorCount);
     }
 
     /// <summary>
-    /// Queue an image for background assessment and learning.
+    ///     Queue an image for background assessment and learning.
     /// </summary>
     /// <param name="profile">The analyzed image profile</param>
     /// <param name="generatedCaption">Caption generated during main analysis</param>
@@ -107,24 +113,23 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Queue for evolution with full pipeline re-analysis.
-    /// Use this for comprehensive learning on images where quality matters.
+    ///     Queue for evolution with full pipeline re-analysis.
+    ///     Use this for comprehensive learning on images where quality matters.
     /// </summary>
     public void QueueForFullEvolution(
         DynamicImageProfile profile,
         string? generatedCaption,
         string purpose = "caption")
     {
-        QueueForEvolution(profile, generatedCaption, purpose, null, runFullAnalysis: true);
+        QueueForEvolution(profile, generatedCaption, purpose, null, true);
     }
 
     /// <summary>
-    /// Process the job queue in the background.
+    ///     Process the job queue in the background.
     /// </summary>
     private async Task ProcessQueueAsync()
     {
         await foreach (var job in _jobQueue.Reader.ReadAllAsync(_cts.Token))
-        {
             try
             {
                 await ProcessJobAsync(job);
@@ -135,11 +140,10 @@ public class SalienceEvolutionService : IDisposable
                 Interlocked.Increment(ref _errorCount);
                 _logger?.LogWarning(ex, "Error processing evolution job for {ImagePath}", job.Profile?.ImagePath);
             }
-        }
     }
 
     /// <summary>
-    /// Process a single evolution job - optionally re-analyze with full pipeline, assess, evaluate, and learn.
+    ///     Process a single evolution job - optionally re-analyze with full pipeline, assess, evaluate, and learn.
     /// </summary>
     private async Task ProcessJobAsync(EvolutionJob job)
     {
@@ -152,7 +156,6 @@ public class SalienceEvolutionService : IDisposable
 
         // Step 0: If full pipeline is available, run comprehensive re-analysis
         if (_fullPipelineAnalyzer != null && !string.IsNullOrEmpty(job.Profile.ImagePath) && job.RunFullAnalysis)
-        {
             try
             {
                 _logger?.LogDebug("Running full pipeline re-analysis for: {ImagePath}", job.Profile.ImagePath);
@@ -171,11 +174,9 @@ public class SalienceEvolutionService : IDisposable
                     var fullQuality = AssessOutputQuality(fullAnalysisProfile, caption, job.Purpose);
 
                     if (fullQuality > originalQuality)
-                    {
                         _logger?.LogInformation(
                             "Full analysis improved quality for {ImagePath}: {Original:F2} -> {Full:F2}",
                             job.Profile.ImagePath, originalQuality, fullQuality);
-                    }
                 }
             }
             catch (Exception ex)
@@ -183,7 +184,6 @@ public class SalienceEvolutionService : IDisposable
                 _logger?.LogWarning(ex, "Full pipeline re-analysis failed for {ImagePath}, using original analysis",
                     job.Profile.ImagePath);
             }
-        }
 
         // Step 1: Assess output quality using heuristics
         var qualityScore = AssessOutputQuality(profile, caption, job.Purpose);
@@ -193,9 +193,7 @@ public class SalienceEvolutionService : IDisposable
 
         // Step 3: If we have full analysis, compare signal coverage
         if (fullAnalysisProfile != null)
-        {
             usefulSignals = CompareAndLearnSignals(job.Profile, fullAnalysisProfile, usefulSignals);
-        }
 
         // Step 4: Adjust weights based on quality
         var adjustedSignals = AdjustWeightsByQuality(usefulSignals, qualityScore);
@@ -203,26 +201,20 @@ public class SalienceEvolutionService : IDisposable
         // Step 5: Record feedback to the learner
         var embeddings = job.Embeddings ?? ImageEmbeddingSet.FromProfile(profile);
         if (embeddings != null)
-        {
             _learner.RecordFeedbackWithEmbeddings(profile, embeddings, adjustedSignals);
-        }
         else
-        {
             _learner.RecordFeedback(profile, adjustedSignals);
-        }
 
         // Step 6: Track improvements
-        if (qualityScore >= 0.7)
-        {
-            Interlocked.Increment(ref _improvedCount);
-        }
+        if (qualityScore >= 0.7) Interlocked.Increment(ref _improvedCount);
 
-        _logger?.LogDebug("Evolution processed: {ImagePath}, Quality: {Quality:F2}, Signals: {SignalCount}, FullAnalysis: {FullAnalysis}",
+        _logger?.LogDebug(
+            "Evolution processed: {ImagePath}, Quality: {Quality:F2}, Signals: {SignalCount}, FullAnalysis: {FullAnalysis}",
             profile.ImagePath, qualityScore, adjustedSignals.Count, fullAnalysisProfile != null);
     }
 
     /// <summary>
-    /// Compare original and full analysis to learn which signals made the difference.
+    ///     Compare original and full analysis to learn which signals made the difference.
     /// </summary>
     private Dictionary<string, double> CompareAndLearnSignals(
         DynamicImageProfile original,
@@ -252,13 +244,9 @@ public class SalienceEvolutionService : IDisposable
             {
                 var boost = fullValue.Confidence - (originalValue?.Confidence ?? 0);
                 if (result.TryGetValue(category, out var current))
-                {
                     result[category] = Math.Min(1.0, current + boost * 0.3);
-                }
                 else
-                {
                     result[category] = boost;
-                }
             }
         }
 
@@ -266,8 +254,8 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Assess the quality of generated output using heuristics.
-    /// Returns a score from 0 (poor) to 1 (excellent).
+    ///     Assess the quality of generated output using heuristics.
+    ///     Returns a score from 0 (poor) to 1 (excellent).
     /// </summary>
     private double AssessOutputQuality(DynamicImageProfile profile, string? caption, string purpose)
     {
@@ -296,10 +284,7 @@ public class SalienceEvolutionService : IDisposable
         };
 
         var hasLeakage = leakagePatterns.Any(p => caption.Contains(p, StringComparison.OrdinalIgnoreCase));
-        if (hasLeakage)
-        {
-            score -= 0.2;
-        }
+        if (hasLeakage) score -= 0.2;
 
         // Check for specificity (good sign) - mentions entities, subjects, actions
         var subjects = profile.GetValue<string>("vision.subjects");
@@ -319,10 +304,7 @@ public class SalienceEvolutionService : IDisposable
         {
             var actionWords = new[] { "moving", "walking", "running", "jumping", "waving", "dancing", "falling" };
             var hasAction = actionWords.Any(a => caption.Contains(a, StringComparison.OrdinalIgnoreCase));
-            if (hasAction)
-            {
-                score += 0.1;
-            }
+            if (hasAction) score += 0.1;
         }
 
         // Penalty for generic/vague descriptions
@@ -334,18 +316,16 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Identify which signals from the profile appear to have been useful
-    /// based on what content appears in the generated caption.
+    ///     Identify which signals from the profile appear to have been useful
+    ///     based on what content appears in the generated caption.
     /// </summary>
     private Dictionary<string, double> IdentifyUsefulSignals(DynamicImageProfile profile, string? caption)
     {
         var signals = new Dictionary<string, double>();
 
         if (string.IsNullOrWhiteSpace(caption))
-        {
             // No caption = use defaults
             return GetDefaultSignalWeights();
-        }
 
         var captionLower = caption.ToLowerInvariant();
 
@@ -353,35 +333,23 @@ public class SalienceEvolutionService : IDisposable
         var subjects = profile.GetValue<string>("vision.subjects");
         if (!string.IsNullOrEmpty(subjects) &&
             subjects.Split(',').Any(s => captionLower.Contains(s.Trim().ToLowerInvariant())))
-        {
             signals["subjects"] = 1.0;
-        }
         else
-        {
             signals["subjects"] = 0.3;
-        }
 
         // Check entities
         var entities = profile.GetValue<List<string>>("content.entities");
         if (entities != null && entities.Any(e => captionLower.Contains(e.ToLowerInvariant())))
-        {
             signals["entities"] = 1.0;
-        }
         else
-        {
             signals["entities"] = 0.3;
-        }
 
         // Check scene/setting
         var scene = profile.GetValue<string>("vision.scene");
         if (!string.IsNullOrEmpty(scene) && captionLower.Contains(scene.ToLowerInvariant()))
-        {
             signals["scene"] = 0.9;
-        }
         else
-        {
             signals["scene"] = 0.3;
-        }
 
         // Check motion (for animated)
         var motion = profile.GetValue<string>("motion.description");
@@ -390,13 +358,9 @@ public class SalienceEvolutionService : IDisposable
         {
             var motionWords = new[] { "animation", "movement", "motion", "animated", "moving", "loop" };
             if (motionWords.Any(m => captionLower.Contains(m)))
-            {
                 signals["motion"] = 1.0;
-            }
             else
-            {
                 signals["motion"] = 0.5; // Should be mentioned for animated
-            }
         }
         else
         {
@@ -409,13 +373,9 @@ public class SalienceEvolutionService : IDisposable
         {
             var ocrWords = ocrText.Split(' ').Take(5); // First 5 words
             if (ocrWords.Any(w => w.Length > 3 && captionLower.Contains(w.ToLowerInvariant())))
-            {
                 signals["text"] = 0.9;
-            }
             else
-            {
                 signals["text"] = 0.4;
-            }
         }
         else
         {
@@ -435,14 +395,14 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Adjust signal weights based on overall quality score.
-    /// High quality = boost weights, low quality = dampen weights.
+    ///     Adjust signal weights based on overall quality score.
+    ///     High quality = boost weights, low quality = dampen weights.
     /// </summary>
     private Dictionary<string, double> AdjustWeightsByQuality(Dictionary<string, double> signals, double qualityScore)
     {
         // Adjustment factor based on quality
         // Quality 0.5 = no change, quality 1.0 = boost by 20%, quality 0.0 = reduce by 30%
-        var factor = 0.7 + (qualityScore * 0.5);
+        var factor = 0.7 + qualityScore * 0.5;
 
         return signals.ToDictionary(
             kvp => kvp.Key,
@@ -451,7 +411,7 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Default signal weights when no caption available.
+    ///     Default signal weights when no caption available.
     /// </summary>
     private static Dictionary<string, double> GetDefaultSignalWeights()
     {
@@ -469,7 +429,7 @@ public class SalienceEvolutionService : IDisposable
     }
 
     /// <summary>
-    /// Get current evolution statistics.
+    ///     Get current evolution statistics.
     /// </summary>
     public EvolutionStatistics GetStatistics()
     {
@@ -483,20 +443,10 @@ public class SalienceEvolutionService : IDisposable
             LearnerStats = _learner.GetStatistics()
         };
     }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _cts.Cancel();
-        _cts.Dispose();
-        _disposed = true;
-    }
 }
 
 /// <summary>
-/// Job for the evolution queue.
+///     Job for the evolution queue.
 /// </summary>
 public record EvolutionJob
 {
@@ -509,7 +459,7 @@ public record EvolutionJob
 }
 
 /// <summary>
-/// Statistics about the evolution service.
+///     Statistics about the evolution service.
 /// </summary>
 public record EvolutionStatistics
 {

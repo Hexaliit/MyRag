@@ -6,8 +6,8 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Mostlylucid.DocSummarizer.Scanning;
 
 /// <summary>
-/// Loads document wave manifests from YAML files for dynamic composition.
-/// Supports both embedded resources and external files.
+///     Loads document wave manifests from YAML files for dynamic composition.
+///     Supports both embedded resources and external files.
 /// </summary>
 public sealed class DocumentWaveManifestLoader
 {
@@ -24,7 +24,7 @@ public sealed class DocumentWaveManifestLoader
     }
 
     /// <summary>
-    /// Load all wave manifests from embedded resources.
+    ///     Load all wave manifests from embedded resources.
     /// </summary>
     public IReadOnlyDictionary<string, DocumentWaveManifest> LoadEmbeddedManifests()
     {
@@ -41,17 +41,14 @@ public sealed class DocumentWaveManifestLoader
             var yaml = reader.ReadToEnd();
             var manifest = _deserializer.Deserialize<DocumentWaveManifest>(yaml);
 
-            if (manifest != null && !string.IsNullOrEmpty(manifest.Name))
-            {
-                _manifests[manifest.Name] = manifest;
-            }
+            if (manifest != null && !string.IsNullOrEmpty(manifest.Name)) _manifests[manifest.Name] = manifest;
         }
 
         return _manifests;
     }
 
     /// <summary>
-    /// Load wave manifests from a directory.
+    ///     Load wave manifests from a directory.
     /// </summary>
     public IReadOnlyDictionary<string, DocumentWaveManifest> LoadFromDirectory(string directory)
     {
@@ -65,24 +62,21 @@ public sealed class DocumentWaveManifestLoader
             var yaml = File.ReadAllText(file);
             var manifest = _deserializer.Deserialize<DocumentWaveManifest>(yaml);
 
-            if (manifest != null && !string.IsNullOrEmpty(manifest.Name))
-            {
-                _manifests[manifest.Name] = manifest;
-            }
+            if (manifest != null && !string.IsNullOrEmpty(manifest.Name)) _manifests[manifest.Name] = manifest;
         }
 
         return _manifests;
     }
 
     /// <summary>
-    /// Load all pipeline definitions from embedded resources.
+    ///     Load all pipeline definitions from embedded resources.
     /// </summary>
     public IReadOnlyDictionary<string, PipelineDefinition> LoadEmbeddedPipelines()
     {
         var assembly = Assembly.GetExecutingAssembly();
         var resourceNames = assembly.GetManifestResourceNames()
             .Where(n => n.Contains(".Pipelines.") && n.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)
-                        && !n.EndsWith(".wave.yaml", StringComparison.OrdinalIgnoreCase));
+                                                  && !n.EndsWith(".wave.yaml", StringComparison.OrdinalIgnoreCase));
 
         foreach (var resourceName in resourceNames)
         {
@@ -93,17 +87,14 @@ public sealed class DocumentWaveManifestLoader
             var yaml = reader.ReadToEnd();
             var pipeline = _deserializer.Deserialize<PipelineDefinition>(yaml);
 
-            if (pipeline != null && !string.IsNullOrEmpty(pipeline.Name))
-            {
-                _pipelines[pipeline.Name] = pipeline;
-            }
+            if (pipeline != null && !string.IsNullOrEmpty(pipeline.Name)) _pipelines[pipeline.Name] = pipeline;
         }
 
         return _pipelines;
     }
 
     /// <summary>
-    /// Load pipeline definitions from a directory.
+    ///     Load pipeline definitions from a directory.
     /// </summary>
     public IReadOnlyDictionary<string, PipelineDefinition> LoadPipelinesFromDirectory(string directory)
     {
@@ -118,17 +109,14 @@ public sealed class DocumentWaveManifestLoader
             var yaml = File.ReadAllText(file);
             var pipeline = _deserializer.Deserialize<PipelineDefinition>(yaml);
 
-            if (pipeline != null && !string.IsNullOrEmpty(pipeline.Name))
-            {
-                _pipelines[pipeline.Name] = pipeline;
-            }
+            if (pipeline != null && !string.IsNullOrEmpty(pipeline.Name)) _pipelines[pipeline.Name] = pipeline;
         }
 
         return _pipelines;
     }
 
     /// <summary>
-    /// Get a specific manifest by wave name.
+    ///     Get a specific manifest by wave name.
     /// </summary>
     public DocumentWaveManifest? GetManifest(string waveName)
     {
@@ -136,7 +124,7 @@ public sealed class DocumentWaveManifestLoader
     }
 
     /// <summary>
-    /// Get a specific pipeline by name.
+    ///     Get a specific pipeline by name.
     /// </summary>
     public PipelineDefinition? GetPipeline(string pipelineName)
     {
@@ -144,17 +132,23 @@ public sealed class DocumentWaveManifestLoader
     }
 
     /// <summary>
-    /// Get all loaded manifests.
+    ///     Get all loaded manifests.
     /// </summary>
-    public IReadOnlyDictionary<string, DocumentWaveManifest> GetAllManifests() => _manifests;
+    public IReadOnlyDictionary<string, DocumentWaveManifest> GetAllManifests()
+    {
+        return _manifests;
+    }
 
     /// <summary>
-    /// Get all loaded pipelines.
+    ///     Get all loaded pipelines.
     /// </summary>
-    public IReadOnlyDictionary<string, PipelineDefinition> GetAllPipelines() => _pipelines;
+    public IReadOnlyDictionary<string, PipelineDefinition> GetAllPipelines()
+    {
+        return _pipelines;
+    }
 
     /// <summary>
-    /// Get all manifests sorted by priority (highest first).
+    ///     Get all manifests sorted by priority (highest first).
     /// </summary>
     public IReadOnlyList<DocumentWaveManifest> GetOrderedManifests()
     {
@@ -164,7 +158,7 @@ public sealed class DocumentWaveManifestLoader
     }
 
     /// <summary>
-    /// Get wave names for a specific pipeline.
+    ///     Get wave names for a specific pipeline.
     /// </summary>
     public IReadOnlyList<string> GetPipelineWaves(string pipelineName)
     {
@@ -178,7 +172,7 @@ public sealed class DocumentWaveManifestLoader
     }
 
     /// <summary>
-    /// Get all signal contracts for documentation.
+    ///     Get all signal contracts for documentation.
     /// </summary>
     public string GetSignalContractsSummary()
     {
@@ -197,19 +191,14 @@ public sealed class DocumentWaveManifestLoader
             {
                 sb.AppendLine("**Emits:**");
                 foreach (var signal in manifest.Emits)
-                {
                     sb.AppendLine($"  - `{signal.Key}` ({signal.Type}): {signal.Description}");
-                }
                 sb.AppendLine();
             }
 
             if (manifest.Signals.Count > 0)
             {
                 sb.AppendLine("**Signals:**");
-                foreach (var signal in manifest.Signals)
-                {
-                    sb.AppendLine($"  - `{signal}`");
-                }
+                foreach (var signal in manifest.Signals) sb.AppendLine($"  - `{signal}`");
                 sb.AppendLine();
             }
 
@@ -222,51 +211,39 @@ public sealed class DocumentWaveManifestLoader
 }
 
 /// <summary>
-/// Pipeline definition loaded from YAML.
+///     Pipeline definition loaded from YAML.
 /// </summary>
 public class PipelineDefinition
 {
-    [YamlMember(Alias = "name")]
-    public string Name { get; set; } = "";
+    [YamlMember(Alias = "name")] public string Name { get; set; } = "";
 
-    [YamlMember(Alias = "description")]
-    public string Description { get; set; } = "";
+    [YamlMember(Alias = "description")] public string Description { get; set; } = "";
 
-    [YamlMember(Alias = "version")]
-    public int Version { get; set; } = 1;
+    [YamlMember(Alias = "version")] public int Version { get; set; } = 1;
 
-    [YamlMember(Alias = "signals")]
-    public List<string> Signals { get; set; } = [];
+    [YamlMember(Alias = "signals")] public List<string> Signals { get; set; } = [];
 
-    [YamlMember(Alias = "waves")]
-    public PipelineWaves Waves { get; set; } = new();
+    [YamlMember(Alias = "waves")] public PipelineWaves Waves { get; set; } = new();
 
-    [YamlMember(Alias = "output")]
-    public PipelineOutput Output { get; set; } = new();
+    [YamlMember(Alias = "output")] public PipelineOutput Output { get; set; } = new();
 
-    [YamlMember(Alias = "escalation")]
-    public PipelineEscalation Escalation { get; set; } = new();
+    [YamlMember(Alias = "escalation")] public PipelineEscalation Escalation { get; set; } = new();
 
-    [YamlMember(Alias = "models")]
-    public PipelineModels Models { get; set; } = new();
+    [YamlMember(Alias = "models")] public PipelineModels Models { get; set; } = new();
 
-    [YamlMember(Alias = "budget")]
-    public PipelineBudget Budget { get; set; } = new();
+    [YamlMember(Alias = "budget")] public PipelineBudget Budget { get; set; } = new();
 }
 
 public class PipelineWaves
 {
-    [YamlMember(Alias = "required")]
-    public List<string> Required { get; set; } = [];
+    [YamlMember(Alias = "required")] public List<string> Required { get; set; } = [];
 
-    [YamlMember(Alias = "conditional")]
-    public List<string> Conditional { get; set; } = [];
+    [YamlMember(Alias = "conditional")] public List<string> Conditional { get; set; } = [];
 }
 
 public class PipelineOutput
 {
-    [YamlMember(Alias = "format")]
-    public string Format { get; set; } = "markdown";
+    [YamlMember(Alias = "format")] public string Format { get; set; } = "markdown";
 
     [YamlMember(Alias = "include_metadata")]
     public bool IncludeMetadata { get; set; } = true;
@@ -280,63 +257,47 @@ public class PipelineOutput
 
 public class PipelineEscalation
 {
-    [YamlMember(Alias = "enabled")]
-    public bool Enabled { get; set; } = true;
+    [YamlMember(Alias = "enabled")] public bool Enabled { get; set; } = true;
 
-    [YamlMember(Alias = "triggers")]
-    public List<EscalationTrigger> Triggers { get; set; } = [];
+    [YamlMember(Alias = "triggers")] public List<EscalationTrigger> Triggers { get; set; } = [];
 }
 
 public class EscalationTrigger
 {
-    [YamlMember(Alias = "signal")]
-    public string Signal { get; set; } = "";
+    [YamlMember(Alias = "signal")] public string Signal { get; set; } = "";
 
-    [YamlMember(Alias = "condition")]
-    public string? Condition { get; set; }
+    [YamlMember(Alias = "condition")] public string? Condition { get; set; }
 
-    [YamlMember(Alias = "value")]
-    public object? Value { get; set; }
+    [YamlMember(Alias = "value")] public object? Value { get; set; }
 
-    [YamlMember(Alias = "target")]
-    public string Target { get; set; } = "";
+    [YamlMember(Alias = "target")] public string Target { get; set; } = "";
 
-    [YamlMember(Alias = "reason")]
-    public string? Reason { get; set; }
+    [YamlMember(Alias = "reason")] public string? Reason { get; set; }
 }
 
 public class PipelineModels
 {
-    [YamlMember(Alias = "default")]
-    public string Default { get; set; } = "minicpm-v:8b";
+    [YamlMember(Alias = "default")] public string Default { get; set; } = "minicpm-v:8b";
 
-    [YamlMember(Alias = "provider")]
-    public string Provider { get; set; } = "ollama";
+    [YamlMember(Alias = "provider")] public string Provider { get; set; } = "ollama";
 
-    [YamlMember(Alias = "tiers")]
-    public Dictionary<string, ModelTierConfig> Tiers { get; set; } = new();
+    [YamlMember(Alias = "tiers")] public Dictionary<string, ModelTierConfig> Tiers { get; set; } = new();
 }
 
 public class ModelTierConfig
 {
-    [YamlMember(Alias = "model")]
-    public string Model { get; set; } = "";
+    [YamlMember(Alias = "model")] public string Model { get; set; } = "";
 
-    [YamlMember(Alias = "provider")]
-    public string Provider { get; set; } = "ollama";
+    [YamlMember(Alias = "provider")] public string Provider { get; set; } = "ollama";
 
-    [YamlMember(Alias = "for")]
-    public string? For { get; set; }
+    [YamlMember(Alias = "for")] public string? For { get; set; }
 }
 
 public class PipelineBudget
 {
-    [YamlMember(Alias = "timeout_ms")]
-    public int TimeoutMs { get; set; } = 300000;
+    [YamlMember(Alias = "timeout_ms")] public int TimeoutMs { get; set; } = 300000;
 
-    [YamlMember(Alias = "max_pages")]
-    public int MaxPages { get; set; } = 100;
+    [YamlMember(Alias = "max_pages")] public int MaxPages { get; set; } = 100;
 
-    [YamlMember(Alias = "max_cost_usd")]
-    public double MaxCostUsd { get; set; } = 1.0;
+    [YamlMember(Alias = "max_cost_usd")] public double MaxCostUsd { get; set; } = 1.0;
 }

@@ -8,11 +8,11 @@ public class MermaidParserTests
     public void Parse_Flowchart_ExtractsNodesAndEdges()
     {
         var mermaid = """
-            graph TD
-                A[Start] --> B{Decision}
-                B -->|Yes| C[Process]
-                B -->|No| D[End]
-            """;
+                      graph TD
+                          A[Start] --> B{Decision}
+                          B -->|Yes| C[Process]
+                          B -->|No| D[End]
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -27,9 +27,9 @@ public class MermaidParserTests
     public void Parse_FlowchartLR_DetectsDirection()
     {
         var mermaid = """
-            flowchart LR
-                A --> B --> C
-            """;
+                      flowchart LR
+                          A --> B --> C
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -41,12 +41,12 @@ public class MermaidParserTests
     public void Parse_SequenceDiagram_ExtractsParticipantsAndMessages()
     {
         var mermaid = """
-            sequenceDiagram
-                participant Alice
-                participant Bob
-                Alice->>Bob: Hello Bob
-                Bob-->>Alice: Hi Alice
-            """;
+                      sequenceDiagram
+                          participant Alice
+                          participant Bob
+                          Alice->>Bob: Hello Bob
+                          Bob-->>Alice: Hi Alice
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -61,11 +61,11 @@ public class MermaidParserTests
     public void Parse_ClassDiagram_ExtractsClassesAndRelationships()
     {
         var mermaid = """
-            classDiagram
-                class Animal
-                class Duck
-                Animal <|-- Duck
-            """;
+                      classDiagram
+                          class Animal
+                          class Duck
+                          Animal <|-- Duck
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -79,12 +79,12 @@ public class MermaidParserTests
     public void Parse_StateDiagram_ExtractsStatesAndTransitions()
     {
         var mermaid = """
-            stateDiagram
-                [*] --> Idle
-                Idle --> Processing
-                Processing --> Done
-                Done --> [*]
-            """;
+                      stateDiagram
+                          [*] --> Idle
+                          Idle --> Processing
+                          Processing --> Done
+                          Done --> [*]
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -99,12 +99,12 @@ public class MermaidParserTests
     public void Parse_Pie_ExtractsSlices()
     {
         var mermaid = """
-            pie title Browser Market Share
-                "Chrome" : 65
-                "Firefox" : 15
-                "Safari" : 12
-                "Other" : 8
-            """;
+                      pie title Browser Market Share
+                          "Chrome" : 65
+                          "Firefox" : 15
+                          "Safari" : 12
+                          "Other" : 8
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -118,14 +118,14 @@ public class MermaidParserTests
     public void Parse_Gantt_ExtractsSectionsAndTasks()
     {
         var mermaid = """
-            gantt
-                title Project Plan
-                section Design
-                    Wireframes : a1, 2024-01-01, 7d
-                    Mockups : a2, after a1, 5d
-                section Development
-                    Backend : b1, 2024-01-15, 14d
-            """;
+                      gantt
+                          title Project Plan
+                          section Design
+                              Wireframes : a1, 2024-01-01, 7d
+                              Mockups : a2, after a1, 5d
+                          section Development
+                              Backend : b1, 2024-01-15, 14d
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -147,11 +147,11 @@ public class MermaidParserTests
     public void Parse_UnrecognizedType_ReturnsGeneric()
     {
         var mermaid = """
-            mindmap
-                root((Root))
-                    Child1
-                    Child2
-            """;
+                      mindmap
+                          root((Root))
+                              Child1
+                              Child2
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 
@@ -163,14 +163,14 @@ public class MermaidParserTests
     public void Parse_FlowchartWithSubgraphs_DetectsSubgraphs()
     {
         var mermaid = """
-            graph TD
-                subgraph Backend
-                    A[API] --> B[Database]
-                end
-                subgraph Frontend
-                    C[UI] --> A
-                end
-            """;
+                      graph TD
+                          subgraph Backend
+                              A[API] --> B[Database]
+                          end
+                          subgraph Frontend
+                              C[UI] --> A
+                          end
+                      """;
 
         var result = MermaidParser.Parse(mermaid);
 

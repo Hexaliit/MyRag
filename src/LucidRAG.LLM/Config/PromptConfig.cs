@@ -3,64 +3,64 @@ using YamlDotNet.Serialization;
 namespace LucidRAG.LLM.Config;
 
 /// <summary>
-/// Root prompts configuration loaded from prompts.yaml.
+///     Root prompts configuration loaded from prompts.yaml.
 /// </summary>
 public class PromptsConfig
 {
     /// <summary>
-    /// Named prompt definitions.
+    ///     Named prompt definitions.
     /// </summary>
     public Dictionary<string, PromptDefinition> Prompts { get; set; } = new();
 }
 
 /// <summary>
-/// Named prompt definition.
+///     Named prompt definition.
 /// </summary>
 public class PromptDefinition
 {
     /// <summary>
-    /// Unique name for this prompt.
+    ///     Unique name for this prompt.
     /// </summary>
     public string Name { get; set; } = "";
 
     /// <summary>
-    /// Human-readable description.
+    ///     Human-readable description.
     /// </summary>
     public string? Description { get; set; }
 
     /// <summary>
-    /// Prompt version for tracking changes.
+    ///     Prompt version for tracking changes.
     /// </summary>
     public int Version { get; set; } = 1;
 
     /// <summary>
-    /// System prompt (optional).
+    ///     System prompt (optional).
     /// </summary>
     public string? System { get; set; }
 
     /// <summary>
-    /// Main prompt template with {variable} placeholders.
+    ///     Main prompt template with {variable} placeholders.
     /// </summary>
     public string Template { get; set; } = "";
 
     /// <summary>
-    /// Whether this prompt expects JSON output.
+    ///     Whether this prompt expects JSON output.
     /// </summary>
     [YamlMember(Alias = "json_output")]
     public bool JsonOutput { get; set; }
 
     /// <summary>
-    /// Default provider name for this prompt (optional).
+    ///     Default provider name for this prompt (optional).
     /// </summary>
     public string? Provider { get; set; }
 
     /// <summary>
-    /// Provider-specific overrides.
+    ///     Provider-specific overrides.
     /// </summary>
     public Dictionary<string, PromptOverride> Overrides { get; set; } = new();
 
     /// <summary>
-    /// Get effective system prompt for backend type.
+    ///     Get effective system prompt for backend type.
     /// </summary>
     public string? GetSystemPrompt(LlmBackendType backendType)
     {
@@ -72,7 +72,7 @@ public class PromptDefinition
     }
 
     /// <summary>
-    /// Get effective template for backend type.
+    ///     Get effective template for backend type.
     /// </summary>
     public string GetTemplate(LlmBackendType backendType)
     {
@@ -84,7 +84,7 @@ public class PromptDefinition
     }
 
     /// <summary>
-    /// Get effective max tokens for backend type.
+    ///     Get effective max tokens for backend type.
     /// </summary>
     public int? GetMaxTokens(LlmBackendType backendType)
     {
@@ -96,7 +96,7 @@ public class PromptDefinition
     }
 
     /// <summary>
-    /// Get effective temperature for backend type.
+    ///     Get effective temperature for backend type.
     /// </summary>
     public double? GetTemperature(LlmBackendType backendType)
     {
@@ -109,33 +109,33 @@ public class PromptDefinition
 }
 
 /// <summary>
-/// Provider-specific prompt overrides.
+///     Provider-specific prompt overrides.
 /// </summary>
 public class PromptOverride
 {
     /// <summary>
-    /// Override system prompt.
+    ///     Override system prompt.
     /// </summary>
     public string? System { get; set; }
 
     /// <summary>
-    /// Override template.
+    ///     Override template.
     /// </summary>
     public string? Template { get; set; }
 
     /// <summary>
-    /// Override max tokens.
+    ///     Override max tokens.
     /// </summary>
     [YamlMember(Alias = "max_tokens")]
     public int? MaxTokens { get; set; }
 
     /// <summary>
-    /// Override temperature.
+    ///     Override temperature.
     /// </summary>
     public double? Temperature { get; set; }
 
     /// <summary>
-    /// Response format hint (text, json).
+    ///     Response format hint (text, json).
     /// </summary>
     [YamlMember(Alias = "response_format")]
     public string? ResponseFormat { get; set; }

@@ -1,177 +1,185 @@
-[INF] Starting audio analysis: E:\audiosample\VOXTAB_Academic_audio.mp3
+[
+  INF
+] Starting audio analysis: E: \audiosample\VOXTAB_Academic_audio.mp3
 [INF] Wave IdentityWave completed in 291ms, extracted 9 signals
 [INF] Generated spectral_peaks fingerprint: 97a043f10a0ea749... (PureNet)
-[INF] Wave FingerprintWave completed in 1314ms, extracted 4 signals
-[INF] Whisper model loaded successfully
-[INF] Transcribed VOXTAB_Academic_audio.mp3 in 5881ms: 42 segments, avg confidence: 0.000
+[
+INF
+] Wave FingerprintWave completed in 1314ms, extracted 4 signals
+[INF
+] Whisper model loaded successfully
+[
+INF
+] Transcribed VOXTAB_Academic_audio.mp3 in 5881ms: 42 segments, avg confidence: 0.000
 [INF] Transcribed VOXTAB_Academic_audio.mp3: 42 segments, 3166 chars, confidence: 0.000 (Whisper.NET)
 [INF] Wave TranscriptionWave completed in 6060ms, extracted 7 signals
 [INF] Audio analysis completed in 7678ms, total signals: 20, errors: 0
 {
-  "audioPath": "E:\\audiosample\\VOXTAB_Academic_audio.mp3",
-  "signals": {
-    "audio.hash.sha256": {
-      "name": "audio.hash.sha256",
-      "value": "8d7a9fb20aa6dee10bae7b45ac6aad763d9e53c1d024339903b9f3863609b881",
-      "confidence": null,
-      "type": 1,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.8300572+00:00"
-    },
-    "audio.format": {
-      "name": "audio.format",
-      "value": "mp3",
-      "confidence": null,
-      "type": 0,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.8610433+00:00"
-    },
-    "audio.duration_seconds": {
-      "name": "audio.duration_seconds",
-      "value": 203.7289795,
-      "confidence": null,
-      "type": 0,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.8611126+00:00"
-    },
-    "audio.sample_rate": {
-      "name": "audio.sample_rate",
-      "value": 44100,
-      "confidence": null,
-      "type": 0,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.8611128+00:00"
-    },
-    "audio.channels": {
-      "name": "audio.channels",
-      "value": 2,
-      "confidence": null,
-      "type": 0,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.861113+00:00"
-    },
-    "audio.bits_per_sample": {
-      "name": "audio.bits_per_sample",
-      "value": 32,
-      "confidence": null,
-      "type": 0,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.8611131+00:00"
-    },
-    "audio.bitrate": {
-      "name": "audio.bitrate",
-      "value": 2822400,
-      "confidence": null,
-      "type": 0,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.8611146+00:00"
-    },
-    "audio.bitrate_kbps": {
-      "name": "audio.bitrate_kbps",
-      "value": 2822,
-      "confidence": null,
-      "type": 0,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:04.8611147+00:00"
-    },
-    "audio.hash.pcm_sha256": {
-      "name": "audio.hash.pcm_sha256",
-      "value": "0cce5e64c89a595adbfd607b0b06c04c9f5c3e4706fac9f89155b0fd13d5b096",
-      "confidence": null,
-      "type": 1,
-      "source": "IdentityWave",
-      "timestamp": "2026-01-10T16:54:05.1087046+00:00"
-    },
-    "audio.fingerprint.type": {
-      "name": "audio.fingerprint.type",
-      "value": "spectral_peaks",
-      "confidence": null,
-      "type": 1,
-      "source": "FingerprintWave",
-      "timestamp": "2026-01-10T16:54:06.4244934+00:00"
-    },
-    "audio.fingerprint.hash": {
-      "name": "audio.fingerprint.hash",
-      "value": "97a043f10a0ea7492b66d5acfe073493ddd7e50f29fbe155654c985fcef6cc56",
-      "confidence": null,
-      "type": 1,
-      "source": "FingerprintWave",
-      "timestamp": "2026-01-10T16:54:06.4245072+00:00"
-    },
-    "audio.fingerprint.provider": {
-      "name": "audio.fingerprint.provider",
-      "value": "PureNet",
-      "confidence": null,
-      "type": 0,
-      "source": "FingerprintWave",
-      "timestamp": "2026-01-10T16:54:06.4245148+00:00"
-    },
-    "audio.fingerprint.raw_data_size": {
-      "name": "audio.fingerprint.raw_data_size",
-      "value": 10004,
-      "confidence": null,
-      "type": 0,
-      "source": "FingerprintWave",
-      "timestamp": "2026-01-10T16:54:06.4245286+00:00"
-    },
-    "transcription.text": {
-      "name": "transcription.text",
-      "value": "A quantum computer is a digital computer capable of exploding quantum\r\ncurrents among the physical two-state systems that store the binary arithmetic information.\r\nThe factoring integral is to find its expression as a product of prime numbers.\r\nThe most impressive, most important and best known thing about a quantum computer\r\nthat it can do is to factor its spectacular efficiency, the product of two enormous prime numbers.\r\nBut what an earth can quantum mechanics have to do with factoring.\r\nThis question bothered me for four years from that time I heard about the discovery\r\nthat a quantum computer is spectacularly good at factoring until I finally took the\r\ntrouble to find out how it was done.\r\nAnd the answer you will be relieved but if you were like me also disappointed to learn\r\nis that quantum mechanics has nothing at all to do with factoring.\r\nBut it doesn\u0027t have to do with waves.\r\nPretty important ways of periodic so it is not very surprising that quantum mechanics\r\nmight be useful in efficient and revealing features associated with periodicity.\r\nQuantum mechanics is connected to factoring through periodicity.\r\nIt turns out purely arithmetic reasons are having nothing to do with quantum mechanics.\r\nThat if we have an efficient way to find the period of a periodic function then as we\r\nshall discuss we can easily factor the product of two enormous prime numbers.\r\nI have quantum computer provides an extremely efficient way to find periods.\r\nThis is of considerable practical importance because the great difficulty in factoring\r\nsuch a product where the two enormous prime numbers are typically each several hundred\r\ndays long is the basis for the security of the most widely used encryption scheme for\r\nprotecting private information sent over the internet.\r\nIn 1994 and 5, a pretty sure discovered that a quantum computer will be super efficient\r\nat period finding and thereby it was a potential threat to innumerable secrets.\r\nWent to explosion interest in developing quantum computation.\r\nThe threat is only potential because no quantum computer capable of anything like serious\r\nperiod finding actually exists.\r\nI suspect the emphasis of being put on factoring rather than period finding because factoring\r\nis more famously associated with the RSA code breaking.\r\nAlthough as it happens period finding can be used directly to crack the RSA code without\r\nany need for a due to an entire pattern.\r\nFactoring is also a mathematical concept more familiar to the general public than period\r\nfinding.\r\nFor instance the focus on factoring has led to some spectacular misinterpretations of\r\nSchor\u0027s algorithm or what Einstein called secular press.\r\nFor example the New York Times Science writer George Johnson says in his book on quantum\r\ncomputation the Schor\u0027s got through time that when the algorithm has done its job the\r\nsolutions, the factors of the number being analyzed, will all be in superposition.\r\nElsewhere he says that a quantum computer can try out all possible factors simultaneously\r\nin superposition, think elapsed revealed the answer.\r\nNeither of these things bears a status of resonance to what the algorithm actually does.",
-      "confidence": 0,
-      "type": 4,
-      "source": "TranscriptionWave",
-      "timestamp": "2026-01-10T16:54:12.448989+00:00"
-    },
-    "transcription.language": {
-      "name": "transcription.language",
-      "value": "en",
-      "confidence": null,
-      "type": 0,
-      "source": "TranscriptionWave",
-      "timestamp": "2026-01-10T16:54:12.4490578+00:00"
-    },
-    "transcription.confidence": {
-      "name": "transcription.confidence",
-      "value": 0,
-      "confidence": 0,
-      "type": 4,
-      "source": "TranscriptionWave",
-      "timestamp": "2026-01-10T16:54:12.4490761+00:00"
-    },
-    "transcription.segment_count": {
-      "name": "transcription.segment_count",
-      "value": 42,
-      "confidence": null,
-      "type": 0,
-      "source": "TranscriptionWave",
-      "timestamp": "2026-01-10T16:54:12.4490772+00:00"
-    },
-    "transcription.provider": {
-      "name": "transcription.provider",
-      "value": "Whisper.NET",
-      "confidence": null,
-      "type": 0,
-      "source": "TranscriptionWave",
-      "timestamp": "2026-01-10T16:54:12.4490929+00:00"
-    },
-    "transcription.processing_time_ms": {
-      "name": "transcription.processing_time_ms",
-      "value": 5881,
-      "confidence": null,
-      "type": 0,
-      "source": "TranscriptionWave",
-      "timestamp": "2026-01-10T16:54:12.4491073+00:00"
-    },
-    "transcription.full_data": {
-      "name": "transcription.full_data",
-      "value": "{\r\n  \u0022text\u0022: \u0022A quantum computer is a digital computer capable of exploding quantum\\r\\ncurrents among the physical two-state systems that store the binary arithmetic information.\\r\\nThe factoring integral is to find its expression as a product of prime numbers.\\r\\nThe most impressive, most important and best known thing about a quantum computer\\r\\nthat it can do is to factor its spectacular efficiency, the product of two enormous prime numbers.\\r\\nBut what an earth can quantum mechanics have to do with factoring.\\r\\nThis question bothered me for four years from that time I heard about the discovery\\r\\nthat a quantum computer is spectacularly good at factoring until I finally took the\\r\\ntrouble to find out how it was done.\\r\\nAnd the answer you will be relieved but if you were like me also disappointed to learn\\r\\nis that quantum mechanics has nothing at all to do with factoring.\\r\\nBut it doesn\\u0027t have to do with waves.\\r\\nPretty important ways of periodic so it is not very surprising that quantum mechanics\\r\\nmight be useful in efficient and revealing features associated with periodicity.\\r\\nQuantum mechanics is connected to factoring through periodicity.\\r\\nIt turns out purely arithmetic reasons are having nothing to do with quantum mechanics.\\r\\nThat if we have an efficient way to find the period of a periodic function then as we\\r\\nshall discuss we can easily factor the product of two enormous prime numbers.\\r\\nI have quantum computer provides an extremely efficient way to find periods.\\r\\nThis is of considerable practical importance because the great difficulty in factoring\\r\\nsuch a product where the two enormous prime numbers are typically each several hundred\\r\\ndays long is the basis for the security of the most widely used encryption scheme for\\r\\nprotecting private information sent over the internet.\\r\\nIn 1994 and 5, a pretty sure discovered that a quantum computer will be super efficient\\r\\nat period finding and thereby it was a potential threat to innumerable secrets.\\r\\nWent to explosion interest in developing quantum computation.\\r\\nThe threat is only potential because no quantum computer capable of anything like serious\\r\\nperiod finding actually exists.\\r\\nI suspect the emphasis of being put on factoring rather than period finding because factoring\\r\\nis more famously associated with the RSA code breaking.\\r\\nAlthough as it happens period finding can be used directly to crack the RSA code without\\r\\nany need for a due to an entire pattern.\\r\\nFactoring is also a mathematical concept more familiar to the general public than period\\r\\nfinding.\\r\\nFor instance the focus on factoring has led to some spectacular misinterpretations of\\r\\nSchor\\u0027s algorithm or what Einstein called secular press.\\r\\nFor example the New York Times Science writer George Johnson says in his book on quantum\\r\\ncomputation the Schor\\u0027s got through time that when the algorithm has done its job the\\r\\nsolutions, the factors of the number being analyzed, will all be in superposition.\\r\\nElsewhere he says that a quantum computer can try out all possible factors simultaneously\\r\\nin superposition, think elapsed revealed the answer.\\r\\nNeither of these things bears a status of resonance to what the algorithm actually does.\u0022,\r\n  \u0022language\u0022: \u0022en\u0022,\r\n  \u0022confidence\u0022: 0,\r\n  \u0022segments\u0022: [\r\n    {\r\n      \u0022start\u0022: 0,\r\n      \u0022end\u0022: 5.62,\r\n      \u0022text\u0022: \u0022A quantum computer is a digital computer capable of exploding quantum\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 5.62,\r\n      \u0022end\u0022: 10.64,\r\n      \u0022text\u0022: \u0022currents among the physical two-state systems that store the binary arithmetic information.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 10.64,\r\n      \u0022end\u0022: 16.56,\r\n      \u0022text\u0022: \u0022The factoring integral is to find its expression as a product of prime numbers.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 16.56,\r\n      \u0022end\u0022: 21.56,\r\n      \u0022text\u0022: \u0022The most impressive, most important and best known thing about a quantum computer\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 21.56,\r\n      \u0022end\u0022: 27.56,\r\n      \u0022text\u0022: \u0022that it can do is to factor its spectacular efficiency, the product of two enormous prime numbers.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 27.56,\r\n      \u0022end\u0022: 31.6,\r\n      \u0022text\u0022: \u0022But what an earth can quantum mechanics have to do with factoring.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 31.6,\r\n      \u0022end\u0022: 34.68,\r\n      \u0022text\u0022: \u0022This question bothered me for four years from that time I heard about the discovery\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 34.68,\r\n      \u0022end\u0022: 39.72,\r\n      \u0022text\u0022: \u0022that a quantum computer is spectacularly good at factoring until I finally took the\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 39.72,\r\n      \u0022end\u0022: 42.32,\r\n      \u0022text\u0022: \u0022trouble to find out how it was done.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 42.32,\r\n      \u0022end\u0022: 48.52,\r\n      \u0022text\u0022: \u0022And the answer you will be relieved but if you were like me also disappointed to learn\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 48.52,\r\n      \u0022end\u0022: 51.84,\r\n      \u0022text\u0022: \u0022is that quantum mechanics has nothing at all to do with factoring.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 51.84,\r\n      \u0022end\u0022: 54.76,\r\n      \u0022text\u0022: \u0022But it doesn\\u0027t have to do with waves.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 54.76,\r\n      \u0022end\u0022: 60.08,\r\n      \u0022text\u0022: \u0022Pretty important ways of periodic so it is not very surprising that quantum mechanics\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 60.08,\r\n      \u0022end\u0022: 65.72,\r\n      \u0022text\u0022: \u0022might be useful in efficient and revealing features associated with periodicity.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 65.72,\r\n      \u0022end\u0022: 69.52,\r\n      \u0022text\u0022: \u0022Quantum mechanics is connected to factoring through periodicity.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 69.52,\r\n      \u0022end\u0022: 77.36,\r\n      \u0022text\u0022: \u0022It turns out purely arithmetic reasons are having nothing to do with quantum mechanics.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 77.36,\r\n      \u0022end\u0022: 82.64,\r\n      \u0022text\u0022: \u0022That if we have an efficient way to find the period of a periodic function then as we\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 82.64,\r\n      \u0022end\u0022: 86.68,\r\n      \u0022text\u0022: \u0022shall discuss we can easily factor the product of two enormous prime numbers.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 86.68,\r\n      \u0022end\u0022: 92.44,\r\n      \u0022text\u0022: \u0022I have quantum computer provides an extremely efficient way to find periods.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 92.44,\r\n      \u0022end\u0022: 96.88,\r\n      \u0022text\u0022: \u0022This is of considerable practical importance because the great difficulty in factoring\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 96.88,\r\n      \u0022end\u0022: 101.6,\r\n      \u0022text\u0022: \u0022such a product where the two enormous prime numbers are typically each several hundred\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 101.6,\r\n      \u0022end\u0022: 107.6,\r\n      \u0022text\u0022: \u0022days long is the basis for the security of the most widely used encryption scheme for\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 107.6,\r\n      \u0022end\u0022: 110.56,\r\n      \u0022text\u0022: \u0022protecting private information sent over the internet.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 110.56,\r\n      \u0022end\u0022: 116.36,\r\n      \u0022text\u0022: \u0022In 1994 and 5, a pretty sure discovered that a quantum computer will be super efficient\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 116.36,\r\n      \u0022end\u0022: 123.28,\r\n      \u0022text\u0022: \u0022at period finding and thereby it was a potential threat to innumerable secrets.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 123.28,\r\n      \u0022end\u0022: 128.84,\r\n      \u0022text\u0022: \u0022Went to explosion interest in developing quantum computation.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 128.84,\r\n      \u0022end\u0022: 135.04,\r\n      \u0022text\u0022: \u0022The threat is only potential because no quantum computer capable of anything like serious\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 135.04,\r\n      \u0022end\u0022: 140.24,\r\n      \u0022text\u0022: \u0022period finding actually exists.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 140.24,\r\n      \u0022end\u0022: 144.72,\r\n      \u0022text\u0022: \u0022I suspect the emphasis of being put on factoring rather than period finding because factoring\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 144.72,\r\n      \u0022end\u0022: 151.52,\r\n      \u0022text\u0022: \u0022is more famously associated with the RSA code breaking.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 151.52,\r\n      \u0022end\u0022: 156.04,\r\n      \u0022text\u0022: \u0022Although as it happens period finding can be used directly to crack the RSA code without\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 156.04,\r\n      \u0022end\u0022: 159.6,\r\n      \u0022text\u0022: \u0022any need for a due to an entire pattern.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 159.6,\r\n      \u0022end\u0022: 163.16,\r\n      \u0022text\u0022: \u0022Factoring is also a mathematical concept more familiar to the general public than period\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 163.16,\r\n      \u0022end\u0022: 164.16,\r\n      \u0022text\u0022: \u0022finding.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 164.16,\r\n      \u0022end\u0022: 169.88,\r\n      \u0022text\u0022: \u0022For instance the focus on factoring has led to some spectacular misinterpretations of\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 169.88,\r\n      \u0022end\u0022: 173.24,\r\n      \u0022text\u0022: \u0022Schor\\u0027s algorithm or what Einstein called secular press.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 173.24,\r\n      \u0022end\u0022: 177.44,\r\n      \u0022text\u0022: \u0022For example the New York Times Science writer George Johnson says in his book on quantum\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 177.44,\r\n      \u0022end\u0022: 182.6,\r\n      \u0022text\u0022: \u0022computation the Schor\\u0027s got through time that when the algorithm has done its job the\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 182.6,\r\n      \u0022end\u0022: 187.72,\r\n      \u0022text\u0022: \u0022solutions, the factors of the number being analyzed, will all be in superposition.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 187.72,\r\n      \u0022end\u0022: 193.52,\r\n      \u0022text\u0022: \u0022Elsewhere he says that a quantum computer can try out all possible factors simultaneously\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 193.52,\r\n      \u0022end\u0022: 197.64,\r\n      \u0022text\u0022: \u0022in superposition, think elapsed revealed the answer.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 197.64,\r\n      \u0022end\u0022: 201.84,\r\n      \u0022text\u0022: \u0022Neither of these things bears a status of resonance to what the algorithm actually does.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    }\r\n  ]\r\n}",
-      "confidence": null,
-      "type": 4,
-      "source": "TranscriptionWave",
-      "timestamp": "2026-01-10T16:54:12.484842+00:00"
-    }
-  },
-  "errors": [],
-  "createdAt": "2026-01-10T16:54:04.8073125+00:00",
-  "processingTimeMs": 7678
+"audioPath": "E:\\audiosample\\VOXTAB_Academic_audio.mp3",
+"signals": {
+"audio.hash.sha256": {
+"name": "audio.hash.sha256",
+"value": "8d7a9fb20aa6dee10bae7b45ac6aad763d9e53c1d024339903b9f3863609b881",
+"confidence": null,
+"type": 1,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.8300572+00:00"
+},
+"audio.format": {
+"name": "audio.format",
+"value": "mp3",
+"confidence": null,
+"type": 0,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.8610433+00:00"
+},
+"audio.duration_seconds": {
+"name": "audio.duration_seconds",
+"value": 203.7289795,
+"confidence": null,
+"type": 0,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.8611126+00:00"
+},
+"audio.sample_rate": {
+"name": "audio.sample_rate",
+"value": 44100,
+"confidence": null,
+"type": 0,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.8611128+00:00"
+},
+"audio.channels": {
+"name": "audio.channels",
+"value": 2,
+"confidence": null,
+"type": 0,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.861113+00:00"
+},
+"audio.bits_per_sample": {
+"name": "audio.bits_per_sample",
+"value": 32,
+"confidence": null,
+"type": 0,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.8611131+00:00"
+},
+"audio.bitrate": {
+"name": "audio.bitrate",
+"value": 2822400,
+"confidence": null,
+"type": 0,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.8611146+00:00"
+},
+"audio.bitrate_kbps": {
+"name": "audio.bitrate_kbps",
+"value": 2822,
+"confidence": null,
+"type": 0,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:04.8611147+00:00"
+},
+"audio.hash.pcm_sha256": {
+"name": "audio.hash.pcm_sha256",
+"value": "0cce5e64c89a595adbfd607b0b06c04c9f5c3e4706fac9f89155b0fd13d5b096",
+"confidence": null,
+"type": 1,
+"source": "IdentityWave",
+"timestamp": "2026-01-10T16:54:05.1087046+00:00"
+},
+"audio.fingerprint.type": {
+"name": "audio.fingerprint.type",
+"value": "spectral_peaks",
+"confidence": null,
+"type": 1,
+"source": "FingerprintWave",
+"timestamp": "2026-01-10T16:54:06.4244934+00:00"
+},
+"audio.fingerprint.hash": {
+"name": "audio.fingerprint.hash",
+"value": "97a043f10a0ea7492b66d5acfe073493ddd7e50f29fbe155654c985fcef6cc56",
+"confidence": null,
+"type": 1,
+"source": "FingerprintWave",
+"timestamp": "2026-01-10T16:54:06.4245072+00:00"
+},
+"audio.fingerprint.provider": {
+"name": "audio.fingerprint.provider",
+"value": "PureNet",
+"confidence": null,
+"type": 0,
+"source": "FingerprintWave",
+"timestamp": "2026-01-10T16:54:06.4245148+00:00"
+},
+"audio.fingerprint.raw_data_size": {
+"name": "audio.fingerprint.raw_data_size",
+"value": 10004,
+"confidence": null,
+"type": 0,
+"source": "FingerprintWave",
+"timestamp": "2026-01-10T16:54:06.4245286+00:00"
+},
+"transcription.text": {
+"name": "transcription.text",
+"value": "A quantum computer is a digital computer capable of exploding quantum\r\ncurrents among the physical two-state systems that store the binary arithmetic information.\r\nThe factoring integral is to find its expression as a product of prime numbers.\r\nThe most impressive, most important and best known thing about a quantum computer\r\nthat it can do is to factor its spectacular efficiency, the product of two enormous prime numbers.\r\nBut what an earth can quantum mechanics have to do with factoring.\r\nThis question bothered me for four years from that time I heard about the discovery\r\nthat a quantum computer is spectacularly good at factoring until I finally took the\r\ntrouble to find out how it was done.\r\nAnd the answer you will be relieved but if you were like me also disappointed to learn\r\nis that quantum mechanics has nothing at all to do with factoring.\r\nBut it doesn\u0027t have to do with waves.\r\nPretty important ways of periodic so it is not very surprising that quantum mechanics\r\nmight be useful in efficient and revealing features associated with periodicity.\r\nQuantum mechanics is connected to factoring through periodicity.\r\nIt turns out purely arithmetic reasons are having nothing to do with quantum mechanics.\r\nThat if we have an efficient way to find the period of a periodic function then as we\r\nshall discuss we can easily factor the product of two enormous prime numbers.\r\nI have quantum computer provides an extremely efficient way to find periods.\r\nThis is of considerable practical importance because the great difficulty in factoring\r\nsuch a product where the two enormous prime numbers are typically each several hundred\r\ndays long is the basis for the security of the most widely used encryption scheme for\r\nprotecting private information sent over the internet.\r\nIn 1994 and 5, a pretty sure discovered that a quantum computer will be super efficient\r\nat period finding and thereby it was a potential threat to innumerable secrets.\r\nWent to explosion interest in developing quantum computation.\r\nThe threat is only potential because no quantum computer capable of anything like serious\r\nperiod finding actually exists.\r\nI suspect the emphasis of being put on factoring rather than period finding because factoring\r\nis more famously associated with the RSA code breaking.\r\nAlthough as it happens period finding can be used directly to crack the RSA code without\r\nany need for a due to an entire pattern.\r\nFactoring is also a mathematical concept more familiar to the general public than period\r\nfinding.\r\nFor instance the focus on factoring has led to some spectacular misinterpretations of\r\nSchor\u0027s algorithm or what Einstein called secular press.\r\nFor example the New York Times Science writer George Johnson says in his book on quantum\r\ncomputation the Schor\u0027s got through time that when the algorithm has done its job the\r\nsolutions, the factors of the number being analyzed, will all be in superposition.\r\nElsewhere he says that a quantum computer can try out all possible factors simultaneously\r\nin superposition, think elapsed revealed the answer.\r\nNeither of these things bears a status of resonance to what the algorithm actually does.",
+"confidence": 0,
+"type": 4,
+"source": "TranscriptionWave",
+"timestamp": "2026-01-10T16:54:12.448989+00:00"
+},
+"transcription.language": {
+"name": "transcription.language",
+"value": "en",
+"confidence": null,
+"type": 0,
+"source": "TranscriptionWave",
+"timestamp": "2026-01-10T16:54:12.4490578+00:00"
+},
+"transcription.confidence": {
+"name": "transcription.confidence",
+"value": 0,
+"confidence": 0,
+"type": 4,
+"source": "TranscriptionWave",
+"timestamp": "2026-01-10T16:54:12.4490761+00:00"
+},
+"transcription.segment_count": {
+"name": "transcription.segment_count",
+"value": 42,
+"confidence": null,
+"type": 0,
+"source": "TranscriptionWave",
+"timestamp": "2026-01-10T16:54:12.4490772+00:00"
+},
+"transcription.provider": {
+"name": "transcription.provider",
+"value": "Whisper.NET",
+"confidence": null,
+"type": 0,
+"source": "TranscriptionWave",
+"timestamp": "2026-01-10T16:54:12.4490929+00:00"
+},
+"transcription.processing_time_ms": {
+"name": "transcription.processing_time_ms",
+"value": 5881,
+"confidence": null,
+"type": 0,
+"source": "TranscriptionWave",
+"timestamp": "2026-01-10T16:54:12.4491073+00:00"
+},
+"transcription.full_data": {
+"name": "transcription.full_data",
+"value": "{\r\n  \u0022text\u0022: \u0022A quantum computer is a digital computer capable of exploding quantum\\r\\ncurrents among the physical two-state systems that store the binary arithmetic information.\\r\\nThe factoring integral is to find its expression as a product of prime numbers.\\r\\nThe most impressive, most important and best known thing about a quantum computer\\r\\nthat it can do is to factor its spectacular efficiency, the product of two enormous prime numbers.\\r\\nBut what an earth can quantum mechanics have to do with factoring.\\r\\nThis question bothered me for four years from that time I heard about the discovery\\r\\nthat a quantum computer is spectacularly good at factoring until I finally took the\\r\\ntrouble to find out how it was done.\\r\\nAnd the answer you will be relieved but if you were like me also disappointed to learn\\r\\nis that quantum mechanics has nothing at all to do with factoring.\\r\\nBut it doesn\\u0027t have to do with waves.\\r\\nPretty important ways of periodic so it is not very surprising that quantum mechanics\\r\\nmight be useful in efficient and revealing features associated with periodicity.\\r\\nQuantum mechanics is connected to factoring through periodicity.\\r\\nIt turns out purely arithmetic reasons are having nothing to do with quantum mechanics.\\r\\nThat if we have an efficient way to find the period of a periodic function then as we\\r\\nshall discuss we can easily factor the product of two enormous prime numbers.\\r\\nI have quantum computer provides an extremely efficient way to find periods.\\r\\nThis is of considerable practical importance because the great difficulty in factoring\\r\\nsuch a product where the two enormous prime numbers are typically each several hundred\\r\\ndays long is the basis for the security of the most widely used encryption scheme for\\r\\nprotecting private information sent over the internet.\\r\\nIn 1994 and 5, a pretty sure discovered that a quantum computer will be super efficient\\r\\nat period finding and thereby it was a potential threat to innumerable secrets.\\r\\nWent to explosion interest in developing quantum computation.\\r\\nThe threat is only potential because no quantum computer capable of anything like serious\\r\\nperiod finding actually exists.\\r\\nI suspect the emphasis of being put on factoring rather than period finding because factoring\\r\\nis more famously associated with the RSA code breaking.\\r\\nAlthough as it happens period finding can be used directly to crack the RSA code without\\r\\nany need for a due to an entire pattern.\\r\\nFactoring is also a mathematical concept more familiar to the general public than period\\r\\nfinding.\\r\\nFor instance the focus on factoring has led to some spectacular misinterpretations of\\r\\nSchor\\u0027s algorithm or what Einstein called secular press.\\r\\nFor example the New York Times Science writer George Johnson says in his book on quantum\\r\\ncomputation the Schor\\u0027s got through time that when the algorithm has done its job the\\r\\nsolutions, the factors of the number being analyzed, will all be in superposition.\\r\\nElsewhere he says that a quantum computer can try out all possible factors simultaneously\\r\\nin superposition, think elapsed revealed the answer.\\r\\nNeither of these things bears a status of resonance to what the algorithm actually does.\u0022,\r\n  \u0022language\u0022: \u0022en\u0022,\r\n  \u0022confidence\u0022: 0,\r\n  \u0022segments\u0022: [\r\n    {\r\n      \u0022start\u0022: 0,\r\n      \u0022end\u0022: 5.62,\r\n      \u0022text\u0022: \u0022A quantum computer is a digital computer capable of exploding quantum\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 5.62,\r\n      \u0022end\u0022: 10.64,\r\n      \u0022text\u0022: \u0022currents among the physical two-state systems that store the binary arithmetic information.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 10.64,\r\n      \u0022end\u0022: 16.56,\r\n      \u0022text\u0022: \u0022The factoring integral is to find its expression as a product of prime numbers.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 16.56,\r\n      \u0022end\u0022: 21.56,\r\n      \u0022text\u0022: \u0022The most impressive, most important and best known thing about a quantum computer\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 21.56,\r\n      \u0022end\u0022: 27.56,\r\n      \u0022text\u0022: \u0022that it can do is to factor its spectacular efficiency, the product of two enormous prime numbers.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 27.56,\r\n      \u0022end\u0022: 31.6,\r\n      \u0022text\u0022: \u0022But what an earth can quantum mechanics have to do with factoring.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 31.6,\r\n      \u0022end\u0022: 34.68,\r\n      \u0022text\u0022: \u0022This question bothered me for four years from that time I heard about the discovery\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 34.68,\r\n      \u0022end\u0022: 39.72,\r\n      \u0022text\u0022: \u0022that a quantum computer is spectacularly good at factoring until I finally took the\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 39.72,\r\n      \u0022end\u0022: 42.32,\r\n      \u0022text\u0022: \u0022trouble to find out how it was done.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 42.32,\r\n      \u0022end\u0022: 48.52,\r\n      \u0022text\u0022: \u0022And the answer you will be relieved but if you were like me also disappointed to learn\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 48.52,\r\n      \u0022end\u0022: 51.84,\r\n      \u0022text\u0022: \u0022is that quantum mechanics has nothing at all to do with factoring.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 51.84,\r\n      \u0022end\u0022: 54.76,\r\n      \u0022text\u0022: \u0022But it doesn\\u0027t have to do with waves.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 54.76,\r\n      \u0022end\u0022: 60.08,\r\n      \u0022text\u0022: \u0022Pretty important ways of periodic so it is not very surprising that quantum mechanics\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 60.08,\r\n      \u0022end\u0022: 65.72,\r\n      \u0022text\u0022: \u0022might be useful in efficient and revealing features associated with periodicity.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 65.72,\r\n      \u0022end\u0022: 69.52,\r\n      \u0022text\u0022: \u0022Quantum mechanics is connected to factoring through periodicity.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 69.52,\r\n      \u0022end\u0022: 77.36,\r\n      \u0022text\u0022: \u0022It turns out purely arithmetic reasons are having nothing to do with quantum mechanics.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 77.36,\r\n      \u0022end\u0022: 82.64,\r\n      \u0022text\u0022: \u0022That if we have an efficient way to find the period of a periodic function then as we\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 82.64,\r\n      \u0022end\u0022: 86.68,\r\n      \u0022text\u0022: \u0022shall discuss we can easily factor the product of two enormous prime numbers.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 86.68,\r\n      \u0022end\u0022: 92.44,\r\n      \u0022text\u0022: \u0022I have quantum computer provides an extremely efficient way to find periods.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 92.44,\r\n      \u0022end\u0022: 96.88,\r\n      \u0022text\u0022: \u0022This is of considerable practical importance because the great difficulty in factoring\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 96.88,\r\n      \u0022end\u0022: 101.6,\r\n      \u0022text\u0022: \u0022such a product where the two enormous prime numbers are typically each several hundred\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 101.6,\r\n      \u0022end\u0022: 107.6,\r\n      \u0022text\u0022: \u0022days long is the basis for the security of the most widely used encryption scheme for\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 107.6,\r\n      \u0022end\u0022: 110.56,\r\n      \u0022text\u0022: \u0022protecting private information sent over the internet.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 110.56,\r\n      \u0022end\u0022: 116.36,\r\n      \u0022text\u0022: \u0022In 1994 and 5, a pretty sure discovered that a quantum computer will be super efficient\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 116.36,\r\n      \u0022end\u0022: 123.28,\r\n      \u0022text\u0022: \u0022at period finding and thereby it was a potential threat to innumerable secrets.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 123.28,\r\n      \u0022end\u0022: 128.84,\r\n      \u0022text\u0022: \u0022Went to explosion interest in developing quantum computation.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 128.84,\r\n      \u0022end\u0022: 135.04,\r\n      \u0022text\u0022: \u0022The threat is only potential because no quantum computer capable of anything like serious\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 135.04,\r\n      \u0022end\u0022: 140.24,\r\n      \u0022text\u0022: \u0022period finding actually exists.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 140.24,\r\n      \u0022end\u0022: 144.72,\r\n      \u0022text\u0022: \u0022I suspect the emphasis of being put on factoring rather than period finding because factoring\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 144.72,\r\n      \u0022end\u0022: 151.52,\r\n      \u0022text\u0022: \u0022is more famously associated with the RSA code breaking.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 151.52,\r\n      \u0022end\u0022: 156.04,\r\n      \u0022text\u0022: \u0022Although as it happens period finding can be used directly to crack the RSA code without\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 156.04,\r\n      \u0022end\u0022: 159.6,\r\n      \u0022text\u0022: \u0022any need for a due to an entire pattern.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 159.6,\r\n      \u0022end\u0022: 163.16,\r\n      \u0022text\u0022: \u0022Factoring is also a mathematical concept more familiar to the general public than period\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 163.16,\r\n      \u0022end\u0022: 164.16,\r\n      \u0022text\u0022: \u0022finding.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 164.16,\r\n      \u0022end\u0022: 169.88,\r\n      \u0022text\u0022: \u0022For instance the focus on factoring has led to some spectacular misinterpretations of\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 169.88,\r\n      \u0022end\u0022: 173.24,\r\n      \u0022text\u0022: \u0022Schor\\u0027s algorithm or what Einstein called secular press.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 173.24,\r\n      \u0022end\u0022: 177.44,\r\n      \u0022text\u0022: \u0022For example the New York Times Science writer George Johnson says in his book on quantum\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 177.44,\r\n      \u0022end\u0022: 182.6,\r\n      \u0022text\u0022: \u0022computation the Schor\\u0027s got through time that when the algorithm has done its job the\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 182.6,\r\n      \u0022end\u0022: 187.72,\r\n      \u0022text\u0022: \u0022solutions, the factors of the number being analyzed, will all be in superposition.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 187.72,\r\n      \u0022end\u0022: 193.52,\r\n      \u0022text\u0022: \u0022Elsewhere he says that a quantum computer can try out all possible factors simultaneously\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 193.52,\r\n      \u0022end\u0022: 197.64,\r\n      \u0022text\u0022: \u0022in superposition, think elapsed revealed the answer.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    },\r\n    {\r\n      \u0022start\u0022: 197.64,\r\n      \u0022end\u0022: 201.84,\r\n      \u0022text\u0022: \u0022Neither of these things bears a status of resonance to what the algorithm actually does.\u0022,\r\n      \u0022confidence\u0022: 0\r\n    }\r\n  ]\r\n}",
+"confidence": null,
+"type": 4,
+"source": "TranscriptionWave",
+"timestamp": "2026-01-10T16:54:12.484842+00:00"
+}
+},
+"errors": [
+],
+"createdAt": "2026-01-10T16:54:04.8073125+00:00",
+"processingTimeMs": 7678
 }

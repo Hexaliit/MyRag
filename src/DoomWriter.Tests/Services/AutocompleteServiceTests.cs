@@ -1,24 +1,24 @@
+using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
 using DoomWriter.Services;
-using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomWriter.Tests.Services;
 
 public class AutocompleteServiceTests
 {
+    private readonly Mock<OllamaService> _mockOllama;
     private readonly AutocompleteService _sut;
-    private readonly Mock<DoomSummarizer.Services.OllamaService> _mockOllama;
 
     public AutocompleteServiceTests()
     {
         // OllamaService needs OllamaConfig which is a DoomSummarizer.Models record
-        var config = new DoomSummarizer.Models.OllamaConfig
+        var config = new OllamaConfig
         {
             BaseUrl = "http://localhost:11434",
             Model = "test-model"
         };
-        _mockOllama = new Mock<DoomSummarizer.Services.OllamaService>(config) { CallBase = false };
+        _mockOllama = new Mock<OllamaService>(config) { CallBase = false };
 
         var settingsService = new WriterSettingsService();
 

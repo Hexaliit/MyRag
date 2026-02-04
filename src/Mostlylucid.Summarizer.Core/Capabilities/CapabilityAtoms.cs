@@ -4,61 +4,70 @@ using System.Diagnostics;
 namespace Mostlylucid.Summarizer.Core.Capabilities;
 
 /// <summary>
-/// Ephemeral atoms for capability-based processing.
-/// Provides rate limiting, time estimation, and backpressure management.
-/// Designed to keep ingestion pipelines full while maintaining UI responsiveness.
+///     Ephemeral atoms for capability-based processing.
+///     Provides rate limiting, time estimation, and backpressure management.
+///     Designed to keep ingestion pipelines full while maintaining UI responsiveness.
 /// </summary>
 public static class CapabilityAtoms
 {
     /// <summary>
-    /// Creates a rate limiter that allows N operations per time window.
+    ///     Creates a rate limiter that allows N operations per time window.
     /// </summary>
-    public static IRateLimiter CreateRateLimiter(int maxOps, TimeSpan window) =>
-        new SlidingWindowRateLimiter(maxOps, window);
+    public static IRateLimiter CreateRateLimiter(int maxOps, TimeSpan window)
+    {
+        return new SlidingWindowRateLimiter(maxOps, window);
+    }
 
     /// <summary>
-    /// Creates a time estimator that tracks operation durations.
+    ///     Creates a time estimator that tracks operation durations.
     /// </summary>
-    public static ITimeEstimator CreateTimeEstimator() =>
-        new RollingAverageTimeEstimator();
+    public static ITimeEstimator CreateTimeEstimator()
+    {
+        return new RollingAverageTimeEstimator();
+    }
 
     /// <summary>
-    /// Creates a backpressure controller for balancing throughput and responsiveness.
+    ///     Creates a backpressure controller for balancing throughput and responsiveness.
     /// </summary>
     public static IBackpressureController CreateBackpressureController(
         int minConcurrency = 1,
         int? maxConcurrency = null,
-        TimeSpan? targetLatency = null) =>
-        new AdaptiveBackpressureController(minConcurrency, maxConcurrency ?? Environment.ProcessorCount, targetLatency ?? TimeSpan.FromMilliseconds(100));
+        TimeSpan? targetLatency = null)
+    {
+        return new AdaptiveBackpressureController(minConcurrency, maxConcurrency ?? Environment.ProcessorCount,
+            targetLatency ?? TimeSpan.FromMilliseconds(100));
+    }
 
     /// <summary>
-    /// Creates a pipeline balancer that keeps queues filled while respecting backpressure.
+    ///     Creates a pipeline balancer that keeps queues filled while respecting backpressure.
     /// </summary>
     public static IPipelineBalancer CreatePipelineBalancer(
         int targetQueueDepth = 2,
-        int maxQueueDepth = 10) =>
-        new AdaptivePipelineBalancer(targetQueueDepth, maxQueueDepth);
+        int maxQueueDepth = 10)
+    {
+        return new AdaptivePipelineBalancer(targetQueueDepth, maxQueueDepth);
+    }
 }
 
 /// <summary>
-/// Rate limiter interface.
+///     Rate limiter interface.
 /// </summary>
 public interface IRateLimiter
 {
+    double CurrentRate { get; }
     Task<bool> TryAcquireAsync(CancellationToken ct = default);
     Task WaitAsync(CancellationToken ct = default);
-    double CurrentRate { get; }
 }
 
 /// <summary>
-/// Sliding window rate limiter implementation.
+///     Sliding window rate limiter implementation.
 /// </summary>
 public class SlidingWindowRateLimiter : IRateLimiter
 {
-    private readonly int _maxOps;
-    private readonly TimeSpan _window;
-    private readonly ConcurrentQueue<DateTimeOffset> _timestamps = new();
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly int _maxOps;
+    private readonly ConcurrentQueue<DateTimeOffset> _timestamps = new();
+    private readonly TimeSpan _window;
 
     public SlidingWindowRateLimiter(int maxOps, TimeSpan window)
     {
@@ -97,35 +106,27 @@ public class SlidingWindowRateLimiter : IRateLimiter
     public async Task WaitAsync(CancellationToken ct = default)
     {
         while (!await TryAcquireAsync(ct))
-        {
             // Calculate wait time based on oldest timestamp
             if (_timestamps.TryPeek(out var oldest))
             {
                 var waitTime = oldest + _window - DateTimeOffset.UtcNow;
-                if (waitTime > TimeSpan.Zero)
-                {
-                    await Task.Delay(waitTime, ct);
-                }
+                if (waitTime > TimeSpan.Zero) await Task.Delay(waitTime, ct);
             }
             else
             {
                 await Task.Delay(10, ct);
             }
-        }
     }
 
     private void PruneOldTimestamps()
     {
         var cutoff = DateTimeOffset.UtcNow - _window;
-        while (_timestamps.TryPeek(out var ts) && ts < cutoff)
-        {
-            _timestamps.TryDequeue(out _);
-        }
+        while (_timestamps.TryPeek(out var ts) && ts < cutoff) _timestamps.TryDequeue(out _);
     }
 }
 
 /// <summary>
-/// Time estimator interface for tracking operation durations.
+///     Time estimator interface for tracking operation durations.
 /// </summary>
 public interface ITimeEstimator
 {
@@ -136,7 +137,7 @@ public interface ITimeEstimator
 }
 
 /// <summary>
-/// Time estimate with confidence interval.
+///     Time estimate with confidence interval.
 /// </summary>
 public record TimeEstimate
 {
@@ -148,12 +149,12 @@ public record TimeEstimate
 }
 
 /// <summary>
-/// Rolling average time estimator with statistical tracking.
+///     Rolling average time estimator with statistical tracking.
 /// </summary>
 public class RollingAverageTimeEstimator : ITimeEstimator
 {
-    private readonly ConcurrentDictionary<string, OperationStats> _stats = new();
     private const int MaxSamples = 100;
+    private readonly ConcurrentDictionary<string, OperationStats> _stats = new();
 
     public void RecordOperation(string operationType, TimeSpan duration)
     {
@@ -178,7 +179,6 @@ public class RollingAverageTimeEstimator : ITimeEstimator
     public TimeEstimate GetEstimate(string operationType, int remainingCount)
     {
         if (!_stats.TryGetValue(operationType, out var stats) || stats.Count == 0)
-        {
             return new TimeEstimate
             {
                 Estimated = TimeSpan.Zero,
@@ -187,7 +187,6 @@ public class RollingAverageTimeEstimator : ITimeEstimator
                 SampleCount = 0,
                 Confidence = 0
             };
-        }
 
         var (avg, min, max, stdDev) = stats.GetStatistics();
 
@@ -198,7 +197,7 @@ public class RollingAverageTimeEstimator : ITimeEstimator
             Pessimistic = TimeSpan.FromMilliseconds(max * remainingCount),
             SampleCount = stats.Count,
             // Confidence increases with more samples, up to 0.95
-            Confidence = Math.Min(0.95, 0.5 + (stats.Count / 200.0))
+            Confidence = Math.Min(0.95, 0.5 + stats.Count / 200.0)
         };
     }
 
@@ -217,9 +216,7 @@ public class RollingAverageTimeEstimator : ITimeEstimator
 
             // Prune old samples
             while (_samples.Count > MaxSamples && _samples.TryDequeue(out var old))
-            {
                 Interlocked.Exchange(ref _sum, _sum - old);
-            }
         }
 
         public TimeSpan GetAverage()
@@ -246,7 +243,7 @@ public class RollingAverageTimeEstimator : ITimeEstimator
 }
 
 /// <summary>
-/// Backpressure controller interface.
+///     Backpressure controller interface.
 /// </summary>
 public interface IBackpressureController
 {
@@ -257,7 +254,7 @@ public interface IBackpressureController
 }
 
 /// <summary>
-/// Backpressure status for monitoring.
+///     Backpressure status for monitoring.
 /// </summary>
 public record BackpressureStatus
 {
@@ -269,28 +266,27 @@ public record BackpressureStatus
 }
 
 /// <summary>
-/// Adaptive backpressure controller that adjusts concurrency based on latency.
+///     Adaptive backpressure controller that adjusts concurrency based on latency.
 /// </summary>
 public class AdaptiveBackpressureController : IBackpressureController
 {
-    private readonly int _minConcurrency;
-    private readonly int _maxConcurrency;
-    private readonly TimeSpan _targetLatency;
-    private readonly SemaphoreSlim _semaphore;
-    private readonly ConcurrentQueue<double> _latencies = new();
-    private int _currentConcurrency;
     private readonly object _adjustLock = new();
+    private readonly ConcurrentQueue<double> _latencies = new();
+    private readonly int _maxConcurrency;
+    private readonly int _minConcurrency;
+    private readonly SemaphoreSlim _semaphore;
+    private readonly TimeSpan _targetLatency;
 
     public AdaptiveBackpressureController(int minConcurrency, int maxConcurrency, TimeSpan targetLatency)
     {
         _minConcurrency = minConcurrency;
         _maxConcurrency = maxConcurrency;
         _targetLatency = targetLatency;
-        _currentConcurrency = minConcurrency;
+        CurrentConcurrency = minConcurrency;
         _semaphore = new SemaphoreSlim(minConcurrency, maxConcurrency);
     }
 
-    public int CurrentConcurrency => _currentConcurrency;
+    public int CurrentConcurrency { get; private set; }
 
     public async Task<IDisposable> AcquireSlotAsync(CancellationToken ct = default)
     {
@@ -303,10 +299,7 @@ public class AdaptiveBackpressureController : IBackpressureController
         _latencies.Enqueue(latency.TotalMilliseconds);
 
         // Keep only recent samples
-        while (_latencies.Count > 50)
-        {
-            _latencies.TryDequeue(out _);
-        }
+        while (_latencies.Count > 50) _latencies.TryDequeue(out _);
 
         // Adjust concurrency based on latency
         AdjustConcurrency();
@@ -317,7 +310,7 @@ public class AdaptiveBackpressureController : IBackpressureController
         var avgLatency = _latencies.Count > 0 ? _latencies.Average() : 0;
         return new BackpressureStatus
         {
-            CurrentConcurrency = _currentConcurrency,
+            CurrentConcurrency = CurrentConcurrency,
             MaxConcurrency = _maxConcurrency,
             AverageLatencyMs = avgLatency,
             TargetLatencyMs = _targetLatency.TotalMilliseconds,
@@ -334,17 +327,17 @@ public class AdaptiveBackpressureController : IBackpressureController
             var avgLatency = _latencies.Average();
             var targetMs = _targetLatency.TotalMilliseconds;
 
-            if (avgLatency < targetMs * 0.5 && _currentConcurrency < _maxConcurrency)
+            if (avgLatency < targetMs * 0.5 && CurrentConcurrency < _maxConcurrency)
             {
                 // Latency is well below target - increase concurrency
-                _currentConcurrency = Math.Min(_currentConcurrency + 1, _maxConcurrency);
+                CurrentConcurrency = Math.Min(CurrentConcurrency + 1, _maxConcurrency);
                 _semaphore.Release();
             }
-            else if (avgLatency > targetMs * 1.5 && _currentConcurrency > _minConcurrency)
+            else if (avgLatency > targetMs * 1.5 && CurrentConcurrency > _minConcurrency)
             {
                 // Latency is too high - decrease concurrency
                 // We decrease by waiting for a slot to be released and not re-releasing it
-                _currentConcurrency = Math.Max(_currentConcurrency - 1, _minConcurrency);
+                CurrentConcurrency = Math.Max(CurrentConcurrency - 1, _minConcurrency);
             }
         }
     }
@@ -354,21 +347,21 @@ public class AdaptiveBackpressureController : IBackpressureController
         // Only release if we haven't reduced concurrency
         lock (_adjustLock)
         {
-            if (_semaphore.CurrentCount < _currentConcurrency)
-            {
-                _semaphore.Release();
-            }
+            if (_semaphore.CurrentCount < CurrentConcurrency) _semaphore.Release();
         }
     }
 
     private class SlotReleaser(AdaptiveBackpressureController controller) : IDisposable
     {
-        public void Dispose() => controller.ReleaseSlot();
+        public void Dispose()
+        {
+            controller.ReleaseSlot();
+        }
     }
 }
 
 /// <summary>
-/// Pipeline balancer interface for keeping work queues optimally filled.
+///     Pipeline balancer interface for keeping work queues optimally filled.
 /// </summary>
 public interface IPipelineBalancer
 {
@@ -380,7 +373,7 @@ public interface IPipelineBalancer
 }
 
 /// <summary>
-/// Pipeline balance status.
+///     Pipeline balance status.
 /// </summary>
 public record PipelineBalance
 {
@@ -391,33 +384,29 @@ public record PipelineBalance
 }
 
 /// <summary>
-/// Adaptive pipeline balancer that adjusts prefetch depth based on consumption patterns.
+///     Adaptive pipeline balancer that adjusts prefetch depth based on consumption patterns.
 /// </summary>
 public class AdaptivePipelineBalancer : IPipelineBalancer
 {
-    private readonly int _targetDepth;
-    private readonly int _maxDepth;
-    private int _suggestedPrefetch;
-    private int _starvedCount;
-    private int _overflowCount;
     private readonly ConcurrentQueue<int> _depthHistory = new();
+    private readonly int _maxDepth;
+    private readonly int _targetDepth;
+    private int _overflowCount;
+    private int _starvedCount;
 
     public AdaptivePipelineBalancer(int targetDepth, int maxDepth)
     {
         _targetDepth = targetDepth;
         _maxDepth = maxDepth;
-        _suggestedPrefetch = targetDepth;
+        SuggestedPrefetch = targetDepth;
     }
 
-    public int SuggestedPrefetch => _suggestedPrefetch;
+    public int SuggestedPrefetch { get; private set; }
 
     public void RecordQueueDepth(int depth)
     {
         _depthHistory.Enqueue(depth);
-        while (_depthHistory.Count > 100)
-        {
-            _depthHistory.TryDequeue(out _);
-        }
+        while (_depthHistory.Count > 100) _depthHistory.TryDequeue(out _);
 
         // Adjust prefetch based on average depth
         if (_depthHistory.Count >= 10)
@@ -425,15 +414,11 @@ public class AdaptivePipelineBalancer : IPipelineBalancer
             var avgDepth = _depthHistory.Average();
 
             if (avgDepth < _targetDepth * 0.5)
-            {
                 // Queue is often empty - increase prefetch
-                _suggestedPrefetch = Math.Min(_suggestedPrefetch + 1, _maxDepth);
-            }
+                SuggestedPrefetch = Math.Min(SuggestedPrefetch + 1, _maxDepth);
             else if (avgDepth > _targetDepth * 1.5)
-            {
                 // Queue is often full - decrease prefetch
-                _suggestedPrefetch = Math.Max(_suggestedPrefetch - 1, 1);
-            }
+                SuggestedPrefetch = Math.Max(SuggestedPrefetch - 1, 1);
         }
     }
 
@@ -441,14 +426,14 @@ public class AdaptivePipelineBalancer : IPipelineBalancer
     {
         Interlocked.Increment(ref _starvedCount);
         // Immediate response to starvation
-        _suggestedPrefetch = Math.Min(_suggestedPrefetch + 1, _maxDepth);
+        SuggestedPrefetch = Math.Min(SuggestedPrefetch + 1, _maxDepth);
     }
 
     public void RecordOverflow()
     {
         Interlocked.Increment(ref _overflowCount);
         // Reduce prefetch on overflow
-        _suggestedPrefetch = Math.Max(_suggestedPrefetch - 1, 1);
+        SuggestedPrefetch = Math.Max(SuggestedPrefetch - 1, 1);
     }
 
     public PipelineBalance GetBalance()
@@ -460,7 +445,7 @@ public class AdaptivePipelineBalancer : IPipelineBalancer
 
         return new PipelineBalance
         {
-            SuggestedPrefetch = _suggestedPrefetch,
+            SuggestedPrefetch = SuggestedPrefetch,
             StarvedCount = _starvedCount,
             OverflowCount = _overflowCount,
             Efficiency = efficiency
@@ -469,7 +454,7 @@ public class AdaptivePipelineBalancer : IPipelineBalancer
 }
 
 /// <summary>
-/// Scoped timing helper for recording operation durations.
+///     Scoped timing helper for recording operation durations.
 /// </summary>
 public readonly struct TimedOperation : IDisposable
 {
@@ -492,13 +477,15 @@ public readonly struct TimedOperation : IDisposable
 }
 
 /// <summary>
-/// Extension methods for capability atoms.
+///     Extension methods for capability atoms.
 /// </summary>
 public static class CapabilityAtomExtensions
 {
     /// <summary>
-    /// Time an operation and record its duration.
+    ///     Time an operation and record its duration.
     /// </summary>
-    public static TimedOperation Time(this ITimeEstimator estimator, string operationType) =>
-        new(estimator, operationType);
+    public static TimedOperation Time(this ITimeEstimator estimator, string operationType)
+    {
+        return new TimedOperation(estimator, operationType);
+    }
 }

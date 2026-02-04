@@ -22,12 +22,6 @@ public class ChartExtractionWave : IAnalysisWave
     private readonly HttpClient _httpClient;
     private readonly ILogger<ChartExtractionWave>? _logger;
 
-    private ImageConfig Config => _configOptions.Value;
-
-    public string Name => "ChartExtractionWave";
-    public int Priority => 48; // After ChartDetectionWave (47)
-    public IReadOnlyList<string> Tags => [SignalTags.Content, "chart", "extraction", "llm"];
-
     public ChartExtractionWave(
         IOptions<ImageConfig> config,
         ILogger<ChartExtractionWave>? logger = null,
@@ -37,6 +31,12 @@ public class ChartExtractionWave : IAnalysisWave
         _logger = logger;
         _httpClient = httpClient ?? new HttpClient();
     }
+
+    private ImageConfig Config => _configOptions.Value;
+
+    public string Name => "ChartExtractionWave";
+    public int Priority => 48; // After ChartDetectionWave (47)
+    public IReadOnlyList<string> Tags => [SignalTags.Content, "chart", "extraction", "llm"];
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -126,7 +126,6 @@ public class ChartExtractionWave : IAnalysisWave
                 // Emit CSV representation for easy consumption
                 var csv = chartData.ToCsv();
                 if (!string.IsNullOrEmpty(csv))
-                {
                     signals.Add(new Signal
                     {
                         Key = "chart.data.csv",
@@ -135,7 +134,6 @@ public class ChartExtractionWave : IAnalysisWave
                         Source = Name,
                         Tags = ["chart", "data", "csv"]
                     });
-                }
 
                 // Emit summary
                 signals.Add(new Signal
@@ -149,7 +147,6 @@ public class ChartExtractionWave : IAnalysisWave
 
                 // Emit title if found
                 if (!string.IsNullOrEmpty(chartData.Title))
-                {
                     signals.Add(new Signal
                     {
                         Key = "chart.title",
@@ -158,7 +155,6 @@ public class ChartExtractionWave : IAnalysisWave
                         Source = Name,
                         Tags = ["chart", "title"]
                     });
-                }
 
                 _logger?.LogInformation(
                     "Extracted {DataPoints} data points from {ChartType}: {Summary}",
@@ -203,119 +199,119 @@ public class ChartExtractionWave : IAnalysisWave
     private static string GetExtractionPrompt(ChartType chartType)
     {
         var baseInstruction = """
-            You are analyzing a chart/graph image. Extract all visible data as accurately as possible.
-            Respond ONLY with valid JSON - no markdown, no explanation, just the JSON object.
-            If you cannot read a value precisely, estimate it based on the axis scale.
-            """;
+                              You are analyzing a chart/graph image. Extract all visible data as accurately as possible.
+                              Respond ONLY with valid JSON - no markdown, no explanation, just the JSON object.
+                              If you cannot read a value precisely, estimate it based on the axis scale.
+                              """;
 
         var typeSpecificPrompt = chartType switch
         {
             ChartType.BarChart => """
-                This is a BAR CHART. Extract:
-                1. The chart title (if visible)
-                2. X-axis label and Y-axis label (if visible)
-                3. For each bar: the category/label and its value
+                                  This is a BAR CHART. Extract:
+                                  1. The chart title (if visible)
+                                  2. X-axis label and Y-axis label (if visible)
+                                  3. For each bar: the category/label and its value
 
-                Respond with this exact JSON structure:
-                {
-                    "title": "Chart Title",
-                    "x_label": "X Axis Label",
-                    "y_label": "Y Axis Label",
-                    "data": [
-                        {"category": "Category 1", "value": 123.45},
-                        {"category": "Category 2", "value": 67.89}
-                    ]
-                }
-                """,
+                                  Respond with this exact JSON structure:
+                                  {
+                                      "title": "Chart Title",
+                                      "x_label": "X Axis Label",
+                                      "y_label": "Y Axis Label",
+                                      "data": [
+                                          {"category": "Category 1", "value": 123.45},
+                                          {"category": "Category 2", "value": 67.89}
+                                      ]
+                                  }
+                                  """,
 
             ChartType.PieChart => """
-                This is a PIE CHART. Extract:
-                1. The chart title (if visible)
-                2. For each segment: the label and its value/percentage
+                                  This is a PIE CHART. Extract:
+                                  1. The chart title (if visible)
+                                  2. For each segment: the label and its value/percentage
 
-                Respond with this exact JSON structure:
-                {
-                    "title": "Chart Title",
-                    "data": [
-                        {"label": "Segment 1", "value": 25.5},
-                        {"label": "Segment 2", "value": 30.0}
-                    ]
-                }
-                Note: Values should be percentages if shown, otherwise absolute values.
-                """,
+                                  Respond with this exact JSON structure:
+                                  {
+                                      "title": "Chart Title",
+                                      "data": [
+                                          {"label": "Segment 1", "value": 25.5},
+                                          {"label": "Segment 2", "value": 30.0}
+                                      ]
+                                  }
+                                  Note: Values should be percentages if shown, otherwise absolute values.
+                                  """,
 
             ChartType.LineChart => """
-                This is a LINE CHART. Extract:
-                1. The chart title (if visible)
-                2. X-axis label and Y-axis label (if visible)
-                3. For each line/series: the series name and its data points
+                                   This is a LINE CHART. Extract:
+                                   1. The chart title (if visible)
+                                   2. X-axis label and Y-axis label (if visible)
+                                   3. For each line/series: the series name and its data points
 
-                Respond with this exact JSON structure:
-                {
-                    "title": "Chart Title",
-                    "x_label": "X Axis Label",
-                    "y_label": "Y Axis Label",
-                    "series": [
-                        {
-                            "name": "Series 1",
-                            "points": [
-                                {"x": "Jan", "y": 100},
-                                {"x": "Feb", "y": 150}
-                            ]
-                        }
-                    ]
-                }
-                """,
+                                   Respond with this exact JSON structure:
+                                   {
+                                       "title": "Chart Title",
+                                       "x_label": "X Axis Label",
+                                       "y_label": "Y Axis Label",
+                                       "series": [
+                                           {
+                                               "name": "Series 1",
+                                               "points": [
+                                                   {"x": "Jan", "y": 100},
+                                                   {"x": "Feb", "y": 150}
+                                               ]
+                                           }
+                                       ]
+                                   }
+                                   """,
 
             ChartType.ScatterPlot => """
-                This is a SCATTER PLOT. Extract:
-                1. The chart title (if visible)
-                2. X-axis label and Y-axis label (if visible)
-                3. Data points as (x, y) coordinates
+                                     This is a SCATTER PLOT. Extract:
+                                     1. The chart title (if visible)
+                                     2. X-axis label and Y-axis label (if visible)
+                                     3. Data points as (x, y) coordinates
 
-                Respond with this exact JSON structure:
-                {
-                    "title": "Chart Title",
-                    "x_label": "X Axis Label",
-                    "y_label": "Y Axis Label",
-                    "points": [
-                        {"x": 1.5, "y": 2.3},
-                        {"x": 3.2, "y": 4.1}
-                    ]
-                }
-                """,
+                                     Respond with this exact JSON structure:
+                                     {
+                                         "title": "Chart Title",
+                                         "x_label": "X Axis Label",
+                                         "y_label": "Y Axis Label",
+                                         "points": [
+                                             {"x": 1.5, "y": 2.3},
+                                             {"x": 3.2, "y": 4.1}
+                                         ]
+                                     }
+                                     """,
 
             ChartType.Histogram => """
-                This is a HISTOGRAM. Extract:
-                1. The chart title (if visible)
-                2. X-axis label (variable) and Y-axis label (frequency)
-                3. For each bin: the range and frequency count
+                                   This is a HISTOGRAM. Extract:
+                                   1. The chart title (if visible)
+                                   2. X-axis label (variable) and Y-axis label (frequency)
+                                   3. For each bin: the range and frequency count
 
-                Respond with this exact JSON structure:
-                {
-                    "title": "Chart Title",
-                    "x_label": "Variable",
-                    "y_label": "Frequency",
-                    "bins": [
-                        {"range": "0-10", "count": 5},
-                        {"range": "10-20", "count": 12}
-                    ]
-                }
-                """,
+                                   Respond with this exact JSON structure:
+                                   {
+                                       "title": "Chart Title",
+                                       "x_label": "Variable",
+                                       "y_label": "Frequency",
+                                       "bins": [
+                                           {"range": "0-10", "count": 5},
+                                           {"range": "10-20", "count": 12}
+                                       ]
+                                   }
+                                   """,
 
             _ => """
-                Extract all visible data from this chart/visualization.
-                Include the title, axis labels, legend entries, and all data values.
+                 Extract all visible data from this chart/visualization.
+                 Include the title, axis labels, legend entries, and all data values.
 
-                Respond with this JSON structure:
-                {
-                    "title": "Chart Title",
-                    "type": "detected chart type",
-                    "x_label": "X Axis Label",
-                    "y_label": "Y Axis Label",
-                    "data": [...]
-                }
-                """
+                 Respond with this JSON structure:
+                 {
+                     "title": "Chart Title",
+                     "type": "detected chart type",
+                     "x_label": "X Axis Label",
+                     "y_label": "Y Axis Label",
+                     "data": [...]
+                 }
+                 """
         };
 
         return $"{baseInstruction}\n\n{typeSpecificPrompt}";
@@ -398,7 +394,8 @@ public class ChartExtractionWave : IAnalysisWave
 
         foreach (var item in dataArray.EnumerateArray())
         {
-            var category = GetStringProperty(item, "category") ?? GetStringProperty(item, "label") ?? $"Item {index + 1}";
+            var category = GetStringProperty(item, "category") ??
+                           GetStringProperty(item, "label") ?? $"Item {index + 1}";
             var value = GetDoubleProperty(item, "value") ?? GetDoubleProperty(item, "count") ?? 0;
 
             series.Points.Add(ChartDataPoint.FromCategory(category, value, index));
@@ -419,7 +416,8 @@ public class ChartExtractionWave : IAnalysisWave
 
         foreach (var item in dataArray.EnumerateArray())
         {
-            var label = GetStringProperty(item, "label") ?? GetStringProperty(item, "category") ?? $"Segment {index + 1}";
+            var label = GetStringProperty(item, "label") ??
+                        GetStringProperty(item, "category") ?? $"Segment {index + 1}";
             var value = GetDoubleProperty(item, "value") ?? GetDoubleProperty(item, "percentage") ?? 0;
 
             series.Points.Add(ChartDataPoint.FromCategory(label, value, index));
@@ -444,7 +442,8 @@ public class ChartExtractionWave : IAnalysisWave
             var seriesName = GetStringProperty(seriesItem, "name") ?? $"Series {chartData.Series.Count + 1}";
             var series = new ChartDataSeries { Name = seriesName, Points = [] };
 
-            if (seriesItem.TryGetProperty("points", out var pointsArray) && pointsArray.ValueKind == JsonValueKind.Array)
+            if (seriesItem.TryGetProperty("points", out var pointsArray) &&
+                pointsArray.ValueKind == JsonValueKind.Array)
             {
                 var index = 0;
                 foreach (var point in pointsArray.EnumerateArray())
@@ -482,11 +481,9 @@ public class ChartExtractionWave : IAnalysisWave
     private static void ParseScatterPlotData(JsonElement root, ExtractedChartData chartData)
     {
         if (!root.TryGetProperty("points", out var pointsArray) || pointsArray.ValueKind != JsonValueKind.Array)
-        {
             // Fallback to "data"
             if (!root.TryGetProperty("data", out pointsArray) || pointsArray.ValueKind != JsonValueKind.Array)
                 return;
-        }
 
         var series = new ChartDataSeries { Name = "Points", Points = [] };
 
@@ -506,10 +503,7 @@ public class ChartExtractionWave : IAnalysisWave
         // Try various common data formats
         if (root.TryGetProperty("data", out var data))
         {
-            if (data.ValueKind == JsonValueKind.Array)
-            {
-                ParseBarChartData(root, chartData);
-            }
+            if (data.ValueKind == JsonValueKind.Array) ParseBarChartData(root, chartData);
         }
         else if (root.TryGetProperty("series", out _))
         {
@@ -583,10 +577,7 @@ public class ChartExtractionWave : IAnalysisWave
             var responseJson = await response.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(responseJson);
 
-            if (doc.RootElement.TryGetProperty("response", out var responseText))
-            {
-                return responseText.GetString();
-            }
+            if (doc.RootElement.TryGetProperty("response", out var responseText)) return responseText.GetString();
 
             return null;
         }

@@ -1,15 +1,16 @@
-using Xunit;
+using System.Text.RegularExpressions;
 using FluentAssertions;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis;
+using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DocSummarizer.Images.Models;
+using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.DocSummarizer.Images.Services.Storage;
-using System.Text.Json;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Images.Tests.Integration;
 
 /// <summary>
-/// Integration tests for the full pipeline when handling text-only images (logos, word images).
-/// Covers the edge case where the image IS text itself, not just containing text.
+///     Integration tests for the full pipeline when handling text-only images (logos, word images).
+///     Covers the edge case where the image IS text itself, not just containing text.
 /// </summary>
 public class TextOnlyImagePipelineTests
 {
@@ -24,12 +25,12 @@ public class TextOnlyImagePipelineTests
 
         // Act
         var score = await discriminatorService.ScoreAnalysisAsync(
-            imageHash: "test-logo-hash",
-            profile: profile,
-            gifMotion: null,
-            visionResult: visionResult,
-            extractedText: "ml",  // OCR extracted the letters
-            goal: "caption",
+            "test-logo-hash",
+            profile,
+            null,
+            visionResult,
+            "ml", // OCR extracted the letters
+            "caption",
             CancellationToken.None);
 
         // Assert - Text-only image should have specific score characteristics
@@ -45,7 +46,7 @@ public class TextOnlyImagePipelineTests
 
         score.SignalContributions.Should().ContainKey("TextLikeliness")
             .WhoseValue.Strength.Should().BeGreaterThan(0.5,
-            "text likeliness should be a significant signal");
+                "text likeliness should be a significant signal");
     }
 
     [Fact]
@@ -53,15 +54,15 @@ public class TextOnlyImagePipelineTests
     {
         // Arrange: The exact scenario from user's example
         var verboseCaption = @"The image features a logo consisting of the letters ""m"" and ""l"". " +
-            @"The letter 'm' is larger than 'l', with both set against a dark background. " +
-            @"The font used for these characters appears modern and sleek, suggesting it could be " +
-            @"associated with technology or contemporary services.\n\n" +
-            @"Given that logos often represent brands or companies, this image likely represents a " +
-            @"brand identity. Without additional context such as the company's name alongside the logo, " +
-            @"I'm unable to provide specifics on what 'm' and 'l' might stand for. However, based on " +
-            @"common practices in branding, it could be part of a larger word not visible here.\n\n" +
-            @"If you have more information or if there are any particular aspects you'd like further " +
-            @"clarification on regarding this image, feel free to ask!";
+                             @"The letter 'm' is larger than 'l', with both set against a dark background. " +
+                             @"The font used for these characters appears modern and sleek, suggesting it could be " +
+                             @"associated with technology or contemporary services.\n\n" +
+                             @"Given that logos often represent brands or companies, this image likely represents a " +
+                             @"brand identity. Without additional context such as the company's name alongside the logo, " +
+                             @"I'm unable to provide specifics on what 'm' and 'l' might stand for. However, based on " +
+                             @"common practices in branding, it could be part of a larger word not visible here.\n\n" +
+                             @"If you have more information or if there are any particular aspects you'd like further " +
+                             @"clarification on regarding this image, feel free to ask!";
 
         // Act: Check if we can extract that it's about letters from the caption
         var containsLetters = verboseCaption.Contains("letters", StringComparison.OrdinalIgnoreCase);
@@ -101,11 +102,11 @@ public class TextOnlyImagePipelineTests
             Height = 200,
             AspectRatio = 1.0,
             Format = "PNG",
-            DetectedType = ImageType.Diagram,  // Might be misclassified
+            DetectedType = ImageType.Diagram, // Might be misclassified
             TypeConfidence = 0.6,
-            LaplacianVariance = 800,  // Sharp
-            EdgeDensity = 0.15,  // High edges
-            TextLikeliness = 0.85,  // Very high!
+            LaplacianVariance = 800, // Sharp
+            EdgeDensity = 0.15, // High edges
+            TextLikeliness = 0.85, // Very high!
             MeanLuminance = 0.5,
             LuminanceStdDev = 0.4,
             LuminanceEntropy = 0.6,
@@ -121,28 +122,28 @@ public class TextOnlyImagePipelineTests
         };
 
         var visionResult = new VisionResult(
-            Success: true,
-            Error: null,
-            Caption: "The image shows a large letter 'A' in black on white background",
-            Model: "test-model",
-            ConfidenceScore: 0.9,
-            Claims: new List<EvidenceClaim>
+            true,
+            null,
+            "The image shows a large letter 'A' in black on white background",
+            "test-model",
+            0.9,
+            new List<EvidenceClaim>
             {
                 new("shows letter 'A'", new List<string> { "V" }, new List<string> { "letter_shape" })
             },
-            EnhancedMetadata: null
+            null
         );
 
         var discriminatorService = CreateDiscriminatorService();
 
         // Act
         var score = await discriminatorService.ScoreAnalysisAsync(
-            imageHash: "letter-A",
-            profile: profile,
-            gifMotion: null,
-            visionResult: visionResult,
-            extractedText: "A",
-            goal: "ocr",
+            "letter-A",
+            profile,
+            null,
+            visionResult,
+            "A",
+            "ocr",
             CancellationToken.None);
 
         // Assert: Despite DetectedType=Diagram, text signals should dominate
@@ -169,7 +170,7 @@ public class TextOnlyImagePipelineTests
             TypeConfidence = 0.7,
             LaplacianVariance = 900,
             EdgeDensity = 0.12,
-            TextLikeliness = 0.95,  // Almost pure text
+            TextLikeliness = 0.95, // Almost pure text
             MeanLuminance = 0.5,
             LuminanceStdDev = 0.45,
             LuminanceEntropy = 0.65,
@@ -194,8 +195,8 @@ public class TextOnlyImagePipelineTests
             DetectedType = ImageType.Photo,
             TypeConfidence = 0.9,
             LaplacianVariance = 600,
-            EdgeDensity = 0.25,  // Higher due to complex scene
-            TextLikeliness = 0.35,  // Some text, but not dominant
+            EdgeDensity = 0.25, // Higher due to complex scene
+            TextLikeliness = 0.35, // Some text, but not dominant
             MeanLuminance = 0.6,
             LuminanceStdDev = 0.3,
             LuminanceEntropy = 0.85,
@@ -221,10 +222,10 @@ public class TextOnlyImagePipelineTests
         photoWithCaption.EdgeDensity.Should().BeGreaterThan(pureLogo.EdgeDensity,
             "photos have more complex edge patterns from scenes");
 
-        (pureLogo.DominantColors.Count).Should().BeLessThanOrEqualTo(3,
+        pureLogo.DominantColors.Count.Should().BeLessThanOrEqualTo(3,
             "logos typically use limited color palettes");
 
-        (photoWithCaption.DominantColors.Count).Should().BeGreaterThan(pureLogo.DominantColors.Count,
+        photoWithCaption.DominantColors.Count.Should().BeGreaterThan(pureLogo.DominantColors.Count,
             "photos have more diverse colors");
     }
 
@@ -240,11 +241,11 @@ public class TextOnlyImagePipelineTests
             Format = "PNG",
             DetectedType = ImageType.Diagram,
             TypeConfidence = 0.65,
-            LaplacianVariance = 850,  // Sharp
+            LaplacianVariance = 850, // Sharp
             EdgeDensity = 0.10,
-            TextLikeliness = 0.92,  // Very high - it's pure text
+            TextLikeliness = 0.92, // Very high - it's pure text
             MeanLuminance = 0.5,
-            LuminanceStdDev = 0.48,  // High contrast (black text on white)
+            LuminanceStdDev = 0.48, // High contrast (black text on white)
             LuminanceEntropy = 0.6,
             ClippedBlacksPercent = 5.0,
             ClippedWhitesPercent = 5.0,
@@ -261,23 +262,23 @@ public class TextOnlyImagePipelineTests
     private static VisionResult CreateLogoVisionResult()
     {
         return new VisionResult(
-            Success: true,
-            Error: null,
-            Caption: @"The image features a logo consisting of the letters ""m"" and ""l"". " +
-                    @"The letter 'm' is larger than 'l', with both set against a dark background.",
-            Model: "anthropic:claude-3-opus-20240229",
-            ConfidenceScore: 0.95,
-            Claims: new List<EvidenceClaim>
+            true,
+            null,
+            @"The image features a logo consisting of the letters ""m"" and ""l"". " +
+            @"The letter 'm' is larger than 'l', with both set against a dark background.",
+            "anthropic:claude-3-opus-20240229",
+            0.95,
+            new List<EvidenceClaim>
             {
                 new("logo with letters m and l", new List<string> { "V" }, new List<string> { "visual_observation" }),
                 new("letter m is larger than l", new List<string> { "V" }, new List<string> { "size_comparison" }),
                 new("dark background", new List<string> { "V", "S" }, new List<string> { "luminance=0.2" })
             },
-            EnhancedMetadata: new VisionMetadata
+            new VisionMetadata
             {
                 Tone = "professional",
                 Sentiment = 0.0,
-                Complexity = 0.3,  // Simple logo
+                Complexity = 0.3, // Simple logo
                 AestheticScore = 0.7,
                 PrimarySubject = "logo",
                 Purpose = "commercial",
@@ -289,8 +290,8 @@ public class TextOnlyImagePipelineTests
 
     private static DiscriminatorService CreateDiscriminatorService()
     {
-        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<DiscriminatorService>.Instance;
-        var trackerLogger = Microsoft.Extensions.Logging.Abstractions.NullLogger<SignalEffectivenessTracker>.Instance;
+        var logger = NullLogger<DiscriminatorService>.Instance;
+        var trackerLogger = NullLogger<SignalEffectivenessTracker>.Instance;
 
         // Use in-memory database for testing
         var dbPath = Path.Combine(Path.GetTempPath(), $"test-signals-{Guid.NewGuid()}.db");
@@ -303,14 +304,11 @@ public class TextOnlyImagePipelineTests
     private static List<string> ExtractQuotedText(string text)
     {
         var results = new List<string>();
-        var matches = System.Text.RegularExpressions.Regex.Matches(
+        var matches = Regex.Matches(
             text,
             @"[""']([a-zA-Z0-9])[""']");
 
-        foreach (System.Text.RegularExpressions.Match match in matches)
-        {
-            results.Add(match.Groups[1].Value);
-        }
+        foreach (Match match in matches) results.Add(match.Groups[1].Value);
 
         return results;
     }

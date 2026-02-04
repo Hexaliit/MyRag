@@ -1,3 +1,4 @@
+using System.Text;
 using LucidRAG.Decomposer.Models;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Services;
@@ -5,23 +6,23 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Splits compound queries using syntactic structure + embedding-based topic boundary detection.
-/// Instead of hardcoded conjunction lists, uses cosine similarity to detect topical boundaries:
-///   - Embed the clause before and after a conjunction
-///   - If cosine similarity &lt; 0.40 → different topics → split
-///   - If cosine similarity &gt;= 0.40 → same topic → keep together
+///     Splits compound queries using syntactic structure + embedding-based topic boundary detection.
+///     Instead of hardcoded conjunction lists, uses cosine similarity to detect topical boundaries:
+///     - Embed the clause before and after a conjunction
+///     - If cosine similarity &lt; 0.40 → different topics → split
+///     - If cosine similarity &gt;= 0.40 → same topic → keep together
 /// </summary>
 public class StructuralAnalyzer : IQueryAnalyzer
 {
-    private readonly IEmbeddingService? _embedding;
-    private readonly ILogger<StructuralAnalyzer>? _logger;
-
     /// <summary>Cosine threshold below which two clauses are considered different topics.</summary>
     private const float TopicBoundaryThreshold = 0.40f;
 
     /// <summary>Conjunctions that might split topics (checked via embedding, not assumed).</summary>
     private static readonly string[] Conjunctions =
         ["and", "also", "plus", "as well as", "in addition to", "along with", "but also"];
+
+    private readonly IEmbeddingService? _embedding;
+    private readonly ILogger<StructuralAnalyzer>? _logger;
 
     public StructuralAnalyzer(IEmbeddingService? embedding = null, ILogger<StructuralAnalyzer>? logger = null)
     {
@@ -40,7 +41,6 @@ public class StructuralAnalyzer : IQueryAnalyzer
         // Phase 2: For each hard clause, check for conjunction-based topic splits
         var allClauses = new List<string>();
         foreach (var clause in hardClauses)
-        {
             if (_embedding != null)
             {
                 var subClauses = await SplitOnConjunctionsAsync(clause, embeddingCache, ct);
@@ -50,7 +50,6 @@ public class StructuralAnalyzer : IQueryAnalyzer
             {
                 allClauses.Add(clause);
             }
-        }
 
         // Only decompose if we found multiple clauses
         if (allClauses.Count > 1)
@@ -88,13 +87,13 @@ public class StructuralAnalyzer : IQueryAnalyzer
     }
 
     /// <summary>
-    /// Split on hard sentence boundaries: period, semicolon, newline.
-    /// Only splits if there's substantial text on both sides.
+    ///     Split on hard sentence boundaries: period, semicolon, newline.
+    ///     Only splits if there's substantial text on both sides.
     /// </summary>
     internal static List<string> SplitOnHardBoundaries(string query)
     {
         var result = new List<string>();
-        var current = new System.Text.StringBuilder();
+        var current = new StringBuilder();
 
         for (var i = 0; i < query.Length; i++)
         {
@@ -119,8 +118,8 @@ public class StructuralAnalyzer : IQueryAnalyzer
     }
 
     /// <summary>
-    /// Check conjunctions within a clause. Split only if embedding similarity
-    /// between the parts is below the topic boundary threshold.
+    ///     Check conjunctions within a clause. Split only if embedding similarity
+    ///     between the parts is below the topic boundary threshold.
     /// </summary>
     private async Task<List<string>> SplitOnConjunctionsAsync(
         string clause,
@@ -160,6 +159,7 @@ public class StructuralAnalyzer : IQueryAnalyzer
                     embBefore = await _embedding!.EmbedAsync(before, ct);
                     embeddingCache[before] = embBefore;
                 }
+
                 if (!hasAfter)
                 {
                     embAfter = await _embedding!.EmbedAsync(after, ct);
@@ -174,10 +174,8 @@ public class StructuralAnalyzer : IQueryAnalyzer
                 conj, similarity, before, after);
 
             if (similarity < TopicBoundaryThreshold)
-            {
                 // Different topics  -  split
                 return [before, after];
-            }
 
             // Same topic  -  keep together, don't check further conjunctions
             break;

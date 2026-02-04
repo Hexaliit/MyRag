@@ -1,17 +1,21 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Web;
 using AngleSharp;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// DuckDuckGo search integration - no API key needed.
-/// Uses circuit breaker and rate limiter to avoid hammering DDG after CAPTCHA blocks.
+///     DuckDuckGo search integration - no API key needed.
+///     Uses circuit breaker and rate limiter to avoid hammering DDG after CAPTCHA blocks.
 /// </summary>
 public class DuckDuckGoSearch
 {
     private const string ServiceName = "duckduckgo";
-    private readonly HttpClient _httpClient;
     private readonly CircuitBreakerService? _circuit;
+    private readonly HttpClient _httpClient;
 
     public DuckDuckGoSearch(HttpClient httpClient, CircuitBreakerService? circuit = null)
     {
@@ -20,9 +24,9 @@ public class DuckDuckGoSearch
     }
 
     /// <summary>
-    /// Search DuckDuckGo and return results.
-    /// Tries the HTML endpoint first, falls back to the lite endpoint.
-    /// Both endpoints may block bot-like requests (CAPTCHA / timeout).
+    ///     Search DuckDuckGo and return results.
+    ///     Tries the HTML endpoint first, falls back to the lite endpoint.
+    ///     Both endpoints may block bot-like requests (CAPTCHA / timeout).
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(string query, int maxResults = 10, Action<string>? progress = null)
     {
@@ -31,7 +35,7 @@ public class DuckDuckGoSearch
         // Pre-flight: skip if circuit is open
         if (_circuit != null && !await _circuit.IsServiceAvailableAsync(ServiceName))
         {
-            System.Diagnostics.Debug.WriteLine("DuckDuckGo: circuit open -- skipping");
+            Debug.WriteLine("DuckDuckGo: circuit open -- skipping");
             return items;
         }
 
@@ -45,7 +49,6 @@ public class DuckDuckGoSearch
         ];
 
         foreach (var url in endpoints)
-        {
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
@@ -68,7 +71,7 @@ public class DuckDuckGoSearch
                 if (html.Contains("bots use DuckDuckGo", StringComparison.OrdinalIgnoreCase)
                     || html.Contains("challenge/", StringComparison.OrdinalIgnoreCase))
                 {
-                    System.Diagnostics.Debug.WriteLine($"DuckDuckGo returned CAPTCHA for {new Uri(url).Host}");
+                    Debug.WriteLine($"DuckDuckGo returned CAPTCHA for {new Uri(url).Host}");
                     if (_circuit != null)
                         await _circuit.ReportFailureAsync(ServiceName, CircuitFailureType.RateLimit, "CAPTCHA block");
                     continue;
@@ -86,20 +89,19 @@ public class DuckDuckGoSearch
             }
             catch (OperationCanceledException)
             {
-                System.Diagnostics.Debug.WriteLine($"DuckDuckGo timed out ({new Uri(url).Host})");
+                Debug.WriteLine($"DuckDuckGo timed out ({new Uri(url).Host})");
                 if (_circuit != null)
                     await _circuit.ReportFailureAsync(ServiceName, CircuitFailureType.ServerError, "Timeout");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"DuckDuckGo failed ({new Uri(url).Host}): {ex.Message}");
+                Debug.WriteLine($"DuckDuckGo failed ({new Uri(url).Host}): {ex.Message}");
                 if (_circuit != null)
                     await _circuit.ReportFailureAsync(ServiceName, CircuitFailureType.ServerError, ex.Message);
             }
-        }
 
         if (items.Count == 0)
-            System.Diagnostics.Debug.WriteLine("DuckDuckGo: all endpoints blocked or timed out -- skipping");
+            Debug.WriteLine("DuckDuckGo: all endpoints blocked or timed out -- skipping");
 
         return items;
     }
@@ -171,7 +173,7 @@ public class DuckDuckGoSearch
 
     private static string GenerateId(string input)
     {
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
     }
 }

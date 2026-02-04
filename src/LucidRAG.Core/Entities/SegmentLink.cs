@@ -4,48 +4,47 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace LucidRAG.Entities;
 
 /// <summary>
-/// Represents a link between two segments within a document.
-/// Enables intra-document graph traversal for improved retrieval.
+///     Represents a link between two segments within a document.
+///     Enables intra-document graph traversal for improved retrieval.
 /// </summary>
 public class SegmentLink
 {
-    [Key]
-    public Guid Id { get; set; }
+    [Key] public Guid Id { get; set; }
 
     /// <summary>
-    /// Document containing both segments.
+    ///     Document containing both segments.
     /// </summary>
     public Guid DocumentId { get; set; }
 
     /// <summary>
-    /// Source segment hash (from vector store).
+    ///     Source segment hash (from vector store).
     /// </summary>
     [Required]
     [MaxLength(64)]
     public required string SourceSegmentHash { get; set; }
 
     /// <summary>
-    /// Target segment hash (from vector store).
+    ///     Target segment hash (from vector store).
     /// </summary>
     [Required]
     [MaxLength(64)]
     public required string TargetSegmentHash { get; set; }
 
     /// <summary>
-    /// Link type: sequential, reference, semantic, heading, etc.
+    ///     Link type: sequential, reference, semantic, heading, etc.
     /// </summary>
     [Required]
     [MaxLength(32)]
     public required string LinkType { get; set; }
 
     /// <summary>
-    /// Link strength/weight (0-1).
-    /// Higher = stronger connection.
+    ///     Link strength/weight (0-1).
+    ///     Higher = stronger connection.
     /// </summary>
     public double Weight { get; set; } = 1.0;
 
     /// <summary>
-    /// Additional link metadata (JSON).
+    ///     Additional link metadata (JSON).
     /// </summary>
     [Column(TypeName = "jsonb")]
     public string? Metadata { get; set; }
@@ -57,7 +56,7 @@ public class SegmentLink
 }
 
 /// <summary>
-/// Types of segment links within a document.
+///     Types of segment links within a document.
 /// </summary>
 public static class SegmentLinkTypes
 {

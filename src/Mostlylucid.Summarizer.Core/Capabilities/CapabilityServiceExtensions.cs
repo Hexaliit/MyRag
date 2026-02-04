@@ -1,20 +1,21 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Mostlylucid.Summarizer.Core.Capabilities;
 
 /// <summary>
-/// DI registration for capability system.
+///     DI registration for capability system.
 /// </summary>
 public static class CapabilityServiceExtensions
 {
     /// <summary>
-    /// Add the capability system to DI.
-    /// This provides:
-    /// - CapabilityRegistry: Hardware/provider detection
-    /// - BackgroundModelDownloader: Lazy model downloads
-    /// - CapabilityRouter: Work routing based on capabilities
-    /// - ICapabilitySignalSink: Pub/sub for capability changes
-    /// - CapabilityCoordinator: Unified access point for all coordinators
+    ///     Add the capability system to DI.
+    ///     This provides:
+    ///     - CapabilityRegistry: Hardware/provider detection
+    ///     - BackgroundModelDownloader: Lazy model downloads
+    ///     - CapabilityRouter: Work routing based on capabilities
+    ///     - ICapabilitySignalSink: Pub/sub for capability changes
+    ///     - CapabilityCoordinator: Unified access point for all coordinators
     /// </summary>
     public static IServiceCollection AddCapabilitySystem(
         this IServiceCollection services,
@@ -29,7 +30,7 @@ public static class CapabilityServiceExtensions
         // Downloader is singleton - manages downloads globally
         services.AddSingleton<BackgroundModelDownloader>(sp =>
         {
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BackgroundModelDownloader>>();
+            var logger = sp.GetRequiredService<ILogger<BackgroundModelDownloader>>();
             var registry = sp.GetRequiredService<CapabilityRegistry>();
             var signalSink = sp.GetRequiredService<ICapabilitySignalSink>();
             return new BackgroundModelDownloader(logger, registry, signalSink, modelsDirectory);
@@ -45,8 +46,8 @@ public static class CapabilityServiceExtensions
     }
 
     /// <summary>
-    /// Initialize the capability system at startup.
-    /// Call this after building the service provider.
+    ///     Initialize the capability system at startup.
+    ///     Call this after building the service provider.
     /// </summary>
     public static async Task InitializeCapabilitySystemAsync(
         this IServiceProvider services,

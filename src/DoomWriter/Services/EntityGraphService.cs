@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
 
@@ -8,8 +7,8 @@ namespace DoomWriter.Services;
 public class EntityGraphService
 {
     private readonly IEntityGraphStore _entityGraph;
-    private readonly NerService _ner;
     private readonly ConcurrentDictionary<string, byte> _expandedNodeIds = new();
+    private readonly NerService _ner;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     public EntityGraphService(IEntityGraphStore entityGraph, NerService ner)
@@ -28,12 +27,12 @@ public class EntityGraphService
 
         // Document node
         nodes.Add(new GraphNode(
-            Id: documentId,
-            Label: title,
-            NodeType: "document",
-            EntityType: null,
-            Weight: 1,
-            IsCurrentDocument: true));
+            documentId,
+            title,
+            "document",
+            null,
+            1,
+            true));
         _expandedNodeIds.TryAdd(documentId, 0);
 
         // Entity nodes from current document analysis
@@ -41,20 +40,18 @@ public class EntityGraphService
         {
             var entityId = KnowledgeGraphService.GenerateEntityId(entity.Name, entity.Type);
             if (_expandedNodeIds.TryAdd(entityId, 0))
-            {
                 nodes.Add(new GraphNode(
-                    Id: entityId,
-                    Label: entity.Name,
-                    NodeType: "entity",
-                    EntityType: entity.Type,
-                    Weight: entity.MentionCount));
-            }
+                    entityId,
+                    entity.Name,
+                    "entity",
+                    entity.Type,
+                    entity.MentionCount));
 
             edges.Add(new GraphEdge(
-                Source: entityId,
-                Target: documentId,
-                EdgeType: "mentions",
-                Weight: entity.MentionCount));
+                entityId,
+                documentId,
+                "mentions",
+                entity.MentionCount));
         }
 
         // Add co-occurrence edges between entities in this document
@@ -63,17 +60,13 @@ public class EntityGraphService
             .Distinct()
             .ToList();
 
-        for (int i = 0; i < entityIds.Count; i++)
-        {
-            for (int j = i + 1; j < entityIds.Count; j++)
-            {
-                edges.Add(new GraphEdge(
-                    Source: entityIds[i],
-                    Target: entityIds[j],
-                    EdgeType: "co_occurs",
-                    Weight: 0.5f));
-            }
-        }
+        for (var i = 0; i < entityIds.Count; i++)
+        for (var j = i + 1; j < entityIds.Count; j++)
+            edges.Add(new GraphEdge(
+                entityIds[i],
+                entityIds[j],
+                "co_occurs",
+                0.5f));
 
         return new GraphData(nodes, edges);
     }
@@ -88,21 +81,19 @@ public class EntityGraphService
         foreach (var (itemId, title, url, confidence) in articles)
         {
             if (_expandedNodeIds.TryAdd(itemId, 0))
-            {
                 nodes.Add(new GraphNode(
-                    Id: itemId,
-                    Label: title,
-                    NodeType: "document",
-                    EntityType: null,
-                    Weight: 1,
+                    itemId,
+                    title,
+                    "document",
+                    null,
+                    1,
                     Url: url));
-            }
 
             edges.Add(new GraphEdge(
-                Source: entityId,
-                Target: itemId,
-                EdgeType: "mentions",
-                Weight: (float)confidence));
+                entityId,
+                itemId,
+                "mentions",
+                (float)confidence));
         }
 
         // Get co-occurring entities
@@ -124,18 +115,18 @@ public class EntityGraphService
                 };
 
                 nodes.Add(new GraphNode(
-                    Id: neighborId,
-                    Label: neighborName,
-                    NodeType: "entity",
-                    EntityType: entityType,
-                    Weight: (int)rel.Weight));
+                    neighborId,
+                    neighborName,
+                    "entity",
+                    entityType,
+                    (int)rel.Weight));
             }
 
             edges.Add(new GraphEdge(
-                Source: rel.SourceId,
-                Target: rel.TargetId,
-                EdgeType: rel.Type,
-                Weight: rel.Weight));
+                rel.SourceId,
+                rel.TargetId,
+                rel.Type,
+                rel.Weight));
         }
 
         return new GraphData(nodes, edges);
@@ -161,18 +152,18 @@ public class EntityGraphService
                 };
 
                 nodes.Add(new GraphNode(
-                    Id: entityId,
-                    Label: name,
-                    NodeType: "entity",
-                    EntityType: entityType,
-                    Weight: mentions));
+                    entityId,
+                    name,
+                    "entity",
+                    entityType,
+                    mentions));
             }
 
             edges.Add(new GraphEdge(
-                Source: entityId,
-                Target: documentId,
-                EdgeType: "mentions",
-                Weight: confidence));
+                entityId,
+                documentId,
+                "mentions",
+                confidence));
         }
 
         return new GraphData(nodes, edges);
@@ -198,14 +189,10 @@ public class EntityGraphService
             }
 
             // Co-occurrence edges
-            for (int i = 0; i < entityIds.Count; i++)
-            {
-                for (int j = i + 1; j < entityIds.Count; j++)
-                {
-                    await _entityGraph.UpsertRelationshipAsync(
-                        entityIds[i], entityIds[j], "co_occurs");
-                }
-            }
+            for (var i = 0; i < entityIds.Count; i++)
+            for (var j = i + 1; j < entityIds.Count; j++)
+                await _entityGraph.UpsertRelationshipAsync(
+                    entityIds[i], entityIds[j]);
         }
         finally
         {

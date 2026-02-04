@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
@@ -13,14 +12,14 @@ using Xunit.Abstractions;
 namespace Mostlylucid.DocSummarizer.Images.Tests.Services.Analysis.Waves;
 
 /// <summary>
-/// Tests for AutoRoutingWave - Signal-based routing and SignalDatabase integration.
+///     Tests for AutoRoutingWave - Signal-based routing and SignalDatabase integration.
 /// </summary>
 public class AutoRoutingWaveTests : IDisposable
 {
-    private readonly ITestOutputHelper _output;
-    private readonly string _testDir;
     private readonly Mock<ILogger<AutoRoutingWave>> _loggerMock;
+    private readonly ITestOutputHelper _output;
     private readonly Mock<ISignalDatabase> _signalDbMock;
+    private readonly string _testDir;
 
     public AutoRoutingWaveTests(ITestOutputHelper output)
     {
@@ -35,10 +34,14 @@ public class AutoRoutingWaveTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_testDir))
-        {
-            try { Directory.Delete(_testDir, true); }
-            catch { /* ignore cleanup errors */ }
-        }
+            try
+            {
+                Directory.Delete(_testDir, true);
+            }
+            catch
+            {
+                /* ignore cleanup errors */
+            }
     }
 
     [Fact]
@@ -178,7 +181,8 @@ public class AutoRoutingWaveTests : IDisposable
         var imagePath = CreateTestImage("textheavy.png", 300, 200);
         var context = CreateContextForTextHeavyImage();
         // Add large pixel count to increase chances of quality route
-        context.AddSignal(new Signal { Key = "identity.pixel_count", Value = 3000000, Confidence = 1.0, Source = "test" });
+        context.AddSignal(new Signal
+            { Key = "identity.pixel_count", Value = 3000000, Confidence = 1.0, Source = "test" });
         context.AddSignal(new Signal { Key = "quality.edge_density", Value = 0.20, Confidence = 1.0, Source = "test" });
 
         // Act
@@ -287,9 +291,7 @@ public class AutoRoutingWaveTests : IDisposable
 
             _output.WriteLine("Skip flags emitted for fast route:");
             foreach (var skipSignal in signals.Where(s => s.Key.StartsWith("route.skip.")))
-            {
                 _output.WriteLine($"  {skipSignal.Key}");
-            }
         }
 
         // Also verify text tier signal is emitted
@@ -303,11 +305,14 @@ public class AutoRoutingWaveTests : IDisposable
     private AnalysisContext CreateBasicContext()
     {
         var context = new AnalysisContext();
-        context.AddSignal(new Signal { Key = "identity.is_animated", Value = false, Confidence = 1.0, Source = "test" });
+        context.AddSignal(new Signal
+            { Key = "identity.is_animated", Value = false, Confidence = 1.0, Source = "test" });
         context.AddSignal(new Signal { Key = "identity.frame_count", Value = 1, Confidence = 1.0, Source = "test" });
-        context.AddSignal(new Signal { Key = "identity.pixel_count", Value = 40000, Confidence = 1.0, Source = "test" });
+        context.AddSignal(new Signal
+            { Key = "identity.pixel_count", Value = 40000, Confidence = 1.0, Source = "test" });
         context.AddSignal(new Signal { Key = "identity.format", Value = "PNG", Confidence = 1.0, Source = "test" });
-        context.AddSignal(new Signal { Key = "content.text_likeliness", Value = 0.2, Confidence = 1.0, Source = "test" });
+        context.AddSignal(
+            new Signal { Key = "content.text_likeliness", Value = 0.2, Confidence = 1.0, Source = "test" });
         context.AddSignal(new Signal { Key = "quality.edge_density", Value = 0.05, Confidence = 1.0, Source = "test" });
         context.AddSignal(new Signal { Key = "color.is_grayscale", Value = false, Confidence = 1.0, Source = "test" });
         context.AddSignal(new Signal { Key = "content.type", Value = "Photo", Confidence = 1.0, Source = "test" });
@@ -318,9 +323,12 @@ public class AutoRoutingWaveTests : IDisposable
     {
         var context = CreateBasicContext();
         // Override for simple image characteristics
-        context.AddSignal(new Signal { Key = "identity.pixel_count", Value = 2500, Confidence = 1.0, Source = "test" }); // Small
-        context.AddSignal(new Signal { Key = "content.text_likeliness", Value = 0.05, Confidence = 1.0, Source = "test" }); // Low text
-        context.AddSignal(new Signal { Key = "quality.edge_density", Value = 0.02, Confidence = 1.0, Source = "test" }); // Simple
+        context.AddSignal(new Signal
+            { Key = "identity.pixel_count", Value = 2500, Confidence = 1.0, Source = "test" }); // Small
+        context.AddSignal(new Signal
+            { Key = "content.text_likeliness", Value = 0.05, Confidence = 1.0, Source = "test" }); // Low text
+        context.AddSignal(new Signal
+            { Key = "quality.edge_density", Value = 0.02, Confidence = 1.0, Source = "test" }); // Simple
         return context;
     }
 
@@ -335,8 +343,10 @@ public class AutoRoutingWaveTests : IDisposable
     private AnalysisContext CreateContextForTextHeavyImage()
     {
         var context = CreateBasicContext();
-        context.AddSignal(new Signal { Key = "content.text_likeliness", Value = 0.75, Confidence = 1.0, Source = "test" });
-        context.AddSignal(new Signal { Key = "content.type", Value = "ScannedDocument", Confidence = 1.0, Source = "test" });
+        context.AddSignal(new Signal
+            { Key = "content.text_likeliness", Value = 0.75, Confidence = 1.0, Source = "test" });
+        context.AddSignal(new Signal
+            { Key = "content.type", Value = "ScannedDocument", Confidence = 1.0, Source = "test" });
         return context;
     }
 

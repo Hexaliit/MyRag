@@ -3,9 +3,9 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Abstraction for the entity knowledge graph store.
-/// Manages entities, mentions, relationships, entity embeddings, entity profiles, and statistics.
-/// Item-level vector similarity search is handled separately by IVectorStore (Storage.Core).
+///     Abstraction for the entity knowledge graph store.
+///     Manages entities, mentions, relationships, entity embeddings, entity profiles, and statistics.
+///     Item-level vector similarity search is handled separately by IVectorStore (Storage.Core).
 /// </summary>
 public interface IEntityGraphStore : IAsyncDisposable
 {
@@ -32,7 +32,8 @@ public interface IEntityGraphStore : IAsyncDisposable
     Task<List<GraphRelationship>> GetRelationshipsAsync(string entityId);
 
     /// <summary>Get articles that mention a specific entity.</summary>
-    Task<List<(string itemId, string title, string? url, double confidence)>> GetArticlesForEntityAsync(string entityId);
+    Task<List<(string itemId, string title, string? url, double confidence)>>
+        GetArticlesForEntityAsync(string entityId);
 
     /// <summary>Find entities similar to a query embedding using HNSW.</summary>
     Task<List<(GraphEntity entity, float similarity)>> FindSimilarEntitiesAsync(float[] queryEmbedding, int topK = 10);

@@ -1,7 +1,7 @@
 namespace VideoSummarizer.Core.Models;
 
 /// <summary>
-/// Represents a media file in the library with enriched metadata.
+///     Represents a media file in the library with enriched metadata.
 /// </summary>
 public record MediaFile
 {
@@ -42,7 +42,7 @@ public enum MediaFileStatus
 }
 
 /// <summary>
-/// External metadata from TMDB, OMDB, or other sources.
+///     External metadata from TMDB, OMDB, or other sources.
 /// </summary>
 public record ExternalMediaMetadata
 {
@@ -138,7 +138,7 @@ public record ExternalMediaMetadata
 }
 
 /// <summary>
-/// Cast member with optional face embedding for recognition.
+///     Cast member with optional face embedding for recognition.
 /// </summary>
 public record CastMember
 {
@@ -152,7 +152,7 @@ public record CastMember
 }
 
 /// <summary>
-/// Downloaded subtitle file.
+///     Downloaded subtitle file.
 /// </summary>
 public record SubtitleFile
 {
@@ -192,7 +192,7 @@ public enum SubtitleStatus
 }
 
 /// <summary>
-/// Represents a media library (folder) configuration.
+///     Represents a media library (folder) configuration.
 /// </summary>
 public record MediaLibrary
 {
@@ -232,7 +232,7 @@ public enum MediaType
 }
 
 /// <summary>
-/// Result from media library scan.
+///     Result from media library scan.
 /// </summary>
 public record LibraryScanResult
 {

@@ -1,17 +1,19 @@
 using System.Diagnostics;
+using DoomSummarizer.Services;
 using LucidRAG.Decomposer.Analysis;
 using LucidRAG.Decomposer.Models;
 using LucidRAG.Decomposer.Orchestration;
 using LucidRAG.Decomposer.Refinement;
 using Mostlylucid.DocSummarizer.Services;
+using Xunit.Abstractions;
 
 namespace DoomSummarizer.Tests.Benchmarks;
 
 /// <summary>
-/// Hot-path benchmarks for the decomposition pipeline.
-/// Uses xUnit + Stopwatch + GC allocation tracking (same pattern as LoadBalancingBenchmarks).
+///     Hot-path benchmarks for the decomposition pipeline.
+///     Uses xUnit + Stopwatch + GC allocation tracking (same pattern as LoadBalancingBenchmarks).
 /// </summary>
-public class HotPathBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
+public class HotPathBenchmarks(ITestOutputHelper output)
 {
     // ── B1: Archetype embedding batch call counts ────────────────────────
 
@@ -64,7 +66,7 @@ public class HotPathBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
         // Need 2+ clauses and no other triggers to reach archetype embedding path
         await classifier.ClassifyAsync(
             "How does X compare to Y, and what changed over time?",
-            entityCount: 0, entityTypeCount: 0, hasUrls: false, hasDateTimes: true);
+            0, 0, false, true);
 
         output.WriteLine($"ComplexityClassifier: {counting.BatchEmbedCalls} batch calls, " +
                          $"{counting.SingleEmbedCalls} single calls, " +
@@ -180,21 +182,20 @@ public class HotPathBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
         files.Length.Should().BeGreaterThan(0, "test data files should exist");
 
         // Warm up
-        await DoomSummarizer.Services.RetrievalSubQueryExecutor
+        await RetrievalSubQueryExecutor
             .BuildContentItemFromFileAsync(files[0], CancellationToken.None);
 
         var sw = Stopwatch.StartNew();
 
         for (var i = 0; i < files.Length; i++)
-        {
-            await DoomSummarizer.Services.RetrievalSubQueryExecutor
+            await RetrievalSubQueryExecutor
                 .BuildContentItemFromFileAsync(files[i], CancellationToken.None);
-        }
 
         sw.Stop();
 
         var opsPerSec = files.Length / sw.Elapsed.TotalSeconds;
-        output.WriteLine($"BuildContentItem: {opsPerSec:N0} files/sec ({files.Length} files in {sw.ElapsedMilliseconds}ms)");
+        output.WriteLine(
+            $"BuildContentItem: {opsPerSec:N0} files/sec ({files.Length} files in {sw.ElapsedMilliseconds}ms)");
     }
 
     [Fact]
@@ -337,19 +338,22 @@ public class HotPathBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
         return new DecompositionPipeline(classifier, conceptClassifier, analyzers, refiner, embedding);
     }
 
-    private static IQueryAnalyzer[] CreateAnalyzers(IEmbeddingService embedding) =>
-    [
-        new ReferenceExtractor(),
-        new StructuralAnalyzer(embedding),
-        new EntityRelationAnalyzer(embedding),
-        new TemporalAnalyzer(),
-        new SemanticClusterAnalyzer(embedding),
-        new ToolUseAnalyzer(embedding)
-    ];
+    private static IQueryAnalyzer[] CreateAnalyzers(IEmbeddingService embedding)
+    {
+        return
+        [
+            new ReferenceExtractor(),
+            new StructuralAnalyzer(embedding),
+            new EntityRelationAnalyzer(embedding),
+            new TemporalAnalyzer(),
+            new SemanticClusterAnalyzer(embedding),
+            new ToolUseAnalyzer(embedding)
+        ];
+    }
 
     /// <summary>
-    /// Zero-allocation word count using ReadOnlySpan.
-    /// This is the target implementation for B6 optimization.
+    ///     Zero-allocation word count using ReadOnlySpan.
+    ///     This is the target implementation for B6 optimization.
     /// </summary>
     internal static int CountWordsSpan(ReadOnlySpan<char> text)
     {
@@ -357,7 +361,6 @@ public class HotPathBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
         var inWord = false;
 
         for (var i = 0; i < text.Length; i++)
-        {
             if (char.IsWhiteSpace(text[i]))
             {
                 inWord = false;
@@ -367,7 +370,6 @@ public class HotPathBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
                 inWord = true;
                 count++;
             }
-        }
 
         return count;
     }

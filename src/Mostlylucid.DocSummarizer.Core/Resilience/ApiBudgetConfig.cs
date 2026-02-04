@@ -1,8 +1,8 @@
 namespace Mostlylucid.DocSummarizer.Resilience;
 
 /// <summary>
-/// Global budget controls across all paid/limited APIs.
-/// Individual service limits (via <see cref="IServiceBudgetLookup"/>) override these when set.
+///     Global budget controls across all paid/limited APIs.
+///     Individual service limits (via <see cref="IServiceBudgetLookup" />) override these when set.
 /// </summary>
 public record ApiBudgetConfig
 {

@@ -1,6 +1,6 @@
-using Mostlylucid.Summarizer.Core.Analysis;
 using DoomWriter.Models;
 using DoomWriter.Waves;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace DoomWriter.Tests.Waves;
 

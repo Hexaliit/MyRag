@@ -4,16 +4,16 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts all search services to the <see cref="ISourcePlugin"/> contract.
-/// Handles: search (rotated), gsearch, brave, bravenews, serper, serpernews, tavily, jina, ddg.
+///     Adapts all search services to the <see cref="ISourcePlugin" /> contract.
+///     Handles: search (rotated), gsearch, brave, bravenews, serper, serpernews, tavily, jina, ddg.
 /// </summary>
 public sealed class SearchPlugin : ISourcePlugin
 {
-    private HttpClient _httpClient = null!;
-    private ApiKeyService _apiKeys = null!;
-    private ApiBudgetService _apiBudget = null!;
-    private CircuitBreakerService _circuitBreaker = null!;
     private static int _searchApiRotation;
+    private ApiBudgetService _apiBudget = null!;
+    private ApiKeyService _apiKeys = null!;
+    private CircuitBreakerService _circuitBreaker = null!;
+    private HttpClient _httpClient = null!;
 
     public SourcePluginMetadata Metadata { get; } = new()
     {
@@ -29,7 +29,8 @@ public sealed class SearchPlugin : ISourcePlugin
         DisplayName = "Web Search & News APIs",
         Description = "Rotated web search across Brave, Serper, Tavily, Jina, DuckDuckGo, Google, and news APIs.",
         Capabilities = SourceCapabilities.Search | SourceCapabilities.RequiresAuth | SourceCapabilities.NoAuth,
-        RequiredApiKeys = ["brave_search", "serper", "tavily", "jina", "google_search", "newsapi", "newsdata", "currents"],
+        RequiredApiKeys =
+            ["brave_search", "serper", "tavily", "jina", "google_search", "newsapi", "newsdata", "currents"],
         Examples =
         [
             "-s \"search:query\"", "-s brave", "-s serper", "-s tavily", "-s jina", "-s ddg",
@@ -62,14 +63,17 @@ public sealed class SearchPlugin : ISourcePlugin
                 .SearchAsync(qualifiedQuery, limit * 2, context.Progress, ct),
             "gplaces" => await new GooglePlacesService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
                 .SearchAsync(query, limit, context.Progress, ct),
-            "brave" or "brave_search" => await new BraveSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
-                .SearchAsync(qualifiedQuery, limit * 2, newsOnly: false, context.Progress, ct),
-            "bravenews" or "brave_news" => await new BraveSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
-                .SearchAsync(query, limit, newsOnly: true, context.Progress, ct),
+            "brave" or "brave_search" => await new BraveSearchService(_httpClient, _apiKeys, _apiBudget,
+                    _circuitBreaker)
+                .SearchAsync(qualifiedQuery, limit * 2, false, context.Progress, ct),
+            "bravenews" or "brave_news" => await new BraveSearchService(_httpClient, _apiKeys, _apiBudget,
+                    _circuitBreaker)
+                .SearchAsync(query, limit, true, context.Progress, ct),
             "serper" => await new SerperSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
-                .SearchAsync(qualifiedQuery, limit * 2, newsOnly: false, context.Progress, ct),
-            "serpernews" or "serper_news" => await new SerperSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
-                .SearchAsync(query, limit, newsOnly: true, context.Progress, ct),
+                .SearchAsync(qualifiedQuery, limit * 2, false, context.Progress, ct),
+            "serpernews" or "serper_news" => await new SerperSearchService(_httpClient, _apiKeys, _apiBudget,
+                    _circuitBreaker)
+                .SearchAsync(query, limit, true, context.Progress, ct),
             "tavily" => await new TavilySearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
                 .SearchAsync(query, limit, progress: context.Progress, ct: ct),
             "jina" => await new JinaSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
@@ -91,11 +95,13 @@ public sealed class SearchPlugin : ISourcePlugin
         var available = new List<(string name, Func<Task<List<ContentItem>>> search)>();
 
         if (_apiKeys.HasGoogleSearch)
-            available.Add(("google_search", () => new GoogleSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
-                .SearchAsync(query, limit)));
+            available.Add(("google_search", () =>
+                new GoogleSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
+                    .SearchAsync(query, limit)));
         if (_apiKeys.IsAvailable("brave_search"))
-            available.Add(("brave_search", () => new BraveSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
-                .SearchAsync(query, limit)));
+            available.Add(("brave_search", () =>
+                new BraveSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
+                    .SearchAsync(query, limit)));
         if (_apiKeys.IsAvailable("serper"))
             available.Add(("serper", () => new SerperSearchService(_httpClient, _apiKeys, _apiBudget, _circuitBreaker)
                 .SearchAsync(query, limit)));

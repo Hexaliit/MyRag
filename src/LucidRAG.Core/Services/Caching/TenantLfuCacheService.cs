@@ -6,8 +6,8 @@ using Microsoft.Extensions.Options;
 namespace LucidRAG.Core.Services.Caching;
 
 /// <summary>
-/// Per-tenant LFU cache service for evidence artifacts and entities.
-/// Provides memory-efficient caching with tenant isolation.
+///     Per-tenant LFU cache service for evidence artifacts and entities.
+///     Provides memory-efficient caching with tenant isolation.
 /// </summary>
 public interface ITenantLfuCacheService
 {
@@ -30,9 +30,9 @@ public interface ITenantLfuCacheService
 
 public class TenantLfuCacheService : ITenantLfuCacheService
 {
-    private readonly ConcurrentDictionary<string, LfuCache<string, string>> _evidenceCaches = new();
-    private readonly ConcurrentDictionary<string, LfuCache<Guid, ExtractedEntity>> _entityCaches = new();
     private readonly LfuCacheConfig _config;
+    private readonly ConcurrentDictionary<string, LfuCache<Guid, ExtractedEntity>> _entityCaches = new();
+    private readonly ConcurrentDictionary<string, LfuCache<string, string>> _evidenceCaches = new();
     private readonly ILogger<TenantLfuCacheService> _logger;
 
     public TenantLfuCacheService(
@@ -60,12 +60,8 @@ public class TenantLfuCacheService : ITenantLfuCacheService
         var result = new Dictionary<string, string>();
 
         foreach (var hash in segmentHashes)
-        {
             if (cache.TryGet(hash, out var text))
-            {
                 result[hash] = text;
-            }
-        }
 
         return await Task.FromResult(result);
     }
@@ -79,10 +75,7 @@ public class TenantLfuCacheService : ITenantLfuCacheService
 
     public void InvalidateEvidence(string tenantId, string segmentHash)
     {
-        if (_evidenceCaches.TryGetValue(tenantId, out var cache))
-        {
-            cache.Remove(segmentHash);
-        }
+        if (_evidenceCaches.TryGetValue(tenantId, out var cache)) cache.Remove(segmentHash);
     }
 
     // ===== Entity Caching =====
@@ -105,25 +98,16 @@ public class TenantLfuCacheService : ITenantLfuCacheService
 
     public void InvalidateEntity(string tenantId, Guid entityId)
     {
-        if (_entityCaches.TryGetValue(tenantId, out var cache))
-        {
-            cache.Remove(entityId);
-        }
+        if (_entityCaches.TryGetValue(tenantId, out var cache)) cache.Remove(entityId);
     }
 
     // ===== Tenant Management =====
 
     public void InvalidateTenant(string tenantId)
     {
-        if (_evidenceCaches.TryRemove(tenantId, out var evidenceCache))
-        {
-            evidenceCache.Clear();
-        }
+        if (_evidenceCaches.TryRemove(tenantId, out var evidenceCache)) evidenceCache.Clear();
 
-        if (_entityCaches.TryRemove(tenantId, out var entityCache))
-        {
-            entityCache.Clear();
-        }
+        if (_entityCaches.TryRemove(tenantId, out var entityCache)) entityCache.Clear();
 
         _logger.LogInformation("Invalidated all caches for tenant {TenantId}", tenantId);
     }
@@ -151,10 +135,7 @@ public class TenantLfuCacheService : ITenantLfuCacheService
         var allTenants = _evidenceCaches.Keys.Union(_entityCaches.Keys).Distinct();
         var result = new Dictionary<string, TenantCacheStatistics>();
 
-        foreach (var tenantId in allTenants)
-        {
-            result[tenantId] = GetTenantStatistics(tenantId);
-        }
+        foreach (var tenantId in allTenants) result[tenantId] = GetTenantStatistics(tenantId);
 
         return result;
     }
@@ -200,39 +181,39 @@ public class TenantLfuCacheService : ITenantLfuCacheService
 }
 
 /// <summary>
-/// Configuration for LFU cache service.
+///     Configuration for LFU cache service.
 /// </summary>
 public class LfuCacheConfig
 {
     /// <summary>
-    /// Maximum entries per tenant evidence cache (default: 1000)
+    ///     Maximum entries per tenant evidence cache (default: 1000)
     /// </summary>
     public int EvidenceCacheCapacity { get; set; } = 1000;
 
     /// <summary>
-    /// Maximum entries per tenant entity cache (default: 500)
+    ///     Maximum entries per tenant entity cache (default: 500)
     /// </summary>
     public int EntityCacheCapacity { get; set; } = 500;
 
     /// <summary>
-    /// Maximum memory per tenant cache in MB (default: 50MB)
+    ///     Maximum memory per tenant cache in MB (default: 50MB)
     /// </summary>
     public int MaxMemoryPerTenantMB { get; set; } = 50;
 
     /// <summary>
-    /// Enable cache statistics tracking (default: true)
+    ///     Enable cache statistics tracking (default: true)
     /// </summary>
     public bool EnableStatistics { get; set; } = true;
 
     /// <summary>
-    /// Cache entry TTL in minutes (default: 60 minutes)
-    /// Not currently enforced - future enhancement
+    ///     Cache entry TTL in minutes (default: 60 minutes)
+    ///     Not currently enforced - future enhancement
     /// </summary>
     public int EntryTtlMinutes { get; set; } = 60;
 }
 
 /// <summary>
-/// Statistics for a single tenant's caches.
+///     Statistics for a single tenant's caches.
 /// </summary>
 public class TenantCacheStatistics
 {

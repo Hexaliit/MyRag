@@ -1,7 +1,11 @@
 {
   "sources": {
-    "hackerNews": { "maxStories": 100 },
-    "reddit": { "maxPosts": 75 }
+    "hackerNews": {
+      "maxStories": 100
+    },
+    "reddit": {
+      "maxPosts": 75
+    }
   },
   "ollama": {
     "model": "llama3.1:70b",

@@ -3,7 +3,7 @@ using OpenCvSharp;
 namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
-/// Noise reduction methods for document images.
+///     Noise reduction methods for document images.
 /// </summary>
 public class NoiseReducer
 {
@@ -28,7 +28,7 @@ public class NoiseReducer
     }
 
     /// <summary>
-    /// Simple Gaussian blur for minor noise.
+    ///     Simple Gaussian blur for minor noise.
     /// </summary>
     private static Mat GaussianDenoise(Mat gray, int kernelSize = 3)
     {
@@ -38,7 +38,7 @@ public class NoiseReducer
     }
 
     /// <summary>
-    /// Bilateral filter - preserves edges while smoothing.
+    ///     Bilateral filter - preserves edges while smoothing.
     /// </summary>
     private static Mat BilateralDenoise(Mat gray, int d = 9,
         double sigmaColor = 75, double sigmaSpace = 75)
@@ -49,7 +49,7 @@ public class NoiseReducer
     }
 
     /// <summary>
-    /// Non-local means - best quality but slower.
+    ///     Non-local means - best quality but slower.
     /// </summary>
     private static Mat NlmDenoise(Mat gray, float h = 10,
         int templateWindowSize = 7, int searchWindowSize = 21)
@@ -61,7 +61,7 @@ public class NoiseReducer
     }
 
     /// <summary>
-    /// Morphological denoising for binary images.
+    ///     Morphological denoising for binary images.
     /// </summary>
     private static Mat MorphologicalDenoise(Mat binary, int noiseSize = 2)
     {

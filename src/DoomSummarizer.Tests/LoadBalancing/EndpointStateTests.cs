@@ -100,10 +100,7 @@ public class EndpointStateTests
         var state = new EndpointState("http://localhost:11434");
         const int iterations = 10_000;
 
-        Parallel.For(0, iterations, _ =>
-        {
-            state.RecordSuccess(50.0);
-        });
+        Parallel.For(0, iterations, _ => { state.RecordSuccess(50.0); });
 
         state.TotalRequests.Should().Be(iterations);
         state.TotalFailures.Should().Be(0);

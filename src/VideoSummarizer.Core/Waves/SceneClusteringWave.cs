@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Services.Utilities;
 using VideoSummarizer.Core.Coordination;
@@ -6,17 +7,15 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 4: Multi-signal scene clustering.
-/// Groups shots into coherent scenes using:
-/// - CLIP embedding similarity (when available)
-/// - Transcript semantic boundaries (topic shifts)
-/// - Shot cut types (fades often indicate scene changes)
-/// - Temporal windowing (reasonable scene durations)
+///     Stage 4: Multi-signal scene clustering.
+///     Groups shots into coherent scenes using:
+///     - CLIP embedding similarity (when available)
+///     - Transcript semantic boundaries (topic shifts)
+///     - Shot cut types (fades often indicate scene changes)
+///     - Temporal windowing (reasonable scene durations)
 /// </summary>
 public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
 {
-    private readonly ILogger<SceneClusteringWave> _logger;
-
     // Clustering thresholds (should be in YAML)
     private const double EmbeddingSimilarityThreshold = 0.65; // Lower = more sensitive to changes
     private const double MinSceneDuration = 15.0; // Minimum scene duration in seconds
@@ -29,31 +28,37 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     private const double TranscriptWeight = 0.3;
     private const double CutTypeWeight = 0.2;
     private const double TemporalWeight = 0.1;
-
-    public string Name => "scene_clustering";
-    public int Priority => 400;
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Scene, VideoSignalTags.Visual];
-
-    // Signal contracts
-    public IReadOnlyList<string> RequiredSignals => [VideoSignals.ShotsDetected];
-    public IReadOnlyList<string> OptionalSignals => [
-        VideoSignals.ClipEmbeddingsReady,
-        VideoSignals.TranscriptionComplete,
-        VideoSignals.KeyframesDeduplicated
-    ];
-    public IReadOnlyList<string> EmittedSignals => [
-        VideoSignals.ScenesDetected,
-        "scene.count",
-        "scene.avg_duration",
-        "scene.clustering_method"
-    ];
-    public IReadOnlyList<string> CacheEmits => ["scene_centroids"];
-    public IReadOnlyList<string> CacheUses => [];
+    private readonly ILogger<SceneClusteringWave> _logger;
 
     public SceneClusteringWave(ILogger<SceneClusteringWave> logger)
     {
         _logger = logger;
     }
+
+    // Signal contracts
+    public IReadOnlyList<string> RequiredSignals => [VideoSignals.ShotsDetected];
+
+    public IReadOnlyList<string> OptionalSignals =>
+    [
+        VideoSignals.ClipEmbeddingsReady,
+        VideoSignals.TranscriptionComplete,
+        VideoSignals.KeyframesDeduplicated
+    ];
+
+    public IReadOnlyList<string> EmittedSignals =>
+    [
+        VideoSignals.ScenesDetected,
+        "scene.count",
+        "scene.avg_duration",
+        "scene.clustering_method"
+    ];
+
+    public IReadOnlyList<string> CacheEmits => ["scene_centroids"];
+    public IReadOnlyList<string> CacheUses => [];
+
+    public string Name => "scene_clustering";
+    public int Priority => 400;
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Scene, VideoSignalTags.Visual];
 
     public bool ShouldRun(VideoContext context)
     {
@@ -62,12 +67,13 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
             _logger.LogInformation("No shots - skipping scene clustering");
             return false;
         }
+
         return true;
     }
 
     public Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         context.ReportProgress("Clustering scenes", 0);
 
         // Emit wave started signal
@@ -178,7 +184,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Create scenes using multiple signals: embeddings, transcripts, cut types, and temporal patterns.
+    ///     Create scenes using multiple signals: embeddings, transcripts, cut types, and temporal patterns.
     /// </summary>
     private void CreateScenesMultiSignal(VideoContext context, bool hasEmbeddings, bool hasTranscripts)
     {
@@ -199,8 +205,8 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Compute a boundary score for each shot transition.
-    /// Higher score = more likely to be a scene boundary.
+    ///     Compute a boundary score for each shot transition.
+    ///     Higher score = more likely to be a scene boundary.
     /// </summary>
     private List<double> ComputeBoundaryScores(
         VideoContext context,
@@ -218,7 +224,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
             ? BuildTranscriptWindows(context, shots)
             : new Dictionary<int, string>();
 
-        for (int i = 0; i < shots.Count - 1; i++)
+        for (var i = 0; i < shots.Count - 1; i++)
         {
             var currentShot = shots[i];
             var nextShot = shots[i + 1];
@@ -243,17 +249,12 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
             }
 
             // 3. Cut type signal (fades often indicate scene changes)
-            if (nextShot.CutType == CutType.Fade || nextShot.CutType == CutType.Dissolve)
-            {
-                score += CutTypeWeight;
-            }
+            if (nextShot.CutType == CutType.Fade || nextShot.CutType == CutType.Dissolve) score += CutTypeWeight;
 
             // 4. Temporal gap (longer gaps suggest boundaries)
             var gap = nextShot.StartTime - currentShot.EndTime;
             if (gap > 0.5) // More than 0.5 second gap
-            {
                 score += Math.Min(gap / 5.0, 1.0) * TemporalWeight;
-            }
 
             scores.Add(score);
         }
@@ -262,7 +263,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Build a mapping from shot index to embedding, using nearest-neighbor interpolation.
+    ///     Build a mapping from shot index to embedding, using nearest-neighbor interpolation.
     /// </summary>
     private Dictionary<int, float[]> BuildShotEmbeddingMap(VideoContext context, List<ShotSegment> shots)
     {
@@ -271,7 +272,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
         // First, get all keyframes that have embeddings
         var embeddingsByTime = new List<(double Time, int ShotIndex, float[] Embedding)>();
 
-        for (int i = 0; i < shots.Count; i++)
+        for (var i = 0; i < shots.Count; i++)
         {
             var shot = shots[i];
             if (context.KeyframeEmbeddings.TryGetValue(shot.KeyframeIndex, out var embedding))
@@ -284,7 +285,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
         if (embeddingsByTime.Count == 0) return map;
 
         // Propagate embeddings to nearby shots using nearest-neighbor
-        for (int i = 0; i < shots.Count; i++)
+        for (var i = 0; i < shots.Count; i++)
         {
             if (map.ContainsKey(i)) continue;
 
@@ -300,10 +301,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
             {
                 // Only propagate if within reasonable distance (30 seconds)
                 var distance = Math.Abs(nearest.Time - shotTime);
-                if (distance < 30.0)
-                {
-                    map[i] = nearest.Embedding;
-                }
+                if (distance < 30.0) map[i] = nearest.Embedding;
             }
         }
 
@@ -311,14 +309,14 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Build transcript windows for each shot (aggregating nearby utterances).
+    ///     Build transcript windows for each shot (aggregating nearby utterances).
     /// </summary>
     private Dictionary<int, string> BuildTranscriptWindows(VideoContext context, List<ShotSegment> shots)
     {
         var windows = new Dictionary<int, string>();
         var windowDuration = 10.0; // 10 second windows
 
-        for (int i = 0; i < shots.Count; i++)
+        for (var i = 0; i < shots.Count; i++)
         {
             var shot = shots[i];
             var windowStart = shot.StartTime - windowDuration / 2;
@@ -330,17 +328,14 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
                 .Select(u => u.Text)
                 .ToList();
 
-            if (utterances.Count > 0)
-            {
-                windows[i] = string.Join(" ", utterances);
-            }
+            if (utterances.Count > 0) windows[i] = string.Join(" ", utterances);
         }
 
         return windows;
     }
 
     /// <summary>
-    /// Compute text similarity using word overlap (simple Jaccard-like metric).
+    ///     Compute text similarity using word overlap (simple Jaccard-like metric).
     /// </summary>
     private static double ComputeTextSimilarity(string text1, string text2)
     {
@@ -356,7 +351,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Find optimal scene boundaries using greedy approach with constraints.
+    ///     Find optimal scene boundaries using greedy approach with constraints.
     /// </summary>
     private List<int> FindOptimalBoundaries(List<ShotSegment> shots, List<double> boundaryScores)
     {
@@ -371,7 +366,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
 
         _logger.LogDebug("Boundary threshold: {Threshold:F3} (from {Count} scores)", threshold, sortedScores.Count);
 
-        for (int i = 0; i < boundaryScores.Count; i++)
+        for (var i = 0; i < boundaryScores.Count; i++)
         {
             var shot = shots[i];
             var timeSinceLastBoundary = shot.EndTime - shots[lastBoundary].StartTime;
@@ -408,14 +403,14 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Create boundaries based on fixed time windows (fallback).
+    ///     Create boundaries based on fixed time windows (fallback).
     /// </summary>
     private List<int> CreateTemporalBoundaries(List<ShotSegment> shots)
     {
         var boundaries = new List<int>();
         var windowStart = shots[0].StartTime;
 
-        for (int i = 0; i < shots.Count - 1; i++)
+        for (var i = 0; i < shots.Count - 1; i++)
         {
             var elapsed = shots[i].EndTime - windowStart;
             if (elapsed >= TargetSceneDuration)
@@ -429,7 +424,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Create scene segments from boundary indices.
+    ///     Create scene segments from boundary indices.
     /// </summary>
     private void CreateScenesFromBoundaries(VideoContext context, List<ShotSegment> shots, List<int> boundaries)
     {
@@ -439,7 +434,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
         var sceneEnds = new List<int>(boundaries);
         sceneEnds.Add(shots.Count - 1);
 
-        for (int i = 0; i < sceneStarts.Count; i++)
+        for (var i = 0; i < sceneStarts.Count; i++)
         {
             var startIdx = sceneStarts[i];
             var endIdx = sceneEnds[i];
@@ -466,7 +461,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Enhance existing scenes (from chapters) with shot mappings.
+    ///     Enhance existing scenes (from chapters) with shot mappings.
     /// </summary>
     private void EnhanceExistingScenes(VideoContext context)
     {
@@ -480,18 +475,16 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
 
             var existingIds = scene.ShotIds.ToHashSet();
             foreach (var shot in sceneShots)
-            {
                 if (!existingIds.Contains(shot.Id))
                 {
                     scene.ShotIds.Add(shot.Id);
                     scene.KeyframeIndices.Add(shot.KeyframeIndex);
                 }
-            }
         }
     }
 
     /// <summary>
-    /// Extract key terms from utterances and text tracks in each scene.
+    ///     Extract key terms from utterances and text tracks in each scene.
     /// </summary>
     private void ExtractSceneKeyTerms(VideoContext context)
     {
@@ -539,7 +532,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
     }
 
     /// <summary>
-    /// Compute centroid embeddings for each scene.
+    ///     Compute centroid embeddings for each scene.
     /// </summary>
     private void ComputeSceneCentroids(VideoContext context)
     {
@@ -548,31 +541,20 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
             var embeddings = new List<float[]>();
 
             foreach (var frameIndex in scene.KeyframeIndices)
-            {
                 if (context.KeyframeEmbeddings.TryGetValue(frameIndex, out var embedding))
-                {
                     embeddings.Add(embedding);
-                }
-            }
 
             if (embeddings.Count == 0) continue;
 
             var dimension = embeddings[0].Length;
             var centroid = new float[dimension];
 
-            for (int d = 0; d < dimension; d++)
-            {
-                centroid[d] = embeddings.Average(e => e[d]);
-            }
+            for (var d = 0; d < dimension; d++) centroid[d] = embeddings.Average(e => e[d]);
 
             var norm = (float)Math.Sqrt(centroid.Sum(x => x * x));
             if (norm > 1e-6)
-            {
-                for (int d = 0; d < dimension; d++)
-                {
+                for (var d = 0; d < dimension; d++)
                     centroid[d] /= norm;
-                }
-            }
 
             context.SetCached($"scene_centroid.{scene.Id}", centroid);
         }
@@ -583,7 +565,7 @@ public class SceneClusteringWave : IVideoWave, ISignalAwareVideoWave
         if (a.Length != b.Length) return 0;
 
         double dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dot += a[i] * b[i];
             normA += a[i] * a[i];

@@ -3,13 +3,12 @@ using Mostlylucid.DocSummarizer.Images.Models;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzes the complexity of animated images (GIF/WebP) using deterministic metrics.
-/// Provides insights into animation patterns, visual stability, and temporal complexity.
+///     Analyzes the complexity of animated images (GIF/WebP) using deterministic metrics.
+///     Provides insights into animation patterns, visual stability, and temporal complexity.
 /// </summary>
 public class GifComplexityAnalyzer
 {
@@ -22,7 +21,7 @@ public class GifComplexityAnalyzer
     }
 
     /// <summary>
-    /// Analyze the complexity of an animated image.
+    ///     Analyze the complexity of an animated image.
     /// </summary>
     public async Task<GifComplexityProfile> AnalyzeAsync(
         string imagePath,
@@ -32,15 +31,12 @@ public class GifComplexityAnalyzer
         var formatName = format?.Name?.ToUpperInvariant();
 
         if (formatName != "GIF" && formatName != "WEBP")
-        {
             throw new ArgumentException($"Unsupported format: {formatName}. Only GIF and WebP are supported.");
-        }
 
         using var image = await Image.LoadAsync<Rgba32>(imagePath, ct);
         var frameCount = image.Frames.Count;
 
         if (frameCount == 1)
-        {
             // Static image - zero complexity
             return new GifComplexityProfile
             {
@@ -52,7 +48,6 @@ public class GifComplexityAnalyzer
                 AnimationType = "static",
                 OverallComplexity = 0.0
             };
-        }
 
         _logger?.LogInformation("Analyzing complexity for {Format} with {FrameCount} frames",
             formatName, frameCount);
@@ -64,7 +59,7 @@ public class GifComplexityAnalyzer
         var frameAnalyses = new List<FrameAnalysis>();
         var previousFrame = default(Image<Rgba32>);
 
-        for (int i = 0; i < frameCount; i += samplingInterval)
+        for (var i = 0; i < frameCount; i += samplingInterval)
         {
             if (ct.IsCancellationRequested) break;
             if (frameAnalyses.Count >= framesToAnalyze) break;
@@ -101,9 +96,11 @@ public class GifComplexityAnalyzer
         var entropyVariation = ComputeEntropyVariation(frameAnalyses);
         var sceneChangeCount = DetectSceneChanges(frameAnalyses);
         var animationType = ClassifyAnimationType(frameAnalyses, sceneChangeCount);
-        var overallComplexity = ComputeOverallComplexity(visualStability, colorVariation, entropyVariation, sceneChangeCount, frameCount);
+        var overallComplexity = ComputeOverallComplexity(visualStability, colorVariation, entropyVariation,
+            sceneChangeCount, frameCount);
 
-        _logger?.LogInformation("Complexity analysis complete: stability={Stability:F2}, colorVar={ColorVar:F2}, type={Type}",
+        _logger?.LogInformation(
+            "Complexity analysis complete: stability={Stability:F2}, colorVar={ColorVar:F2}, type={Type}",
             visualStability, colorVariation, animationType);
 
         return new GifComplexityProfile
@@ -121,8 +118,8 @@ public class GifComplexityAnalyzer
     }
 
     /// <summary>
-    /// Compute visual stability (1.0 = very stable, 0.0 = very chaotic).
-    /// Based on frame-to-frame differences.
+    ///     Compute visual stability (1.0 = very stable, 0.0 = very chaotic).
+    ///     Based on frame-to-frame differences.
     /// </summary>
     private double ComputeVisualStability(List<FrameAnalysis> frames)
     {
@@ -137,7 +134,7 @@ public class GifComplexityAnalyzer
     }
 
     /// <summary>
-    /// Compute color variation across frames (0.0 = same colors, 1.0 = wildly changing).
+    ///     Compute color variation across frames (0.0 = same colors, 1.0 = wildly changing).
     /// </summary>
     private double ComputeColorVariation(List<FrameAnalysis> frames)
     {
@@ -145,7 +142,7 @@ public class GifComplexityAnalyzer
 
         var colorDistances = new List<double>();
 
-        for (int i = 1; i < frames.Count; i++)
+        for (var i = 1; i < frames.Count; i++)
         {
             var color1 = frames[i - 1].DominantColor;
             var color2 = frames[i].DominantColor;
@@ -163,7 +160,7 @@ public class GifComplexityAnalyzer
     }
 
     /// <summary>
-    /// Compute entropy variation (how much visual complexity changes).
+    ///     Compute entropy variation (how much visual complexity changes).
     /// </summary>
     private double ComputeEntropyVariation(List<FrameAnalysis> frames)
     {
@@ -179,7 +176,7 @@ public class GifComplexityAnalyzer
     }
 
     /// <summary>
-    /// Detect scene changes (abrupt transitions with high frame difference).
+    ///     Detect scene changes (abrupt transitions with high frame difference).
     /// </summary>
     private int DetectSceneChanges(List<FrameAnalysis> frames)
     {
@@ -192,7 +189,7 @@ public class GifComplexityAnalyzer
     }
 
     /// <summary>
-    /// Classify animation type based on patterns.
+    ///     Classify animation type based on patterns.
     /// </summary>
     private string ClassifyAnimationType(List<FrameAnalysis> frames, int sceneChanges)
     {
@@ -201,29 +198,20 @@ public class GifComplexityAnalyzer
         var avgDiff = frames.Average(f => f.DifferenceFromPrevious);
 
         // Scene cuts (e.g., slideshow)
-        if (sceneChanges > frames.Count * 0.3)
-        {
-            return "slideshow";
-        }
+        if (sceneChanges > frames.Count * 0.3) return "slideshow";
 
         // Very low difference = simple toggle or loop
-        if (avgDiff < 0.05)
-        {
-            return "simple-loop";
-        }
+        if (avgDiff < 0.05) return "simple-loop";
 
         // Moderate difference = smooth animation
-        if (avgDiff < 0.15)
-        {
-            return "smooth-animation";
-        }
+        if (avgDiff < 0.15) return "smooth-animation";
 
         // High difference = complex/chaotic
         return "complex-animation";
     }
 
     /// <summary>
-    /// Compute overall complexity score (0-1).
+    ///     Compute overall complexity score (0-1).
     /// </summary>
     private double ComputeOverallComplexity(
         double visualStability,
@@ -237,15 +225,15 @@ public class GifComplexityAnalyzer
 
         // Weighted combination
         var complexity = 0.4 * instability
-                       + 0.3 * colorVariation
-                       + 0.2 * entropyVariation
-                       + 0.1 * sceneChangeRatio;
+                         + 0.3 * colorVariation
+                         + 0.2 * entropyVariation
+                         + 0.1 * sceneChangeRatio;
 
         return Math.Clamp(complexity, 0, 1);
     }
 
     /// <summary>
-    /// Compute frame-to-frame difference (0 = identical, 1 = completely different).
+    ///     Compute frame-to-frame difference (0 = identical, 1 = completely different).
     /// </summary>
     private double ComputeFrameDifference(Image<Rgba32> frame1, Image<Rgba32> frame2)
     {
@@ -255,12 +243,12 @@ public class GifComplexityAnalyzer
         long totalDifference = 0;
         long totalPixels = 0;
 
-        for (int y = 0; y < height; y += 4) // Sample every 4th pixel for speed
+        for (var y = 0; y < height; y += 4) // Sample every 4th pixel for speed
         {
             var row1 = frame1.DangerousGetPixelRowMemory(y).Span;
             var row2 = frame2.DangerousGetPixelRowMemory(y).Span;
 
-            for (int x = 0; x < width; x += 4)
+            for (var x = 0; x < width; x += 4)
             {
                 var p1 = row1[x];
                 var p2 = row2[x];
@@ -276,17 +264,17 @@ public class GifComplexityAnalyzer
     }
 
     /// <summary>
-    /// Compute luminance entropy of a frame.
+    ///     Compute luminance entropy of a frame.
     /// </summary>
     private double ComputeEntropy(Image<Rgba32> frame)
     {
         var histogram = new int[256];
         var totalPixels = 0;
 
-        for (int y = 0; y < frame.Height; y += 2)
+        for (var y = 0; y < frame.Height; y += 2)
         {
             var row = frame.DangerousGetPixelRowMemory(y).Span;
-            for (int x = 0; x < frame.Width; x += 2)
+            for (var x = 0; x < frame.Width; x += 2)
             {
                 var pixel = row[x];
                 var luminance = (int)(0.299 * pixel.R + 0.587 * pixel.G + 0.114 * pixel.B);
@@ -296,30 +284,28 @@ public class GifComplexityAnalyzer
         }
 
         var entropy = 0.0;
-        for (int i = 0; i < 256; i++)
-        {
+        for (var i = 0; i < 256; i++)
             if (histogram[i] > 0)
             {
                 var probability = histogram[i] / (double)totalPixels;
                 entropy -= probability * Math.Log2(probability);
             }
-        }
 
         return entropy;
     }
 
     /// <summary>
-    /// Get dominant color of a frame (simple average).
+    ///     Get dominant color of a frame (simple average).
     /// </summary>
     private Rgba32 GetDominantColor(Image<Rgba32> frame)
     {
         long r = 0, g = 0, b = 0;
         long count = 0;
 
-        for (int y = 0; y < frame.Height; y += 4)
+        for (var y = 0; y < frame.Height; y += 4)
         {
             var row = frame.DangerousGetPixelRowMemory(y).Span;
-            for (int x = 0; x < frame.Width; x += 4)
+            for (var x = 0; x < frame.Width; x += 4)
             {
                 var pixel = row[x];
                 r += pixel.R;

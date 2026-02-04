@@ -1,21 +1,23 @@
+using System.Diagnostics;
+using LucidRAG.Data;
+using LucidRAG.Entities;
+using LucidRAG.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using LucidRAG.Entities;
-using LucidRAG.Data;
-using LucidRAG.Services;
+using Npgsql;
 
 namespace LucidRAG.Plugin.Postgres;
 
 /// <summary>
-/// PostgreSQL-native full-text search service using ts_rank_cd.
-/// Registered by PostgresPlugin as IBm25SearchService.
+///     PostgreSQL-native full-text search service using ts_rank_cd.
+///     Registered by PostgresPlugin as IBm25SearchService.
 /// </summary>
 public class PostgresBm25Service : IBm25SearchService
 {
+    private readonly string _connectionString;
     private readonly RagDocumentsDbContext _db;
     private readonly ILogger<PostgresBm25Service> _logger;
-    private readonly string _connectionString;
 
     public PostgresBm25Service(
         RagDocumentsDbContext db,
@@ -25,7 +27,8 @@ public class PostgresBm25Service : IBm25SearchService
         _db = db;
         _logger = logger;
         _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("DefaultConnection string not found in configuration");
+                            ?? throw new InvalidOperationException(
+                                "DefaultConnection string not found in configuration");
     }
 
     public async Task<List<(EvidenceArtifact artifact, double score)>> SearchAsync(
@@ -37,7 +40,7 @@ public class PostgresBm25Service : IBm25SearchService
         if (string.IsNullOrWhiteSpace(query))
             return [];
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         try
         {
@@ -101,7 +104,7 @@ public class PostgresBm25Service : IBm25SearchService
         if (string.IsNullOrWhiteSpace(query))
             return [];
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         try
         {
@@ -114,20 +117,17 @@ public class PostgresBm25Service : IBm25SearchService
                 ORDER BY score DESC
                 LIMIT $2";
 
-            await using var connection = new Npgsql.NpgsqlConnection(_connectionString);
+            await using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(ct);
 
-            await using var command = new Npgsql.NpgsqlCommand(sql, connection);
+            await using var command = new NpgsqlCommand(sql, connection);
             command.Parameters.AddWithValue(query);
             command.Parameters.AddWithValue(topK);
 
             var idsAndScores = new List<(Guid id, double score)>();
 
             await using var reader = await command.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-            {
-                idsAndScores.Add((reader.GetGuid(0), reader.GetDouble(1)));
-            }
+            while (await reader.ReadAsync(ct)) idsAndScores.Add((reader.GetGuid(0), reader.GetDouble(1)));
             await reader.CloseAsync();
 
             var ids = idsAndScores.Select(x => x.id).ToList();
@@ -155,8 +155,8 @@ public class PostgresBm25Service : IBm25SearchService
     }
 
     /// <summary>
-    /// Hybrid search combining dense embeddings, BM25 (FTS), and salience using RRF.
-    /// Runs entirely in PostgreSQL.
+    ///     Hybrid search combining dense embeddings, BM25 (FTS), and salience using RRF.
+    ///     Runs entirely in PostgreSQL.
     /// </summary>
     public async Task<List<(EvidenceArtifact artifact, double rrfScore)>> HybridSearchAsync(
         string query,
@@ -165,7 +165,7 @@ public class PostgresBm25Service : IBm25SearchService
         int rrfK = 60,
         CancellationToken ct = default)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         try
         {
@@ -199,11 +199,11 @@ public class PostgresBm25Service : IBm25SearchService
                 ORDER BY rrf_score DESC
                 LIMIT $4";
 
-            await using var connection = new Npgsql.NpgsqlConnection(_connectionString);
+            await using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(ct);
 
-            await using var command = new Npgsql.NpgsqlCommand(sql, connection);
-            command.Parameters.AddWithValue(queryEmbedding != null ? (object)queryEmbedding : DBNull.Value);
+            await using var command = new NpgsqlCommand(sql, connection);
+            command.Parameters.AddWithValue(queryEmbedding != null ? queryEmbedding : DBNull.Value);
             command.Parameters.AddWithValue(query);
             command.Parameters.AddWithValue(rrfK);
             command.Parameters.AddWithValue(topK);
@@ -211,10 +211,7 @@ public class PostgresBm25Service : IBm25SearchService
             var idsAndScores = new List<(Guid id, double score)>();
 
             await using var reader = await command.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-            {
-                idsAndScores.Add((reader.GetGuid(0), reader.GetDouble(1)));
-            }
+            while (await reader.ReadAsync(ct)) idsAndScores.Add((reader.GetGuid(0), reader.GetDouble(1)));
             await reader.CloseAsync();
 
             var ids = idsAndScores.Select(x => x.id).ToList();
@@ -242,7 +239,7 @@ public class PostgresBm25Service : IBm25SearchService
     }
 
     /// <summary>
-    /// Refresh corpus statistics materialized view.
+    ///     Refresh corpus statistics materialized view.
     /// </summary>
     public async Task RefreshCorpusStatsAsync(CancellationToken ct = default)
     {

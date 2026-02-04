@@ -1,8 +1,11 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Platform;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using DoomWriter.Controls;
 using DoomWriter.Services;
 using DoomWriter.ViewModels;
@@ -25,14 +28,14 @@ public partial class MainWindow : Window
         KeyDown += OnKeyDown;
     }
 
+    private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
+
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);
     }
 
-    private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
-
-    private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         // Wire toolbar buttons directly (avoids broken compiled binding for StorageProvider)
         WireToolbarButtons();
@@ -117,7 +120,6 @@ public partial class MainWindow : Window
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.KeyModifiers == KeyModifiers.Control)
-        {
             switch (e.Key)
             {
                 case Key.O:
@@ -125,9 +127,7 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     break;
             }
-        }
         else if (e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
-        {
             switch (e.Key)
             {
                 case Key.S:
@@ -135,7 +135,6 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     break;
             }
-        }
     }
 
     private void InitializeEditor()
@@ -151,7 +150,7 @@ public partial class MainWindow : Window
         // Wire JS → C# messages
         _webViewHost.WebMessageReceived += (s, json) =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => bridge.HandleWebMessage(json));
+            Dispatcher.UIThread.Post(() => bridge.HandleWebMessage(json));
         };
 
         // When WebView2 core is ready, wire C# → JS and navigate to editor
@@ -165,7 +164,7 @@ public partial class MainWindow : Window
         // When navigation completes, push any pending content
         _webViewHost.NavigationCompleted += (s, _) =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            Dispatcher.UIThread.Post(async () =>
             {
                 if (placeholder != null)
                     placeholder.IsVisible = false;
@@ -176,13 +175,13 @@ public partial class MainWindow : Window
         // Handle WebView2 init failure
         _webViewHost.InitializationFailed += (s, msg) =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 if (placeholder != null)
                 {
                     placeholder.Text = msg;
-                    placeholder.TextWrapping = Avalonia.Media.TextWrapping.Wrap;
-                    placeholder.Foreground = Avalonia.Media.Brushes.IndianRed;
+                    placeholder.TextWrapping = TextWrapping.Wrap;
+                    placeholder.Foreground = Brushes.IndianRed;
                 }
             });
         };
@@ -206,6 +205,7 @@ public partial class MainWindow : Window
                         await bridge.SetContentAsync(vm.Editor.Content);
                         vm.Editor.MarkClean();
                     }
+
                     return;
                 }
             }
@@ -224,41 +224,13 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(editorDir);
         var editorPath = Path.Combine(editorDir, "editor.html");
 
-        await using var stream = Avalonia.Platform.AssetLoader.Open(
+        await using var stream = AssetLoader.Open(
             new Uri("avares://DoomWriter/Resources/editor.html"));
         await using var fileStream = File.Create(editorPath);
         await stream.CopyToAsync(fileStream);
 
         return editorPath;
     }
-
-#pragma warning disable CS0618 // DragEventArgs.Data is obsolete
-    private void OnDragOver(object? sender, DragEventArgs e)
-    {
-        e.DragEffects = e.Data.Contains(DataFormats.Files)
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
-    }
-
-    private async void OnDrop(object? sender, DragEventArgs e)
-    {
-        if (Vm == null) return;
-        if (!e.Data.Contains(DataFormats.Files)) return;
-
-        var files = e.Data.GetFiles();
-        if (files == null) return;
-
-        foreach (var file in files)
-        {
-            var path = file.TryGetLocalPath();
-            if (path != null && IsMarkdownFile(path))
-            {
-                await Vm.OpenFileAsync(path);
-                break;
-            }
-        }
-    }
-#pragma warning restore CS0618
 
     private void RestoreSignalPanelWidth()
     {
@@ -290,4 +262,32 @@ public partial class MainWindow : Window
         var ext = Path.GetExtension(path).ToLowerInvariant();
         return ext is ".md" or ".markdown" or ".mdx" or ".txt";
     }
+
+#pragma warning disable CS0618 // DragEventArgs.Data is obsolete
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.Data.Contains(DataFormats.Files)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (Vm == null) return;
+        if (!e.Data.Contains(DataFormats.Files)) return;
+
+        var files = e.Data.GetFiles();
+        if (files == null) return;
+
+        foreach (var file in files)
+        {
+            var path = file.TryGetLocalPath();
+            if (path != null && IsMarkdownFile(path))
+            {
+                await Vm.OpenFileAsync(path);
+                break;
+            }
+        }
+    }
+#pragma warning restore CS0618
 }

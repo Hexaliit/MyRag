@@ -5,8 +5,8 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services.Providers;
 
 /// <summary>
-/// Named provider wrapper for OpenAI LLM service.
-/// Also used for LMStudio (OpenAI-compatible API).
+///     Named provider wrapper for OpenAI LLM service.
+///     Also used for LMStudio (OpenAI-compatible API).
 /// </summary>
 public class OpenAIProvider : BaseLlmProvider
 {

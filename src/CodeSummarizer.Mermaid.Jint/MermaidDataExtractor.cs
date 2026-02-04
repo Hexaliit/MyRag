@@ -7,7 +7,7 @@ using Jint.Runtime;
 namespace CodeSummarizer.Mermaid.Jint;
 
 /// <summary>
-///     Maps Jint JsValue results from mermaid.js parse → <see cref="MermaidSummary"/>.
+///     Maps Jint JsValue results from mermaid.js parse → <see cref="MermaidSummary" />.
 /// </summary>
 internal static class MermaidDataExtractor
 {
@@ -18,7 +18,6 @@ internal static class MermaidDataExtractor
     public static MermaidSummary Extract(JsValue result, string originalCode)
     {
         if (result is not ObjectInstance obj)
-        {
             return new MermaidSummary
             {
                 Description = "Parsed by mermaid.js (no structured output)",
@@ -26,7 +25,6 @@ internal static class MermaidDataExtractor
                 Source = "jint",
                 OriginalCode = originalCode
             };
-        }
 
         var diagramType = GetString(obj, "diagramType") ?? DetectDiagramTypeFromCode(originalCode);
         var description = GetString(obj, "description") ?? $"Mermaid {diagramType} diagram";
@@ -88,6 +86,7 @@ internal static class MermaidDataExtractor
             if (item.Type is not (Types.Undefined or Types.Null))
                 result.Add(item.ToString());
         }
+
         return result;
     }
 

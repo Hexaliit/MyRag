@@ -1,27 +1,22 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Data.Models;
 using Mostlylucid.DocSummarizer.Data.Services;
 using Mostlylucid.DocSummarizer.Data.Services.Analysis;
-using Mostlylucid.DocSummarizer.Data.Models;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Table Profiling Wave - Profiles extracted CSV tables using DataSummarizer.
-/// Runs after TableExtractionWave, processes CSV files and emits data quality signals.
-///
-/// Priority: 61 (after TableExtractionWave at 62)
+///     Table Profiling Wave - Profiles extracted CSV tables using DataSummarizer.
+///     Runs after TableExtractionWave, processes CSV files and emits data quality signals.
+///     Priority: 61 (after TableExtractionWave at 62)
 /// </summary>
 public class TableProfilingWave : IAnalysisWave
 {
-    private readonly IDataProcessor? _dataProcessor;
     private readonly DataAnalysisOrchestrator? _dataOrchestrator;
+    private readonly IDataProcessor? _dataProcessor;
     private readonly ILogger<TableProfilingWave>? _logger;
-
-    public string Name => "TableProfilingWave";
-    public int Priority => 61; // After TableExtractionWave (62)
-    public IReadOnlyList<string> Tags => new[] { "table", "profiling", "data", SignalTags.Content };
 
     public TableProfilingWave(
         IDataProcessor? dataProcessor = null,
@@ -32,6 +27,10 @@ public class TableProfilingWave : IAnalysisWave
         _dataOrchestrator = dataOrchestrator;
         _logger = logger;
     }
+
+    public string Name => "TableProfilingWave";
+    public int Priority => 61; // After TableExtractionWave (62)
+    public IReadOnlyList<string> Tags => new[] { "table", "profiling", "data", SignalTags.Content };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -65,7 +64,7 @@ public class TableProfilingWave : IAnalysisWave
 
         var profileResults = new List<TableProfileResult>();
 
-        for (int i = 0; i < csvPaths.Count; i++)
+        for (var i = 0; i < csvPaths.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -141,7 +140,7 @@ public class TableProfilingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Profile a single CSV table using DataSummarizer.
+    ///     Profile a single CSV table using DataSummarizer.
     /// </summary>
     private async Task<TableProfileResult?> ProfileTableAsync(
         string csvPath,
@@ -173,7 +172,6 @@ public class TableProfilingWave : IAnalysisWave
         // Run full analysis if orchestrator is available
         DynamicDataProfile? profile = null;
         if (_dataOrchestrator != null)
-        {
             try
             {
                 var dataFile = new DataFile(csvPath);
@@ -183,7 +181,6 @@ public class TableProfilingWave : IAnalysisWave
             {
                 _logger?.LogWarning(ex, "DataAnalysisOrchestrator failed for {Path}", csvPath);
             }
-        }
 
         // Calculate completeness from profile or estimate
         var completeness = 1.0;
@@ -196,10 +193,7 @@ public class TableProfilingWave : IAnalysisWave
                     .Where(s => s.Key.Contains("null_rate"))
                     .Select(s => Convert.ToDouble(s.Value ?? 0))
                     .ToList();
-                if (nullRates.Count > 0)
-                {
-                    completeness = 1.0 - nullRates.Average();
-                }
+                if (nullRates.Count > 0) completeness = 1.0 - nullRates.Average();
             }
         }
 
@@ -217,7 +211,7 @@ public class TableProfilingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Emit signals for a profiled table.
+    ///     Emit signals for a profiled table.
     /// </summary>
     private void EmitTableSignals(List<Signal> signals, TableProfileResult result, int index)
     {
@@ -264,7 +258,6 @@ public class TableProfilingWave : IAnalysisWave
             // Data domain classification
             var domainSignal = result.Profile.GetBestSignal("characterization.domain");
             if (domainSignal?.Value != null)
-            {
                 signals.Add(new Signal
                 {
                     Key = $"table.profile.{index}.domain",
@@ -273,12 +266,10 @@ public class TableProfilingWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "table", "profile", "domain" }
                 });
-            }
 
             // PII detection
             var piiSignals = result.Profile.GetSignalsByTag("pii").ToList();
             if (piiSignals.Count > 0)
-            {
                 signals.Add(new Signal
                 {
                     Key = $"table.profile.{index}.has_pii",
@@ -294,7 +285,6 @@ public class TableProfilingWave : IAnalysisWave
                             .ToList()
                     }
                 });
-            }
 
             // Outlier detection
             var outlierSignals = result.Profile.GetSignalsByTag("outlier").ToList();
@@ -304,7 +294,6 @@ public class TableProfilingWave : IAnalysisWave
                     .Where(s => s.Key.Contains(".count"))
                     .Sum(s => Convert.ToInt32(s.Value ?? 0));
                 if (totalOutliers > 0)
-                {
                     signals.Add(new Signal
                     {
                         Key = $"table.profile.{index}.outlier_count",
@@ -313,13 +302,11 @@ public class TableProfilingWave : IAnalysisWave
                         Source = Name,
                         Tags = new List<string> { "table", "profile", "quality" }
                     });
-                }
             }
 
             // Summary text for RAG
             var summary = result.Profile.ToSummaryText();
             if (!string.IsNullOrWhiteSpace(summary))
-            {
                 signals.Add(new Signal
                 {
                     Key = $"table.profile.{index}.summary",
@@ -328,7 +315,6 @@ public class TableProfilingWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "table", "profile", "text", SignalTags.Content }
                 });
-            }
         }
 
         _logger?.LogInformation(
@@ -338,7 +324,7 @@ public class TableProfilingWave : IAnalysisWave
 }
 
 /// <summary>
-/// Result of profiling a single table.
+///     Result of profiling a single table.
 /// </summary>
 public record TableProfileResult
 {

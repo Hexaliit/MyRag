@@ -1,28 +1,31 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
+using ClosedXML.Excel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Data.Config;
 using Mostlylucid.DocSummarizer.Data.Models;
+using Parquet;
 
 namespace Mostlylucid.DocSummarizer.Data.Services;
 
 /// <summary>
-/// Main data processor service that routes to format-specific processors.
+///     Main data processor service that routes to format-specific processors.
 /// </summary>
 public class DataProcessorService : IDataProcessor
 {
-    private readonly DataProcessorOptions _options;
-    private readonly ILogger<DataProcessorService> _logger;
-    private readonly IDatabaseReader? _databaseReader;
-
     private static readonly HashSet<string> SupportedExtensionsSet = new(StringComparer.OrdinalIgnoreCase)
     {
         ".csv", ".tsv", ".json", ".jsonl", ".xlsx", ".xls", ".parquet",
-        ".db", ".sqlite", ".sqlite3",  // SQLite databases
-        ".accdb", ".mdb"  // Access databases
+        ".db", ".sqlite", ".sqlite3", // SQLite databases
+        ".accdb", ".mdb" // Access databases
     };
+
+    private readonly IDatabaseReader? _databaseReader;
+    private readonly ILogger<DataProcessorService> _logger;
+    private readonly DataProcessorOptions _options;
 
     public DataProcessorService(
         IOptions<DataProcessorOptions> options,
@@ -60,38 +63,6 @@ public class DataProcessorService : IDataProcessor
         };
     }
 
-    private async Task<DataSchema> GetDatabaseSchemaAsync(string filePath, CancellationToken ct)
-    {
-        if (_databaseReader == null)
-            throw new NotSupportedException("Database reader not available for database files");
-
-        var dbSchema = await _databaseReader.GetSchemaAsync(filePath, ct);
-
-        // Convert database schema to data schema format
-        // For databases, we represent each table as columns
-        var columns = new List<ColumnInfo>();
-
-        foreach (var table in dbSchema.Tables)
-        {
-            foreach (var col in table.Columns)
-            {
-                columns.Add(new ColumnInfo
-                {
-                    Name = $"{table.Name}.{col.Name}",
-                    DataType = col.DataType,
-                    IsNullable = col.IsNullable
-                });
-            }
-        }
-
-        return new DataSchema
-        {
-            Columns = columns,
-            EstimatedRowCount = (int)dbSchema.TotalRowCount,
-            FileSizeBytes = new FileInfo(filePath).Length
-        };
-    }
-
     public async Task<DataProcessingResult> ProcessAsync(string filePath, CancellationToken ct = default)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -102,10 +73,7 @@ public class DataProcessorService : IDataProcessor
             _logger.LogInformation("Processing data file: {FilePath} ({Type})", filePath, ext);
 
             var rows = new List<IReadOnlyDictionary<string, object?>>();
-            await foreach (var row in StreamRowsAsync(filePath, ct))
-            {
-                rows.Add(row);
-            }
+            await foreach (var row in StreamRowsAsync(filePath, ct)) rows.Add(row);
 
             var columnNames = rows.Count > 0 ? rows[0].Keys.ToList() : [];
             var chunks = CreateChunks(rows, columnNames, filePath);
@@ -160,10 +128,35 @@ public class DataProcessorService : IDataProcessor
             _ => throw new NotSupportedException($"File type {ext} is not supported")
         };
 
-        await foreach (var row in enumerable)
+        await foreach (var row in enumerable) yield return row;
+    }
+
+    private async Task<DataSchema> GetDatabaseSchemaAsync(string filePath, CancellationToken ct)
+    {
+        if (_databaseReader == null)
+            throw new NotSupportedException("Database reader not available for database files");
+
+        var dbSchema = await _databaseReader.GetSchemaAsync(filePath, ct);
+
+        // Convert database schema to data schema format
+        // For databases, we represent each table as columns
+        var columns = new List<ColumnInfo>();
+
+        foreach (var table in dbSchema.Tables)
+        foreach (var col in table.Columns)
+            columns.Add(new ColumnInfo
+            {
+                Name = $"{table.Name}.{col.Name}",
+                DataType = col.DataType,
+                IsNullable = col.IsNullable
+            });
+
+        return new DataSchema
         {
-            yield return row;
-        }
+            Columns = columns,
+            EstimatedRowCount = (int)dbSchema.TotalRowCount,
+            FileSizeBytes = new FileInfo(filePath).Length
+        };
     }
 
     private async IAsyncEnumerable<IReadOnlyDictionary<string, object?>> StreamDatabaseAsync(
@@ -174,18 +167,16 @@ public class DataProcessorService : IDataProcessor
             throw new NotSupportedException("Database reader not available for database files");
 
         // Stream all tables from the database
-        await foreach (var tableData in _databaseReader.StreamTablesAsync(filePath, maxRowsPerTable: _options.ChunkSize * 10, ct: ct))
-        {
+        await foreach (var tableData in _databaseReader.StreamTablesAsync(filePath, _options.ChunkSize * 10, ct))
             // Add table name as metadata to each row
-            foreach (var row in tableData.Rows)
+        foreach (var row in tableData.Rows)
+        {
+            // Create a new dictionary with table context
+            var enrichedRow = new Dictionary<string, object?>(row)
             {
-                // Create a new dictionary with table context
-                var enrichedRow = new Dictionary<string, object?>(row)
-                {
-                    ["__table_name__"] = tableData.TableName
-                };
-                yield return enrichedRow;
-            }
+                ["__table_name__"] = tableData.TableName
+            };
+            yield return enrichedRow;
         }
     }
 
@@ -198,16 +189,13 @@ public class DataProcessorService : IDataProcessor
         var chunkSize = _options.ChunkSize;
         var overlap = _options.ChunkOverlap;
 
-        for (int i = 0; i < rows.Count; i += (chunkSize - overlap))
+        for (var i = 0; i < rows.Count; i += chunkSize - overlap)
         {
             var chunkRows = rows.Skip(i).Take(chunkSize).ToList();
             if (chunkRows.Count == 0) break;
 
             var text = FormatRowsAsText(chunkRows, columnNames);
-            if (text.Length > _options.MaxChunkTextLength)
-            {
-                text = text[.._options.MaxChunkTextLength] + "...";
-            }
+            if (text.Length > _options.MaxChunkTextLength) text = text[.._options.MaxChunkTextLength] + "...";
 
             chunks.Add(new DataChunk
             {
@@ -304,10 +292,7 @@ public class DataProcessorService : IDataProcessor
             var values = ParseCsvLine(line, delimiter[0]);
             var row = new Dictionary<string, object?>();
 
-            for (int i = 0; i < headers.Length && i < values.Count; i++)
-            {
-                row[headers[i]] = values[i];
-            }
+            for (var i = 0; i < headers.Length && i < values.Count; i++) row[headers[i]] = values[i];
 
             yield return row;
         }
@@ -319,7 +304,7 @@ public class DataProcessorService : IDataProcessor
         var current = new StringBuilder();
         var inQuotes = false;
 
-        for (int i = 0; i < line.Length; i++)
+        for (var i = 0; i < line.Length; i++)
         {
             var c = line[i];
 
@@ -378,45 +363,39 @@ public class DataProcessorService : IDataProcessor
         [EnumeratorCancellation] CancellationToken ct)
     {
         var json = await File.ReadAllTextAsync(filePath, ct);
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
 
         var root = doc.RootElement;
 
-        if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
+        if (root.ValueKind == JsonValueKind.Array)
         {
             foreach (var element in root.EnumerateArray())
             {
                 ct.ThrowIfCancellationRequested();
-                if (element.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                if (element.ValueKind != JsonValueKind.Object) continue;
 
                 var row = new Dictionary<string, object?>();
-                foreach (var prop in element.EnumerateObject())
-                {
-                    row[prop.Name] = GetJsonValue(prop.Value);
-                }
+                foreach (var prop in element.EnumerateObject()) row[prop.Name] = GetJsonValue(prop.Value);
                 yield return row;
             }
         }
-        else if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+        else if (root.ValueKind == JsonValueKind.Object)
         {
             var row = new Dictionary<string, object?>();
-            foreach (var prop in root.EnumerateObject())
-            {
-                row[prop.Name] = GetJsonValue(prop.Value);
-            }
+            foreach (var prop in root.EnumerateObject()) row[prop.Name] = GetJsonValue(prop.Value);
             yield return row;
         }
     }
 
-    private static object? GetJsonValue(System.Text.Json.JsonElement element)
+    private static object? GetJsonValue(JsonElement element)
     {
         return element.ValueKind switch
         {
-            System.Text.Json.JsonValueKind.String => element.GetString(),
-            System.Text.Json.JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
-            System.Text.Json.JsonValueKind.True => true,
-            System.Text.Json.JsonValueKind.False => false,
-            System.Text.Json.JsonValueKind.Null => null,
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
             _ => element.GetRawText()
         };
     }
@@ -435,7 +414,8 @@ public class DataProcessorService : IDataProcessor
 
         return new DataSchema
         {
-            Columns = columns.Select(c => new ColumnInfo { Name = c, DataType = "dynamic", IsNullable = true }).ToList(),
+            Columns =
+                columns.Select(c => new ColumnInfo { Name = c, DataType = "dynamic", IsNullable = true }).ToList(),
             EstimatedRowCount = lineCount,
             FileSizeBytes = new FileInfo(filePath).Length
         };
@@ -453,13 +433,10 @@ public class DataProcessorService : IDataProcessor
             var line = await reader.ReadLineAsync(ct);
             if (string.IsNullOrWhiteSpace(line)) continue;
 
-            using var doc = System.Text.Json.JsonDocument.Parse(line);
+            using var doc = JsonDocument.Parse(line);
             var row = new Dictionary<string, object?>();
 
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                row[prop.Name] = GetJsonValue(prop.Value);
-            }
+            foreach (var prop in doc.RootElement.EnumerateObject()) row[prop.Name] = GetJsonValue(prop.Value);
 
             yield return row;
         }
@@ -468,19 +445,17 @@ public class DataProcessorService : IDataProcessor
     private Task<DataSchema> GetExcelSchemaAsync(string filePath, CancellationToken ct)
     {
         // ClosedXML implementation
-        using var workbook = new ClosedXML.Excel.XLWorkbook(filePath);
+        using var workbook = new XLWorkbook(filePath);
         var worksheet = _options.Excel.SheetName != null
             ? workbook.Worksheet(_options.Excel.SheetName)
             : workbook.Worksheets.First();
 
         var usedRange = worksheet.RangeUsed();
         if (usedRange == null)
-        {
             return Task.FromResult(new DataSchema
             {
                 FileSizeBytes = new FileInfo(filePath).Length
             });
-        }
 
         var headerRow = usedRange.FirstRow();
         var columns = headerRow.Cells()
@@ -504,7 +479,7 @@ public class DataProcessorService : IDataProcessor
         string filePath,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        using var workbook = new ClosedXML.Excel.XLWorkbook(filePath);
+        using var workbook = new XLWorkbook(filePath);
         var worksheet = _options.Excel.SheetName != null
             ? workbook.Worksheet(_options.Excel.SheetName)
             : workbook.Worksheets.First();
@@ -525,10 +500,8 @@ public class DataProcessorService : IDataProcessor
             var data = new Dictionary<string, object?>();
             var cells = row.Cells().ToList();
 
-            for (int i = 0; i < headers.Count && i < cells.Count; i++)
-            {
+            for (var i = 0; i < headers.Count && i < cells.Count; i++)
                 data[headers[i]] = cells[i].Value.IsBlank ? null : cells[i].Value.ToString();
-            }
 
             yield return data;
             await Task.Yield(); // Allow cancellation
@@ -538,7 +511,7 @@ public class DataProcessorService : IDataProcessor
     private async Task<DataSchema> GetParquetSchemaAsync(string filePath, CancellationToken ct)
     {
         await using var stream = File.OpenRead(filePath);
-        using var reader = await Parquet.ParquetReader.CreateAsync(stream, cancellationToken: ct);
+        using var reader = await ParquetReader.CreateAsync(stream, cancellationToken: ct);
         var schema = reader.Schema;
 
         var columns = schema.DataFields
@@ -563,12 +536,12 @@ public class DataProcessorService : IDataProcessor
         [EnumeratorCancellation] CancellationToken ct)
     {
         await using var stream = File.OpenRead(filePath);
-        using var reader = await Parquet.ParquetReader.CreateAsync(stream, cancellationToken: ct);
+        using var reader = await ParquetReader.CreateAsync(stream, cancellationToken: ct);
         var schema = reader.Schema;
         var dataFields = schema.DataFields.ToList();
         var fieldNames = dataFields.Select(f => f.Name).ToList();
 
-        for (int rg = 0; rg < reader.RowGroupCount; rg++)
+        for (var rg = 0; rg < reader.RowGroupCount; rg++)
         {
             ct.ThrowIfCancellationRequested();
             using var rowGroupReader = reader.OpenRowGroupReader(rg);
@@ -583,13 +556,10 @@ public class DataProcessorService : IDataProcessor
             if (columns.Count == 0) continue;
 
             var rowCount = columns.Values.First().Length;
-            for (int row = 0; row < rowCount; row++)
+            for (var row = 0; row < rowCount; row++)
             {
                 var data = new Dictionary<string, object?>();
-                foreach (var name in fieldNames)
-                {
-                    data[name] = columns[name].GetValue(row);
-                }
+                foreach (var name in fieldNames) data[name] = columns[name].GetValue(row);
                 yield return data;
             }
         }

@@ -1,8 +1,8 @@
 namespace VideoSummarizer.Core.Models;
 
 /// <summary>
-/// Represents a shot boundary in the video (hard cut, fade, etc.).
-/// A shot is a continuous sequence of frames from a single camera.
+///     Represents a shot boundary in the video (hard cut, fade, etc.).
+///     A shot is a continuous sequence of frames from a single camera.
 /// </summary>
 public record ShotSegment
 {
@@ -41,7 +41,7 @@ public record ShotSegment
 }
 
 /// <summary>
-/// Type of transition that marks the start of a shot.
+///     Type of transition that marks the start of a shot.
 /// </summary>
 public enum CutType
 {
@@ -54,7 +54,7 @@ public enum CutType
 }
 
 /// <summary>
-/// Semantic type of shot content.
+///     Semantic type of shot content.
 /// </summary>
 public enum ShotType
 {
@@ -72,7 +72,7 @@ public enum ShotType
 }
 
 /// <summary>
-/// Represents a scene - a semantic grouping of related shots.
+///     Represents a scene - a semantic grouping of related shots.
 /// </summary>
 public record SceneSegment
 {
@@ -108,8 +108,8 @@ public record SceneSegment
 }
 
 /// <summary>
-/// Represents tracked OCR text across frames.
-/// Deduplicated text that appears in multiple frames is merged into a single track.
+///     Represents tracked OCR text across frames.
+///     Deduplicated text that appears in multiple frames is merged into a single track.
 /// </summary>
 public record TextTrack
 {
@@ -158,7 +158,7 @@ public enum TextTrackType
 }
 
 /// <summary>
-/// Represents a speech utterance from transcription.
+///     Represents a speech utterance from transcription.
 /// </summary>
 public record Utterance
 {
@@ -191,7 +191,7 @@ public record Utterance
 }
 
 /// <summary>
-/// Represents a detected speaker in the video.
+///     Represents a detected speaker in the video.
 /// </summary>
 public record Speaker
 {
@@ -215,7 +215,7 @@ public record Speaker
 }
 
 /// <summary>
-/// Video-level metadata and signals.
+///     Video-level metadata and signals.
 /// </summary>
 public record VideoMetadata
 {
@@ -284,7 +284,7 @@ public enum VideoProcessingStatus
 }
 
 /// <summary>
-/// Evidence pointer for retrieval - points to a specific moment in the video.
+///     Evidence pointer for retrieval - points to a specific moment in the video.
 /// </summary>
 public record VideoEvidence
 {

@@ -5,7 +5,7 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services.Providers;
 
 /// <summary>
-/// Named provider wrapper for Ollama LLM service.
+///     Named provider wrapper for Ollama LLM service.
 /// </summary>
 public class OllamaProvider : BaseLlmProvider
 {

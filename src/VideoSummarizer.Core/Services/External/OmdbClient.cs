@@ -7,18 +7,17 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Services.External;
 
 /// <summary>
-/// Client for Open Movie Database (OMDB) API.
-/// https://www.omdbapi.com/
-/// OMDB provides IMDB ratings, Rotten Tomatoes, and Metacritic scores.
+///     Client for Open Movie Database (OMDB) API.
+///     https://www.omdbapi.com/
+///     OMDB provides IMDB ratings, Rotten Tomatoes, and Metacritic scores.
 /// </summary>
 public class OmdbClient : IDisposable
 {
+    private const string BaseUrl = "https://www.omdbapi.com/";
     private readonly HttpClient _httpClient;
+    private readonly JsonSerializerOptions _jsonOptions;
     private readonly ILogger<OmdbClient> _logger;
     private readonly OmdbOptions _options;
-    private readonly JsonSerializerOptions _jsonOptions;
-
-    private const string BaseUrl = "https://www.omdbapi.com/";
 
     public OmdbClient(
         HttpClient httpClient,
@@ -35,8 +34,13 @@ public class OmdbClient : IDisposable
         };
     }
 
+    public void Dispose()
+    {
+        // HttpClient managed by DI
+    }
+
     /// <summary>
-    /// Get movie/TV show by IMDB ID.
+    ///     Get movie/TV show by IMDB ID.
     /// </summary>
     public async Task<OmdbResult?> GetByImdbIdAsync(string imdbId, CancellationToken ct = default)
     {
@@ -67,7 +71,7 @@ public class OmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Search for movies/TV shows by title.
+    ///     Search for movies/TV shows by title.
     /// </summary>
     public async Task<List<OmdbSearchResult>> SearchAsync(
         string query,
@@ -84,14 +88,8 @@ public class OmdbClient : IDisposable
         try
         {
             var url = $"{BaseUrl}?apikey={_options.ApiKey}&s={Uri.EscapeDataString(query)}";
-            if (year.HasValue)
-            {
-                url += $"&y={year}";
-            }
-            if (!string.IsNullOrEmpty(type))
-            {
-                url += $"&type={type}";
-            }
+            if (year.HasValue) url += $"&y={year}";
+            if (!string.IsNullOrEmpty(type)) url += $"&type={type}";
 
             var response = await _httpClient.GetFromJsonAsync<OmdbSearchResponse>(url, _jsonOptions, ct);
 
@@ -111,7 +109,7 @@ public class OmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Get by title (exact match).
+    ///     Get by title (exact match).
     /// </summary>
     public async Task<OmdbResult?> GetByTitleAsync(
         string title,
@@ -128,14 +126,8 @@ public class OmdbClient : IDisposable
         try
         {
             var url = $"{BaseUrl}?apikey={_options.ApiKey}&t={Uri.EscapeDataString(title)}&plot=full";
-            if (year.HasValue)
-            {
-                url += $"&y={year}";
-            }
-            if (!string.IsNullOrEmpty(type))
-            {
-                url += $"&type={type}";
-            }
+            if (year.HasValue) url += $"&y={year}";
+            if (!string.IsNullOrEmpty(type)) url += $"&type={type}";
 
             var response = await _httpClient.GetFromJsonAsync<OmdbResult>(url, _jsonOptions, ct);
 
@@ -155,7 +147,7 @@ public class OmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Convert OMDB result to unified metadata format.
+    ///     Convert OMDB result to unified metadata format.
     /// </summary>
     public ExternalMediaMetadata ToExternalMetadata(OmdbResult omdb)
     {
@@ -165,40 +157,25 @@ public class OmdbClient : IDisposable
         int? rottenTomatoes = null;
 
         if (!string.IsNullOrEmpty(omdb.ImdbRating) && omdb.ImdbRating != "N/A")
-        {
             if (double.TryParse(omdb.ImdbRating, out var rating))
-            {
                 imdbRating = rating;
-            }
-        }
 
         if (!string.IsNullOrEmpty(omdb.ImdbVotes) && omdb.ImdbVotes != "N/A")
-        {
             if (int.TryParse(omdb.ImdbVotes.Replace(",", ""), out var votes))
-            {
                 imdbVotes = votes;
-            }
-        }
 
         // Parse Rotten Tomatoes from Ratings array
         var rtRating = omdb.Ratings?.FirstOrDefault(r => r.Source == "Rotten Tomatoes");
         if (rtRating != null && rtRating.Value?.EndsWith("%") == true)
-        {
             if (int.TryParse(rtRating.Value.TrimEnd('%'), out var rt))
-            {
                 rottenTomatoes = rt;
-            }
-        }
 
         // Parse runtime
         int? runtime = null;
         if (!string.IsNullOrEmpty(omdb.Runtime) && omdb.Runtime != "N/A")
         {
             var runtimeStr = omdb.Runtime.Replace(" min", "");
-            if (int.TryParse(runtimeStr, out var r))
-            {
-                runtime = r;
-            }
+            if (int.TryParse(runtimeStr, out var r)) runtime = r;
         }
 
         // Parse year
@@ -207,21 +184,14 @@ public class OmdbClient : IDisposable
         {
             // Handle ranges like "2015-2023"
             var yearStr = omdb.Year.Split('–', '-')[0];
-            if (int.TryParse(yearStr, out var y))
-            {
-                year = y;
-            }
+            if (int.TryParse(yearStr, out var y)) year = y;
         }
 
         // Parse release date
         DateOnly? releaseDate = null;
         if (!string.IsNullOrEmpty(omdb.Released) && omdb.Released != "N/A")
-        {
             if (DateOnly.TryParse(omdb.Released, out var d))
-            {
                 releaseDate = d;
-            }
-        }
 
         return new ExternalMediaMetadata
         {
@@ -249,19 +219,11 @@ public class OmdbClient : IDisposable
 
     private static List<string> ParseCommaSeparated(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value == "N/A")
-        {
-            return [];
-        }
+        if (string.IsNullOrWhiteSpace(value) || value == "N/A") return [];
 
         return value.Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(s => s.Trim())
             .ToList();
-    }
-
-    public void Dispose()
-    {
-        // HttpClient managed by DI
     }
 }
 

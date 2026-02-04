@@ -1,27 +1,25 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Memory-efficient image stream processor with automatic downscaling for large images.
-/// Prevents OOM issues by streaming and resizing on-the-fly.
+///     Memory-efficient image stream processor with automatic downscaling for large images.
+///     Prevents OOM issues by streaming and resizing on-the-fly.
 /// </summary>
 public class ImageStreamProcessor
 {
-    private readonly ImageConfig _config;
-    private readonly ILogger<ImageStreamProcessor>? _logger;
-
     // Default limits (can be overridden by config)
     private const int DefaultMaxWidth = 4096;
     private const int DefaultMaxHeight = 4096;
     private const long DefaultMaxPixels = 16_777_216; // 4096 * 4096 = 16 megapixels
     private const long DefaultMaxFileSize = 50_000_000; // 50 MB
+    private readonly ImageConfig _config;
+    private readonly ILogger<ImageStreamProcessor>? _logger;
 
     public ImageStreamProcessor(IOptions<ImageConfig> config, ILogger<ImageStreamProcessor>? logger = null)
     {
@@ -30,8 +28,8 @@ public class ImageStreamProcessor
     }
 
     /// <summary>
-    /// Load image with automatic downscaling if needed.
-    /// Uses streaming to avoid loading entire file into memory.
+    ///     Load image with automatic downscaling if needed.
+    ///     Uses streaming to avoid loading entire file into memory.
     /// </summary>
     public async Task<Image<Rgba32>> LoadImageSafelyAsync(
         string imagePath,
@@ -42,23 +40,18 @@ public class ImageStreamProcessor
         // Check file size first (before reading)
         var maxFileSize = _config.MaxImageFileSize ?? DefaultMaxFileSize;
         if (fileInfo.Length > maxFileSize)
-        {
             _logger?.LogWarning(
                 "Image file size {Size} MB exceeds limit {Limit} MB, will downscale: {Path}",
                 fileInfo.Length / 1_000_000.0,
                 maxFileSize / 1_000_000.0,
                 imagePath);
-        }
 
         // Open stream (doesn't load entire file yet)
         await using var stream = File.OpenRead(imagePath);
 
         // Peek at format to get dimensions without full decode
         var imageInfo = await Image.IdentifyAsync(stream, ct);
-        if (imageInfo == null)
-        {
-            throw new InvalidOperationException($"Could not identify image format: {imagePath}");
-        }
+        if (imageInfo == null) throw new InvalidOperationException($"Could not identify image format: {imagePath}");
 
         // Determine if we need to downscale
         var maxWidth = _config.MaxImageWidth ?? DefaultMaxWidth;
@@ -66,8 +59,8 @@ public class ImageStreamProcessor
         var maxPixels = _config.MaxImagePixels ?? DefaultMaxPixels;
 
         var needsDownscale = imageInfo.Width > maxWidth ||
-                            imageInfo.Height > maxHeight ||
-                            (imageInfo.Width * imageInfo.Height) > maxPixels;
+                             imageInfo.Height > maxHeight ||
+                             imageInfo.Width * imageInfo.Height > maxPixels;
 
         // Reset stream position
         stream.Position = 0;
@@ -108,7 +101,7 @@ public class ImageStreamProcessor
     }
 
     /// <summary>
-    /// Load image metadata without decoding pixels (ultra-fast, minimal memory).
+    ///     Load image metadata without decoding pixels (ultra-fast, minimal memory).
     /// </summary>
     public async Task<ImageInfo> IdentifyImageAsync(
         string imagePath,
@@ -117,17 +110,14 @@ public class ImageStreamProcessor
         await using var stream = File.OpenRead(imagePath);
 
         var info = await Image.IdentifyAsync(stream, ct);
-        if (info == null)
-        {
-            throw new InvalidOperationException($"Could not identify image: {imagePath}");
-        }
+        if (info == null) throw new InvalidOperationException($"Could not identify image: {imagePath}");
 
         return info;
     }
 
     /// <summary>
-    /// Process image with callback, auto-downscaling if needed.
-    /// Disposes image after callback completes.
+    ///     Process image with callback, auto-downscaling if needed.
+    ///     Disposes image after callback completes.
     /// </summary>
     public async Task<T> ProcessImageAsync<T>(
         string imagePath,
@@ -139,7 +129,7 @@ public class ImageStreamProcessor
     }
 
     /// <summary>
-    /// Process image stream without loading into memory (for certain operations).
+    ///     Process image stream without loading into memory (for certain operations).
     /// </summary>
     public async Task<T> ProcessImageStreamAsync<T>(
         string imagePath,
@@ -151,8 +141,8 @@ public class ImageStreamProcessor
     }
 
     /// <summary>
-    /// Calculate target dimensions that fit within all constraints.
-    /// Maintains aspect ratio.
+    ///     Calculate target dimensions that fit within all constraints.
+    ///     Maintains aspect ratio.
     /// </summary>
     private static (int width, int height) CalculateTargetDimensions(
         int originalWidth,
@@ -169,13 +159,9 @@ public class ImageStreamProcessor
 
         // Constrain by aspect ratio
         if (targetWidth / aspectRatio > targetHeight)
-        {
             targetWidth = (int)(targetHeight * aspectRatio);
-        }
         else
-        {
             targetHeight = (int)(targetWidth / aspectRatio);
-        }
 
         // Constrain by total pixel count
         var currentPixels = targetWidth * targetHeight;
@@ -194,8 +180,8 @@ public class ImageStreamProcessor
     }
 
     /// <summary>
-    /// Get recommended processing size for an image.
-    /// Returns original dimensions if within limits, otherwise scaled dimensions.
+    ///     Get recommended processing size for an image.
+    ///     Returns original dimensions if within limits, otherwise scaled dimensions.
     /// </summary>
     public async Task<ImageProcessingInfo> GetProcessingInfoAsync(
         string imagePath,
@@ -210,12 +196,11 @@ public class ImageStreamProcessor
         var maxFileSize = _config.MaxImageFileSize ?? DefaultMaxFileSize;
 
         var needsDownscale = imageInfo.Width > maxWidth ||
-                            imageInfo.Height > maxHeight ||
-                            (imageInfo.Width * imageInfo.Height) > maxPixels ||
-                            fileInfo.Length > maxFileSize;
+                             imageInfo.Height > maxHeight ||
+                             imageInfo.Width * imageInfo.Height > maxPixels ||
+                             fileInfo.Length > maxFileSize;
 
         if (!needsDownscale)
-        {
             return new ImageProcessingInfo
             {
                 OriginalWidth = imageInfo.Width,
@@ -226,7 +211,6 @@ public class ImageStreamProcessor
                 FileSize = fileInfo.Length,
                 Format = imageInfo.Metadata.DecodedImageFormat?.Name ?? "Unknown"
             };
-        }
 
         var (targetWidth, targetHeight) = CalculateTargetDimensions(
             imageInfo.Width,
@@ -242,7 +226,8 @@ public class ImageStreamProcessor
             ProcessingWidth = targetWidth,
             ProcessingHeight = targetHeight,
             WillDownscale = true,
-            DownscaleReason = DetermineDownscaleReason(imageInfo, fileInfo, maxWidth, maxHeight, maxPixels, maxFileSize),
+            DownscaleReason =
+                DetermineDownscaleReason(imageInfo, fileInfo, maxWidth, maxHeight, maxPixels, maxFileSize),
             FileSize = fileInfo.Length,
             Format = imageInfo.Metadata.DecodedImageFormat?.Name ?? "Unknown"
         };
@@ -262,7 +247,7 @@ public class ImageStreamProcessor
             reasons.Add($"width {imageInfo.Width} > {maxWidth}");
         if (imageInfo.Height > maxHeight)
             reasons.Add($"height {imageInfo.Height} > {maxHeight}");
-        if ((imageInfo.Width * imageInfo.Height) > maxPixels)
+        if (imageInfo.Width * imageInfo.Height > maxPixels)
             reasons.Add($"pixels {imageInfo.Width * imageInfo.Height} > {maxPixels}");
         if (fileInfo.Length > maxFileSize)
             reasons.Add($"file size {fileInfo.Length / 1_000_000}MB > {maxFileSize / 1_000_000}MB");
@@ -272,7 +257,7 @@ public class ImageStreamProcessor
 }
 
 /// <summary>
-/// Information about how an image will be processed.
+///     Information about how an image will be processed.
 /// </summary>
 public class ImageProcessingInfo
 {
@@ -288,5 +273,5 @@ public class ImageProcessingInfo
     public double ScaleFactor => ProcessingWidth / (double)OriginalWidth;
     public long OriginalPixels => OriginalWidth * OriginalHeight;
     public long ProcessingPixels => ProcessingWidth * ProcessingHeight;
-    public double MemorySavings => WillDownscale ? (1.0 - (ProcessingPixels / (double)OriginalPixels)) : 0;
+    public double MemorySavings => WillDownscale ? 1.0 - ProcessingPixels / (double)OriginalPixels : 0;
 }

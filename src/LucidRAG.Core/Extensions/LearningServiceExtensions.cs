@@ -1,19 +1,17 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using LucidRAG.Core.Services.Learning;
 using LucidRAG.Core.Services.Learning.Handlers;
 
 namespace LucidRAG.Core.Extensions;
 
 /// <summary>
-/// Service registration for Learning system.
-/// Pattern: Like BotDetection learning pipeline - singleton coordinator, background service.
+///     Service registration for Learning system.
+///     Pattern: Like BotDetection learning pipeline - singleton coordinator, background service.
 /// </summary>
 public static class LearningServiceExtensions
 {
     /// <summary>
-    /// Add Learning services to the service collection.
-    /// Only enables in hosted mode (not CLI).
+    ///     Add Learning services to the service collection.
+    ///     Only enables in hosted mode (not CLI).
     /// </summary>
     public static IServiceCollection AddLearning(
         this IServiceCollection services,
@@ -24,10 +22,7 @@ public static class LearningServiceExtensions
         configure?.Invoke(config);
 
         // Only add if enabled AND in hosted mode
-        if (!config.Enabled || !config.HostedModeOnly)
-        {
-            return services;
-        }
+        if (!config.Enabled || !config.HostedModeOnly) return services;
 
         services.AddSingleton(config);
 
@@ -51,7 +46,7 @@ public static class LearningServiceExtensions
     }
 
     /// <summary>
-    /// Add learning for DocSummarizer (hosted mode only).
+    ///     Add learning for DocSummarizer (hosted mode only).
     /// </summary>
     public static IServiceCollection AddDocSummarizerLearning(
         this IServiceCollection services,
@@ -60,7 +55,7 @@ public static class LearningServiceExtensions
         return services.AddLearning(config =>
         {
             config.Enabled = true;
-            config.HostedModeOnly = true;  // Force hosted mode only
+            config.HostedModeOnly = true; // Force hosted mode only
             config.ScanInterval = TimeSpan.FromMinutes(30);
             config.ConfidenceThreshold = 0.75;
 
@@ -69,7 +64,7 @@ public static class LearningServiceExtensions
     }
 
     /// <summary>
-    /// Add learning for LucidRAG web (hosted mode only).
+    ///     Add learning for LucidRAG web (hosted mode only).
     /// </summary>
     public static IServiceCollection AddLucidRagLearning(
         this IServiceCollection services,
@@ -78,7 +73,7 @@ public static class LearningServiceExtensions
         return services.AddLearning(config =>
         {
             config.Enabled = true;
-            config.HostedModeOnly = true;  // Force hosted mode only
+            config.HostedModeOnly = true; // Force hosted mode only
             config.ScanInterval = TimeSpan.FromMinutes(60); // Less frequent for web
             config.ConfidenceThreshold = 0.70; // Lower threshold for web
             config.MinDocumentAge = TimeSpan.FromHours(2); // Wait longer before learning
@@ -88,7 +83,7 @@ public static class LearningServiceExtensions
     }
 
     /// <summary>
-    /// Disable learning (for CLI mode).
+    ///     Disable learning (for CLI mode).
     /// </summary>
     public static IServiceCollection DisableLearning(this IServiceCollection services)
     {

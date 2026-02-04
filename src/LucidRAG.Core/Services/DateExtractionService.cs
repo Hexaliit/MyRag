@@ -1,55 +1,13 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Extracts and normalizes dates from text with international format support.
-/// Handles ambiguous formats (e.g., 01/02/2024) by detecting locale patterns.
+///     Extracts and normalizes dates from text with international format support.
+///     Handles ambiguous formats (e.g., 01/02/2024) by detecting locale patterns.
 /// </summary>
 public partial class DateExtractionService : IDateExtractionService
 {
-    // Source-generated regex patterns for performance
-
-    // ISO 8601: 2024-01-15, 2024-01-15T10:30:00Z
-    [GeneratedRegex(@"\b(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})(?:T(?<time>\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?))?\b")]
-    private static partial Regex Iso8601Pattern();
-
-    // Long format: January 15, 2024 / Jan 15, 2024
-    [GeneratedRegex(@"\b(?<month>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(?<day>\d{1,2})(?:st|nd|rd|th)?,?\s*(?<year>\d{4})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex MonthFirstPattern();
-
-    // Long format: 15 January 2024
-    [GeneratedRegex(@"\b(?<day>\d{1,2})(?:st|nd|rd|th)?\s+(?<month>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?,?\s*(?<year>\d{4})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex DayFirstPattern();
-
-    // Numeric with slashes: 01/15/2024 (US) or 15/01/2024 (EU)
-    [GeneratedRegex(@"\b(?<first>\d{1,2})/(?<second>\d{1,2})/(?<year>\d{4})\b")]
-    private static partial Regex SlashNumericPattern();
-
-    // Numeric with dots: 15.01.2024 (EU common)
-    [GeneratedRegex(@"\b(?<day>\d{1,2})\.(?<month>\d{1,2})\.(?<year>\d{4})\b")]
-    private static partial Regex DotNumericPattern();
-
-    // Numeric with dashes (non-ISO): 15-01-2024 or 01-15-2024
-    [GeneratedRegex(@"\b(?<first>\d{1,2})-(?<second>\d{1,2})-(?<year>\d{4})\b")]
-    private static partial Regex DashNumericPattern();
-
-    // Year-month only: 2024-01
-    [GeneratedRegex(@"\b(?<year>\d{4})-(?<month>\d{2})\b")]
-    private static partial Regex YearMonthPattern();
-
-    // Month Year: January 2024
-    [GeneratedRegex(@"\b(?<month>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(?<year>\d{4})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex MonthYearPattern();
-
-    // Locale detection patterns
-    [GeneratedRegex(@"\b(colour|favour|centre|organisation)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex BritishEnglishPattern();
-
-    [GeneratedRegex(@"\b(color|favor|center|organization)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex AmericanEnglishPattern();
-
     // Pattern registry with metadata
     private static readonly (Func<Regex> Pattern, string Format, DateOrder Order)[] DatePatterns =
     [
@@ -60,7 +18,7 @@ public partial class DateExtractionService : IDateExtractionService
         (DotNumericPattern, "DotNumeric", DateOrder.DMY),
         (DashNumericPattern, "DashNumeric", DateOrder.Ambiguous),
         (YearMonthPattern, "YearMonth", DateOrder.YMD),
-        (MonthYearPattern, "MonthYear", DateOrder.MDY),
+        (MonthYearPattern, "MonthYear", DateOrder.MDY)
     ];
 
     // Month name to number mapping
@@ -81,7 +39,7 @@ public partial class DateExtractionService : IDateExtractionService
     };
 
     /// <summary>
-    /// Extract all dates from text with confidence scores.
+    ///     Extract all dates from text with confidence scores.
     /// </summary>
     public List<ExtractedDate> ExtractDates(string text, LocaleHint? localeHint = null)
     {
@@ -119,8 +77,8 @@ public partial class DateExtractionService : IDateExtractionService
     }
 
     /// <summary>
-    /// Detect the predominant date locale in a document by analyzing all dates.
-    /// Returns DMY (European) or MDY (US) based on evidence.
+    ///     Detect the predominant date locale in a document by analyzing all dates.
+    ///     Returns DMY (European) or MDY (US) based on evidence.
     /// </summary>
     public LocaleHint DetectLocale(string text)
     {
@@ -132,13 +90,8 @@ public partial class DateExtractionService : IDateExtractionService
         {
             var pattern = patternFactory();
             if (order == DateOrder.DMY)
-            {
                 dmyEvidence += pattern.Matches(text).Count * 2; // Strong evidence
-            }
-            else if (order == DateOrder.MDY)
-            {
-                mdyEvidence += pattern.Matches(text).Count * 2;
-            }
+            else if (order == DateOrder.MDY) mdyEvidence += pattern.Matches(text).Count * 2;
         }
 
         // Analyze ambiguous dates (slash format) for impossible values
@@ -166,7 +119,7 @@ public partial class DateExtractionService : IDateExtractionService
     }
 
     /// <summary>
-    /// Parse a date string with explicit format.
+    ///     Parse a date string with explicit format.
     /// </summary>
     public DateTimeOffset? ParseDate(string dateString, LocaleHint? localeHint = null)
     {
@@ -175,7 +128,7 @@ public partial class DateExtractionService : IDateExtractionService
     }
 
     /// <summary>
-    /// Normalize all dates in text to ISO 8601 format.
+    ///     Normalize all dates in text to ISO 8601 format.
     /// </summary>
     public string NormalizeDatesInText(string text, LocaleHint? localeHint = null)
     {
@@ -185,23 +138,68 @@ public partial class DateExtractionService : IDateExtractionService
         // Replace from end to preserve indices
         var result = text;
         foreach (var date in dates.OrderByDescending(d => d.StartIndex))
-        {
             if (date.ParsedDate.HasValue)
             {
                 var iso = date.ParsedDate.Value.ToString("yyyy-MM-dd");
                 result = result[..date.StartIndex] + iso + result[date.EndIndex..];
             }
-        }
 
         return result;
     }
+    // Source-generated regex patterns for performance
+
+    // ISO 8601: 2024-01-15, 2024-01-15T10:30:00Z
+    [GeneratedRegex(
+        @"\b(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})(?:T(?<time>\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?))?\b")]
+    private static partial Regex Iso8601Pattern();
+
+    // Long format: January 15, 2024 / Jan 15, 2024
+    [GeneratedRegex(
+        @"\b(?<month>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(?<day>\d{1,2})(?:st|nd|rd|th)?,?\s*(?<year>\d{4})\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex MonthFirstPattern();
+
+    // Long format: 15 January 2024
+    [GeneratedRegex(
+        @"\b(?<day>\d{1,2})(?:st|nd|rd|th)?\s+(?<month>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?,?\s*(?<year>\d{4})\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex DayFirstPattern();
+
+    // Numeric with slashes: 01/15/2024 (US) or 15/01/2024 (EU)
+    [GeneratedRegex(@"\b(?<first>\d{1,2})/(?<second>\d{1,2})/(?<year>\d{4})\b")]
+    private static partial Regex SlashNumericPattern();
+
+    // Numeric with dots: 15.01.2024 (EU common)
+    [GeneratedRegex(@"\b(?<day>\d{1,2})\.(?<month>\d{1,2})\.(?<year>\d{4})\b")]
+    private static partial Regex DotNumericPattern();
+
+    // Numeric with dashes (non-ISO): 15-01-2024 or 01-15-2024
+    [GeneratedRegex(@"\b(?<first>\d{1,2})-(?<second>\d{1,2})-(?<year>\d{4})\b")]
+    private static partial Regex DashNumericPattern();
+
+    // Year-month only: 2024-01
+    [GeneratedRegex(@"\b(?<year>\d{4})-(?<month>\d{2})\b")]
+    private static partial Regex YearMonthPattern();
+
+    // Month Year: January 2024
+    [GeneratedRegex(
+        @"\b(?<month>January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+(?<year>\d{4})\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex MonthYearPattern();
+
+    // Locale detection patterns
+    [GeneratedRegex(@"\b(colour|favour|centre|organisation)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex BritishEnglishPattern();
+
+    [GeneratedRegex(@"\b(color|favor|center|organization)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex AmericanEnglishPattern();
 
     private ExtractedDate? ParseMatch(Match match, string format, DateOrder order, LocaleHint? localeHint)
     {
         try
         {
             int year, month, day;
-            double confidence = 1.0;
+            var confidence = 1.0;
 
             switch (format)
             {
@@ -255,8 +253,10 @@ public partial class DateExtractionService : IDateExtractionService
                             month = first;
                             day = second;
                         }
+
                         confidence = 0.6; // Ambiguous
                     }
+
                     break;
 
                 case "DotNumeric":
@@ -340,15 +340,15 @@ public record ExtractedDate
 
 public enum LocaleHint
 {
-    American,  // MM/DD/YYYY
-    European,  // DD/MM/YYYY
-    ISO        // YYYY-MM-DD (always unambiguous)
+    American, // MM/DD/YYYY
+    European, // DD/MM/YYYY
+    ISO // YYYY-MM-DD (always unambiguous)
 }
 
 public enum DateOrder
 {
-    YMD,       // Year-Month-Day (ISO)
-    MDY,       // Month-Day-Year (US)
-    DMY,       // Day-Month-Year (EU)
-    Ambiguous  // Could be MDY or DMY
+    YMD, // Year-Month-Day (ISO)
+    MDY, // Month-Day-Year (US)
+    DMY, // Day-Month-Year (EU)
+    Ambiguous // Could be MDY or DMY
 }

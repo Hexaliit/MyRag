@@ -1,17 +1,19 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Mostlylucid.DocSummarizer.Resilience;
 
 namespace Mostlylucid.DocSummarizer.Rdbms.Sqlite;
 
 /// <summary>
-/// Persistent circuit breaker with failure-type-aware retry semantics.
-/// SQLite-backed — circuit state survives restarts.
+///     Persistent circuit breaker with failure-type-aware retry semantics.
+///     SQLite-backed — circuit state survives restarts.
 /// </summary>
 public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
 {
-    private readonly SqliteConnection _db;
     private readonly ConcurrentDictionary<string, CircuitEntry> _cache = new();
+    private readonly SqliteConnection _db;
     private bool _initialized;
 
     public SqliteCircuitBreakerService(string dbPath)
@@ -19,31 +21,13 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
         _db = new SqliteConnection($"Data Source={dbPath}");
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (_initialized) return;
-        await _db.OpenAsync();
-
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS circuit_state (
-                service TEXT PRIMARY KEY,
-                status INTEGER NOT NULL DEFAULT 0,
-                failure_type INTEGER NOT NULL DEFAULT 0,
-                failure_count INTEGER NOT NULL DEFAULT 0,
-                tripped_at TEXT,
-                retry_after TEXT,
-                last_failure_reason TEXT,
-                updated_at TEXT NOT NULL
-            );
-            """;
-        await cmd.ExecuteNonQueryAsync();
-
-        await LoadAllAsync();
-        _initialized = true;
+        await _db.DisposeAsync();
+        GC.SuppressFinalize(this);
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public bool IsCircuitOpen(string service)
     {
         if (!_cache.TryGetValue(service, out var entry))
@@ -61,11 +45,13 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
         return true;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public CircuitEntry? GetCircuitEntry(string service)
-        => _cache.TryGetValue(service, out var entry) ? entry : null;
+    {
+        return _cache.TryGetValue(service, out var entry) ? entry : null;
+    }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<bool> IsServiceAvailableAsync(string service)
     {
         var entry = await GetOrLoadAsync(service);
@@ -85,7 +71,7 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
         return false;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task ReportSuccessAsync(string service)
     {
         var entry = new CircuitEntry
@@ -104,7 +90,7 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
         await PersistAsync(entry);
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task ReportFailureAsync(string service, CircuitFailureType failureType, string? reason = null)
     {
         var existing = await GetOrLoadAsync(service);
@@ -131,15 +117,76 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
         await PersistAsync(entry);
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task TripCircuitAsync(string service, CircuitFailureType failureType, string? reason = null)
     {
         await ReportFailureAsync(service, failureType, reason);
-        System.Diagnostics.Debug.WriteLine($"{service}: circuit tripped ({failureType}) -- {reason}");
+        Debug.WriteLine($"{service}: circuit tripped ({failureType}) -- {reason}");
     }
 
     /// <summary>
-    /// Print status table for diagnostics. Only shows non-Closed circuits.
+    ///     Classify an HTTP status code into a CircuitFailureType.
+    /// </summary>
+    public static CircuitFailureType ClassifyHttpStatus(int statusCode)
+    {
+        return statusCode switch
+        {
+            429 => CircuitFailureType.RateLimit,
+            401 or 403 => CircuitFailureType.AuthError,
+            >= 500 => CircuitFailureType.ServerError,
+            _ => CircuitFailureType.ServerError
+        };
+    }
+
+    /// <summary>
+    ///     Classify a budget denial reason into a CircuitFailureType.
+    /// </summary>
+    public static CircuitFailureType ClassifyBudgetDenial(string? reason)
+    {
+        return reason switch
+        {
+            _ when reason?.Contains("daily limit", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType
+                .DailyLimit,
+            _ when reason?.Contains("lifetime limit", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType
+                .LifetimeLimit,
+            _ when reason?.Contains("daily budget", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType
+                .BudgetExhausted,
+            _ when reason?.Contains("Global daily limit", StringComparison.OrdinalIgnoreCase) == true =>
+                CircuitFailureType.DailyLimit,
+            _ when reason?.Contains("Global daily budget", StringComparison.OrdinalIgnoreCase) == true =>
+                CircuitFailureType.BudgetExhausted,
+            _ when reason?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType
+                .AuthError,
+            _ => CircuitFailureType.DailyLimit
+        };
+    }
+
+    public async Task InitializeAsync()
+    {
+        if (_initialized) return;
+        await _db.OpenAsync();
+
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+                          CREATE TABLE IF NOT EXISTS circuit_state (
+                              service TEXT PRIMARY KEY,
+                              status INTEGER NOT NULL DEFAULT 0,
+                              failure_type INTEGER NOT NULL DEFAULT 0,
+                              failure_count INTEGER NOT NULL DEFAULT 0,
+                              tripped_at TEXT,
+                              retry_after TEXT,
+                              last_failure_reason TEXT,
+                              updated_at TEXT NOT NULL
+                          );
+                          """;
+        await cmd.ExecuteNonQueryAsync();
+
+        await LoadAllAsync();
+        _initialized = true;
+    }
+
+    /// <summary>
+    ///     Print status table for diagnostics. Only shows non-Closed circuits.
     /// </summary>
     public void PrintCircuitStatus()
     {
@@ -150,11 +197,11 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
 
         if (openCircuits.Count == 0)
         {
-            System.Diagnostics.Debug.WriteLine("All circuits closed (normal operation)");
+            Debug.WriteLine("All circuits closed (normal operation)");
             return;
         }
 
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("Circuit Breaker Status:");
         sb.AppendLine("Service | Status | Failure Type | Failures | Retry After | Last Reason");
         sb.AppendLine(new string('-', 80));
@@ -169,39 +216,16 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
                 $"{e.Service} | {e.Status} | {e.FailureType} | {e.FailureCount} | {retryStr} | {Truncate(e.LastFailureReason ?? "", 40)}");
         }
 
-        System.Diagnostics.Debug.WriteLine(sb.ToString());
+        Debug.WriteLine(sb.ToString());
     }
 
     /// <summary>
-    /// Get current state for diagnostics/status display.
+    ///     Get current state for diagnostics/status display.
     /// </summary>
     public CircuitEntry? GetState(string service)
-        => _cache.TryGetValue(service, out var entry) ? entry : null;
-
-    /// <summary>
-    /// Classify an HTTP status code into a CircuitFailureType.
-    /// </summary>
-    public static CircuitFailureType ClassifyHttpStatus(int statusCode) => statusCode switch
     {
-        429 => CircuitFailureType.RateLimit,
-        401 or 403 => CircuitFailureType.AuthError,
-        >= 500 => CircuitFailureType.ServerError,
-        _ => CircuitFailureType.ServerError
-    };
-
-    /// <summary>
-    /// Classify a budget denial reason into a CircuitFailureType.
-    /// </summary>
-    public static CircuitFailureType ClassifyBudgetDenial(string? reason) => reason switch
-    {
-        _ when reason?.Contains("daily limit", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType.DailyLimit,
-        _ when reason?.Contains("lifetime limit", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType.LifetimeLimit,
-        _ when reason?.Contains("daily budget", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType.BudgetExhausted,
-        _ when reason?.Contains("Global daily limit", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType.DailyLimit,
-        _ when reason?.Contains("Global daily budget", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType.BudgetExhausted,
-        _ when reason?.Contains("disabled", StringComparison.OrdinalIgnoreCase) == true => CircuitFailureType.AuthError,
-        _ => CircuitFailureType.DailyLimit
-    };
+        return _cache.TryGetValue(service, out var entry) ? entry : null;
+    }
 
     private static DateTimeOffset ComputeRetryAfter(CircuitFailureType type, int failureCount)
     {
@@ -258,10 +282,10 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
 
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            SELECT status, failure_type, failure_count, tripped_at, retry_after,
-                   last_failure_reason, updated_at
-            FROM circuit_state WHERE service = @s
-            """;
+                          SELECT status, failure_type, failure_count, tripped_at, retry_after,
+                                 last_failure_reason, updated_at
+                          FROM circuit_state WHERE service = @s
+                          """;
         cmd.Parameters.AddWithValue("@s", service);
 
         using var reader = await cmd.ExecuteReaderAsync();
@@ -291,10 +315,10 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            SELECT service, status, failure_type, failure_count, tripped_at,
-                   retry_after, last_failure_reason, updated_at
-            FROM circuit_state
-            """;
+                          SELECT service, status, failure_type, failure_count, tripped_at,
+                                 retry_after, last_failure_reason, updated_at
+                          FROM circuit_state
+                          """;
 
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -318,19 +342,19 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO circuit_state (service, status, failure_type, failure_count,
-                                       tripped_at, retry_after, last_failure_reason, updated_at)
-            VALUES (@service, @status, @failureType, @failureCount,
-                    @trippedAt, @retryAfter, @reason, @updatedAt)
-            ON CONFLICT(service) DO UPDATE SET
-                status = @status,
-                failure_type = @failureType,
-                failure_count = @failureCount,
-                tripped_at = @trippedAt,
-                retry_after = @retryAfter,
-                last_failure_reason = @reason,
-                updated_at = @updatedAt
-            """;
+                          INSERT INTO circuit_state (service, status, failure_type, failure_count,
+                                                     tripped_at, retry_after, last_failure_reason, updated_at)
+                          VALUES (@service, @status, @failureType, @failureCount,
+                                  @trippedAt, @retryAfter, @reason, @updatedAt)
+                          ON CONFLICT(service) DO UPDATE SET
+                              status = @status,
+                              failure_type = @failureType,
+                              failure_count = @failureCount,
+                              tripped_at = @trippedAt,
+                              retry_after = @retryAfter,
+                              last_failure_reason = @reason,
+                              updated_at = @updatedAt
+                          """;
 
         cmd.Parameters.AddWithValue("@service", entry.Service);
         cmd.Parameters.AddWithValue("@status", (int)entry.Status);
@@ -357,12 +381,8 @@ public class SqliteCircuitBreakerService : ICircuitBreaker, IAsyncDisposable
         return DateTimeOffset.TryParse(value, out var result) ? result : default;
     }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
-
-    public async ValueTask DisposeAsync()
+    private static string Truncate(string s, int max)
     {
-        await _db.DisposeAsync();
-        GC.SuppressFinalize(this);
+        return s.Length > max ? s[..max] + "..." : s;
     }
 }

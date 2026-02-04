@@ -11,22 +11,19 @@ using Mostlylucid.Storage.Core.Config;
 namespace Mostlylucid.Storage.Core.Implementations;
 
 /// <summary>
-/// DuckDB-based vector store with VSS extension support for HNSW indexes.
-/// Falls back to in-memory cosine similarity if VSS unavailable.
+///     DuckDB-based vector store with VSS extension support for HNSW indexes.
+///     Falls back to in-memory cosine similarity if VSS unavailable.
 /// </summary>
 public class DuckDBVectorStore : IMultiVectorStore
 {
+    private readonly Dictionary<string, CollectionMetadata> _collections = new();
+    private readonly string _dbPath;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
     private readonly ILogger<DuckDBVectorStore> _logger;
     private readonly DuckDBOptions _options;
-    private readonly string _dbPath;
     private DuckDBConnection? _connection;
-    private bool _useVss;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-    private readonly Dictionary<string, CollectionMetadata> _collections = new();
     private bool _disposed;
-
-    public bool IsPersistent => _options.EnablePersistence;
-    public VectorStoreBackend Backend => VectorStoreBackend.DuckDB;
+    private bool _useVss;
 
     public DuckDBVectorStore(IOptions<VectorStoreOptions> options, ILogger<DuckDBVectorStore> logger)
     {
@@ -36,49 +33,11 @@ public class DuckDBVectorStore : IMultiVectorStore
 
         // Ensure directory exists
         var dir = Path.GetDirectoryName(_dbPath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
     }
 
-    private async Task EnsureConnectionAsync(CancellationToken ct = default)
-    {
-        if (_connection != null) return;
-
-        await _initLock.WaitAsync(ct);
-        try
-        {
-            if (_connection != null) return;
-
-            _connection = new DuckDBConnection($"Data Source={_dbPath}");
-            await _connection.OpenAsync(ct);
-
-            // Try to load VSS extension
-            try
-            {
-                await ExecAsync("INSTALL vss;", ct);
-                await ExecAsync("LOAD vss;", ct);
-
-                if (_options.EnablePersistence)
-                {
-                    await ExecAsync("SET hnsw_enable_experimental_persistence = true;", ct);
-                }
-
-                _useVss = true;
-                _logger.LogInformation("DuckDB VSS extension loaded successfully (HNSW indexes enabled)");
-            }
-            catch (Exception ex)
-            {
-                _useVss = false;
-                _logger.LogWarning(ex, "VSS extension unavailable - falling back to in-memory cosine similarity");
-            }
-        }
-        finally
-        {
-            _initLock.Release();
-        }
-    }
+    public bool IsPersistent => _options.EnablePersistence;
+    public VectorStoreBackend Backend => VectorStoreBackend.DuckDB;
 
     // ========== Collection Management ==========
 
@@ -130,7 +89,6 @@ public class DuckDBVectorStore : IMultiVectorStore
         await ExecAsync($"CREATE INDEX IF NOT EXISTS idx_{tableName}_hash ON {tableName}(content_hash);", ct);
 
         if (_useVss)
-        {
             try
             {
                 await ExecAsync($@"
@@ -145,7 +103,6 @@ public class DuckDBVectorStore : IMultiVectorStore
             {
                 _logger.LogWarning(ex, "Failed to create HNSW index for {Collection}", collectionName);
             }
-        }
 
         // Create summary cache table
         var summaryTable = GetSummaryTableName(collectionName);
@@ -232,7 +189,7 @@ public class DuckDBVectorStore : IMultiVectorStore
             CollectionName = collectionName,
             DocumentCount = count,
             VectorDimension = metadata?.VectorDimension ?? 0,
-            SizeBytes = null  // DuckDB doesn't expose this easily
+            SizeBytes = null // DuckDB doesn't expose this easily
         };
     }
 
@@ -253,7 +210,8 @@ public class DuckDBVectorStore : IMultiVectorStore
         return count > 0;
     }
 
-    public async Task UpsertDocumentsAsync(string collectionName, IEnumerable<VectorDocument> documents, CancellationToken ct = default)
+    public async Task UpsertDocumentsAsync(string collectionName, IEnumerable<VectorDocument> documents,
+        CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
 
@@ -263,10 +221,8 @@ public class DuckDBVectorStore : IMultiVectorStore
         foreach (var doc in documents)
         {
             if (doc.Embedding.Length != metadata.VectorDimension)
-            {
                 throw new ArgumentException(
                     $"Document {doc.Id} embedding dimension {doc.Embedding.Length} does not match collection dimension {metadata.VectorDimension}");
-            }
 
             var vecLiteral = VectorLiteral(doc.Embedding);
             var embeddingJson = JsonSerializer.Serialize(doc.Embedding);
@@ -310,7 +266,8 @@ public class DuckDBVectorStore : IMultiVectorStore
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<VectorDocument?> GetDocumentAsync(string collectionName, string documentId, CancellationToken ct = default)
+    public async Task<VectorDocument?> GetDocumentAsync(string collectionName, string documentId,
+        CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
 
@@ -326,15 +283,13 @@ public class DuckDBVectorStore : IMultiVectorStore
         AddParameter(cmd, "@id", documentId);
 
         using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (await reader.ReadAsync(ct))
-        {
-            return ParseDocumentRow(reader);
-        }
+        if (await reader.ReadAsync(ct)) return ParseDocumentRow(reader);
 
         return null;
     }
 
-    public async Task<List<VectorDocument>> GetAllDocumentsAsync(string collectionName, string? parentId = null, CancellationToken ct = default)
+    public async Task<List<VectorDocument>> GetAllDocumentsAsync(string collectionName, string? parentId = null,
+        CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
 
@@ -345,24 +300,19 @@ public class DuckDBVectorStore : IMultiVectorStore
 
         using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
-        if (parentId != null)
-        {
-            AddParameter(cmd, "@parent_id", parentId);
-        }
+        if (parentId != null) AddParameter(cmd, "@parent_id", parentId);
 
         var results = new List<VectorDocument>();
         using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            results.Add(ParseDocumentRow(reader));
-        }
+        while (await reader.ReadAsync(ct)) results.Add(ParseDocumentRow(reader));
 
         return results;
     }
 
     // ========== Search Operations ==========
 
-    public async Task<List<VectorSearchResult>> SearchAsync(string collectionName, VectorSearchQuery query, CancellationToken ct = default)
+    public async Task<List<VectorSearchResult>> SearchAsync(string collectionName, VectorSearchQuery query,
+        CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
 
@@ -370,50 +320,36 @@ public class DuckDBVectorStore : IMultiVectorStore
         var metadata = _collections[collectionName];
 
         if (query.QueryEmbedding.Length != metadata.VectorDimension)
-        {
             throw new ArgumentException(
                 $"Query embedding dimension {query.QueryEmbedding.Length} does not match collection dimension {metadata.VectorDimension}");
-        }
 
         List<VectorSearchResult> results;
 
         if (_useVss)
-        {
             // Use VSS extension
             results = await SearchWithVssAsync(tableName, query, ct);
-        }
         else
-        {
             // Fallback to in-memory cosine similarity
             results = await SearchWithCosineAsync(tableName, query, ct);
-        }
 
         // Apply filters
-        if (query.MinScore > 0)
-        {
-            results = results.Where(r => r.Score >= query.MinScore).ToList();
-        }
+        if (query.MinScore > 0) results = results.Where(r => r.Score >= query.MinScore).ToList();
 
-        if (query.MaxScore.HasValue)
-        {
-            results = results.Where(r => r.Score <= query.MaxScore.Value).ToList();
-        }
+        if (query.MaxScore.HasValue) results = results.Where(r => r.Score <= query.MaxScore.Value).ToList();
 
         return results.Take(query.TopK).ToList();
     }
 
-    public async Task<List<VectorSearchResult>> FindSimilarAsync(string collectionName, string documentId, int topK = 10, CancellationToken ct = default)
+    public async Task<List<VectorSearchResult>> FindSimilarAsync(string collectionName, string documentId,
+        int topK = 10, CancellationToken ct = default)
     {
         var doc = await GetDocumentAsync(collectionName, documentId, ct);
-        if (doc == null)
-        {
-            return new List<VectorSearchResult>();
-        }
+        if (doc == null) return new List<VectorSearchResult>();
 
         var query = new VectorSearchQuery
         {
             QueryEmbedding = doc.Embedding,
-            TopK = topK + 1,  // +1 to exclude self
+            TopK = topK + 1, // +1 to exclude self
             IncludeDocument = false
         };
 
@@ -425,7 +361,8 @@ public class DuckDBVectorStore : IMultiVectorStore
 
     // ========== Content Hash-Based Caching ==========
 
-    public async Task<Dictionary<string, VectorDocument>> GetDocumentsByHashAsync(string collectionName, IEnumerable<string> contentHashes, CancellationToken ct = default)
+    public async Task<Dictionary<string, VectorDocument>> GetDocumentsByHashAsync(string collectionName,
+        IEnumerable<string> contentHashes, CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
 
@@ -444,25 +381,20 @@ public class DuckDBVectorStore : IMultiVectorStore
 
         using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
-        for (int i = 0; i < hashes.Count; i++)
-        {
-            AddParameter(cmd, $"@hash{i}", hashes[i]);
-        }
+        for (var i = 0; i < hashes.Count; i++) AddParameter(cmd, $"@hash{i}", hashes[i]);
 
         using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
             var doc = ParseDocumentRow(reader);
-            if (doc.ContentHash != null)
-            {
-                results[doc.ContentHash] = doc;
-            }
+            if (doc.ContentHash != null) results[doc.ContentHash] = doc;
         }
 
         return results;
     }
 
-    public async Task RemoveStaleDocumentsAsync(string collectionName, string parentId, IEnumerable<string> validHashes, CancellationToken ct = default)
+    public async Task RemoveStaleDocumentsAsync(string collectionName, string parentId, IEnumerable<string> validHashes,
+        CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
 
@@ -491,10 +423,7 @@ public class DuckDBVectorStore : IMultiVectorStore
             using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             AddParameter(cmd, "@parent_id", parentId);
-            for (int i = 0; i < hashes.Count; i++)
-            {
-                AddParameter(cmd, $"@hash{i}", hashes[i]);
-            }
+            for (var i = 0; i < hashes.Count; i++) AddParameter(cmd, $"@hash{i}", hashes[i]);
 
             await cmd.ExecuteNonQueryAsync(ct);
         }
@@ -502,7 +431,8 @@ public class DuckDBVectorStore : IMultiVectorStore
 
     // ========== Summary Caching ==========
 
-    public async Task<CachedSummary?> GetCachedSummaryAsync(string collectionName, string documentId, CancellationToken ct = default)
+    public async Task<CachedSummary?> GetCachedSummaryAsync(string collectionName, string documentId,
+        CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
 
@@ -523,7 +453,8 @@ public class DuckDBVectorStore : IMultiVectorStore
             var metadataJson = reader.GetStringOrNull(3);
             var metadata = string.IsNullOrEmpty(metadataJson)
                 ? new Dictionary<string, object>()
-                : JsonSerializer.Deserialize<Dictionary<string, object>>(metadataJson) ?? new Dictionary<string, object>();
+                : JsonSerializer.Deserialize<Dictionary<string, object>>(metadataJson) ??
+                  new Dictionary<string, object>();
 
             return new CachedSummary
             {
@@ -615,26 +546,24 @@ public class DuckDBVectorStore : IMultiVectorStore
         var namedTable = GetNamedVectorTableName(collectionName);
 
         foreach (var doc in docList)
+        foreach (var (name, vector) in doc.NamedVectors)
         {
-            foreach (var (name, vector) in doc.NamedVectors)
-            {
-                var embeddingJson = JsonSerializer.Serialize(vector);
+            var embeddingJson = JsonSerializer.Serialize(vector);
 
-                var sql = $@"
+            var sql = $@"
                     INSERT OR REPLACE INTO {namedTable}
                     (document_id, vector_name, embedding_json, dimension)
                     VALUES (@doc_id, @vec_name, @embedding_json, @dimension);
                 ";
 
-                using var cmd = _connection!.CreateCommand();
-                cmd.CommandText = sql;
-                AddParameter(cmd, "@doc_id", doc.Id);
-                AddParameter(cmd, "@vec_name", name);
-                AddParameter(cmd, "@embedding_json", embeddingJson);
-                AddParameter(cmd, "@dimension", vector.Length);
+            using var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            AddParameter(cmd, "@doc_id", doc.Id);
+            AddParameter(cmd, "@vec_name", name);
+            AddParameter(cmd, "@embedding_json", embeddingJson);
+            AddParameter(cmd, "@dimension", vector.Length);
 
-                await cmd.ExecuteNonQueryAsync(ct);
-            }
+            await cmd.ExecuteNonQueryAsync(ct);
         }
 
         _logger.LogDebug("Upserted {Count} multi-vector documents to collection {Collection}",
@@ -666,10 +595,7 @@ public class DuckDBVectorStore : IMultiVectorStore
         using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         AddParameter(cmd, "@vec_name", vectorName);
-        if (query.ParentId != null)
-        {
-            AddParameter(cmd, "@parent_id", query.ParentId);
-        }
+        if (query.ParentId != null) AddParameter(cmd, "@parent_id", query.ParentId);
 
         var results = new List<VectorSearchResult>();
         using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -685,7 +611,8 @@ public class DuckDBVectorStore : IMultiVectorStore
             var metadataJson = reader.GetStringOrNull(4);
             var metadata = string.IsNullOrEmpty(metadataJson)
                 ? new Dictionary<string, object>()
-                : JsonSerializer.Deserialize<Dictionary<string, object>>(metadataJson) ?? new Dictionary<string, object>();
+                : JsonSerializer.Deserialize<Dictionary<string, object>>(metadataJson) ??
+                  new Dictionary<string, object>();
 
             results.Add(new VectorSearchResult
             {
@@ -705,11 +632,69 @@ public class DuckDBVectorStore : IMultiVectorStore
             .ToList();
     }
 
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        _connection?.Dispose();
+        _initLock.Dispose();
+        _disposed = true;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+
+        if (_connection != null) await _connection.DisposeAsync();
+
+        _initLock.Dispose();
+        _disposed = true;
+    }
+
+    private async Task EnsureConnectionAsync(CancellationToken ct = default)
+    {
+        if (_connection != null) return;
+
+        await _initLock.WaitAsync(ct);
+        try
+        {
+            if (_connection != null) return;
+
+            _connection = new DuckDBConnection($"Data Source={_dbPath}");
+            await _connection.OpenAsync(ct);
+
+            // Try to load VSS extension
+            try
+            {
+                await ExecAsync("INSTALL vss;", ct);
+                await ExecAsync("LOAD vss;", ct);
+
+                if (_options.EnablePersistence) await ExecAsync("SET hnsw_enable_experimental_persistence = true;", ct);
+
+                _useVss = true;
+                _logger.LogInformation("DuckDB VSS extension loaded successfully (HNSW indexes enabled)");
+            }
+            catch (Exception ex)
+            {
+                _useVss = false;
+                _logger.LogWarning(ex, "VSS extension unavailable - falling back to in-memory cosine similarity");
+            }
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
+
     // ========== Private Helpers ==========
 
-    private static string GetNamedVectorTableName(string collectionName) => $"vec_{collectionName}_named_vectors";
+    private static string GetNamedVectorTableName(string collectionName)
+    {
+        return $"vec_{collectionName}_named_vectors";
+    }
 
-    private async Task<List<VectorSearchResult>> SearchWithVssAsync(string tableName, VectorSearchQuery query, CancellationToken ct)
+    private async Task<List<VectorSearchResult>> SearchWithVssAsync(string tableName, VectorSearchQuery query,
+        CancellationToken ct)
     {
         var vecLiteral = VectorLiteral(query.QueryEmbedding);
         var sql = $@"
@@ -730,7 +715,7 @@ public class DuckDBVectorStore : IMultiVectorStore
         {
             var doc = query.IncludeDocument ? ParseDocumentRow(reader) : null;
             var distance = reader.GetDouble(8);
-            var score = 1.0 - distance;  // Convert distance to similarity score
+            var score = 1.0 - distance; // Convert distance to similarity score
 
             results.Add(new VectorSearchResult
             {
@@ -747,7 +732,8 @@ public class DuckDBVectorStore : IMultiVectorStore
         return results;
     }
 
-    private async Task<List<VectorSearchResult>> SearchWithCosineAsync(string tableName, VectorSearchQuery query, CancellationToken ct)
+    private async Task<List<VectorSearchResult>> SearchWithCosineAsync(string tableName, VectorSearchQuery query,
+        CancellationToken ct)
     {
         // Load all documents and compute cosine similarity in-memory
         var sql = $@"
@@ -786,10 +772,7 @@ public class DuckDBVectorStore : IMultiVectorStore
     {
         var conditions = new List<string>();
 
-        if (query.ParentId != null)
-        {
-            conditions.Add($"parent_id = '{query.ParentId}'");
-        }
+        if (query.ParentId != null) conditions.Add($"parent_id = '{query.ParentId}'");
 
         // TODO: Add support for metadata filters
 
@@ -801,7 +784,7 @@ public class DuckDBVectorStore : IMultiVectorStore
         if (a.Length != b.Length) return 1.0;
 
         double dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dot += a[i] * b[i];
             normA += a[i] * a[i];
@@ -811,7 +794,7 @@ public class DuckDBVectorStore : IMultiVectorStore
         if (normA == 0 || normB == 0) return 1.0;
 
         var similarity = dot / (Math.Sqrt(normA) * Math.Sqrt(normB));
-        return 1.0 - similarity;  // Convert similarity to distance
+        return 1.0 - similarity; // Convert similarity to distance
     }
 
     private static string VectorLiteral(float[] vector)
@@ -853,10 +836,7 @@ public class DuckDBVectorStore : IMultiVectorStore
         var sql = $"SELECT embedding_json FROM {tableName} LIMIT 1;";
         var json = await QueryScalarAsync<string>(sql, ct);
 
-        if (string.IsNullOrEmpty(json))
-        {
-            return _options.VectorDimension;
-        }
+        if (string.IsNullOrEmpty(json)) return _options.VectorDimension;
 
         var embedding = JsonSerializer.Deserialize<float[]>(json);
         return embedding?.Length ?? _options.VectorDimension;
@@ -885,29 +865,14 @@ public class DuckDBVectorStore : IMultiVectorStore
         cmd.Parameters.Add(param);
     }
 
-    private static string GetTableName(string collectionName) => $"vec_{collectionName}";
-    private static string GetSummaryTableName(string collectionName) => $"summary_{collectionName}";
-
-    public void Dispose()
+    private static string GetTableName(string collectionName)
     {
-        if (_disposed) return;
-
-        _connection?.Dispose();
-        _initLock.Dispose();
-        _disposed = true;
+        return $"vec_{collectionName}";
     }
 
-    public async ValueTask DisposeAsync()
+    private static string GetSummaryTableName(string collectionName)
     {
-        if (_disposed) return;
-
-        if (_connection != null)
-        {
-            await _connection.DisposeAsync();
-        }
-
-        _initLock.Dispose();
-        _disposed = true;
+        return $"summary_{collectionName}";
     }
 
     private class CollectionMetadata

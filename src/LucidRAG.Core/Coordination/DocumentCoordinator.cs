@@ -1,21 +1,20 @@
 using System.Diagnostics;
 using LucidRAG.Manifests;
 using LucidRAG.Services.Waves;
-using Microsoft.Extensions.Logging;
 using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace LucidRAG.Coordination;
 
 /// <summary>
-/// Default coordinator implementation.
-/// Orders waves by manifest priority, checks signal dependencies, executes, accumulates signals.
-/// Falls back to IAnalysisWave properties when no YAML manifest exists.
+///     Default coordinator implementation.
+///     Orders waves by manifest priority, checks signal dependencies, executes, accumulates signals.
+///     Falls back to IAnalysisWave properties when no YAML manifest exists.
 /// </summary>
 public sealed class DocumentCoordinator : ICoordinator
 {
-    private readonly IEnumerable<IWave> _waves;
-    private readonly IWaveRegistry _registry;
     private readonly ILogger<DocumentCoordinator> _logger;
+    private readonly IWaveRegistry _registry;
+    private readonly IEnumerable<IWave> _waves;
 
     public DocumentCoordinator(
         IEnumerable<IWave> waves,
@@ -85,8 +84,8 @@ public sealed class DocumentCoordinator : ICoordinator
                 context.Signals.AddRange(signals);
 
                 log.Add(MakeLog(wave.Name, WaveStatus.Success,
-                    durationMs: waveStart.ElapsedMilliseconds,
-                    signalCount: signals.Count,
+                    waveStart.ElapsedMilliseconds,
+                    signals.Count,
                     lane: laneName));
 
                 _logger.LogDebug(
@@ -131,7 +130,7 @@ public sealed class DocumentCoordinator : ICoordinator
     }
 
     /// <summary>
-    /// Resolve manifest from registry. Falls back to IAnalysisWave properties if no YAML manifest.
+    ///     Resolve manifest from registry. Falls back to IAnalysisWave properties if no YAML manifest.
     /// </summary>
     private WaveManifest ResolveManifest(IWave wave)
     {
@@ -140,7 +139,6 @@ public sealed class DocumentCoordinator : ICoordinator
 
         // Fallback: build manifest from IAnalysisWave properties
         if (wave is IAnalysisWave analysisWave)
-        {
             return new WaveManifest
             {
                 Name = analysisWave.Name,
@@ -151,7 +149,6 @@ public sealed class DocumentCoordinator : ICoordinator
                 Tags = analysisWave.Tags.ToList(),
                 Kind = "analysis"
             };
-        }
 
         // Minimal default
         return new WaveManifest
@@ -222,9 +219,12 @@ public sealed class DocumentCoordinator : ICoordinator
 
     private static WaveExecutionLog MakeLog(
         string waveName, WaveStatus status, long durationMs = 0,
-        int signalCount = 0, string? error = null, string? reason = null, string? lane = null) => new()
+        int signalCount = 0, string? error = null, string? reason = null, string? lane = null)
     {
-        WaveName = waveName, Status = status, DurationMs = durationMs,
-        SignalCount = signalCount, Error = error, Reason = reason, Lane = lane
-    };
+        return new WaveExecutionLog
+        {
+            WaveName = waveName, Status = status, DurationMs = durationMs,
+            SignalCount = signalCount, Error = error, Reason = reason, Lane = lane
+        };
+    }
 }

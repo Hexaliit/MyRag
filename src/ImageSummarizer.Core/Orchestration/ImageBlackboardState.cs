@@ -85,14 +85,6 @@ public sealed class ImageBlackboardState
     /// </summary>
     public bool IsQualityRoute => SelectedRoute == "quality";
 
-    /// <summary>
-    ///     Check if a wave is skipped by auto-routing.
-    /// </summary>
-    public bool IsWaveSkippedByRouting(string waveName)
-    {
-        return GetSignal<bool>($"{ImageSignalKeys.RouteSkipPrefix}{waveName}");
-    }
-
     // ===== Image Properties from Signals =====
 
     /// <summary>
@@ -119,6 +111,14 @@ public sealed class ImageBlackboardState
     ///     Whether text was detected in the image.
     /// </summary>
     public bool HasText => GetSignal<bool>(ImageSignalKeys.TextDetected);
+
+    /// <summary>
+    ///     Check if a wave is skipped by auto-routing.
+    /// </summary>
+    public bool IsWaveSkippedByRouting(string waveName)
+    {
+        return GetSignal<bool>($"{ImageSignalKeys.RouteSkipPrefix}{waveName}");
+    }
 
     /// <summary>
     ///     Get a typed signal value.
@@ -196,10 +196,8 @@ public sealed class ImageAnalysisCache
         {
             // Dispose any disposable values
             foreach (var value in _cache.Values)
-            {
                 if (value is IDisposable disposable)
                     disposable.Dispose();
-            }
 
             _cache.Clear();
         }

@@ -7,17 +7,15 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.DocSummarizer.Images.Services.Vision.Clients;
 
 /// <summary>
-/// OpenAI GPT-4 Vision client for image analysis
-/// Uses GPT-4 Vision (gpt-4-vision-preview, gpt-4o, etc.)
+///     OpenAI GPT-4 Vision client for image analysis
+///     Uses GPT-4 Vision (gpt-4-vision-preview, gpt-4o, etc.)
 /// </summary>
 public class OpenAIVisionClient : IVisionClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<OpenAIVisionClient> _logger;
     private readonly string _apiKey;
     private readonly string _defaultModel;
-
-    public string Provider => "OpenAI";
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<OpenAIVisionClient> _logger;
 
     public OpenAIVisionClient(IConfiguration configuration, ILogger<OpenAIVisionClient> logger)
     {
@@ -33,33 +31,26 @@ public class OpenAIVisionClient : IVisionClient
             Timeout = TimeSpan.FromMinutes(5)
         };
 
-        if (!string.IsNullOrEmpty(_apiKey))
-        {
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-        }
+        if (!string.IsNullOrEmpty(_apiKey)) _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
     }
+
+    public string Provider => "OpenAI";
 
     public async Task<(bool Available, string? Message)> CheckAvailabilityAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_apiKey))
-        {
-            return (false, "OpenAI API key not configured. Set OPENAI_API_KEY environment variable or configure in appsettings.json");
-        }
+            return (false,
+                "OpenAI API key not configured. Set OPENAI_API_KEY environment variable or configure in appsettings.json");
 
         try
         {
             // List models to verify API key
             var response = await _httpClient.GetAsync("/v1/models", ct);
 
-            if (response.IsSuccessStatusCode)
-            {
-                return (true, $"OpenAI ready with {_defaultModel}");
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync(ct);
-                return (false, $"OpenAI API error: {response.StatusCode} - {errorContent}");
-            }
+            if (response.IsSuccessStatusCode) return (true, $"OpenAI ready with {_defaultModel}");
+
+            var errorContent = await response.Content.ReadAsStringAsync(ct);
+            return (false, $"OpenAI API error: {response.StatusCode} - {errorContent}");
         }
         catch (Exception ex)
         {
@@ -75,13 +66,11 @@ public class OpenAIVisionClient : IVisionClient
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_apiKey))
-        {
             return new VisionResult(
-                Success: false,
-                Error: "OpenAI API key not configured",
-                Caption: null,
+                false,
+                "OpenAI API key not configured",
+                null,
                 Provider: Provider);
-        }
 
         try
         {
@@ -141,24 +130,22 @@ public class OpenAIVisionClient : IVisionClient
                 var errorContent = await response.Content.ReadAsStringAsync(ct);
                 _logger.LogError("OpenAI API error: {StatusCode} - {Error}", response.StatusCode, errorContent);
                 return new VisionResult(
-                    Success: false,
-                    Error: $"API error: {response.StatusCode}",
-                    Caption: null,
-                    Model: modelToUse,
-                    Provider: Provider);
+                    false,
+                    $"API error: {response.StatusCode}",
+                    null,
+                    modelToUse,
+                    Provider);
             }
 
             var result = await response.Content.ReadFromJsonAsync<OpenAIResponse>(ct);
 
             if (result?.Choices == null || result.Choices.Count == 0)
-            {
                 return new VisionResult(
-                    Success: false,
-                    Error: "No response from OpenAI",
-                    Caption: null,
-                    Model: modelToUse,
-                    Provider: Provider);
-            }
+                    false,
+                    "No response from OpenAI",
+                    null,
+                    modelToUse,
+                    Provider);
 
             var responseText = result.Choices[0].Message.Content;
 
@@ -180,13 +167,11 @@ public class OpenAIVisionClient : IVisionClient
             var jsonStart = jsonText.IndexOf('{');
             var jsonEnd = jsonText.LastIndexOf('}');
             if (jsonStart >= 0 && jsonEnd > jsonStart)
-            {
                 jsonText = jsonText.Substring(jsonStart, jsonEnd - jsonStart + 1);
-            }
 
             try
             {
-                var visionResponse = System.Text.Json.JsonSerializer.Deserialize<VisionJsonResponse>(jsonText);
+                var visionResponse = JsonSerializer.Deserialize<VisionJsonResponse>(jsonText);
                 if (visionResponse?.Caption != null)
                 {
                     caption = visionResponse.Caption;
@@ -194,7 +179,8 @@ public class OpenAIVisionClient : IVisionClient
                         c.Text,
                         c.Sources ?? new List<string>(),
                         c.Evidence)).ToList();
-                    _logger.LogDebug("Parsed structured response with {ClaimCount} evidence claims", claims?.Count ?? 0);
+                    _logger.LogDebug("Parsed structured response with {ClaimCount} evidence claims",
+                        claims?.Count ?? 0);
                 }
                 else
                 {
@@ -209,14 +195,15 @@ public class OpenAIVisionClient : IVisionClient
                 caption = responseText;
             }
 
-            _logger.LogInformation("OpenAI vision analysis completed for {ImagePath} using {Model}", imagePath, modelToUse);
+            _logger.LogInformation("OpenAI vision analysis completed for {ImagePath} using {Model}", imagePath,
+                modelToUse);
 
             return new VisionResult(
-                Success: true,
-                Error: null,
-                Caption: caption,
-                Model: modelToUse,
-                Provider: Provider,
+                true,
+                null,
+                caption,
+                modelToUse,
+                Provider,
                 Metadata: new Dictionary<string, object>
                 {
                     { "finish_reason", result.Choices[0].FinishReason ?? "unknown" },
@@ -230,9 +217,9 @@ public class OpenAIVisionClient : IVisionClient
         {
             _logger.LogError(ex, "OpenAI vision analysis failed for {ImagePath}", imagePath);
             return new VisionResult(
-                Success: false,
-                Error: $"Analysis failed: {ex.Message}",
-                Caption: null,
+                false,
+                $"Analysis failed: {ex.Message}",
+                null,
                 Provider: Provider);
         }
     }
@@ -242,21 +229,29 @@ public class OpenAIVisionClient : IVisionClient
 internal record OpenAIResponse(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("object")] string Object,
-    [property: JsonPropertyName("created")] long Created,
+    [property: JsonPropertyName("created")]
+    long Created,
     [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("choices")] List<OpenAIChoice> Choices,
+    [property: JsonPropertyName("choices")]
+    List<OpenAIChoice> Choices,
     [property: JsonPropertyName("usage")] OpenAIUsage? Usage);
 
 internal record OpenAIChoice(
     [property: JsonPropertyName("index")] int Index,
-    [property: JsonPropertyName("message")] OpenAIMessage Message,
-    [property: JsonPropertyName("finish_reason")] string? FinishReason);
+    [property: JsonPropertyName("message")]
+    OpenAIMessage Message,
+    [property: JsonPropertyName("finish_reason")]
+    string? FinishReason);
 
 internal record OpenAIMessage(
     [property: JsonPropertyName("role")] string Role,
-    [property: JsonPropertyName("content")] string Content);
+    [property: JsonPropertyName("content")]
+    string Content);
 
 internal record OpenAIUsage(
-    [property: JsonPropertyName("prompt_tokens")] int PromptTokens,
-    [property: JsonPropertyName("completion_tokens")] int CompletionTokens,
-    [property: JsonPropertyName("total_tokens")] int TotalTokens);
+    [property: JsonPropertyName("prompt_tokens")]
+    int PromptTokens,
+    [property: JsonPropertyName("completion_tokens")]
+    int CompletionTokens,
+    [property: JsonPropertyName("total_tokens")]
+    int TotalTokens);

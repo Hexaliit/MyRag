@@ -2,34 +2,17 @@ using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using Mostlylucid.DocSummarizer.Images.Services.Vision.Clients;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Vision;
 
 /// <summary>
-/// Fast caption service for direct LLM calls without full heuristics pipeline.
-/// Provides consistent prompts across all clients (CLI, Desktop, etc.).
+///     Fast caption service for direct LLM calls without full heuristics pipeline.
+///     Provides consistent prompts across all clients (CLI, Desktop, etc.).
 /// </summary>
 public class FastCaptionService
 {
-    private readonly UnifiedVisionService _visionService;
     private readonly ILogger<FastCaptionService>? _logger;
-
-    // Standard prompts - used by ALL clients for consistency
-    public static class Prompts
-    {
-        public const string SimpleCaption = "Describe this image in one concise sentence.";
-
-        public const string DetailedCaption = "Describe this image concisely. Focus on the main subject and any visible text.";
-
-        public const string GifStrip = "This is a {0}-frame animated GIF shown as a horizontal strip (left to right = time). " +
-            "Describe the animation and read any text/subtitles.";
-
-        public const string GifStripDetailed = "This is a {0}-frame animated GIF shown left-to-right. " +
-            "Describe what happens in the animation, the motion, and transcribe any visible text or subtitles.";
-
-        public const string TextExtraction = "Read and transcribe all visible text in this image. Return only the text, nothing else.";
-    }
+    private readonly UnifiedVisionService _visionService;
 
     public FastCaptionService(
         UnifiedVisionService visionService,
@@ -40,8 +23,8 @@ public class FastCaptionService
     }
 
     /// <summary>
-    /// Get a quick caption for an image without full analysis.
-    /// Handles GIFs by creating frame strips automatically.
+    ///     Get a quick caption for an image without full analysis.
+    ///     Handles GIFs by creating frame strips automatically.
     /// </summary>
     /// <param name="imagePath">Path to the image file</param>
     /// <param name="detailed">If true, asks for more detail including text</param>
@@ -56,25 +39,22 @@ public class FastCaptionService
         var ext = Path.GetExtension(imagePath).ToLowerInvariant();
 
         // Handle GIFs with frame strip
-        if (ext == ".gif")
-        {
-            return await GetGifCaptionAsync(imagePath, detailed, model, ct);
-        }
+        if (ext == ".gif") return await GetGifCaptionAsync(imagePath, detailed, model, ct);
 
         // Static image - simple caption
         var prompt = detailed ? Prompts.DetailedCaption : Prompts.SimpleCaption;
         var result = await _visionService.AnalyzeImageAsync(imagePath, prompt, model: model, ct: ct);
 
         return new FastCaptionResult(
-            Success: result.Success,
-            Caption: CleanCaption(result.Caption),
-            Error: result.Error,
-            FrameCount: 1,
-            Model: result.Model);
+            result.Success,
+            CleanCaption(result.Caption),
+            result.Error,
+            1,
+            result.Model);
     }
 
     /// <summary>
-    /// Get caption for a GIF by creating a deduped frame strip.
+    ///     Get caption for a GIF by creating a deduped frame strip.
     /// </summary>
     private async Task<FastCaptionResult> GetGifCaptionAsync(
         string gifPath,
@@ -92,7 +72,8 @@ public class FastCaptionService
                 // Single frame GIF or failed - treat as static
                 var prompt = detailed ? Prompts.DetailedCaption : Prompts.SimpleCaption;
                 var result = await _visionService.AnalyzeImageAsync(gifPath, prompt, model: model, ct: ct);
-                return new FastCaptionResult(result.Success, CleanCaption(result.Caption), result.Error, 1, result.Model);
+                return new FastCaptionResult(result.Success, CleanCaption(result.Caption), result.Error, 1,
+                    result.Model);
             }
 
             try
@@ -102,19 +83,24 @@ public class FastCaptionService
                 var result = await _visionService.AnalyzeImageAsync(stripPath, prompt, model: model, ct: ct);
 
                 return new FastCaptionResult(
-                    Success: result.Success,
-                    Caption: CleanCaption(result.Caption),
-                    Error: result.Error,
-                    FrameCount: frameCount,
-                    Model: result.Model);
+                    result.Success,
+                    CleanCaption(result.Caption),
+                    result.Error,
+                    frameCount,
+                    result.Model);
             }
             finally
             {
                 // Clean up temp file
                 if (File.Exists(stripPath))
-                {
-                    try { File.Delete(stripPath); } catch { /* ignore */ }
-                }
+                    try
+                    {
+                        File.Delete(stripPath);
+                    }
+                    catch
+                    {
+                        /* ignore */
+                    }
             }
         }
         catch (Exception ex)
@@ -129,7 +115,7 @@ public class FastCaptionService
     }
 
     /// <summary>
-    /// Extract unique frames from GIF, dedupe, and create horizontal strip.
+    ///     Extract unique frames from GIF, dedupe, and create horizontal strip.
     /// </summary>
     private async Task<(string? StripPath, int FrameCount)> CreateGifFrameStripAsync(
         string gifPath,
@@ -145,24 +131,16 @@ public class FastCaptionService
         var step = Math.Max(1, image.Frames.Count / maxFrames);
         var frames = new List<Image<Rgba32>>();
 
-        for (int i = 0; i < image.Frames.Count && frames.Count < maxFrames; i += step)
-        {
+        for (var i = 0; i < image.Frames.Count && frames.Count < maxFrames; i += step)
             frames.Add(image.Frames.CloneFrame(i));
-        }
 
         // Simple deduplication using pixel comparison (fast)
         var uniqueFrames = new List<Image<Rgba32>> { frames[0] };
-        for (int i = 1; i < frames.Count; i++)
-        {
+        for (var i = 1; i < frames.Count; i++)
             if (!AreFramesSimilar(uniqueFrames[^1], frames[i], 0.95))
-            {
                 uniqueFrames.Add(frames[i]);
-            }
             else
-            {
                 frames[i].Dispose();
-            }
-        }
 
         // Limit to 8 frames for strip (optimal for readability)
         while (uniqueFrames.Count > 8)
@@ -185,7 +163,7 @@ public class FastCaptionService
 
         using var strip = new Image<Rgba32>(stripWidth, frameHeight);
 
-        int xOffset = 0;
+        var xOffset = 0;
         foreach (var frame in uniqueFrames)
         {
             using var resized = frame.Clone();
@@ -205,36 +183,34 @@ public class FastCaptionService
     }
 
     /// <summary>
-    /// Fast similarity check between two frames using sampled pixels.
+    ///     Fast similarity check between two frames using sampled pixels.
     /// </summary>
     private static bool AreFramesSimilar(Image<Rgba32> frame1, Image<Rgba32> frame2, double threshold)
     {
         if (frame1.Width != frame2.Width || frame1.Height != frame2.Height)
             return false;
 
-        int sampleStep = Math.Max(1, Math.Min(frame1.Width, frame1.Height) / 16);
-        int matchingPixels = 0;
-        int totalSampled = 0;
+        var sampleStep = Math.Max(1, Math.Min(frame1.Width, frame1.Height) / 16);
+        var matchingPixels = 0;
+        var totalSampled = 0;
 
-        for (int y = 0; y < frame1.Height; y += sampleStep)
+        for (var y = 0; y < frame1.Height; y += sampleStep)
+        for (var x = 0; x < frame1.Width; x += sampleStep)
         {
-            for (int x = 0; x < frame1.Width; x += sampleStep)
-            {
-                var p1 = frame1[x, y];
-                var p2 = frame2[x, y];
+            var p1 = frame1[x, y];
+            var p2 = frame2[x, y];
 
-                var diff = Math.Abs(p1.R - p2.R) + Math.Abs(p1.G - p2.G) + Math.Abs(p1.B - p2.B);
-                if (diff < 30)
-                    matchingPixels++;
-                totalSampled++;
-            }
+            var diff = Math.Abs(p1.R - p2.R) + Math.Abs(p1.G - p2.G) + Math.Abs(p1.B - p2.B);
+            if (diff < 30)
+                matchingPixels++;
+            totalSampled++;
         }
 
         return totalSampled > 0 && (double)matchingPixels / totalSampled >= threshold;
     }
 
     /// <summary>
-    /// Clean caption response - remove prompt leakage and instruction text.
+    ///     Clean caption response - remove prompt leakage and instruction text.
     /// </summary>
     private static string? CleanCaption(string? caption)
     {
@@ -262,7 +238,6 @@ public class FastCaptionService
         };
 
         foreach (var pattern in leakagePatterns)
-        {
             if (result.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
             {
                 var idx = result.IndexOf(',');
@@ -274,26 +249,38 @@ public class FastCaptionService
                 {
                     // Try to find the actual content after common phrases
                     idx = result.IndexOf(':');
-                    if (idx > 0 && idx < 80)
-                    {
-                        result = result[(idx + 1)..].TrimStart();
-                    }
+                    if (idx > 0 && idx < 80) result = result[(idx + 1)..].TrimStart();
                 }
             }
-        }
 
         // Capitalize first letter
-        if (result.Length > 0 && char.IsLower(result[0]))
-        {
-            result = char.ToUpper(result[0]) + result[1..];
-        }
+        if (result.Length > 0 && char.IsLower(result[0])) result = char.ToUpper(result[0]) + result[1..];
 
         return string.IsNullOrWhiteSpace(result) ? null : result;
+    }
+
+    // Standard prompts - used by ALL clients for consistency
+    public static class Prompts
+    {
+        public const string SimpleCaption = "Describe this image in one concise sentence.";
+
+        public const string DetailedCaption =
+            "Describe this image concisely. Focus on the main subject and any visible text.";
+
+        public const string GifStrip =
+            "This is a {0}-frame animated GIF shown as a horizontal strip (left to right = time). " +
+            "Describe the animation and read any text/subtitles.";
+
+        public const string GifStripDetailed = "This is a {0}-frame animated GIF shown left-to-right. " +
+                                               "Describe what happens in the animation, the motion, and transcribe any visible text or subtitles.";
+
+        public const string TextExtraction =
+            "Read and transcribe all visible text in this image. Return only the text, nothing else.";
     }
 }
 
 /// <summary>
-/// Result from fast caption service
+///     Result from fast caption service
 /// </summary>
 public record FastCaptionResult(
     bool Success,

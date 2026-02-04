@@ -1,78 +1,78 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
 
-    <!-- Namespace for now, can change later -->
-    <RootNamespace>Mostlylucid.DocSummarizer.Data</RootNamespace>
-    <AssemblyName>DataSummarizer.Core</AssemblyName>
+        <!-- Namespace for now, can change later -->
+        <RootNamespace>Mostlylucid.DocSummarizer.Data</RootNamespace>
+        <AssemblyName>DataSummarizer.Core</AssemblyName>
 
-    <!-- Package metadata -->
-    <PackageId>Mostlylucid.LucidRAG.DataSummarizer</PackageId>
-    <Description>Core data file processing pipeline for CSV, JSON, Excel, Parquet, and SQLite database ingestion with relationship detection</Description>
-    <Authors>Scott Galloway</Authors>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
-    <PackageTags>data;csv;json;excel;parquet;sqlite;database;ingestion;etl</PackageTags>
-  </PropertyGroup>
+        <!-- Package metadata -->
+        <PackageId>Mostlylucid.LucidRAG.DataSummarizer</PackageId>
+        <Description>Core data file processing pipeline for CSV, JSON, Excel, Parquet, and SQLite database ingestion with relationship detection</Description>
+        <Authors>Scott Galloway</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageTags>data;csv;json;excel;parquet;sqlite;database;ingestion;etl</PackageTags>
+    </PropertyGroup>
 
-  <!-- MinVer -->
-  <PropertyGroup>
-    <MinVerTagPrefix>datasumv</MinVerTagPrefix>
-    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
-  </PropertyGroup>
-
-  <!-- Release configuration: no PDB files -->
-  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <DebugSymbols>false</DebugSymbols>
-    <DebugType>none</DebugType>
-  </PropertyGroup>
-
-  <ItemGroup>
     <!-- MinVer -->
-    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PropertyGroup>
+        <MinVerTagPrefix>datasumv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
 
-    <!-- Core dependencies -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
+    <!-- Release configuration: no PDB files -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
 
-    <!-- CSV parsing -->
-    <PackageReference Include="CsvHelper" Version="33.1.0" />
+    <ItemGroup>
+        <!-- MinVer -->
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
 
-    <!-- Excel support -->
-    <PackageReference Include="ClosedXML" Version="0.105.0" />
+        <!-- Core dependencies -->
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2"/>
 
-    <!-- Parquet support -->
-    <PackageReference Include="Parquet.Net" Version="5.5.0" />
+        <!-- CSV parsing -->
+        <PackageReference Include="CsvHelper" Version="33.1.0"/>
 
-    <!-- DuckDB for ephemeral streaming analytics -->
-    <PackageReference Include="DuckDB.NET.Data" Version="1.4.4" />
+        <!-- Excel support -->
+        <PackageReference Include="ClosedXML" Version="0.105.0"/>
 
-    <!-- Statistics library -->
-    <PackageReference Include="MathNet.Numerics" Version="6.0.0-beta2" />
+        <!-- Parquet support -->
+        <PackageReference Include="Parquet.Net" Version="5.5.0"/>
 
-    <!-- SQLite database support -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
+        <!-- DuckDB for ephemeral streaming analytics -->
+        <PackageReference Include="DuckDB.NET.Data" Version="1.4.4"/>
 
-    <!-- Access database support - commented out until MMKiwi.MdbReader API stabilizes
-    <PackageReference Include="MMKiwi.MdbReader" Version="0.1.0-beta1" />
-    -->
-  </ItemGroup>
+        <!-- Statistics library -->
+        <PackageReference Include="MathNet.Numerics" Version="6.0.0-beta2"/>
 
-  <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
-  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-    <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
-  </ItemGroup>
+        <!-- SQLite database support -->
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2"/>
+
+        <!-- Access database support - commented out until MMKiwi.MdbReader API stabilizes
+        <PackageReference Include="MMKiwi.MdbReader" Version="0.1.0-beta1" />
+        -->
+    </ItemGroup>
+
+    <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
 
 </Project>

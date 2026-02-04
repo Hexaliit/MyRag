@@ -1,19 +1,18 @@
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using AudioSummarizer.Core.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using VideoSummarizer.Core.Extensions;
-using VideoSummarizer.Core.Models;
-using VideoSummarizer.Core.Pipeline;
 using VideoSummarizer.Core.Services;
 using VideoSummarizer.Core.Waves;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 // Parse command line arguments
 var fullMode = args.Contains("--full");
 var videoPath = args.FirstOrDefault(a => !a.StartsWith("--"))
-    ?? @"C:\Users\scott\OneDrive\Videos\Count.Arthur.Strong.S02E03.HDTV.x264-TASTETV.mp4";
+                ?? @"C:\Users\scott\OneDrive\Videos\Count.Arthur.Strong.S02E03.HDTV.x264-TASTETV.mp4";
 
 if (!File.Exists(videoPath))
 {
@@ -77,17 +76,14 @@ try
     {
         VideoPath = videoPath,
         WorkingDirectory = workingDir,
-        OnProgress = (stage, percent) =>
-        {
-            Console.WriteLine($"[{percent:F0}%] {stage}");
-        }
+        OnProgress = (stage, percent) => { Console.WriteLine($"[{percent:F0}%] {stage}"); }
     };
 
     // Run pipeline
     Console.WriteLine("Running video analysis pipeline...");
     Console.WriteLine();
 
-    var sw = System.Diagnostics.Stopwatch.StartNew();
+    var sw = Stopwatch.StartNew();
 
     await coordinator.ProcessAsync(context);
 
@@ -122,9 +118,8 @@ try
 
         Console.WriteLine("\n  First 5 shots:");
         foreach (var shot in context.Shots.Take(5))
-        {
-            Console.WriteLine($"    [{FormatTime(shot.StartTime)} - {FormatTime(shot.EndTime)}] {shot.CutType}, motion={shot.MotionScore:F2}");
-        }
+            Console.WriteLine(
+                $"    [{FormatTime(shot.StartTime)} - {FormatTime(shot.EndTime)}] {shot.CutType}, motion={shot.MotionScore:F2}");
     }
 
     Console.WriteLine();
@@ -139,9 +134,7 @@ try
             Console.WriteLine($"    [{FormatTime(scene.StartTime)} - {FormatTime(scene.EndTime)}]{label}");
             Console.WriteLine($"      Shots: {scene.ShotIds.Count}, Confidence: {scene.Confidence:F2}");
             if (scene.KeyTerms.Count > 0)
-            {
                 Console.WriteLine($"      Terms: {string.Join(", ", scene.KeyTerms.Take(5))}");
-            }
         }
     }
 
@@ -170,7 +163,8 @@ try
         foreach (var track in context.TextTracks.Take(10))
         {
             var text = track.Text.Length > 50 ? track.Text[..50] + "..." : track.Text;
-            Console.WriteLine($"    [{FormatTime(track.StartTime)} - {FormatTime(track.EndTime)}] {track.TextType}: {text}");
+            Console.WriteLine(
+                $"    [{FormatTime(track.StartTime)} - {FormatTime(track.EndTime)}] {track.TextType}: {text}");
         }
     }
 
@@ -199,7 +193,8 @@ try
                 ? evidence.TextContent[..40] + "..."
                 : evidence.TextContent ?? "(no text)";
             Console.WriteLine($"    [{evidence.Type}] [{FormatTime(evidence.StartTime)}] {text}");
-            Console.WriteLine($"      Embedding: {(evidence.Embedding != null ? $"{evidence.Embedding.Length}D" : "none")}");
+            Console.WriteLine(
+                $"      Embedding: {(evidence.Embedding != null ? $"{evidence.Embedding.Length}D" : "none")}");
         }
     }
 
@@ -217,10 +212,7 @@ try
     foreach (var key in keySignals)
     {
         var signal = context.GetBestSignal(key);
-        if (signal != null)
-        {
-            Console.WriteLine($"    {key}: {signal.Value}");
-        }
+        if (signal != null) Console.WriteLine($"    {key}: {signal.Value}");
     }
 
     // Save summary to JSON
@@ -228,7 +220,7 @@ try
     var summary = new
     {
         VideoPath = videoPath,
-        Duration = context.Metadata?.Duration,
+        context.Metadata?.Duration,
         Resolution = $"{context.Metadata?.Width}x{context.Metadata?.Height}",
         ShotCount = context.Shots.Count,
         SceneCount = context.Scenes.Count,
@@ -295,4 +287,6 @@ static string FormatTime(double seconds)
         : $"{ts.Minutes}:{ts.Seconds:D2}";
 }
 
-public partial class Program { }
+public partial class Program
+{
+}

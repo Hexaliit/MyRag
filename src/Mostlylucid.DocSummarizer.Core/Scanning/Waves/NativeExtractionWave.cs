@@ -1,16 +1,24 @@
 using System.Text;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.Logging;
 using UglyToad.PdfPig;
 
 namespace Mostlylucid.DocSummarizer.Scanning.Waves;
 
 /// <summary>
-/// Wave for native text extraction from documents.
-/// Uses PdfPig for PDFs and OpenXML for DOCX.
-/// Fast and local - no external API calls.
+///     Wave for native text extraction from documents.
+///     Uses PdfPig for PDFs and OpenXML for DOCX.
+///     Fast and local - no external API calls.
 /// </summary>
 public class NativeExtractionWave : IDocumentWave
 {
+    /// <summary>Maximum pages to extract text from. Prevents OOM on very large PDFs.</summary>
+    private const int MaxPdfPages = 2000;
+
+    /// <summary>Maximum accumulated text size in characters (~10 MB of UTF-16).</summary>
+    private const int MaxTextChars = 5 * 1024 * 1024;
+
     private readonly ILogger<NativeExtractionWave>? _logger;
 
     public NativeExtractionWave(ILogger<NativeExtractionWave>? logger = null)
@@ -23,6 +31,7 @@ public class NativeExtractionWave : IDocumentWave
     public int Priority => 100; // Runs first
     public IReadOnlyList<string> Tags => ["extraction", "native", "fast"];
     public IReadOnlyList<string> RequiredSignals => [];
+
     public IReadOnlyList<string> EmittedSignals =>
     [
         "content.markdown",
@@ -110,7 +119,6 @@ public class NativeExtractionWave : IDocumentWave
 
             // Signal if text density suggests scanned document
             if (textDensity < 100)
-            {
                 signals.Add(new DocumentSignal
                 {
                     Key = "extraction.needs_ocr",
@@ -122,7 +130,6 @@ public class NativeExtractionWave : IDocumentWave
                         ["reason"] = "Low text density suggests scanned/image-based document"
                     }
                 });
-            }
 
             _logger?.LogInformation(
                 "Native extraction: {Pages} pages, {Density} chars/page, confidence {Confidence:P0}",
@@ -142,12 +149,6 @@ public class NativeExtractionWave : IDocumentWave
 
         return signals;
     }
-
-    /// <summary>Maximum pages to extract text from. Prevents OOM on very large PDFs.</summary>
-    private const int MaxPdfPages = 2000;
-
-    /// <summary>Maximum accumulated text size in characters (~10 MB of UTF-16).</summary>
-    private const int MaxTextChars = 5 * 1024 * 1024;
 
     private async Task<(string markdown, int pageCount, int textDensity, string title)> ExtractPdfAsync(
         string pdfPath, CancellationToken ct)
@@ -206,7 +207,7 @@ public class NativeExtractionWave : IDocumentWave
             var sb = new StringBuilder();
             string? title = null;
 
-            using var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(docxPath, false);
+            using var doc = WordprocessingDocument.Open(docxPath, false);
 
             // Try to get title from core properties
             if (doc.PackageProperties?.Title != null)
@@ -214,8 +215,7 @@ public class NativeExtractionWave : IDocumentWave
 
             var body = doc.MainDocumentPart?.Document?.Body;
             if (body != null)
-            {
-                foreach (var para in body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>())
+                foreach (var para in body.Descendants<Paragraph>())
                 {
                     ct.ThrowIfCancellationRequested();
 
@@ -233,10 +233,10 @@ public class NativeExtractionWave : IDocumentWave
                                 sb.Append(' ');
                             }
                         }
+
                         sb.AppendLine(text);
                     }
                 }
-            }
 
             var content = sb.ToString().Trim();
             // Estimate page count (rough approximation)

@@ -38,7 +38,7 @@ public class FastestSelectorTests
         var endpoints = new List<EndpointState>
         {
             new("http://a:11434", "a"),
-            new("http://b:11434", "b"),
+            new("http://b:11434", "b")
         };
 
         // All EMA = MaxValue, should fall back to round-robin

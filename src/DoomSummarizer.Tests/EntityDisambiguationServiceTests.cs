@@ -5,16 +5,16 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for entity disambiguation: feature extraction, clustering, labeling, and feature cache.
-/// Requires ONNX embedding model.
+///     Tests for entity disambiguation: feature extraction, clustering, labeling, and feature cache.
+///     Requires ONNX embedding model.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class EntityDisambiguationServiceTests : IAsyncLifetime
 {
-    private StorageService _storage = null!;
-    private IEmbeddingService _embedding = null!;
     private string _dbPath = null!;
+    private IEmbeddingService _embedding = null!;
+    private StorageService _storage = null!;
 
     public async Task InitializeAsync()
     {
@@ -29,7 +29,14 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
     {
         (_embedding as IDisposable)?.Dispose();
         await _storage.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { /* cleanup best-effort */ }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+            /* cleanup best-effort */
+        }
     }
 
     // --- Helpers ---
@@ -94,7 +101,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
         // All items about the same topic and domain → should form 1 cluster
         var items = new List<ContentItem>();
         for (var i = 0; i < 6; i++)
-        {
             items.Add(MakeItem(
                 $"dotnet-{i}",
                 $".NET {i + 8} New Features",
@@ -102,7 +108,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                 topic: "technology",
                 summary: ".NET runtime improvements and C# language features",
                 relevance: 0.8 - i * 0.05));
-        }
 
         var svc = new EntityDisambiguationService();
         var result = await svc.DisambiguateFastAsync(items, ".NET features", _embedding, _storage);
@@ -120,7 +125,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
 
         // Group 1: Canadian mortgage software
         for (var i = 0; i < 4; i++)
-        {
             items.Add(MakeItem(
                 $"mortgage-{i}",
                 $"Mortgage Software Platform for Canadian Banks - Release {i + 1}",
@@ -128,11 +132,9 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                 topic: "finance",
                 summary: "Toronto-based mortgage lending software for Canadian financial institutions and banks",
                 relevance: 0.9 - i * 0.05));
-        }
 
         // Group 2: European industrial machinery
         for (var i = 0; i < 4; i++)
-        {
             items.Add(MakeItem(
                 $"industrial-{i}",
                 $"Industrial Marking Systems for European Factories - Model {i + 1}",
@@ -140,7 +142,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                 topic: "manufacturing",
                 summary: "German manufacturing equipment for laser marking and engraving in European factories",
                 relevance: 0.85 - i * 0.05));
-        }
 
         var svc = new EntityDisambiguationService();
         var result = await svc.DisambiguateFastAsync(items, "company products", _embedding, _storage);
@@ -168,7 +169,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
         var items = new List<ContentItem>();
         var idx = 0;
         foreach (var (summary, domain, topic) in topics)
-        {
             for (var i = 0; i < 3; i++)
             {
                 items.Add(MakeItem(
@@ -180,16 +180,12 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                     relevance: 0.9 - idx * 0.01));
                 idx++;
             }
-        }
 
         var svc = new EntityDisambiguationService();
         var result = await svc.DisambiguateFastAsync(items, "research topics", _embedding, _storage);
 
         // With 5 very distinct groups, should get 4+ clusters → TooMany
-        if (result.Clusters.Count >= 4)
-        {
-            result.TooMany.Should().BeTrue();
-        }
+        if (result.Clusters.Count >= 4) result.TooMany.Should().BeTrue();
         // If clustering merges some, that's acceptable — just verify structure
         result.Clusters.Should().NotBeEmpty();
     }
@@ -248,19 +244,17 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
     {
         var items = new List<ContentItem>();
         for (var i = 0; i < 6; i++)
-        {
             items.Add(MakeItem(
                 $"item-{i}",
                 $"Article about topic {i}",
                 url: $"https://site{i}.example.com/page",
                 relevance: 0.8 - i * 0.05));
-        }
 
         var svc = new EntityDisambiguationService();
         var result = await svc.DisambiguateAsync(
             items, "topic", _embedding, _storage,
-            ollama: null, ollamaAvailable: false,
-            ct: CancellationToken.None);
+            null, false,
+            CancellationToken.None);
 
         // Without Ollama or NER, falls to domain+embedding
         result.Method.Should().ContainAny("domain+embedding", "ner+embedding");
@@ -274,23 +268,18 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
     {
         var items = new List<ContentItem>();
         for (var i = 0; i < 4; i++)
-        {
             items.Add(MakeItem(
                 $"item-{i}",
                 $"Article {i} about programming",
                 url: "https://blog.example.com/article",
                 topic: "technology",
                 relevance: 0.8));
-        }
 
         var svc = new EntityDisambiguationService();
         var result = await svc.DisambiguateFastAsync(items, "programming", _embedding, _storage);
 
         // Every cluster should have a non-empty label
-        foreach (var cluster in result.Clusters)
-        {
-            cluster.Label.Should().NotBeNullOrEmpty("every cluster needs a label");
-        }
+        foreach (var cluster in result.Clusters) cluster.Label.Should().NotBeNullOrEmpty("every cluster needs a label");
     }
 
     // --- All items preserved ---
@@ -300,7 +289,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
     {
         var items = new List<ContentItem>();
         for (var i = 0; i < 8; i++)
-        {
             items.Add(MakeItem(
                 $"item-{i}",
                 $"Article about {(i % 2 == 0 ? "cats" : "dogs")} - Part {i}",
@@ -310,7 +298,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                     ? "Feline behavior and cat care tips"
                     : "Canine training and dog health advice",
                 relevance: 0.8 - i * 0.03));
-        }
 
         var svc = new EntityDisambiguationService();
         var result = await svc.DisambiguateFastAsync(items, "pets", _embedding, _storage);
@@ -328,7 +315,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
     {
         var items = new List<ContentItem>();
         for (var i = 0; i < 5; i++)
-        {
             items.Add(MakeItem(
                 $"cached-{i}",
                 $"Cached article {i}",
@@ -336,7 +322,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                 topic: "caching",
                 summary: "Article about caching mechanisms",
                 relevance: 0.7));
-        }
 
         var svc = new EntityDisambiguationService();
 
@@ -360,7 +345,6 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
 
         // High-relevance group
         for (var i = 0; i < 3; i++)
-        {
             items.Add(MakeItem(
                 $"high-{i}",
                 $"Machine learning neural network training optimization techniques Part {i + 1}",
@@ -368,11 +352,9 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                 topic: "machine-learning",
                 summary: "Deep learning neural network optimization and gradient descent methods",
                 relevance: 0.95 - i * 0.02));
-        }
 
         // Low-relevance group
         for (var i = 0; i < 3; i++)
-        {
             items.Add(MakeItem(
                 $"low-{i}",
                 $"Vintage vinyl record collecting and turntable maintenance guide Part {i + 1}",
@@ -380,16 +362,13 @@ public class EntityDisambiguationServiceTests : IAsyncLifetime
                 topic: "music-collecting",
                 summary: "Rare vinyl record collection storage and turntable equipment maintenance",
                 relevance: 0.4 - i * 0.02));
-        }
 
         var svc = new EntityDisambiguationService();
         var result = await svc.DisambiguateFastAsync(items, "mixed topics", _embedding, _storage);
 
         if (result.Clusters.Count >= 2)
-        {
             // First cluster should have higher average relevance
             result.Clusters[0].AverageRelevance.Should()
                 .BeGreaterThanOrEqualTo(result.Clusters[1].AverageRelevance);
-        }
     }
 }

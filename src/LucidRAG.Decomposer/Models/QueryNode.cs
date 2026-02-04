@@ -3,9 +3,9 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace LucidRAG.Decomposer.Models;
 
 /// <summary>
-/// The fundamental execution unit in the decomposition tree.
-/// Each node represents a single query (atomic or composite) with
-/// pre-computed metadata for execution routing.
+///     The fundamental execution unit in the decomposition tree.
+///     Each node represents a single query (atomic or composite) with
+///     pre-computed metadata for execution routing.
 /// </summary>
 public record QueryNode
 {
@@ -52,9 +52,9 @@ public record QueryNode
     // --- Tool routing ---
 
     /// <summary>
-    /// Tool action this node requires for execution. When set, the orchestrator
-    /// routes to the tool executor instead of the default search pipeline.
-    /// "Sources are tools"  -  search, file system, indexer, KB query, crawl.
+    ///     Tool action this node requires for execution. When set, the orchestrator
+    ///     routes to the tool executor instead of the default search pipeline.
+    ///     "Sources are tools"  -  search, file system, indexer, KB query, crawl.
     /// </summary>
     public ToolAction? ToolAction { get; init; }
 
@@ -115,7 +115,7 @@ public enum QueryNodeStatus
 }
 
 /// <summary>
-/// Content reference extracted from user query (URL, file path, DOI).
+///     Content reference extracted from user query (URL, file path, DOI).
 /// </summary>
 public record ContentReference
 {
@@ -133,7 +133,7 @@ public enum ContentReferenceKind
 }
 
 /// <summary>
-/// Temporal scope constraining a sub-query's freshness requirements.
+///     Temporal scope constraining a sub-query's freshness requirements.
 /// </summary>
 public record TemporalScope
 {
@@ -145,7 +145,7 @@ public record TemporalScope
 }
 
 /// <summary>
-/// Result from cache lookup.
+///     Result from cache lookup.
 /// </summary>
 public record CacheHit
 {
@@ -156,7 +156,7 @@ public record CacheHit
 }
 
 /// <summary>
-/// Result from knowledge base probe.
+///     Result from knowledge base probe.
 /// </summary>
 public record KbProbeResult
 {

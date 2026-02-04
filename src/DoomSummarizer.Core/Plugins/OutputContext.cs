@@ -3,7 +3,7 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// Parameter bag for output plugins.
+///     Parameter bag for output plugins.
 /// </summary>
 public record OutputContext
 {

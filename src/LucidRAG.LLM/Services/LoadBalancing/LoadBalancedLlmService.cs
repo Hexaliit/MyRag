@@ -5,17 +5,17 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services.LoadBalancing;
 
 /// <summary>
-/// ILlmService wrapper that distributes requests across multiple endpoint-specific services
-/// with automatic failover and health tracking.
+///     ILlmService wrapper that distributes requests across multiple endpoint-specific services
+///     with automatic failover and health tracking.
 /// </summary>
 public sealed class LoadBalancedLlmService : ILlmService, IDisposable
 {
+    private readonly string _backendName;
     private readonly IReadOnlyList<EndpointState> _endpoints;
-    private readonly IReadOnlyDictionary<string, ILlmService> _services;
-    private readonly IEndpointSelector _selector;
     private readonly EndpointHealthMonitor? _healthMonitor;
     private readonly ILogger _logger;
-    private readonly string _backendName;
+    private readonly IEndpointSelector _selector;
+    private readonly IReadOnlyDictionary<string, ILlmService> _services;
     private Lazy<Task<int>>? _cachedContextWindow;
 
     public LoadBalancedLlmService(
@@ -33,9 +33,12 @@ public sealed class LoadBalancedLlmService : ILlmService, IDisposable
         _logger = logger;
 
         if (healthCheckIntervalSeconds > 0)
-        {
             _healthMonitor = new EndpointHealthMonitor(endpoints, services, healthCheckIntervalSeconds, logger);
-        }
+    }
+
+    public void Dispose()
+    {
+        _healthMonitor?.Dispose();
     }
 
     public string ProviderName => $"LoadBalanced({_backendName}, {_endpoints.Count} endpoints)";
@@ -47,7 +50,8 @@ public sealed class LoadBalancedLlmService : ILlmService, IDisposable
             ct);
     }
 
-    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null, CancellationToken ct = default) where T : class
+    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null,
+        CancellationToken ct = default) where T : class
     {
         return await ExecuteWithFailover(
             async (service, token) => await service.GenerateJsonAsync<T>(prompt, options, token),
@@ -131,10 +135,5 @@ public sealed class LoadBalancedLlmService : ILlmService, IDisposable
         throw new InvalidOperationException(
             $"All {_endpoints.Count} endpoints exhausted for {_backendName}",
             lastException);
-    }
-
-    public void Dispose()
-    {
-        _healthMonitor?.Dispose();
     }
 }

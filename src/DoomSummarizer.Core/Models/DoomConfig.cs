@@ -21,8 +21,8 @@ public record DoomConfig
 }
 
 /// <summary>
-/// LLamaSharp local GGUF inference settings that can be overridden via config profiles.
-/// Nullable fields indicate "use the LLamaSharpConfig defaults".
+///     LLamaSharp local GGUF inference settings that can be overridden via config profiles.
+///     Nullable fields indicate "use the LLamaSharpConfig defaults".
 /// </summary>
 public record LlamaSharpConfigSection
 {
@@ -66,28 +66,28 @@ public record WebsiteConfig
 }
 
 /// <summary>
-/// Global source filtering and reliability weighting.
-/// Controls which domains are allowed/blocked and how sources are weighted in RRF scoring.
+///     Global source filtering and reliability weighting.
+///     Controls which domains are allowed/blocked and how sources are weighted in RRF scoring.
 /// </summary>
 public record SourceFilterConfig
 {
     /// <summary>
-    /// If non-empty, ONLY items from these domains are kept (allowlist mode).
-    /// Useful for intranet/focused crawling. Matches domain suffix (e.g. "bbc.co.uk").
+    ///     If non-empty, ONLY items from these domains are kept (allowlist mode).
+    ///     Useful for intranet/focused crawling. Matches domain suffix (e.g. "bbc.co.uk").
     /// </summary>
     public List<string> AllowedDomains { get; init; } = [];
 
     /// <summary>
-    /// Items from these domains are removed post-fetch.
-    /// Matches domain suffix (e.g. "medium.com" blocks all Medium articles).
+    ///     Items from these domains are removed post-fetch.
+    ///     Matches domain suffix (e.g. "medium.com" blocks all Medium articles).
     /// </summary>
     public List<string> BlockedDomains { get; init; } = [];
 
     /// <summary>
-    /// Source reliability weights applied as RRF score multipliers.
-    /// Key = source name (hn, reddit, bbc, gnews, search) or domain substring (reuters.com, bbc.co.uk).
-    /// Value = multiplier: 1.0 = neutral, >1 = boost, less than 1 = penalize, 0 = effectively block.
-    /// Unmatched sources default to 1.0.
+    ///     Source reliability weights applied as RRF score multipliers.
+    ///     Key = source name (hn, reddit, bbc, gnews, search) or domain substring (reuters.com, bbc.co.uk).
+    ///     Value = multiplier: 1.0 = neutral, >1 = boost, less than 1 = penalize, 0 = effectively block.
+    ///     Unmatched sources default to 1.0.
     /// </summary>
     public Dictionary<string, double> Weights { get; init; } = new();
 }
@@ -153,8 +153,8 @@ public record LinkFollowingConfig
 // ApiKeyEntry is now defined in LucidRAG.LLM (Models/ApiKeyEntry.cs)
 
 /// <summary>
-/// Email delivery configuration. Supports SMTP (via MailKit) and SendGrid.
-/// API keys can be stored in user secrets: dotnet user-secrets set "SendGrid" "SG.xxx"
+///     Email delivery configuration. Supports SMTP (via MailKit) and SendGrid.
+///     API keys can be stored in user secrets: dotnet user-secrets set "SendGrid" "SG.xxx"
 /// </summary>
 public record EmailConfig
 {
@@ -197,8 +197,8 @@ public record SmtpConfig
 }
 
 /// <summary>
-/// Plugin management configuration. Controls which plugins are enabled,
-/// auto-install behavior, and per-plugin overrides.
+///     Plugin management configuration. Controls which plugins are enabled,
+///     auto-install behavior, and per-plugin overrides.
 /// </summary>
 public record PluginsConfig
 {
@@ -212,14 +212,14 @@ public record PluginsConfig
     public List<string> Disabled { get; init; } = [];
 
     /// <summary>
-    /// Per-plugin settings. Key = plugin primary key (e.g., "hn", "reddit", "search").
-    /// Values are passed to the plugin's InitializeAsync as configuration overrides.
+    ///     Per-plugin settings. Key = plugin primary key (e.g., "hn", "reddit", "search").
+    ///     Values are passed to the plugin's InitializeAsync as configuration overrides.
     /// </summary>
     public Dictionary<string, PluginSettings> Settings { get; init; } = new();
 }
 
 /// <summary>
-/// Per-plugin configuration overrides. Stored in config under plugins.settings.[key].
+///     Per-plugin configuration overrides. Stored in config under plugins.settings.[key].
 /// </summary>
 public record PluginSettings
 {

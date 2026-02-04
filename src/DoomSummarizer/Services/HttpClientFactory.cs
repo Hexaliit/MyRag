@@ -1,7 +1,7 @@
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Centralised HttpClient creation with standard User-Agent and timeout.
+///     Centralised HttpClient creation with standard User-Agent and timeout.
 /// </summary>
 public static class HttpClientFactory
 {

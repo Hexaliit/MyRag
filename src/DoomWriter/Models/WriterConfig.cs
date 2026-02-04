@@ -4,11 +4,23 @@ using System.Text.Json.Serialization;
 namespace DoomWriter.Models;
 
 /// <summary>
-/// Persisted application settings for DoomWriter.
-/// Stored at %APPDATA%/DoomWriter/settings.json
+///     Persisted application settings for DoomWriter.
+///     Stored at %APPDATA%/DoomWriter/settings.json
 /// </summary>
 public class WriterConfig
 {
+    private static readonly string ConfigDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "DoomWriter");
+
+    private static readonly string ConfigPath = Path.Combine(ConfigDir, "settings.json");
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+    };
+
     // Ollama
     public string OllamaBaseUrl { get; set; } = "http://localhost:11434";
     public string MainModel { get; set; } = "llama3.2";
@@ -50,18 +62,6 @@ public class WriterConfig
     public double WindowHeight { get; set; } = 800;
     public bool SignalPanelVisible { get; set; } = true;
     public double SignalPanelWidth { get; set; } = 280;
-
-    private static readonly string ConfigDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "DoomWriter");
-
-    private static readonly string ConfigPath = Path.Combine(ConfigDir, "settings.json");
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-    };
 
     public static WriterConfig Load()
     {

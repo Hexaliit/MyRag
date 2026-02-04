@@ -5,21 +5,16 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Recursive Image Wave - Processes extracted picture/figure regions through ImageSummarizer.
-/// Runs a subset of analysis waves on each extracted region to generate captions and embeddings.
-///
-/// Priority: 60 (after TableProfilingWave at 61)
-///
-/// IMPORTANT: To prevent infinite recursion, this wave:
-/// - Sets a "recursion_depth" flag in context
-/// - Skips LayoutDetectionWave and LayoutRoutingWave on recursive calls
-/// - Limits recursion depth to 1 level
+///     Recursive Image Wave - Processes extracted picture/figure regions through ImageSummarizer.
+///     Runs a subset of analysis waves on each extracted region to generate captions and embeddings.
+///     Priority: 60 (after TableProfilingWave at 61)
+///     IMPORTANT: To prevent infinite recursion, this wave:
+///     - Sets a "recursion_depth" flag in context
+///     - Skips LayoutDetectionWave and LayoutRoutingWave on recursive calls
+///     - Limits recursion depth to 1 level
 /// </summary>
 public class RecursiveImageWave : IAnalysisWave
 {
-    private readonly IEnumerable<IAnalysisWave> _allWaves;
-    private readonly ILogger<RecursiveImageWave>? _logger;
-
     // Waves to skip during recursive processing (to prevent infinite loops)
     private static readonly HashSet<string> SkippedWaves = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -27,9 +22,9 @@ public class RecursiveImageWave : IAnalysisWave
         "LayoutRoutingWave",
         "TableExtractionWave",
         "TableProfilingWave",
-        "RecursiveImageWave",  // Prevent self-recursion
-        "ContradictionWave",   // Run only on parent
-        "OcrBenchmarkWave"     // Run only on parent
+        "RecursiveImageWave", // Prevent self-recursion
+        "ContradictionWave", // Run only on parent
+        "OcrBenchmarkWave" // Run only on parent
     };
 
     // Waves that should run on extracted images
@@ -44,9 +39,8 @@ public class RecursiveImageWave : IAnalysisWave
         "ExifForensicsWave"
     };
 
-    public string Name => "RecursiveImageWave";
-    public int Priority => 60; // After TableProfilingWave (61)
-    public IReadOnlyList<string> Tags => new[] { "image", "recursive", "extraction", SignalTags.Content };
+    private readonly IEnumerable<IAnalysisWave> _allWaves;
+    private readonly ILogger<RecursiveImageWave>? _logger;
 
     public RecursiveImageWave(
         IEnumerable<IAnalysisWave>? allWaves = null,
@@ -55,6 +49,10 @@ public class RecursiveImageWave : IAnalysisWave
         _allWaves = allWaves ?? Enumerable.Empty<IAnalysisWave>();
         _logger = logger;
     }
+
+    public string Name => "RecursiveImageWave";
+    public int Priority => 60; // After TableProfilingWave (61)
+    public IReadOnlyList<string> Tags => new[] { "image", "recursive", "extraction", SignalTags.Content };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -90,7 +88,7 @@ public class RecursiveImageWave : IAnalysisWave
 
         var processedImages = new List<ProcessedSubImage>();
 
-        for (int i = 0; i < pictureImagePaths.Count; i++)
+        for (var i = 0; i < pictureImagePaths.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -166,7 +164,7 @@ public class RecursiveImageWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Process a single extracted sub-image using a subset of analysis waves.
+    ///     Process a single extracted sub-image using a subset of analysis waves.
     /// </summary>
     private async Task<ProcessedSubImage?> ProcessSubImageAsync(
         string imagePath,
@@ -188,9 +186,9 @@ public class RecursiveImageWave : IAnalysisWave
         var allSignals = new List<Signal>();
 
         foreach (var wave in _allWaves
-            .Where(w => !SkippedWaves.Contains(w.Name))
-            .Where(w => AllowedWaves.Contains(w.Name))
-            .OrderByDescending(w => w.Priority))
+                     .Where(w => !SkippedWaves.Contains(w.Name))
+                     .Where(w => AllowedWaves.Contains(w.Name))
+                     .OrderByDescending(w => w.Priority))
         {
             ct.ThrowIfCancellationRequested();
 
@@ -214,7 +212,7 @@ public class RecursiveImageWave : IAnalysisWave
 
         // Extract key results
         var caption = subContext.GetValue<string>("vision.llm.caption")
-            ?? subContext.GetValue<string>("florence2.caption");
+                      ?? subContext.GetValue<string>("florence2.caption");
         var embedding = subContext.GetValue<float[]>("clip.embedding");
         var ocrText = subContext.GetValue<string>("ocr.full_text");
 
@@ -232,8 +230,8 @@ public class RecursiveImageWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Fallback analysis when orchestrator is not available.
-    /// Uses basic file properties only.
+    ///     Fallback analysis when orchestrator is not available.
+    ///     Uses basic file properties only.
     /// </summary>
     private Task<ProcessedSubImage> FallbackAnalysisAsync(
         string imagePath,
@@ -261,13 +259,12 @@ public class RecursiveImageWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Emit signals for a processed sub-image.
+    ///     Emit signals for a processed sub-image.
     /// </summary>
     private void EmitSubImageSignals(List<Signal> signals, ProcessedSubImage result, int index)
     {
         // Caption
         if (!string.IsNullOrEmpty(result.Caption))
-        {
             signals.Add(new Signal
             {
                 Key = $"subimage.{index}.caption",
@@ -276,11 +273,9 @@ public class RecursiveImageWave : IAnalysisWave
                 Source = Name,
                 Tags = new List<string> { "subimage", "caption", SignalTags.Content }
             });
-        }
 
         // OCR text
         if (!string.IsNullOrEmpty(result.OcrText))
-        {
             signals.Add(new Signal
             {
                 Key = $"subimage.{index}.ocr_text",
@@ -289,7 +284,6 @@ public class RecursiveImageWave : IAnalysisWave
                 Source = Name,
                 Tags = new List<string> { "subimage", "ocr", SignalTags.Content }
             });
-        }
 
         // Embedding reference
         if (result.HasEmbedding)
@@ -305,7 +299,6 @@ public class RecursiveImageWave : IAnalysisWave
 
             // Store embedding in metadata for retrieval
             if (result.Embedding != null)
-            {
                 signals.Add(new Signal
                 {
                     Key = $"subimage.{index}.embedding",
@@ -314,7 +307,6 @@ public class RecursiveImageWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "subimage", "embedding", "vector" }
                 });
-            }
         }
 
         // Path reference
@@ -346,7 +338,7 @@ public class RecursiveImageWave : IAnalysisWave
 }
 
 /// <summary>
-/// Result of processing an extracted sub-image.
+///     Result of processing an extracted sub-image.
 /// </summary>
 public record ProcessedSubImage
 {

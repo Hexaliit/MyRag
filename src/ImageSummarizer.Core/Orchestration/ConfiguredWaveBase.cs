@@ -13,7 +13,6 @@ namespace Mostlylucid.DocSummarizer.Images.Orchestration;
 ///     1. appsettings.json DocSummarizer:Images:Waves:{Name}:Defaults:*
 ///     2. YAML manifest defaults (from *.wave.yaml)
 ///     3. Built-in code defaults
-///
 ///     Waves should use the Config property to access all configurable values.
 /// </remarks>
 public abstract class ConfiguredWaveBase : IContributingWave
@@ -42,28 +41,6 @@ public abstract class ConfiguredWaveBase : IContributingWave
     ///     Get the raw manifest (for signal contracts, triggers, etc.)
     /// </summary>
     protected WaveManifest? Manifest => _cachedManifest ??= _configProvider.GetManifest(ManifestName);
-
-    // ===== IContributingWave Implementation =====
-
-    public abstract string Name { get; }
-
-    public virtual int Priority => Manifest?.Priority ?? 100;
-
-    public virtual IReadOnlyList<string> Tags => (IReadOnlyList<string>?)Manifest?.Tags ?? Array.Empty<string>();
-
-    public virtual bool IsEnabled => Manifest?.Enabled ?? true;
-
-    public virtual IReadOnlyList<TriggerCondition> TriggerConditions => BuildTriggerConditions();
-
-    public virtual TimeSpan TriggerTimeout => TimeSpan.FromMilliseconds(500);
-
-    public virtual TimeSpan ExecutionTimeout => TimeSpan.FromMilliseconds(Config.Timing.TimeoutMs);
-
-    public virtual bool IsOptional => true;
-
-    public abstract Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
-        ImageBlackboardState state,
-        CancellationToken cancellationToken = default);
 
     // ===== Weight Shortcuts =====
 
@@ -113,6 +90,28 @@ public abstract class ConfiguredWaveBase : IContributingWave
     /// <summary>Whether this wave can escalate to AI.</summary>
     protected bool CanEscalateToAi => Config.Features.CanEscalate;
 
+    // ===== IContributingWave Implementation =====
+
+    public abstract string Name { get; }
+
+    public virtual int Priority => Manifest?.Priority ?? 100;
+
+    public virtual IReadOnlyList<string> Tags => (IReadOnlyList<string>?)Manifest?.Tags ?? Array.Empty<string>();
+
+    public virtual bool IsEnabled => Manifest?.Enabled ?? true;
+
+    public virtual IReadOnlyList<TriggerCondition> TriggerConditions => BuildTriggerConditions();
+
+    public virtual TimeSpan TriggerTimeout => TimeSpan.FromMilliseconds(500);
+
+    public virtual TimeSpan ExecutionTimeout => TimeSpan.FromMilliseconds(Config.Timing.TimeoutMs);
+
+    public virtual bool IsOptional => true;
+
+    public abstract Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
+        ImageBlackboardState state,
+        CancellationToken cancellationToken = default);
+
     // ===== Parameter Access =====
 
     /// <summary>
@@ -150,17 +149,12 @@ public abstract class ConfiguredWaveBase : IContributingWave
         var conditions = new List<TriggerCondition>();
 
         // Required signals
-        foreach (var req in manifest.Triggers.Requires)
-        {
-            conditions.Add(new SignalExistsTrigger(req.Signal));
-        }
+        foreach (var req in manifest.Triggers.Requires) conditions.Add(new SignalExistsTrigger(req.Signal));
 
         // Any-of signals
         if (manifest.Triggers.Signals.Count > 0)
-        {
             conditions.Add(new AnyOfTrigger(
                 manifest.Triggers.Signals.Select(s => new SignalExistsTrigger(s) as TriggerCondition).ToList()));
-        }
 
         return conditions;
     }

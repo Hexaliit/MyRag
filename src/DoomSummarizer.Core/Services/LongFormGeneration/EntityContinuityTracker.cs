@@ -4,21 +4,20 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Deterministic entity tracking across sections.
-/// Uses string matching against the evidence corpus's known entities.
-/// Provides guidance to section prompts about entity continuity.
+///     Deterministic entity tracking across sections.
+///     Uses string matching against the evidence corpus's known entities.
+///     Provides guidance to section prompts about entity continuity.
 /// </summary>
 public class EntityContinuityTracker
 {
     private readonly Dictionary<string, EntityTrack> _tracks = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Initialize from the evidence corpus's global entities.
+    ///     Initialize from the evidence corpus's global entities.
     /// </summary>
     public void Initialize(EvidenceCorpus corpus)
     {
         foreach (var entity in corpus.GlobalEntities.Take(30))
-        {
             _tracks[entity.NormalizedName] = new EntityTrack
             {
                 Name = entity.Name,
@@ -26,12 +25,11 @@ public class EntityContinuityTracker
                 EvidenceMentions = entity.MentionCount,
                 LastMentionedSection = -1
             };
-        }
     }
 
     /// <summary>
-    /// Scan a section's assigned evidence for entity mentions.
-    /// Call this after evidence is assigned but before section generation.
+    ///     Scan a section's assigned evidence for entity mentions.
+    ///     Call this after evidence is assigned but before section generation.
     /// </summary>
     public void ScanEvidence(PlannedSection section, int sectionIndex)
     {
@@ -39,36 +37,32 @@ public class EntityContinuityTracker
         {
             var text = evidence.Segment.Text;
             foreach (var (name, track) in _tracks)
-            {
                 if (text.Contains(track.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     track.SectionMentions.Add(sectionIndex);
                     track.LastMentionedSection = sectionIndex;
                 }
-            }
         }
     }
 
     /// <summary>
-    /// Scan generated section text for entity mentions.
-    /// Call after section text is generated.
+    ///     Scan generated section text for entity mentions.
+    ///     Call after section text is generated.
     /// </summary>
     public void ScanGenerated(string generatedText, int sectionIndex)
     {
         foreach (var (_, track) in _tracks)
-        {
             if (generatedText.Contains(track.Name, StringComparison.OrdinalIgnoreCase))
             {
                 if (!track.SectionMentions.Contains(sectionIndex))
                     track.SectionMentions.Add(sectionIndex);
                 track.LastMentionedSection = sectionIndex;
             }
-        }
     }
 
     /// <summary>
-    /// Build entity continuity guidance for the next section prompt.
-    /// Tells the LLM which entities to maintain continuity with.
+    ///     Build entity continuity guidance for the next section prompt.
+    ///     Tells the LLM which entities to maintain continuity with.
     /// </summary>
     public string BuildGuidance(int currentSectionIndex)
     {

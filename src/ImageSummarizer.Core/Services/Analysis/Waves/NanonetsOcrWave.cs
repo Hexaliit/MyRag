@@ -11,19 +11,15 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Nanonets OCR-s wave (OpenAI-compatible VLM).
-/// Produces Markdown-first OCR output for layout-sensitive documents.
-/// Priority: 54 (after Florence2Wave at 56, below HunyuanOcrWave at 55).
+///     Nanonets OCR-s wave (OpenAI-compatible VLM).
+///     Produces Markdown-first OCR output for layout-sensitive documents.
+///     Priority: 54 (after Florence2Wave at 56, below HunyuanOcrWave at 55).
 /// </summary>
 public class NanonetsOcrWave : IAnalysisWave
 {
     private readonly OcrConfig _config;
     private readonly HttpClient _httpClient;
     private readonly ILogger<NanonetsOcrWave>? _logger;
-
-    public string Name => "NanonetsOcrWave";
-    public int Priority => 54;
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "nanonets" };
 
     public NanonetsOcrWave(
         IOptions<ImageConfig> imageConfig,
@@ -39,11 +35,13 @@ public class NanonetsOcrWave : IAnalysisWave
         };
 
         if (!string.IsNullOrWhiteSpace(_config.NanonetsOcrApiKey))
-        {
             _httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", _config.NanonetsOcrApiKey);
-        }
     }
+
+    public string Name => "NanonetsOcrWave";
+    public int Priority => 54;
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "nanonets" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -174,7 +172,6 @@ public class NanonetsOcrWave : IAnalysisWave
 
             var existingContent = context.GetValue<string>("content.extracted_text");
             if (string.IsNullOrWhiteSpace(existingContent))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.extracted_text",
@@ -183,10 +180,8 @@ public class NanonetsOcrWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "text" }
                 });
-            }
 
             if (!string.IsNullOrWhiteSpace(cleanedMarkdown))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.extracted_markdown",
@@ -195,7 +190,6 @@ public class NanonetsOcrWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "markdown" }
                 });
-            }
 
             // Emit timing signal for benchmark
             sw.Stop();
@@ -263,13 +257,6 @@ public class NanonetsOcrWave : IAnalysisWave
         return result?.Message?.Content?.Trim() ?? string.Empty;
     }
 
-    // Ollama native API response format
-    private record OllamaChatResponse(
-        [property: JsonPropertyName("message")] OllamaMessage? Message);
-
-    private record OllamaMessage(
-        [property: JsonPropertyName("content")] string Content);
-
     private static string StripCodeFences(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -306,12 +293,24 @@ public class NanonetsOcrWave : IAnalysisWave
         return text.Trim();
     }
 
+    // Ollama native API response format
+    private record OllamaChatResponse(
+        [property: JsonPropertyName("message")]
+        OllamaMessage? Message);
+
+    private record OllamaMessage(
+        [property: JsonPropertyName("content")]
+        string Content);
+
     private record OpenAiChatResponse(
-        [property: JsonPropertyName("choices")] List<OpenAiChoice> Choices);
+        [property: JsonPropertyName("choices")]
+        List<OpenAiChoice> Choices);
 
     private record OpenAiChoice(
-        [property: JsonPropertyName("message")] OpenAiMessage Message);
+        [property: JsonPropertyName("message")]
+        OpenAiMessage Message);
 
     private record OpenAiMessage(
-        [property: JsonPropertyName("content")] string Content);
+        [property: JsonPropertyName("content")]
+        string Content);
 }

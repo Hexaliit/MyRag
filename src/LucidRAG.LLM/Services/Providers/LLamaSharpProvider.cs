@@ -5,7 +5,7 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services.Providers;
 
 /// <summary>
-/// Named provider wrapper for LLamaSharp local GGUF inference.
+///     Named provider wrapper for LLamaSharp local GGUF inference.
 /// </summary>
 public class LLamaSharpProvider : BaseLlmProvider
 {

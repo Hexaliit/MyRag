@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 namespace Mostlylucid.DocSummarizer.Images.Config;
 
 /// <summary>
-/// JSON source generation context for pipeline configurations
-/// Provides zero-allocation, AOT-compatible serialization
+///     JSON source generation context for pipeline configurations
+///     Provides zero-allocation, AOT-compatible serialization
 /// </summary>
 [JsonSourceGenerationOptions(
     WriteIndented = true,

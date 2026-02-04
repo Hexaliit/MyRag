@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using DoomWriter.Models;
 using WeCantSpell.Hunspell;
@@ -5,21 +6,17 @@ using WeCantSpell.Hunspell;
 namespace DoomWriter.Services;
 
 /// <summary>
-/// Hunspell-based spell checking with custom dictionary support.
-/// Uses WeCantSpell.Hunspell (pure managed .NET).
-/// Dictionary files stored at %APPDATA%/DoomWriter/dictionaries/
+///     Hunspell-based spell checking with custom dictionary support.
+///     Uses WeCantSpell.Hunspell (pure managed .NET).
+///     Dictionary files stored at %APPDATA%/DoomWriter/dictionaries/
 /// </summary>
 public partial class SpellCheckService : IDisposable
 {
+    private readonly string _customDictPath;
+    private readonly HashSet<string> _customWords = new(StringComparer.OrdinalIgnoreCase);
+    private readonly string _dictDir;
     private readonly WriterSettingsService _settings;
     private WordList? _dictionary;
-    private readonly HashSet<string> _customWords = new(StringComparer.OrdinalIgnoreCase);
-    private readonly string _customDictPath;
-    private readonly string _dictDir;
-    private bool _isLoaded;
-
-    public bool IsLoaded => _isLoaded;
-    public string ActiveLanguage { get; private set; } = "en_US";
 
     public SpellCheckService(WriterSettingsService settings)
     {
@@ -31,8 +28,18 @@ public partial class SpellCheckService : IDisposable
         Directory.CreateDirectory(_dictDir);
     }
 
+    public bool IsLoaded { get; private set; }
+
+    public string ActiveLanguage { get; private set; } = "en_US";
+
+    public void Dispose()
+    {
+        // WordList doesn't implement IDisposable but we clean up custom resources
+        _customWords.Clear();
+    }
+
     /// <summary>
-    /// Initialize the spell checker by loading the Hunspell dictionary.
+    ///     Initialize the spell checker by loading the Hunspell dictionary.
     /// </summary>
     public async Task InitializeAsync(string language = "en_US")
     {
@@ -43,7 +50,7 @@ public partial class SpellCheckService : IDisposable
 
         if (!File.Exists(affPath) || !File.Exists(dicPath))
         {
-            System.Diagnostics.Debug.WriteLine(
+            Debug.WriteLine(
                 $"Dictionary files not found for {language}. " +
                 $"Place {language}.aff and {language}.dic in {_dictDir}");
             return;
@@ -52,23 +59,23 @@ public partial class SpellCheckService : IDisposable
         try
         {
             _dictionary = WordList.CreateFromFiles(dicPath, affPath);
-            _isLoaded = true;
+            IsLoaded = true;
 
             // Load custom dictionary
             await LoadCustomDictionaryAsync();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to load dictionary: {ex.Message}");
+            Debug.WriteLine($"Failed to load dictionary: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// Check if a word is spelled correctly.
+    ///     Check if a word is spelled correctly.
     /// </summary>
     public bool CheckWord(string word)
     {
-        if (!_isLoaded || _dictionary == null) return true; // Assume correct if no dictionary
+        if (!IsLoaded || _dictionary == null) return true; // Assume correct if no dictionary
         if (string.IsNullOrWhiteSpace(word)) return true;
         if (word.Length < 2) return true;
 
@@ -82,11 +89,11 @@ public partial class SpellCheckService : IDisposable
     }
 
     /// <summary>
-    /// Get spelling suggestions for a misspelled word.
+    ///     Get spelling suggestions for a misspelled word.
     /// </summary>
     public List<string> Suggest(string word, int maxSuggestions = 5)
     {
-        if (!_isLoaded || _dictionary == null) return [];
+        if (!IsLoaded || _dictionary == null) return [];
         if (string.IsNullOrWhiteSpace(word)) return [];
 
         return _dictionary.Suggest(word)
@@ -95,7 +102,7 @@ public partial class SpellCheckService : IDisposable
     }
 
     /// <summary>
-    /// Add a word to the custom dictionary.
+    ///     Add a word to the custom dictionary.
     /// </summary>
     public async Task AddToCustomDictionaryAsync(string word)
     {
@@ -106,7 +113,7 @@ public partial class SpellCheckService : IDisposable
     }
 
     /// <summary>
-    /// Remove a word from the custom dictionary.
+    ///     Remove a word from the custom dictionary.
     /// </summary>
     public async Task RemoveFromCustomDictionaryAsync(string word)
     {
@@ -115,8 +122,8 @@ public partial class SpellCheckService : IDisposable
     }
 
     /// <summary>
-    /// Add entity names from document analysis to the custom word list
-    /// so they aren't flagged as misspelled.
+    ///     Add entity names from document analysis to the custom word list
+    ///     so they aren't flagged as misspelled.
     /// </summary>
     public void AddEntityNames(IEnumerable<string> entityNames)
     {
@@ -125,25 +132,23 @@ public partial class SpellCheckService : IDisposable
             // Add both the full entity name and individual words
             _customWords.Add(name);
             foreach (var word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
                 if (word.Length >= 2)
                     _customWords.Add(word);
-            }
         }
     }
 
     /// <summary>
-    /// Check an entire paragraph for spelling errors.
-    /// Returns diagnostic items with positions for editor display.
+    ///     Check an entire paragraph for spelling errors.
+    ///     Returns diagnostic items with positions for editor display.
     /// </summary>
     public List<DiagnosticItem> CheckParagraph(string text, int baseLine = 0)
     {
-        if (!_isLoaded || _dictionary == null) return [];
+        if (!IsLoaded || _dictionary == null) return [];
 
         var diagnostics = new List<DiagnosticItem>();
         var lines = text.Split('\n');
 
-        for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
+        for (var lineIdx = 0; lineIdx < lines.Length; lineIdx++)
         {
             var line = lines[lineIdx];
 
@@ -197,18 +202,18 @@ public partial class SpellCheckService : IDisposable
     }
 
     /// <summary>
-    /// Check entire markdown content for spelling errors.
-    /// Skips code blocks, inline code, URLs, and markdown syntax.
+    ///     Check entire markdown content for spelling errors.
+    ///     Skips code blocks, inline code, URLs, and markdown syntax.
     /// </summary>
     public List<DiagnosticItem> CheckDocument(string markdown)
     {
-        if (!_isLoaded || _dictionary == null) return [];
+        if (!IsLoaded || _dictionary == null) return [];
 
         var diagnostics = new List<DiagnosticItem>();
         var lines = markdown.Split('\n');
         var inCodeBlock = false;
 
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
             var trimmed = line.TrimStart();
@@ -316,9 +321,10 @@ public partial class SpellCheckService : IDisposable
 
     private static int CountChar(string text, char c)
     {
-        int count = 0;
+        var count = 0;
         foreach (var ch in text)
-            if (ch == c) count++;
+            if (ch == c)
+                count++;
         return count;
     }
 
@@ -339,12 +345,6 @@ public partial class SpellCheckService : IDisposable
     {
         var lines = _customWords.OrderBy(w => w, StringComparer.OrdinalIgnoreCase).ToArray();
         await File.WriteAllLinesAsync(_customDictPath, lines);
-    }
-
-    public void Dispose()
-    {
-        // WordList doesn't implement IDisposable but we clean up custom resources
-        _customWords.Clear();
     }
 
     [GeneratedRegex(@"^#{1,6}\s+")]

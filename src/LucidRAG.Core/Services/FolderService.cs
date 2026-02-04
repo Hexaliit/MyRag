@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 
@@ -9,7 +7,8 @@ public class FolderService(
     RagDocumentsDbContext db,
     ILogger<FolderService> logger) : IFolderService
 {
-    public async Task<List<FolderEntity>> GetFoldersAsync(Guid collectionId, Guid? parentFolderId = null, CancellationToken ct = default)
+    public async Task<List<FolderEntity>> GetFoldersAsync(Guid collectionId, Guid? parentFolderId = null,
+        CancellationToken ct = default)
     {
         return await db.Folders
             .Where(f => f.CollectionId == collectionId && f.ParentFolderId == parentFolderId)
@@ -26,7 +25,8 @@ public class FolderService(
             .FirstOrDefaultAsync(f => f.Id == folderId, ct);
     }
 
-    public async Task<List<FolderPathItem>> GetPathAsync(Guid? folderId, Guid? collectionId = null, CancellationToken ct = default)
+    public async Task<List<FolderPathItem>> GetPathAsync(Guid? folderId, Guid? collectionId = null,
+        CancellationToken ct = default)
     {
         var path = new List<FolderPathItem>();
 
@@ -63,10 +63,7 @@ public class FolderService(
             if (!collectionId.HasValue && path.Count == 1)
             {
                 var collection = await db.Collections.FindAsync([folder.CollectionId], ct);
-                if (collection != null)
-                {
-                    path.Add(new FolderPathItem(collection.Id, collection.Name, "collection"));
-                }
+                if (collection != null) path.Add(new FolderPathItem(collection.Id, collection.Name, "collection"));
             }
         }
 
@@ -77,17 +74,18 @@ public class FolderService(
         return path;
     }
 
-    public async Task<FolderEntity> CreateFolderAsync(Guid collectionId, string name, Guid? parentFolderId = null, string? description = null, CancellationToken ct = default)
+    public async Task<FolderEntity> CreateFolderAsync(Guid collectionId, string name, Guid? parentFolderId = null,
+        string? description = null, CancellationToken ct = default)
     {
         // Validate collection exists
         var collection = await db.Collections.FindAsync([collectionId], ct)
-            ?? throw new InvalidOperationException($"Collection {collectionId} not found");
+                         ?? throw new InvalidOperationException($"Collection {collectionId} not found");
 
         // Validate parent folder exists and is in same collection
         if (parentFolderId.HasValue)
         {
             var parentFolder = await db.Folders.FindAsync([parentFolderId], ct)
-                ?? throw new InvalidOperationException($"Parent folder {parentFolderId} not found");
+                               ?? throw new InvalidOperationException($"Parent folder {parentFolderId} not found");
 
             if (parentFolder.CollectionId != collectionId)
                 throw new InvalidOperationException("Parent folder must be in the same collection");
@@ -123,13 +121,14 @@ public class FolderService(
 
     public async Task<FolderEntity> RenameFolderAsync(Guid folderId, string newName, CancellationToken ct = default)
     {
-        return await UpdateFolderAsync(folderId, name: newName, ct: ct);
+        return await UpdateFolderAsync(folderId, newName, ct: ct);
     }
 
-    public async Task<FolderEntity> UpdateFolderAsync(Guid folderId, string? name = null, string? description = null, int? sortOrder = null, CancellationToken ct = default)
+    public async Task<FolderEntity> UpdateFolderAsync(Guid folderId, string? name = null, string? description = null,
+        int? sortOrder = null, CancellationToken ct = default)
     {
         var folder = await db.Folders.FindAsync([folderId], ct)
-            ?? throw new InvalidOperationException($"Folder {folderId} not found");
+                     ?? throw new InvalidOperationException($"Folder {folderId} not found");
 
         if (name != null && name != folder.Name)
         {
@@ -177,10 +176,7 @@ public class FolderService(
         }
 
         // Move documents to parent folder (or root) - FolderId becomes null if folder is at root
-        foreach (var doc in folder.Documents)
-        {
-            doc.FolderId = folder.ParentFolderId;
-        }
+        foreach (var doc in folder.Documents) doc.FolderId = folder.ParentFolderId;
 
         db.Folders.Remove(folder);
         await db.SaveChangesAsync(ct);
@@ -191,13 +187,13 @@ public class FolderService(
     public async Task MoveFolderAsync(Guid folderId, Guid? newParentFolderId, CancellationToken ct = default)
     {
         var folder = await db.Folders.FindAsync([folderId], ct)
-            ?? throw new InvalidOperationException($"Folder {folderId} not found");
+                     ?? throw new InvalidOperationException($"Folder {folderId} not found");
 
         // Validate new parent exists and is in same collection
         if (newParentFolderId.HasValue)
         {
             var newParent = await db.Folders.FindAsync([newParentFolderId], ct)
-                ?? throw new InvalidOperationException($"Target folder {newParentFolderId} not found");
+                            ?? throw new InvalidOperationException($"Target folder {newParentFolderId} not found");
 
             if (newParent.CollectionId != folder.CollectionId)
                 throw new InvalidOperationException("Cannot move folder to a different collection");
@@ -216,7 +212,8 @@ public class FolderService(
                 f.Id != folderId, ct);
 
         if (existingFolder != null)
-            throw new InvalidOperationException($"A folder named '{folder.Name}' already exists in the target location");
+            throw new InvalidOperationException(
+                $"A folder named '{folder.Name}' already exists in the target location");
 
         folder.ParentFolderId = newParentFolderId;
         folder.UpdatedAt = DateTimeOffset.UtcNow;
@@ -247,12 +244,8 @@ public class FolderService(
         // Link children to parents
         var folderDict = allFolders.ToDictionary(f => f.Id);
         foreach (var folder in allFolders.Where(f => f.ParentFolderId.HasValue))
-        {
             if (folderDict.TryGetValue(folder.ParentFolderId!.Value, out var parent))
-            {
                 parent.ChildFolders.Add(folder);
-            }
-        }
 
         return rootFolders;
     }

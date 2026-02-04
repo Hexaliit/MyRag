@@ -1,12 +1,10 @@
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace LucidRAG.Services.Background;
 
 /// <summary>
-/// Background service that periodically updates salient terms for all collections.
-/// Runs every 6 hours to refresh autocomplete suggestions.
+///     Background service that periodically updates salient terms for all collections.
+///     Runs every 6 hours to refresh autocomplete suggestions.
 /// </summary>
 public class SalientTermsUpdaterService(
     IServiceProvider services,

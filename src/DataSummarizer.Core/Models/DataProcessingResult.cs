@@ -1,7 +1,7 @@
 namespace Mostlylucid.DocSummarizer.Data.Models;
 
 /// <summary>
-/// Result of processing a data file.
+///     Result of processing a data file.
 /// </summary>
 public record DataProcessingResult
 {
@@ -17,7 +17,7 @@ public record DataProcessingResult
 }
 
 /// <summary>
-/// A chunk of data for embedding and indexing.
+///     A chunk of data for embedding and indexing.
 /// </summary>
 public record DataChunk
 {
@@ -29,7 +29,7 @@ public record DataChunk
 }
 
 /// <summary>
-/// Schema information for a data file.
+///     Schema information for a data file.
 /// </summary>
 public record DataSchema
 {
@@ -39,7 +39,7 @@ public record DataSchema
 }
 
 /// <summary>
-/// Information about a column in the data.
+///     Information about a column in the data.
 /// </summary>
 public record ColumnInfo
 {

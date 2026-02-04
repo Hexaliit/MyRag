@@ -1,3 +1,4 @@
+using System.Text;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
@@ -6,9 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.DoomSummarizer.Plugin.Books.Splitters;
 
 /// <summary>
-/// Main splitter — adaptive depth based on document length and structure.
-/// The longer and more structured the document, the deeper the split:
-/// paragraphs -> sections -> chapters -> parts -> works.
+///     Main splitter — adaptive depth based on document length and structure.
+///     The longer and more structured the document, the deeper the split:
+///     paragraphs -> sections -> chapters -> parts -> works.
 /// </summary>
 public class HierarchicalBookSplitter : IDocumentSplitter
 {
@@ -27,10 +28,10 @@ public class HierarchicalBookSplitter : IDocumentSplitter
             ? context.WordCount
             : WordCounter.Count(markdown);
 
-        if (wordCount < 5_000) return 0;     // No split needed
-        if (wordCount < 20_000) return 1;    // Section-level only
-        if (wordCount < 100_000) return 2;   // Chapter -> section
-        return 3;                             // Work -> chapter -> section
+        if (wordCount < 5_000) return 0; // No split needed
+        if (wordCount < 20_000) return 1; // Section-level only
+        if (wordCount < 100_000) return 2; // Chapter -> section
+        return 3; // Work -> chapter -> section
     }
 
     public Task<DocumentNode> SplitAsync(string markdown, SplitOptions options, CancellationToken ct = default)
@@ -43,10 +44,8 @@ public class HierarchicalBookSplitter : IDocumentSplitter
         _logger.LogDebug("Splitting with pattern '{Pattern}'", patternName);
 
         if (pattern == null)
-        {
             // Fall back to heading-based splitting
             return Task.FromResult(SplitByHeadings(markdown, options));
-        }
 
         var hierarchy = StructuralPatterns.GetLevelHierarchy(patternName);
         var root = SplitRecursive(markdown, pattern, hierarchy, 0, options, ct);
@@ -78,18 +77,14 @@ public class HierarchicalBookSplitter : IDocumentSplitter
             var boundaries = ChapterDetector.DetectBoundaries(text, pattern, levelLabel);
 
             if (boundaries.Count >= 2) // Need at least 2 boundaries to split meaningfully
-            {
                 return BuildTreeFromBoundaries(
                     text, boundaries, levelLabel, pattern, levelHierarchy,
                     currentLevelIndex, options, ct);
-            }
         }
 
         // No boundaries found at this level — try next level down
         if (currentLevelIndex + 1 < levelHierarchy.Count)
-        {
             return SplitRecursive(text, pattern, levelHierarchy, currentLevelIndex + 1, options, ct);
-        }
 
         // No more levels — return as leaf
         return CreateLeafNode(text, "passage", 0, currentLevelIndex);
@@ -115,9 +110,7 @@ public class HierarchicalBookSplitter : IDocumentSplitter
             {
                 var preambleWords = WordCounter.Count(preamble);
                 if (preambleWords > options.MinLeafWords)
-                {
                     children.Add(CreateLeafNode(preamble, "preamble", 0, currentLevelIndex + 1));
-                }
             }
         }
 
@@ -182,13 +175,13 @@ public class HierarchicalBookSplitter : IDocumentSplitter
     }
 
     /// <summary>
-    /// Fallback: split by markdown headings when no pattern matches.
+    ///     Fallback: split by markdown headings when no pattern matches.
     /// </summary>
     private static DocumentNode SplitByHeadings(string markdown, SplitOptions options)
     {
         var lines = markdown.Split('\n');
         var children = new List<DocumentNode>();
-        var currentContent = new System.Text.StringBuilder();
+        var currentContent = new StringBuilder();
         var currentTitle = "Introduction";
         var sequence = 0;
 
@@ -219,7 +212,6 @@ public class HierarchicalBookSplitter : IDocumentSplitter
 
         // Flush remaining content
         if (currentContent.Length > 0)
-        {
             children.Add(new DocumentNode
             {
                 Title = currentTitle,
@@ -228,7 +220,6 @@ public class HierarchicalBookSplitter : IDocumentSplitter
                 LevelLabel = "section",
                 Content = currentContent.ToString().Trim()
             });
-        }
 
         return new DocumentNode
         {
@@ -240,14 +231,17 @@ public class HierarchicalBookSplitter : IDocumentSplitter
         };
     }
 
-    private static DocumentNode CreateLeafNode(string content, string levelLabel, int sequence, int level) => new()
+    private static DocumentNode CreateLeafNode(string content, string levelLabel, int sequence, int level)
     {
-        Title = ExtractTitle(content) ?? $"Passage {sequence + 1}",
-        Sequence = sequence,
-        Level = level,
-        LevelLabel = levelLabel,
-        Content = content
-    };
+        return new DocumentNode
+        {
+            Title = ExtractTitle(content) ?? $"Passage {sequence + 1}",
+            Sequence = sequence,
+            Level = level,
+            LevelLabel = levelLabel,
+            Content = content
+        };
+    }
 
     private static string? ExtractTitle(string content)
     {
@@ -258,5 +252,4 @@ public class HierarchicalBookSplitter : IDocumentSplitter
             return firstLine;
         return null;
     }
-
 }

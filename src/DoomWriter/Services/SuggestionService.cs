@@ -5,21 +5,20 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomWriter.Services;
 
 /// <summary>
-/// Generates intelligent suggestions by comparing the current document
-/// against the corpus knowledge base.
-/// - Cross-link suggestions ("you wrote about this")
-/// - Similar content detection ("you mentioned this before")
-/// - Drift warnings ("this section has drifted from your main topic")
+///     Generates intelligent suggestions by comparing the current document
+///     against the corpus knowledge base.
+///     - Cross-link suggestions ("you wrote about this")
+///     - Similar content detection ("you mentioned this before")
+///     - Drift warnings ("this section has drifted from your main topic")
 /// </summary>
 public class SuggestionService
 {
-    private readonly CorpusService _corpus;
-    private readonly IEmbeddingService _embedding;
-    private readonly WriterSettingsService _settings;
-
     private const float EntityMatchThreshold = 0.4f;
     private const float SegmentMatchThreshold = 0.5f;
     private const float DriftWarningThreshold = 0.35f;
+    private readonly CorpusService _corpus;
+    private readonly IEmbeddingService _embedding;
+    private readonly WriterSettingsService _settings;
 
     public SuggestionService(
         CorpusService corpus,
@@ -32,7 +31,7 @@ public class SuggestionService
     }
 
     /// <summary>
-    /// Generate all suggestions for the current document signals.
+    ///     Generate all suggestions for the current document signals.
     /// </summary>
     public async Task<List<Suggestion>> GenerateSuggestionsAsync(
         DocumentSignals signals,
@@ -66,8 +65,8 @@ public class SuggestionService
     }
 
     /// <summary>
-    /// Find corpus articles that match entities in the current document.
-    /// "You mention X — you covered this in detail in [Article Y]."
+    ///     Find corpus articles that match entities in the current document.
+    ///     "You mention X — you covered this in detail in [Article Y]."
     /// </summary>
     private async Task<List<Suggestion>> FindEntityMatchesAsync(
         List<TrackedEntity> entities,
@@ -79,7 +78,7 @@ public class SuggestionService
         {
             if (ct.IsCancellationRequested) break;
 
-            var matches = await _corpus.SearchByEntityAsync(entity.Name, topK: 3);
+            var matches = await _corpus.SearchByEntityAsync(entity.Name, 3);
 
             foreach (var match in matches.Where(m => m.Score >= EntityMatchThreshold))
             {
@@ -104,8 +103,8 @@ public class SuggestionService
     }
 
     /// <summary>
-    /// Find corpus segments that are similar to current document segments.
-    /// "You wrote something similar in [Article Y, paragraph Z]."
+    ///     Find corpus segments that are similar to current document segments.
+    ///     "You wrote something similar in [Article Y, paragraph Z]."
     /// </summary>
     private async Task<List<Suggestion>> FindSimilarSegmentsAsync(
         List<AnalyzedSegment> segments,
@@ -122,10 +121,9 @@ public class SuggestionService
         {
             if (ct.IsCancellationRequested) break;
 
-            var matches = await _corpus.SearchAsync(segment.Text, topK: 2);
+            var matches = await _corpus.SearchAsync(segment.Text, 2);
 
             foreach (var match in matches.Where(m => m.Score >= SegmentMatchThreshold))
-            {
                 suggestions.Add(new Suggestion
                 {
                     Type = SuggestionType.SimilarContent,
@@ -135,15 +133,14 @@ public class SuggestionService
                     TargetTitle = match.Title,
                     Confidence = match.Score
                 });
-            }
         }
 
         return suggestions;
     }
 
     /// <summary>
-    /// Detect topic drift using embedding cosine similarity.
-    /// Sections that drift far from the document centroid get warnings.
+    ///     Detect topic drift using embedding cosine similarity.
+    ///     Sections that drift far from the document centroid get warnings.
     /// </summary>
     private List<Suggestion> DetectDrift(DocumentSignals signals)
     {
@@ -152,7 +149,7 @@ public class SuggestionService
         if (signals.DocumentCentroid.Length == 0)
             return warnings;
 
-        for (int i = 0; i < signals.Segments.Count; i++)
+        for (var i = 0; i < signals.Segments.Count; i++)
         {
             var segment = signals.Segments[i];
             if (segment.Embedding == null) continue;
@@ -166,7 +163,8 @@ public class SuggestionService
                 {
                     Type = SuggestionType.DriftWarning,
                     Title = $"Section {i + 1} has drifted",
-                    Description = $"This section (topic: {topic}) has low coherence ({similarity:F2}) with the rest of your document. Consider refocusing or moving to a separate section.",
+                    Description =
+                        $"This section (topic: {topic}) has low coherence ({similarity:F2}) with the rest of your document. Consider refocusing or moving to a separate section.",
                     Confidence = 1f - similarity // Higher confidence = worse drift
                 });
             }
@@ -174,7 +172,7 @@ public class SuggestionService
 
         // Check consecutive drift
         var consecutiveDrift = 0;
-        for (int i = 0; i < signals.Segments.Count; i++)
+        for (var i = 0; i < signals.Segments.Count; i++)
         {
             var segment = signals.Segments[i];
             if (segment.Embedding == null) continue;
@@ -189,7 +187,8 @@ public class SuggestionService
                     {
                         Type = SuggestionType.CoherenceWarning,
                         Title = "Extended topic drift detected",
-                        Description = $"Sections {i - 1} through {i + 1} have all drifted from your main topic. Your document may benefit from restructuring.",
+                        Description =
+                            $"Sections {i - 1} through {i + 1} have all drifted from your main topic. Your document may benefit from restructuring.",
                         Confidence = 0.9f
                     });
                     break;

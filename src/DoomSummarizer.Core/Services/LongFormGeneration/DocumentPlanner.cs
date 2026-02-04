@@ -6,16 +6,19 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Phase 2: Document Planning (Sentinel LLM).
-/// Generates a JSON outline with theme keywords per section, then embeds each
-/// section's keywords for deterministic evidence assignment.
-/// This is one of only two phases that uses an LLM call.
+///     Phase 2: Document Planning (Sentinel LLM).
+///     Generates a JSON outline with theme keywords per section, then embeds each
+///     section's keywords for deterministic evidence assignment.
+///     This is one of only two phases that uses an LLM call.
 /// </summary>
 public static class DocumentPlanner
 {
+    // Minimum similarity between section heading and query to keep the section
+    private const float SectionRelevanceThreshold = 0.25f;
+
     /// <summary>
-    /// Generate a document plan from the evidence corpus.
-    /// Uses sentinel LLM for outline, then embeds theme keywords deterministically.
+    ///     Generate a document plan from the evidence corpus.
+    ///     Uses sentinel LLM for outline, then embeds theme keywords deterministically.
     /// </summary>
     public static async Task<DocumentPlan> CreatePlanAsync(
         EvidenceCorpus corpus,
@@ -67,16 +70,16 @@ public static class DocumentPlanner
             corpus.GlobalEntities.Take(10).Select(e => e.Name));
 
         var outlineInstructions = templateDef?.OutlineInstructions
-            ?? (queryType == QueryType.Timeline
-                ? """
-                  Create a CHRONOLOGICAL outline with eras/periods as sections.
-                  Each section heading should include a year range.
-                  Order sections from earliest to most recent.
-                  """
-                : """
-                  Create a logical outline with 4-8 sections that flow naturally.
-                  Start broad (context/background), go deep (key developments), end forward-looking.
-                  """);
+                                  ?? (queryType == QueryType.Timeline
+                                      ? """
+                                        Create a CHRONOLOGICAL outline with eras/periods as sections.
+                                        Each section heading should include a year range.
+                                        Order sections from earliest to most recent.
+                                        """
+                                      : """
+                                        Create a logical outline with 4-8 sections that flow naturally.
+                                        Start broad (context/background), go deep (key developments), end forward-looking.
+                                        """);
 
         var prompt = PromptTemplateService.Render("longform-outline", new Dictionary<string, object?>
         {
@@ -113,16 +116,15 @@ public static class DocumentPlanner
             ThemeDescription = query,
             Sections =
             [
-                new() { Heading = "Background", ThemeKeywords = $"background context history {query}" },
-                new() { Heading = "Key Developments", ThemeKeywords = $"developments findings breakthroughs {query}" },
-                new() { Heading = "Current State", ThemeKeywords = $"current state latest recent {query}" }
+                new SentinelSection { Heading = "Background", ThemeKeywords = $"background context history {query}" },
+                new SentinelSection
+                    { Heading = "Key Developments", ThemeKeywords = $"developments findings breakthroughs {query}" },
+                new SentinelSection
+                    { Heading = "Current State", ThemeKeywords = $"current state latest recent {query}" }
             ],
             ConclusionAngle = "What's next"
         };
     }
-
-    // Minimum similarity between section heading and query to keep the section
-    private const float SectionRelevanceThreshold = 0.25f;
 
     private static DocumentPlan ConvertToPlan(
         SentinelOutline outline, string query, QueryType queryType, Func<string, float[]> embedder)
@@ -160,7 +162,6 @@ public static class DocumentPlanner
 
         // Ensure we have at least 3 sections after filtering
         if (sections.Count < 3)
-        {
             // Fallback: keep top 3 by relevance
             sections = outline.Sections
                 .Select(s => new
@@ -178,7 +179,6 @@ public static class DocumentPlanner
                 .Take(4)
                 .Select(x => x.Section)
                 .ToList();
-        }
 
         var themeDesc = !string.IsNullOrWhiteSpace(outline.ThemeDescription)
             ? outline.ThemeDescription

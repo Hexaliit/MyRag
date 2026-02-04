@@ -6,9 +6,13 @@ namespace LucidRAG.Services.Background;
 
 public class DocumentProcessingQueue
 {
+    // Max age for progress channels before cleanup (handles abandoned channels)
+    private static readonly TimeSpan ProgressChannelMaxAge = TimeSpan.FromHours(1);
+
     // Unique instance ID for debugging DI issues
-    private readonly Guid _instanceId = Guid.NewGuid();
-    public Guid InstanceId => _instanceId;
+
+    // Track progress channels with creation time for cleanup
+    private readonly ConcurrentDictionary<Guid, ProgressChannelEntry> _progressChannels = new();
 
     // Bounded queue to prevent unbounded memory growth - max 100 documents waiting
     private readonly Channel<DocumentProcessingJob> _queue = Channel.CreateBounded<DocumentProcessingJob>(
@@ -19,11 +23,17 @@ public class DocumentProcessingQueue
             SingleWriter = false // Multiple uploads can write
         });
 
-    // Track progress channels with creation time for cleanup
-    private readonly ConcurrentDictionary<Guid, ProgressChannelEntry> _progressChannels = new();
+    public Guid InstanceId { get; } = Guid.NewGuid();
 
-    // Max age for progress channels before cleanup (handles abandoned channels)
-    private static readonly TimeSpan ProgressChannelMaxAge = TimeSpan.FromHours(1);
+    /// <summary>
+    ///     Gets current queue depth for monitoring
+    /// </summary>
+    public int QueueDepth => _queue.Reader.Count;
+
+    /// <summary>
+    ///     Gets number of active progress channels
+    /// </summary>
+    public int ActiveProgressChannels => _progressChannels.Count;
 
     public async ValueTask EnqueueAsync(DocumentProcessingJob job, CancellationToken ct = default)
     {
@@ -33,9 +43,11 @@ public class DocumentProcessingQueue
 
         try
         {
-            Console.WriteLine($"[QUEUE-DEBUG] EnqueueAsync: Instance={_instanceId}, DocumentId={job.DocumentId}, QueueDepth={QueueDepth}");
+            Console.WriteLine(
+                $"[QUEUE-DEBUG] EnqueueAsync: Instance={InstanceId}, DocumentId={job.DocumentId}, QueueDepth={QueueDepth}");
             await _queue.Writer.WriteAsync(job, timeoutCts.Token);
-            Console.WriteLine($"[QUEUE-DEBUG] EnqueueAsync DONE: Instance={_instanceId}, DocumentId={job.DocumentId}, QueueDepth={QueueDepth}");
+            Console.WriteLine(
+                $"[QUEUE-DEBUG] EnqueueAsync DONE: Instance={InstanceId}, DocumentId={job.DocumentId}, QueueDepth={QueueDepth}");
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -45,9 +57,9 @@ public class DocumentProcessingQueue
 
     public async ValueTask<DocumentProcessingJob> DequeueAsync(CancellationToken ct = default)
     {
-        Console.WriteLine($"[QUEUE-DEBUG] DequeueAsync waiting: Instance={_instanceId}, QueueDepth={QueueDepth}");
+        Console.WriteLine($"[QUEUE-DEBUG] DequeueAsync waiting: Instance={InstanceId}, QueueDepth={QueueDepth}");
         var job = await _queue.Reader.ReadAsync(ct);
-        Console.WriteLine($"[QUEUE-DEBUG] DequeueAsync got job: Instance={_instanceId}, DocumentId={job.DocumentId}");
+        Console.WriteLine($"[QUEUE-DEBUG] DequeueAsync got job: Instance={InstanceId}, DocumentId={job.DocumentId}");
         return job;
     }
 
@@ -68,10 +80,7 @@ public class DocumentProcessingQueue
 
     public void CompleteProgressChannel(Guid documentId)
     {
-        if (_progressChannels.TryRemove(documentId, out var entry))
-        {
-            entry.Channel.Writer.TryComplete();
-        }
+        if (_progressChannels.TryRemove(documentId, out var entry)) entry.Channel.Writer.TryComplete();
     }
 
     public bool TryGetProgressChannel(Guid documentId, out Channel<ProgressUpdate>? channel)
@@ -87,18 +96,8 @@ public class DocumentProcessingQueue
     }
 
     /// <summary>
-    /// Gets current queue depth for monitoring
-    /// </summary>
-    public int QueueDepth => _queue.Reader.Count;
-
-    /// <summary>
-    /// Gets number of active progress channels
-    /// </summary>
-    public int ActiveProgressChannels => _progressChannels.Count;
-
-    /// <summary>
-    /// Cleans up abandoned progress channels older than max age.
-    /// Called periodically by the background processor.
+    ///     Cleans up abandoned progress channels older than max age.
+    ///     Called periodically by the background processor.
     /// </summary>
     public int CleanupAbandonedProgressChannels()
     {
@@ -106,16 +105,12 @@ public class DocumentProcessingQueue
         var cleanedUp = 0;
 
         foreach (var kvp in _progressChannels)
-        {
             if (kvp.Value.CreatedAt < cutoff)
-            {
                 if (_progressChannels.TryRemove(kvp.Key, out var entry))
                 {
                     entry.Channel.Writer.TryComplete();
                     cleanedUp++;
                 }
-            }
-        }
 
         return cleanedUp;
     }

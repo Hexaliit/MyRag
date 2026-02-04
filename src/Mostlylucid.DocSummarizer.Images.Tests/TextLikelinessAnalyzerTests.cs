@@ -11,6 +11,12 @@ public class TextLikelinessAnalyzerTests
 {
     private readonly TextLikelinessAnalyzer _analyzer = new();
 
+    private static string GetTestImagePath(string filename)
+    {
+        var dir = Path.GetDirectoryName(typeof(TextLikelinessAnalyzerTests).Assembly.Location)!;
+        return Path.Combine(dir, "TestImages", filename);
+    }
+
     #region CalculateTextLikeliness Tests
 
     [Fact]
@@ -57,7 +63,7 @@ public class TextLikelinessAnalyzerTests
     [Fact]
     public void CalculateTextLikeliness_Checkerboard_ReturnsMediumScore()
     {
-        using var image = TestImageGenerator.CreateCheckerboard(200, 200, 10);
+        using var image = TestImageGenerator.CreateCheckerboard(200, 200);
 
         var score = _analyzer.CalculateTextLikeliness(image);
 
@@ -110,10 +116,7 @@ public class TextLikelinessAnalyzerTests
         {
             ctx.Fill(Color.White);
             // Draw some black horizontal lines (text-like)
-            for (var y = 30; y < 180; y += 25)
-            {
-                ctx.Fill(Color.Black, new Rectangle(20, y, 260, 8));
-            }
+            for (var y = 30; y < 180; y += 25) ctx.Fill(Color.Black, new Rectangle(20, y, 260, 8));
         });
 
         var score = _analyzer.CalculateTextLikeliness(image);
@@ -129,10 +132,7 @@ public class TextLikelinessAnalyzerTests
         image.Mutate(ctx =>
         {
             ctx.Fill(Color.Black);
-            for (var y = 30; y < 180; y += 25)
-            {
-                ctx.Fill(Color.White, new Rectangle(20, y, 260, 8));
-            }
+            for (var y = 30; y < 180; y += 25) ctx.Fill(Color.White, new Rectangle(20, y, 260, 8));
         });
 
         var score = _analyzer.CalculateTextLikeliness(image);
@@ -148,10 +148,7 @@ public class TextLikelinessAnalyzerTests
     public void CalculateTextLikeliness_RealScreenshot_DetectsText()
     {
         var testImagePath = GetTestImagePath("03-chat-response.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var score = _analyzer.CalculateTextLikeliness(image);
@@ -164,10 +161,7 @@ public class TextLikelinessAnalyzerTests
     public void CalculateTextLikeliness_Icon_HasLowTextScore()
     {
         var testImagePath = GetTestImagePath("icon.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var score = _analyzer.CalculateTextLikeliness(image);
@@ -180,10 +174,7 @@ public class TextLikelinessAnalyzerTests
     public void CalculateTextLikeliness_ErrorStateScreenshot_DetectsText()
     {
         var testImagePath = GetTestImagePath("error-state.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var score = _analyzer.CalculateTextLikeliness(image);
@@ -193,10 +184,4 @@ public class TextLikelinessAnalyzerTests
     }
 
     #endregion
-
-    private static string GetTestImagePath(string filename)
-    {
-        var dir = Path.GetDirectoryName(typeof(TextLikelinessAnalyzerTests).Assembly.Location)!;
-        return Path.Combine(dir, "TestImages", filename);
-    }
 }

@@ -7,7 +7,7 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services;
 
 /// <summary>
-/// Service for named prompt resolution and template rendering.
+///     Service for named prompt resolution and template rendering.
 /// </summary>
 public partial class PromptService : IPromptService
 {
@@ -87,7 +87,10 @@ public partial class PromptService : IPromptService
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<string> GetPromptNames() => _config.Prompts.Keys.ToList();
+    public IReadOnlyList<string> GetPromptNames()
+    {
+        return _config.Prompts.Keys.ToList();
+    }
 
     [GeneratedRegex(@"\{(\w+)\}", RegexOptions.Compiled)]
     private static partial Regex TemplateVariableRegex();

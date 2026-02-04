@@ -1,15 +1,23 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Web;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// NewsData.io — real-time and historical news API.
-/// Free tier: 200 credits/day (10 articles/credit = 2,000 articles/day).
-/// Rate limit: 30 credits per 15 minutes. 12-hour delay on free tier.
-/// Covers 89 languages, 65+ countries, 53,000+ sources.
+///     NewsData.io — real-time and historical news API.
+///     Free tier: 200 credits/day (10 articles/credit = 2,000 articles/day).
+///     Rate limit: 30 credits per 15 minutes. 12-hour delay on free tier.
+///     Covers 89 languages, 65+ countries, 53,000+ sources.
 /// </summary>
-public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class NewsDataService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "newsdata";
     private const string Endpoint = "https://newsdata.io/api/1/latest";
@@ -17,7 +25,7 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
     public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search news via NewsData.io.
+    ///     Search news via NewsData.io.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 10, string? category = null,
@@ -64,7 +72,7 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Diagnostics.Debug.WriteLine($"NewsData {(int)response.StatusCode}: {Truncate(body, 200)}");
+                Debug.WriteLine($"NewsData {(int)response.StatusCode}: {Truncate(body, 200)}");
                 return [];
             }
 
@@ -77,7 +85,6 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
                 using var doc = JsonDocument.Parse(json);
                 if (doc.RootElement.TryGetProperty("nextPage", out var nextPage) &&
                     nextPage.GetString() is { Length: > 0 } cursor)
-                {
                     if (await circuit.IsServiceAvailableAsync(ServiceName))
                     {
                         var check2 = await budget.CheckBudgetAsync(ServiceName);
@@ -99,7 +106,6 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
                             await circuit.TripCircuitAsync(ServiceName, ft, check2.DenialReason);
                         }
                     }
-                }
             }
 
             progress?.Invoke($"NewsData: {items.Count} results");
@@ -107,12 +113,12 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("NewsData timed out");
+            Debug.WriteLine("NewsData timed out");
             return [];
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"NewsData error: {ex.Message}");
+            Debug.WriteLine($"NewsData error: {ex.Message}");
             return [];
         }
     }
@@ -138,7 +144,8 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
             var imageUrl = r.TryGetProperty("image_url", out var img) ? img.GetString() : null;
             var sourceId = r.TryGetProperty("source_id", out var src) ? src.GetString() : null;
             var creator = r.TryGetProperty("creator", out var cr) && cr.ValueKind == JsonValueKind.Array
-                ? string.Join(", ", cr.EnumerateArray().Select(x => x.GetString())) : null;
+                ? string.Join(", ", cr.EnumerateArray().Select(x => x.GetString()))
+                : null;
             var isDuplicate = r.TryGetProperty("duplicate", out var dup) && dup.GetBoolean();
 
             // Skip duplicates
@@ -182,13 +189,18 @@ public class NewsDataService(HttpClient httpClient, ApiKeyService keys, ApiBudge
                 });
             }
         }
+
         return items;
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

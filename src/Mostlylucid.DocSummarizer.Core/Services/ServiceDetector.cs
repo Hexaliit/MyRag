@@ -350,7 +350,7 @@ public static class ServiceDetector
     /// </summary>
     public static async Task<DetectedServices> DetectSilentAsync(DocSummarizerConfig config)
     {
-        return await DetectAsync(config, false);
+        return await DetectAsync(config);
     }
 
     private static async Task<(bool available, string? model, List<string> models)> CheckOllamaAsync(

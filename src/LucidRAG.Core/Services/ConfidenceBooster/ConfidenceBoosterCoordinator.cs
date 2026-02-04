@@ -1,17 +1,15 @@
-using Microsoft.Extensions.Logging;
-
 namespace LucidRAG.Core.Services.ConfidenceBooster;
 
 /// <summary>
-/// Coordinator for background confidence boosting across all document types.
-/// Runs as part of the background learning pipeline, not during real-time ingestion.
+///     Coordinator for background confidence boosting across all document types.
+///     Runs as part of the background learning pipeline, not during real-time ingestion.
 /// </summary>
 public class ConfidenceBoosterCoordinator
 {
+    private readonly ConfidenceBoosterConfig _config;
     private readonly ILogger<ConfidenceBoosterCoordinator> _logger;
     private readonly IDocumentQueueService _queueService;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ConfidenceBoosterConfig _config;
 
     public ConfidenceBoosterCoordinator(
         ILogger<ConfidenceBoosterCoordinator> logger,
@@ -26,8 +24,8 @@ public class ConfidenceBoosterCoordinator
     }
 
     /// <summary>
-    /// Scan for documents with low-confidence signals and queue for boosting.
-    /// Called by background coordinator job.
+    ///     Scan for documents with low-confidence signals and queue for boosting.
+    ///     Called by background coordinator job.
     /// </summary>
     public async Task ScanAndQueueAsync(CancellationToken ct = default)
     {
@@ -55,10 +53,7 @@ public class ConfidenceBoosterCoordinator
             _logger.LogInformation("Found {Count} documents needing confidence boost", candidates.Count);
 
             // Queue each for background processing
-            foreach (var doc in candidates)
-            {
-                await _queueService.QueueForBoostAsync(doc.Id, doc.Type, ct);
-            }
+            foreach (var doc in candidates) await _queueService.QueueForBoostAsync(doc.Id, doc.Type, ct);
 
             _logger.LogInformation("Queued {Count} documents for confidence boosting", candidates.Count);
         }
@@ -69,8 +64,8 @@ public class ConfidenceBoosterCoordinator
     }
 
     /// <summary>
-    /// Process a single document through confidence boosting.
-    /// Called by background worker when document is dequeued.
+    ///     Process a single document through confidence boosting.
+    ///     Called by background worker when document is dequeued.
     /// </summary>
     public async Task<BoostSummary> ProcessDocumentAsync(
         Guid documentId,
@@ -157,7 +152,7 @@ public class ConfidenceBoosterCoordinator
     }
 
     /// <summary>
-    /// Get the appropriate booster service for a document type.
+    ///     Get the appropriate booster service for a document type.
     /// </summary>
     private IConfidenceBoosterBase? GetBoosterForType(string documentType)
     {
@@ -173,7 +168,7 @@ public class ConfidenceBoosterCoordinator
 }
 
 /// <summary>
-/// Base interface for confidence boosters (non-generic for coordinator).
+///     Base interface for confidence boosters (non-generic for coordinator).
 /// </summary>
 public interface IConfidenceBoosterBase
 {
@@ -196,7 +191,7 @@ public interface IConfidenceBoosterBase
 // IDocumentQueueService moved to ConfidenceBoosterBackgroundService.cs
 
 /// <summary>
-/// Document candidate for boosting.
+///     Document candidate for boosting.
 /// </summary>
 public class DocumentCandidate
 {
@@ -207,7 +202,7 @@ public class DocumentCandidate
 }
 
 /// <summary>
-/// Summary of boost processing for a document.
+///     Summary of boost processing for a document.
 /// </summary>
 public class BoostSummary
 {
@@ -225,7 +220,7 @@ public class BoostSummary
 }
 
 /// <summary>
-/// Boost processing status.
+///     Boost processing status.
 /// </summary>
 public enum BoostStatus
 {

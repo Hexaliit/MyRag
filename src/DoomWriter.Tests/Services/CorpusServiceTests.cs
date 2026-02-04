@@ -1,13 +1,12 @@
-using System.IO.Hashing;
-using DoomSummarizer.Services;
+using System.Reflection;
 using DoomWriter.Services;
 
 namespace DoomWriter.Tests.Services;
 
 /// <summary>
-/// Tests for CorpusService pure/stateless methods:
-/// frontmatter parsing, segment extraction, hash computation.
-/// Uses reflection to test private static helpers.
+///     Tests for CorpusService pure/stateless methods:
+///     frontmatter parsing, segment extraction, hash computation.
+///     Uses reflection to test private static helpers.
 /// </summary>
 public class CorpusServiceTests
 {
@@ -18,16 +17,16 @@ public class CorpusServiceTests
     public void ParseFrontmatter_ExtractsTitleAndSlug()
     {
         var content = """
-            ---
-            title: "My Great Article"
-            slug: my-great-article
-            date: 2025-01-15
-            ---
+                      ---
+                      title: "My Great Article"
+                      slug: my-great-article
+                      date: 2025-01-15
+                      ---
 
-            # Article Content
+                      # Article Content
 
-            This is the body.
-            """;
+                      This is the body.
+                      """;
 
         var (metadata, body) = InvokeParseFrontmatter(content);
 
@@ -88,7 +87,8 @@ public class CorpusServiceTests
     public void ExtractSegments_SplitsByBlankLines()
     {
         // Segments must be >= 20 chars to pass the minimum length filter
-        var markdown = "First paragraph with enough content here.\n\nSecond paragraph also has sufficient text.\n\nThird paragraph rounds out the document nicely.";
+        var markdown =
+            "First paragraph with enough content here.\n\nSecond paragraph also has sufficient text.\n\nThird paragraph rounds out the document nicely.";
 
         var segments = InvokeExtractSegments(markdown);
 
@@ -98,7 +98,8 @@ public class CorpusServiceTests
     [Fact]
     public void ExtractSegments_SkipsHeadings()
     {
-        var markdown = "# Heading\n\nParagraph content that is long enough to pass the filter.\n\n## Another heading\n\nMore content that also has enough text for extraction.";
+        var markdown =
+            "# Heading\n\nParagraph content that is long enough to pass the filter.\n\n## Another heading\n\nMore content that also has enough text for extraction.";
 
         var segments = InvokeExtractSegments(markdown);
 
@@ -167,7 +168,7 @@ public class CorpusServiceTests
     private static (Dictionary<string, string> metadata, string body) InvokeParseFrontmatter(string content)
     {
         var method = typeof(CorpusService).GetMethod("ParseFrontmatter",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
         method.Should().NotBeNull("ParseFrontmatter should exist as private static");
 
         var result = method!.Invoke(null, [content]);
@@ -178,7 +179,7 @@ public class CorpusServiceTests
     private static List<CorpusSegment> InvokeExtractSegments(string markdown)
     {
         var method = typeof(CorpusService).GetMethod("ExtractSegments",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
         method.Should().NotBeNull("ExtractSegments should exist as private static");
 
         return (List<CorpusSegment>)method!.Invoke(null, [markdown])!;
@@ -187,7 +188,7 @@ public class CorpusServiceTests
     private static string InvokeComputeHash(string content)
     {
         var method = typeof(CorpusService).GetMethod("ComputeHash",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
         method.Should().NotBeNull("ComputeHash should exist as private static");
 
         return (string)method!.Invoke(null, [content])!;

@@ -1,55 +1,55 @@
-using System.Text.Json;
+using System.Diagnostics;
+using System.Text;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
 using DoomWriter.Services;
+using DoomWriter.Views;
 using Microsoft.Extensions.DependencyInjection;
+using Timer = System.Timers.Timer;
 
 namespace DoomWriter.ViewModels;
 
 /// <summary>
-/// Root ViewModel for the main window shell.
-/// Orchestrates editor, signal panel, file operations, AI services, and settings.
+///     Root ViewModel for the main window shell.
+///     Orchestrates editor, signal panel, file operations, AI services, and settings.
 /// </summary>
 public partial class MainWindowViewModel : ObservableObject
 {
-    private readonly WriterSettingsService _settings;
     private readonly DocumentAnalysisService _analysisService;
-    private readonly WritingAssistantService _writingAssistant;
     private readonly AutocompleteService _autocomplete;
-    private readonly SuggestionService _suggestions;
-    private readonly CorpusService _corpus;
-    private readonly SpellCheckService _spellCheck;
     private readonly EditorBridge _bridge;
-    private readonly OllamaService _ollama;
+    private readonly CorpusService _corpus;
     private readonly EntityGraphService _entityGraphService;
-    private System.Timers.Timer? _autoSaveTimer;
-    private DocumentSignals? _lastSignals;
-    private CancellationTokenSource? _generationCts;
-
-    public EditorViewModel Editor { get; }
-    public SignalPanelViewModel SignalPanel { get; }
-
-    // Status bar
-    [ObservableProperty] private int _wordCount;
-    [ObservableProperty] private int _segmentCount;
-    [ObservableProperty] private int _entityCount;
+    private readonly OllamaService _ollama;
+    private readonly WriterSettingsService _settings;
+    private readonly SpellCheckService _spellCheck;
+    private readonly SuggestionService _suggestions;
+    private readonly WritingAssistantService _writingAssistant;
+    private Timer? _autoSaveTimer;
+    [ObservableProperty] private int _corpusDocumentCount;
     [ObservableProperty] private string _dominantTopic = "";
     [ObservableProperty] private float _driftScore;
-    [ObservableProperty] private bool _isOllamaConnected;
+    [ObservableProperty] private int _entityCount;
+    [ObservableProperty] private string _generatingStatus = "";
+    private CancellationTokenSource? _generationCts;
     [ObservableProperty] private bool _isAnalyzing;
     [ObservableProperty] private bool _isGenerating;
-    [ObservableProperty] private string _generatingStatus = "";
-    [ObservableProperty] private string _title = "DoomWriter";
-    [ObservableProperty] private int _corpusDocumentCount;
+    [ObservableProperty] private bool _isOllamaConnected;
 
     // Panel visibility
     [ObservableProperty] private bool _isSignalPanelVisible = true;
+    private DocumentSignals? _lastSignals;
+    [ObservableProperty] private int _segmentCount;
     [ObservableProperty] private double _signalPanelWidth = 280;
+    [ObservableProperty] private string _title = "DoomWriter";
 
-    // Settings
-    public WriterConfig Config => _settings.Config;
+    // Status bar
+    [ObservableProperty] private int _wordCount;
 
     public MainWindowViewModel(
         EditorViewModel editor,
@@ -120,7 +120,6 @@ public partial class MainWindowViewModel : ObservableObject
         Editor.PropertyChanged += async (s, e) =>
         {
             if (e.PropertyName == nameof(EditorViewModel.IsEditorReady) && Editor.IsEditorReady)
-            {
                 if (!string.IsNullOrEmpty(Editor.Content))
                 {
                     await _bridge.SetContentAsync(Editor.Content);
@@ -128,7 +127,6 @@ public partial class MainWindowViewModel : ObservableObject
                     IsAnalyzing = true;
                     await _analysisService.AnalyzeImmediateAsync(Editor.Content);
                 }
-            }
         };
 
         // Wire writing assistant status events
@@ -162,6 +160,12 @@ public partial class MainWindowViewModel : ObservableObject
             _ = InitSpellCheckAsync();
     }
 
+    public EditorViewModel Editor { get; }
+    public SignalPanelViewModel SignalPanel { get; }
+
+    // Settings
+    public WriterConfig Config => _settings.Config;
+
     private async Task InitSpellCheckAsync()
     {
         try
@@ -170,7 +174,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SpellCheck init failed: {ex.Message}");
+            Debug.WriteLine($"SpellCheck init failed: {ex.Message}");
         }
     }
 
@@ -220,6 +224,7 @@ public partial class MainWindowViewModel : ObservableObject
                         if (!string.IsNullOrEmpty(expanded))
                             await _bridge.InsertAtCursorAsync(expanded);
                     }
+
                     break;
 
                 case "rewrite":
@@ -230,6 +235,7 @@ public partial class MainWindowViewModel : ObservableObject
                         if (!string.IsNullOrEmpty(rewritten))
                             await _bridge.InsertAtCursorAsync(rewritten);
                     }
+
                     break;
 
                 case "simplify":
@@ -240,6 +246,7 @@ public partial class MainWindowViewModel : ObservableObject
                         if (!string.IsNullOrEmpty(simplified))
                             await _bridge.InsertAtCursorAsync(simplified);
                     }
+
                     break;
 
                 case "check":
@@ -249,6 +256,7 @@ public partial class MainWindowViewModel : ObservableObject
                         if (grammar.HasIssues && !string.IsNullOrEmpty(grammar.CorrectedText))
                             await _bridge.InsertAtCursorAsync(grammar.CorrectedText);
                     }
+
                     break;
 
                 case "suggestLinks":
@@ -256,10 +264,12 @@ public partial class MainWindowViewModel : ObservableObject
                     break;
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Toolbar action '{action}' failed: {ex.Message}");
+            Debug.WriteLine($"Toolbar action '{action}' failed: {ex.Message}");
             IsGenerating = false;
             _ = _bridge.HideAiGeneratingAsync();
         }
@@ -316,7 +326,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Entity graph persist failed: {ex.Message}");
+            Debug.WriteLine($"Entity graph persist failed: {ex.Message}");
         }
     }
 
@@ -336,6 +346,7 @@ public partial class MainWindowViewModel : ObservableObject
                     await OpenFileAsync(files[0]);
                     return;
                 }
+
                 // Try other extensions
                 foreach (var ext in new[] { ".markdown", ".mdx", ".txt" })
                 {
@@ -364,7 +375,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SpellCheck failed: {ex.Message}");
+            Debug.WriteLine($"SpellCheck failed: {ex.Message}");
         }
     }
 
@@ -378,7 +389,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Suggestion generation failed: {ex.Message}");
+            Debug.WriteLine($"Suggestion generation failed: {ex.Message}");
         }
     }
 
@@ -389,9 +400,12 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Public version of UpdateTitle for code-behind (SaveAs flow).
+    ///     Public version of UpdateTitle for code-behind (SaveAs flow).
     /// </summary>
-    public void UpdateTitlePublic() => UpdateTitle();
+    public void UpdateTitlePublic()
+    {
+        UpdateTitle();
+    }
 
     // --- File operations ---
 
@@ -453,7 +467,7 @@ public partial class MainWindowViewModel : ObservableObject
         if (owner == null) return;
 
         var vm = App.Services.GetRequiredService<SettingsViewModel>();
-        var dialog = new Views.SettingsDialog { DataContext = vm };
+        var dialog = new SettingsDialog { DataContext = vm };
         vm.SetCloseAction(() => dialog.Close());
         dialog.ShowDialog(owner);
     }
@@ -465,15 +479,15 @@ public partial class MainWindowViewModel : ObservableObject
         if (owner == null) return;
 
         var vm = App.Services.GetRequiredService<CorpusViewModel>();
-        var dialog = new Views.CorpusDialog { DataContext = vm };
+        var dialog = new CorpusDialog { DataContext = vm };
         vm.SetWindow(dialog);
         dialog.ShowDialog(owner);
     }
 
-    private static Avalonia.Controls.Window? GetMainWindow()
+    private static Window? GetMainWindow()
     {
-        if (Avalonia.Application.Current?.ApplicationLifetime
-            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+        if (Application.Current?.ApplicationLifetime
+            is IClassicDesktopStyleApplicationLifetime desktop)
             return desktop.MainWindow;
         return null;
     }
@@ -503,7 +517,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Search/Ask failed: {ex.Message}");
+            Debug.WriteLine($"Search/Ask failed: {ex.Message}");
             SignalPanel.ShowAskResponse($"Error: {ex.Message}");
         }
         finally
@@ -517,15 +531,14 @@ public partial class MainWindowViewModel : ObservableObject
         if (!_corpus.IsInitialized) return;
 
         // Hybrid search: fast Lucene keyword matches + slower embedding similarity
-        var keywordMatches = _corpus.KeywordSearch(query, limit: 5);
-        var embeddingMatches = await _corpus.SearchAsync(query, topK: 10);
+        var keywordMatches = _corpus.KeywordSearch(query, 5);
+        var embeddingMatches = await _corpus.SearchAsync(query, 10);
 
         // Merge results, preferring keyword matches for exact hits
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var merged = new List<SearchResultItem>();
 
         foreach (var m in keywordMatches)
-        {
             if (seen.Add(m.Id))
                 merged.Add(new SearchResultItem
                 {
@@ -535,10 +548,8 @@ public partial class MainWindowViewModel : ObservableObject
                     Source = m.Source,
                     InsertText = null
                 });
-        }
 
         foreach (var m in embeddingMatches)
-        {
             if (seen.Add(m.Id))
                 merged.Add(new SearchResultItem
                 {
@@ -548,7 +559,6 @@ public partial class MainWindowViewModel : ObservableObject
                     Source = m.Source,
                     InsertText = null
                 });
-        }
 
         SignalPanel.ShowSearchResults(merged);
     }
@@ -566,13 +576,13 @@ public partial class MainWindowViewModel : ObservableObject
             "You are a helpful writing assistant. Answer the user's question concisely based on " +
             "their document context. Keep responses brief and actionable.";
 
-        var response = await _ollama.GenerateAsync(context, systemPrompt, temperature: 0.4);
+        var response = await _ollama.GenerateAsync(context, systemPrompt, 0.4);
         SignalPanel.ShowAskResponse(response.Trim());
     }
 
     private string BuildAskContext(string query)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine($"Question: {query}");
         sb.AppendLine();
 
@@ -612,11 +622,10 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void SetupAutoSave()
     {
-        _autoSaveTimer = new System.Timers.Timer(Config.AutoSaveIntervalSeconds * 1000);
+        _autoSaveTimer = new Timer(Config.AutoSaveIntervalSeconds * 1000);
         _autoSaveTimer.Elapsed += async (_, _) =>
         {
             if (Editor.IsDirty && !string.IsNullOrEmpty(Editor.FilePath))
-            {
                 try
                 {
                     await File.WriteAllTextAsync(Editor.FilePath, Editor.Content);
@@ -625,7 +634,6 @@ public partial class MainWindowViewModel : ObservableObject
                 {
                     // Silently fail auto-save
                 }
-            }
         };
         _autoSaveTimer.Start();
     }

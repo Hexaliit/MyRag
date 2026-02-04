@@ -8,17 +8,17 @@ async function delay(ms) {
     const browser = await puppeteer.launch({
         headless: false,
         args: ['--window-size=1400,900'],
-        defaultViewport: { width: 1400, height: 900 }
+        defaultViewport: {width: 1400, height: 900}
     });
 
     const page = await browser.newPage();
 
     // Login
-    await page.goto('http://localhost:5019/auth/login', { waitUntil: 'networkidle2' });
+    await page.goto('http://localhost:5019/auth/login', {waitUntil: 'networkidle2'});
     await page.type('input[name="Email"]', 'admin@lucidrag.local');
     await page.type('input[name="Password"]', 'Admin123!');
     await page.click('button[type="submit"]');
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+    await page.waitForNavigation({waitUntil: 'networkidle2'});
     console.log('Logged in');
 
     await delay(2000);
@@ -41,7 +41,7 @@ async function delay(ms) {
 
     console.log('Form elements found:', JSON.stringify(inputs, null, 2));
 
-    await page.screenshot({ path: 'test-inspect.png', fullPage: true });
+    await page.screenshot({path: 'test-inspect.png', fullPage: true});
     console.log('Screenshot: test-inspect.png');
 
     await browser.close();

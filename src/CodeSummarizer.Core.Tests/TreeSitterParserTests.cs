@@ -10,21 +10,21 @@ public class TreeSitterParserTests
     public void Parse_CSharp_ExtractsClassAndMethod()
     {
         var code = """
-            using System;
+                   using System;
 
-            public class Calculator
-            {
-                public int Add(int a, int b)
-                {
-                    return a + b;
-                }
+                   public class Calculator
+                   {
+                       public int Add(int a, int b)
+                       {
+                           return a + b;
+                       }
 
-                public int Multiply(int a, int b)
-                {
-                    return a * b;
-                }
-            }
-            """;
+                       public int Multiply(int a, int b)
+                       {
+                           return a * b;
+                       }
+                   }
+                   """;
 
         var result = _parser.Parse(code, "csharp");
 
@@ -39,15 +39,15 @@ public class TreeSitterParserTests
     public void Parse_Python_ExtractsFunctionsAndImports()
     {
         var code = """
-            import os
-            from pathlib import Path
+                   import os
+                   from pathlib import Path
 
-            def greet(name):
-                print(f"Hello, {name}!")
+                   def greet(name):
+                       print(f"Hello, {name}!")
 
-            def calculate_area(width, height):
-                return width * height
-            """;
+                   def calculate_area(width, height):
+                       return width * height
+                   """;
 
         var result = _parser.Parse(code, "python");
 
@@ -61,12 +61,12 @@ public class TreeSitterParserTests
     public void Parse_JavaScript_ExtractsFunctions()
     {
         var code = """
-            function sayHello(name) {
-                console.log(`Hello, ${name}!`);
-            }
+                   function sayHello(name) {
+                       console.log(`Hello, ${name}!`);
+                   }
 
-            const add = (a, b) => a + b;
-            """;
+                   const add = (a, b) => a + b;
+                   """;
 
         var result = _parser.Parse(code, "javascript");
 
@@ -78,16 +78,16 @@ public class TreeSitterParserTests
     public void Parse_UnsupportedLanguage_FallsBackToHeuristic()
     {
         var code = """
-            function hello(name)
-                print("Hello " .. name)
-            end
+                   function hello(name)
+                       print("Hello " .. name)
+                   end
 
-            class MyClass
-                def method()
-                    -- do stuff
-                end
-            end
-            """;
+                   class MyClass
+                       def method()
+                           -- do stuff
+                       end
+                   end
+                   """;
 
         // Use a language that likely isn't in our registry
         var result = _parser.Parse(code, "unreallanguage");
@@ -110,14 +110,14 @@ public class TreeSitterParserTests
     public void Parse_Json_ParsesWithoutError()
     {
         var code = """
-            {
-                "name": "test",
-                "version": "1.0.0",
-                "dependencies": {
-                    "lodash": "^4.17.21"
-                }
-            }
-            """;
+                   {
+                       "name": "test",
+                       "version": "1.0.0",
+                       "dependencies": {
+                           "lodash": "^4.17.21"
+                       }
+                   }
+                   """;
 
         var result = _parser.Parse(code, "json");
 
@@ -131,18 +131,18 @@ public class TreeSitterParserTests
     public void Parse_Go_ExtractsFunctions()
     {
         var code = """
-            package main
+                   package main
 
-            import "fmt"
+                   import "fmt"
 
-            func main() {
-                fmt.Println("Hello, World!")
-            }
+                   func main() {
+                       fmt.Println("Hello, World!")
+                   }
 
-            func add(a int, b int) int {
-                return a + b
-            }
-            """;
+                   func add(a int, b int) int {
+                       return a + b
+                   }
+                   """;
 
         var result = _parser.Parse(code, "go");
 
@@ -155,11 +155,11 @@ public class TreeSitterParserTests
     public void Parse_HeuristicFallback_ExtractsCStyleFunctions()
     {
         var code = """
-            function processData(input)
-                local result = {}
-                return result
-            end
-            """;
+                   function processData(input)
+                       local result = {}
+                       return result
+                   end
+                   """;
 
         var result = _parser.Parse(code, "unreallanguage2");
 

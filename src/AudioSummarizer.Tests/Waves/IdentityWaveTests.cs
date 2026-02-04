@@ -1,16 +1,14 @@
-using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Models;
 using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace AudioSummarizer.Tests.Waves;
 
 public class IdentityWaveTests
 {
-    private readonly IdentityWave _wave;
     private readonly string _testAudioPath;
+    private readonly IdentityWave _wave;
 
     public IdentityWaveTests()
     {
@@ -52,10 +50,8 @@ public class IdentityWaveTests
     {
         // Arrange
         if (!File.Exists(_testAudioPath))
-        {
             // Skip test if sample file doesn't exist
             return;
-        }
 
         var context = new AnalysisContext();
 
@@ -83,10 +79,7 @@ public class IdentityWaveTests
     public async Task AnalyzeAsync_WithValidAudioFile_HashesAreConsistent()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 
@@ -106,10 +99,7 @@ public class IdentityWaveTests
     public async Task AnalyzeAsync_WithValidAudioFile_DurationIsPositive()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 
@@ -126,10 +116,7 @@ public class IdentityWaveTests
     public async Task AnalyzeAsync_WithValidAudioFile_AllSignalsHaveIdentityType()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 

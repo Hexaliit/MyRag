@@ -1,13 +1,37 @@
 using Mostlylucid.DataSummarizer.Services.Onnx;
-using Xunit;
 
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for HuggingFaceTokenizer
+///     Tests for HuggingFaceTokenizer
 /// </summary>
 public class TokenizerTests
 {
+    #region Helper Methods
+
+    private static Dictionary<string, int> CreateBertVocab()
+    {
+        return new Dictionary<string, int>
+        {
+            { "[PAD]", 0 },
+            { "[UNK]", 100 },
+            { "[CLS]", 101 },
+            { "[SEP]", 102 },
+            { "[MASK]", 103 },
+            { "hello", 1000 },
+            { "world", 1001 },
+            { "test", 1002 },
+            { "the", 1003 },
+            { "a", 1004 },
+            { "is", 1005 },
+            { "##ing", 1006 },
+            { "##ed", 1007 },
+            { "##s", 1008 }
+        };
+    }
+
+    #endregion
+
     #region WordPiece Model Tests
 
     [Fact]
@@ -341,31 +365,6 @@ public class TokenizerTests
         var tokens = model.Tokenize("").ToList();
 
         Assert.Empty(tokens);
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private static Dictionary<string, int> CreateBertVocab()
-    {
-        return new Dictionary<string, int>
-        {
-            { "[PAD]", 0 },
-            { "[UNK]", 100 },
-            { "[CLS]", 101 },
-            { "[SEP]", 102 },
-            { "[MASK]", 103 },
-            { "hello", 1000 },
-            { "world", 1001 },
-            { "test", 1002 },
-            { "the", 1003 },
-            { "a", 1004 },
-            { "is", 1005 },
-            { "##ing", 1006 },
-            { "##ed", 1007 },
-            { "##s", 1008 }
-        };
     }
 
     #endregion

@@ -29,12 +29,12 @@ emits:
     - key: vision.llm.caption
       type: string
       description: LLM-generated image caption
-      confidence_range: [0.7, 0.95]
+      confidence_range: [ 0.7, 0.95 ]
 
     - key: vision.llm.text
       type: string
       description: LLM-extracted text from image (subtitles, overlays)
-      confidence_range: [0.8, 0.98]
+      confidence_range: [ 0.8, 0.98 ]
 
     - key: vision.llm.scene
       type: string

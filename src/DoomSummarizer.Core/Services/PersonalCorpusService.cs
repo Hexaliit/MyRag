@@ -6,27 +6,20 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Manages user's personal facts as a first-class corpus (personal:{name}).
-/// Uses existing pipeline infrastructure: embed → NER → entity graph → entity profiles.
-/// Personal facts flow through the same knowledge graph as document entities,
-/// enabling gap-filling (resolving "here" → user's location) via entity freshness.
+///     Manages user's personal facts as a first-class corpus (personal:{name}).
+///     Uses existing pipeline infrastructure: embed → NER → entity graph → entity profiles.
+///     Personal facts flow through the same knowledge graph as document entities,
+///     enabling gap-filling (resolving "here" → user's location) via entity freshness.
 /// </summary>
 public sealed class PersonalCorpusService
 {
-    private readonly StorageService _storage;
+    private const string DefaultCorpusName = "default";
     private readonly IEmbeddingService _embedding;
-    private readonly INerService? _ner;
     private readonly KnowledgeGraphService? _knowledgeGraph;
+    private readonly INerService? _ner;
     private readonly OllamaService? _ollama;
     private readonly bool _ollamaAvailable;
-
-    private const string DefaultCorpusName = "default";
-
-    /// <summary>
-    /// The currently active corpus name. Starts as "default", switches when the user
-    /// identifies themselves (e.g., "My name is Scott" → "scott").
-    /// </summary>
-    public string ActiveCorpusName { get; private set; } = DefaultCorpusName;
+    private readonly StorageService _storage;
 
     public PersonalCorpusService(
         StorageService storage,
@@ -45,9 +38,15 @@ public sealed class PersonalCorpusService
     }
 
     /// <summary>
-    /// Detect if the user is introducing themselves. If so, migrate the default corpus
-    /// to a named one and switch to it. Returns the detected name, or null.
-    /// Patterns: "My name is X", "I'm X", "I am X", "Call me X" (when X looks like a name).
+    ///     The currently active corpus name. Starts as "default", switches when the user
+    ///     identifies themselves (e.g., "My name is Scott" → "scott").
+    /// </summary>
+    public string ActiveCorpusName { get; private set; } = DefaultCorpusName;
+
+    /// <summary>
+    ///     Detect if the user is introducing themselves. If so, migrate the default corpus
+    ///     to a named one and switch to it. Returns the detected name, or null.
+    ///     Patterns: "My name is X", "I'm X", "I am X", "Call me X" (when X looks like a name).
     /// </summary>
     public async Task<string?> DetectAndSetNameAsync(string question, CancellationToken ct)
     {
@@ -81,8 +80,8 @@ public sealed class PersonalCorpusService
     }
 
     /// <summary>
-    /// Get all corpus names that have at least one stored fact.
-    /// Used for disambiguation when multiple personal corpuses exist.
+    ///     Get all corpus names that have at least one stored fact.
+    ///     Used for disambiguation when multiple personal corpuses exist.
     /// </summary>
     public async Task<List<string>> GetActiveCorpusNamesAsync(CancellationToken ct = default)
     {
@@ -95,14 +94,16 @@ public sealed class PersonalCorpusService
     }
 
     /// <summary>
-    /// Switch active corpus to a different named corpus.
+    ///     Switch active corpus to a different named corpus.
     /// </summary>
-    public void SetActiveCorpus(string name) =>
+    public void SetActiveCorpus(string name)
+    {
         ActiveCorpusName = name.ToLowerInvariant();
+    }
 
     /// <summary>
-    /// Detect self-disclosure in user's question via sentinel LLM.
-    /// Returns the extracted fact statement, or null if no personal facts detected.
+    ///     Detect self-disclosure in user's question via sentinel LLM.
+    ///     Returns the extracted fact statement, or null if no personal facts detected.
     /// </summary>
     public async Task<string?> DetectSelfDisclosureAsync(string question, CancellationToken ct)
     {
@@ -114,19 +115,19 @@ public sealed class PersonalCorpusService
             return DetectRuleBasedFallback(question);
 
         var prompt = $$"""
-            Does this message contain a PERSONAL FACT the user is sharing
-            about themselves (location, job, name, tech stack, interests,
-            preferences, employer, role)?
+                       Does this message contain a PERSONAL FACT the user is sharing
+                       about themselves (location, job, name, tech stack, interests,
+                       preferences, employer, role)?
 
-            Message: "{{question}}"
+                       Message: "{{question}}"
 
-            Reply JSON: {"has_fact": true/false, "fact_statement": "..."}
-            If has_fact, extract ONLY the personal fact as a clean statement.
-            Example: "I live in London and want weather" → "User lives in London"
-            Example: "I work at Anthropic on AI safety" → "User works at Anthropic on AI safety"
-            Example: "What's the best IDE? I use VS Code" → "User uses VS Code"
-            If the message is ONLY a question with no personal info, return has_fact: false.
-            """;
+                       Reply JSON: {"has_fact": true/false, "fact_statement": "..."}
+                       If has_fact, extract ONLY the personal fact as a clean statement.
+                       Example: "I live in London and want weather" → "User lives in London"
+                       Example: "I work at Anthropic on AI safety" → "User works at Anthropic on AI safety"
+                       Example: "What's the best IDE? I use VS Code" → "User uses VS Code"
+                       If the message is ONLY a question with no personal info, return has_fact: false.
+                       """;
 
         try
         {
@@ -138,7 +139,8 @@ public sealed class PersonalCorpusService
                 using var doc = JsonDocument.Parse(json[jsonStart..(jsonEnd + 1)]);
                 var root = doc.RootElement;
                 if (root.TryGetProperty("has_fact", out var hasFact) && hasFact.GetBoolean()
-                    && root.TryGetProperty("fact_statement", out var stmt))
+                                                                     && root.TryGetProperty("fact_statement",
+                                                                         out var stmt))
                 {
                     var statement = stmt.GetString();
                     if (!string.IsNullOrWhiteSpace(statement))
@@ -156,8 +158,8 @@ public sealed class PersonalCorpusService
     }
 
     /// <summary>
-    /// Index a personal fact statement into the personal:{name} corpus.
-    /// Full pipeline: embed → keywords → FTS5 → NER → entity graph.
+    ///     Index a personal fact statement into the personal:{name} corpus.
+    ///     Full pipeline: embed → keywords → FTS5 → NER → entity graph.
     /// </summary>
     public async Task IndexFactAsync(
         string corpusName, string statement,
@@ -175,7 +177,7 @@ public sealed class PersonalCorpusService
             Summary = statement,
             CreatedAt = DateTimeOffset.UtcNow,
             FetchedAt = DateTimeOffset.UtcNow,
-            Tags = ["personal", "user-fact"],
+            Tags = ["personal", "user-fact"]
         };
 
         // Step 1: Embed
@@ -198,26 +200,22 @@ public sealed class PersonalCorpusService
 
         // Step 3: NER → entity graph → co-occurrence → entity profiles
         if (_ner is { IsAvailable: true } && _knowledgeGraph != null)
-        {
             try
             {
                 var entities = await _ner.ExtractEntitiesAsync(statement, ct);
                 if (entities.Count > 0)
-                {
                     await _knowledgeGraph.IngestEntitiesAsync(
                         [(item, entities)], ct);
-                }
             }
             catch
             {
                 // NER/graph failure is non-fatal
             }
-        }
     }
 
     /// <summary>
-    /// Search personal corpus entities by type (LOC, ORG, PER, MISC).
-    /// Returns most recent/relevant entities, ordered by freshness score.
+    ///     Search personal corpus entities by type (LOC, ORG, PER, MISC).
+    ///     Returns most recent/relevant entities, ordered by freshness score.
     /// </summary>
     public async Task<List<(string name, string type, DateTimeOffset lastSeen)>>
         GetPersonalEntitiesAsync(
@@ -280,7 +278,7 @@ public sealed class PersonalCorpusService
     }
 
     /// <summary>
-    /// Get all personal corpus items (for /me command).
+    ///     Get all personal corpus items (for /me command).
     /// </summary>
     public async Task<List<ContentItem>> GetAllFactsAsync(
         string corpusName, CancellationToken ct = default)
@@ -291,8 +289,8 @@ public sealed class PersonalCorpusService
     }
 
     /// <summary>
-    /// Delete personal facts by entity type or keyword.
-    /// Passing null category deletes all personal items for this corpus.
+    ///     Delete personal facts by entity type or keyword.
+    ///     Passing null category deletes all personal items for this corpus.
     /// </summary>
     public async Task<int> ForgetAsync(
         string corpusName, string? category = null,
@@ -334,10 +332,7 @@ public sealed class PersonalCorpusService
                 .ToList();
         }
 
-        foreach (var item in itemsToDelete)
-        {
-            await _storage.DeleteItemByIdAsync(item.Id);
-        }
+        foreach (var item in itemsToDelete) await _storage.DeleteItemByIdAsync(item.Id);
 
         return itemsToDelete.Count;
     }
@@ -349,17 +344,17 @@ public sealed class PersonalCorpusService
         var lower = text.ToLowerInvariant();
         // Check for first-person pronouns and possessives
         return lower.Contains(" i ") || lower.StartsWith("i ")
-            || lower.Contains(" my ") || lower.StartsWith("my ")
-            || lower.Contains(" i'm ") || lower.StartsWith("i'm ")
-            || lower.Contains(" i am ") || lower.StartsWith("i am ")
-            || lower.Contains(" i've ") || lower.Contains(" i have ")
-            || lower.Contains(" i work ") || lower.Contains(" i live ")
-            || lower.Contains(" i use ") || lower.Contains(" i prefer ");
+                                     || lower.Contains(" my ") || lower.StartsWith("my ")
+                                     || lower.Contains(" i'm ") || lower.StartsWith("i'm ")
+                                     || lower.Contains(" i am ") || lower.StartsWith("i am ")
+                                     || lower.Contains(" i've ") || lower.Contains(" i have ")
+                                     || lower.Contains(" i work ") || lower.Contains(" i live ")
+                                     || lower.Contains(" i use ") || lower.Contains(" i prefer ");
     }
 
     /// <summary>
-    /// Minimal rule-based fallback when LLM is unavailable.
-    /// Only catches very explicit patterns.
+    ///     Minimal rule-based fallback when LLM is unavailable.
+    ///     Only catches very explicit patterns.
     /// </summary>
     private static string? DetectRuleBasedFallback(string question)
     {
@@ -367,29 +362,21 @@ public sealed class PersonalCorpusService
 
         // "I live in X" / "I'm based in X" / "I moved to X"
         if (lower.Contains("i live in") || lower.Contains("i'm based in")
-            || lower.Contains("i am based in") || lower.Contains("i moved to"))
-        {
+                                        || lower.Contains("i am based in") || lower.Contains("i moved to"))
             return ExtractAfterPattern(question,
                 ["i live in", "i'm based in", "i am based in", "i moved to"]);
-        }
 
         // "I work at X" / "I work for X"
         if (lower.Contains("i work at") || lower.Contains("i work for"))
-        {
             return ExtractAfterPattern(question, ["i work at", "i work for"]);
-        }
 
         // "I'm a X" / "I am a X" (role/profession)
         if (lower.Contains("i'm a ") || lower.Contains("i am a "))
-        {
             return ExtractAfterPattern(question, ["i'm a", "i am a"]);
-        }
 
         // "I use X" / "I prefer X"
         if (lower.Contains("i use ") || lower.Contains("i prefer "))
-        {
             return ExtractAfterPattern(question, ["i use", "i prefer"]);
-        }
 
         return null;
     }
@@ -422,12 +409,13 @@ public sealed class PersonalCorpusService
                 return $"User {verb} {fact}";
             }
         }
+
         return null;
     }
 
     /// <summary>
-    /// Detect a name introduction in the user's message.
-    /// Returns the extracted name, or null if no introduction detected.
+    ///     Detect a name introduction in the user's message.
+    ///     Returns the extracted name, or null if no introduction detected.
     /// </summary>
     private static string? DetectName(string text)
     {
@@ -496,8 +484,9 @@ public sealed class PersonalCorpusService
         return name;
     }
 
-    private static bool IsCommonRole(string lower) =>
-        lower is "a" or "an" or "the" or "not" or "so" or "very" or "just" or "really"
+    private static bool IsCommonRole(string lower)
+    {
+        return lower is "a" or "an" or "the" or "not" or "so" or "very" or "just" or "really"
             or "happy" or "sad" or "tired" or "busy" or "sorry" or "fine" or "good" or "great"
             or "new" or "old" or "interested" or "based" or "looking" or "trying" or "working"
             or "using" or "building" or "developing" or "learning" or "studying"
@@ -505,6 +494,7 @@ public sealed class PersonalCorpusService
             or "developer" or "engineer" or "designer" or "manager" or "student"
             or "data" or "scientist" or "analyst" or "researcher" or "founder"
             or "here" or "from" or "going" or "getting" or "doing";
+    }
 
     private static string? NormalizeCategoryToEntityType(string category)
     {
@@ -515,7 +505,7 @@ public sealed class PersonalCorpusService
             "person" or "per" or "name" => "PER",
             "misc" or "tech" or "stack" or "skill" => "MISC",
             "all" => null, // null means delete everything
-            _ => null       // Try as keyword instead
+            _ => null // Try as keyword instead
         };
     }
 }

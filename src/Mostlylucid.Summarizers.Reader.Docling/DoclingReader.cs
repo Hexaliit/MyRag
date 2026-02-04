@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Plugins;
@@ -8,16 +7,17 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizers.Reader.Docling;
 
 /// <summary>
-/// Document reader that delegates to an external Docling service for enhanced
-/// OCR, layout analysis, and structured extraction.
-/// Docling handles scanned PDFs, complex tables, and image-heavy documents
-/// better than pure .NET extraction.
+///     Document reader that delegates to an external Docling service for enhanced
+///     OCR, layout analysis, and structured extraction.
+///     Docling handles scanned PDFs, complex tables, and image-heavy documents
+///     better than pure .NET extraction.
 /// </summary>
 public class DoclingReader : IDocumentReader
 {
+    private static readonly string[] _extensions = [".pdf", ".docx", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"];
+    private readonly string _baseUrl;
     private readonly HttpClient _httpClient;
     private readonly ILogger<DoclingReader> _logger;
-    private readonly string _baseUrl;
 
     public DoclingReader(HttpClient httpClient, ILogger<DoclingReader> logger, string baseUrl = "http://localhost:5001")
     {
@@ -27,17 +27,18 @@ public class DoclingReader : IDocumentReader
     }
 
     public string ReaderName => "docling";
-    private static readonly string[] _extensions = [".pdf", ".docx", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"];
     public IReadOnlyList<string> SupportedExtensions => _extensions;
     public int Priority => 200; // Higher priority when available
 
-    public async Task<ReaderResult> ReadAsync(string filePath, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(string filePath, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         await using var stream = File.OpenRead(filePath);
         return await ReadAsync(stream, Path.GetFileName(filePath), options, ct);
     }
 
-    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         var warnings = new List<string>();
         var metadata = new Dictionary<string, string>();
@@ -62,7 +63,9 @@ public class DoclingReader : IDocumentReader
                 };
             }
 
-            var result = await response.Content.ReadFromJsonAsync<DoclingResponse>(DoclingJsonContext.Default.DoclingResponse, ct);
+            var result =
+                await response.Content.ReadFromJsonAsync<DoclingResponse>(DoclingJsonContext.Default.DoclingResponse,
+                    ct);
             if (result == null)
             {
                 warnings.Add("Docling returned null response");
@@ -107,7 +110,7 @@ public class DoclingReader : IDocumentReader
     }
 
     /// <summary>
-    /// Check if the Docling service is available.
+    ///     Check if the Docling service is available.
     /// </summary>
     public async Task<bool> IsAvailableAsync(CancellationToken ct = default)
     {
@@ -124,33 +127,26 @@ public class DoclingReader : IDocumentReader
 }
 
 /// <summary>
-/// Response from the Docling conversion service.
+///     Response from the Docling conversion service.
 /// </summary>
 public class DoclingResponse
 {
-    [JsonPropertyName("markdown")]
-    public string? Markdown { get; set; }
+    [JsonPropertyName("markdown")] public string? Markdown { get; set; }
 
-    [JsonPropertyName("title")]
-    public string? Title { get; set; }
+    [JsonPropertyName("title")] public string? Title { get; set; }
 
-    [JsonPropertyName("page_count")]
-    public int PageCount { get; set; }
+    [JsonPropertyName("page_count")] public int PageCount { get; set; }
 
-    [JsonPropertyName("tables")]
-    public List<DoclingTable>? Tables { get; set; }
+    [JsonPropertyName("tables")] public List<DoclingTable>? Tables { get; set; }
 }
 
 public class DoclingTable
 {
-    [JsonPropertyName("csv")]
-    public string? Csv { get; set; }
+    [JsonPropertyName("csv")] public string? Csv { get; set; }
 
-    [JsonPropertyName("page")]
-    public int Page { get; set; }
+    [JsonPropertyName("page")] public int Page { get; set; }
 
-    [JsonPropertyName("confidence")]
-    public double Confidence { get; set; }
+    [JsonPropertyName("confidence")] public double Confidence { get; set; }
 }
 
 [JsonSerializable(typeof(DoclingResponse))]

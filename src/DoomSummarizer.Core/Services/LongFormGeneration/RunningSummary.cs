@@ -4,19 +4,19 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Deterministic running summary accumulator.
-/// Instead of LLM-compressing each section, carries forward the top-salience
-/// evidence segment texts from completed sections. This gives each new section
-/// awareness of what was covered without context stuffing.
+///     Deterministic running summary accumulator.
+///     Instead of LLM-compressing each section, carries forward the top-salience
+///     evidence segment texts from completed sections. This gives each new section
+///     awareness of what was covered without context stuffing.
 /// </summary>
 public class RunningSummary
 {
-    private readonly List<SectionDigest> _digests = [];
     private const int MaxTotalChars = 1400;
+    private readonly List<SectionDigest> _digests = [];
 
     /// <summary>
-    /// Record a completed section. Extracts the top-salience segment
-    /// from the section's assigned evidence as the digest.
+    ///     Record a completed section. Extracts the top-salience segment
+    ///     from the section's assigned evidence as the digest.
     /// </summary>
     public void RecordSection(PlannedSection section, int sectionIndex)
     {
@@ -38,10 +38,10 @@ public class RunningSummary
     }
 
     /// <summary>
-    /// Build the running summary string for the next section's context.
-    /// Two-tier compression:
-    ///   Recent 2 sections: full digest (2-3 sentences from top-salience evidence)
-    ///   Older sections: heading + first sentence only
+    ///     Build the running summary string for the next section's context.
+    ///     Two-tier compression:
+    ///     Recent 2 sections: full digest (2-3 sentences from top-salience evidence)
+    ///     Older sections: heading + first sentence only
     /// </summary>
     public string Build()
     {

@@ -5,23 +5,20 @@ using AudioSummarizer.Core.Services.Transcription;
 namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
-/// Transcription Wave - Converts speech to text with timestamped segments.
-/// Priority: 60 (runs after fingerprinting and acoustic profiling)
-/// Signals:
-/// - transcription.text: Full transcript text
-/// - transcription.language: Detected/specified language
-/// - transcription.confidence: Overall confidence score
-/// - transcription.segment_count: Number of timestamped segments
-/// - transcription.provider: Service that performed transcription
+///     Transcription Wave - Converts speech to text with timestamped segments.
+///     Priority: 60 (runs after fingerprinting and acoustic profiling)
+///     Signals:
+///     - transcription.text: Full transcript text
+///     - transcription.language: Detected/specified language
+///     - transcription.confidence: Overall confidence score
+///     - transcription.segment_count: Number of timestamped segments
+///     - transcription.provider: Service that performed transcription
 /// </summary>
 public sealed class TranscriptionWave : IAudioWave
 {
-    private readonly IEnumerable<ITranscriptionService> _transcriptionServices;
     private readonly AudioConfig _config;
     private readonly ILogger<TranscriptionWave> _logger;
-
-    public string Name => "TranscriptionWave";
-    public int Priority => 60;
+    private readonly IEnumerable<ITranscriptionService> _transcriptionServices;
 
     public TranscriptionWave(
         IEnumerable<ITranscriptionService> transcriptionServices,
@@ -32,6 +29,9 @@ public sealed class TranscriptionWave : IAudioWave
         _config = config.Value;
         _logger = logger;
     }
+
+    public string Name => "TranscriptionWave";
+    public int Priority => 60;
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {
@@ -92,7 +92,6 @@ public sealed class TranscriptionWave : IAudioWave
             });
 
             if (transcript.Confidence.HasValue)
-            {
                 signals.Add(new Signal
                 {
                     Name = "transcription.confidence",
@@ -101,7 +100,6 @@ public sealed class TranscriptionWave : IAudioWave
                     Confidence = transcript.Confidence,
                     Source = Name
                 });
-            }
 
             signals.Add(new Signal
             {
@@ -128,7 +126,7 @@ public sealed class TranscriptionWave : IAudioWave
             });
 
             // Store full transcript with segments as JSON
-            var transcriptJson = System.Text.Json.JsonSerializer.Serialize(new
+            var transcriptJson = JsonSerializer.Serialize(new
             {
                 text = transcript.Text,
                 language = transcript.Language,
@@ -140,7 +138,7 @@ public sealed class TranscriptionWave : IAudioWave
                     text = s.Text,
                     confidence = s.Confidence
                 })
-            }, new System.Text.Json.JsonSerializerOptions
+            }, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
@@ -185,18 +183,14 @@ public sealed class TranscriptionWave : IAudioWave
             case TranscriptionBackend.Whisper:
                 var whisperService = _transcriptionServices.FirstOrDefault(s => s.ProviderName == "Whisper.NET");
                 if (whisperService != null && await whisperService.IsAvailableAsync(cancellationToken))
-                {
                     return whisperService;
-                }
                 _logger.LogWarning("Whisper.NET not available");
                 return null;
 
             case TranscriptionBackend.Ollama:
                 var ollamaService = _transcriptionServices.FirstOrDefault(s => s.ProviderName == "Ollama");
                 if (ollamaService != null && await ollamaService.IsAvailableAsync(cancellationToken))
-                {
                     return ollamaService;
-                }
                 _logger.LogWarning("Ollama not available");
                 return null;
 

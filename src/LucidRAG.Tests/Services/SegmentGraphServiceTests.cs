@@ -252,7 +252,7 @@ public class SegmentGraphServiceTests : IDisposable
         var initialHashes = new[] { "hash1" };
 
         // Act
-        var expanded = await _service!.ExpandRetrievalAsync(initialHashes, 1);
+        var expanded = await _service!.ExpandRetrievalAsync(initialHashes);
 
         // Assert
         expanded.Should().NotBeEmpty();
@@ -288,7 +288,7 @@ public class SegmentGraphServiceTests : IDisposable
         var initialHashes = new[] { "chain_start" };
 
         // Act
-        var depth1 = await _service!.ExpandRetrievalAsync(initialHashes, 1);
+        var depth1 = await _service!.ExpandRetrievalAsync(initialHashes);
         var depth2 = await _service.ExpandRetrievalAsync(initialHashes, 2);
 
         // Assert

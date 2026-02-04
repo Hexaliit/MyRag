@@ -1,19 +1,54 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Interprets natural language prompts into actionable fetch commands
-/// Uses a fast "sentinel" LLM for quick triage
+///     Interprets natural language prompts into actionable fetch commands
+///     Uses a fast "sentinel" LLM for quick triage
 /// </summary>
 public partial class PromptInterpreter
 {
-    private readonly OllamaService _ollama;
+    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "must", "shall", "can", "need", "dare",
+        "about", "for", "with", "what", "how", "why", "when", "where", "who",
+        "show", "me", "tell", "give", "get", "find", "search", "scroll",
+        "summarize", "summary", "news", "latest", "recent", "today", "now", "on",
+        "new", "any", "some", "all", "current", "happening", "update", "updates"
+    };
+
+    /// <summary>
+    ///     Lazy-loaded source router for YAML-driven topic routing.
+    ///     Initialized with semantic embeddings when EmbeddingService is available.
+    /// </summary>
+    private static readonly Lazy<SourceRouter> SharedRouter = new(() => SourceRouter.Load());
+
+    /// <summary>
+    ///     Tech-only sources that should be removed when query isn't about tech.
+    ///     The legacy sentinel LLM often defaults to tech sources (hn, reddit)
+    ///     even for entertainment, health, sports queries.
+    /// </summary>
+    private static readonly HashSet<string> TechOnlySources = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "hn", "lobsters", "devto", "techcrunch", "wired", "theregister", "ars", "verge"
+    };
+
+    /// <summary>
+    ///     Topics that warrant tech-specific sources.
+    /// </summary>
+    private static readonly HashSet<string> TechTopics = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "technology", "programming", "ai", "security"
+    };
+
     private readonly IEmbeddingService? _embedding;
+    private readonly OllamaService _ollama;
 
     public PromptInterpreter(OllamaService ollama, IEmbeddingService? embedding = null)
     {
@@ -22,20 +57,23 @@ public partial class PromptInterpreter
     }
 
     /// <summary>
-    /// Interpret a natural language prompt into fetch actions.
-    /// Overload without NER context — delegates to the full version.
+    ///     Interpret a natural language prompt into fetch actions.
+    ///     Overload without NER context — delegates to the full version.
     /// </summary>
     public async Task<InterpretedPrompt> InterpretAsync(string prompt, CancellationToken ct = default)
-        => await InterpretAsync(prompt, nerContext: null, ct);
+    {
+        return await InterpretAsync(prompt, null, ct);
+    }
 
     /// <summary>
-    /// Interpret a natural language prompt into fetch actions.
-    /// Uses a structured sentinel LLM that outputs category weights and intent type
-    /// instead of picking specific sources — source selection is heuristic.
-    /// When NER context is provided, entity-specific search queries are injected
-    /// for more precise API filtering.
+    ///     Interpret a natural language prompt into fetch actions.
+    ///     Uses a structured sentinel LLM that outputs category weights and intent type
+    ///     instead of picking specific sources — source selection is heuristic.
+    ///     When NER context is provided, entity-specific search queries are injected
+    ///     for more precise API filtering.
     /// </summary>
-    public async Task<InterpretedPrompt> InterpretAsync(string prompt, QueryNerContext? nerContext, CancellationToken ct = default)
+    public async Task<InterpretedPrompt> InterpretAsync(string prompt, QueryNerContext? nerContext,
+        CancellationToken ct = default)
     {
         // If Ollama isn't available, use keyword-based fallback
         if (!await _ollama.IsAvailableAsync())
@@ -60,11 +98,11 @@ public partial class PromptInterpreter
                     _ => "entity"
                 }})"));
             userPrompt = $"""
-                Classify this request: "{prompt}"
+                          Classify this request: "{prompt}"
 
-                DETECTED ENTITIES: {entityInfo}
-                Include entity names in search_queries with quotes for exact matching.
-                """;
+                          DETECTED ENTITIES: {entityInfo}
+                          Include entity names in search_queries with quotes for exact matching.
+                          """;
         }
         else
         {
@@ -79,9 +117,10 @@ public partial class PromptInterpreter
             // With JSON mode, the response should be valid JSON directly
             if (string.IsNullOrWhiteSpace(response))
             {
-                System.Diagnostics.Debug.WriteLine("Sentinel returned empty response");
+                Debug.WriteLine("Sentinel returned empty response");
                 throw new InvalidOperationException("Empty sentinel response");
             }
+
             var json = response.Trim();
             if (!json.StartsWith('{'))
             {
@@ -102,9 +141,9 @@ public partial class PromptInterpreter
                 }
                 catch (JsonException ex)
                 {
-                    System.Diagnostics.Debug.WriteLine(
+                    Debug.WriteLine(
                         $"Sentinel JSON parse error: {ex.Message}");
-                    System.Diagnostics.Debug.WriteLine(
+                    Debug.WriteLine(
                         $"Sentinel raw: {json[..Math.Min(json.Length, 400)]}");
                 }
 
@@ -113,10 +152,10 @@ public partial class PromptInterpreter
                     // Debug: show composite query detection
                     if (intent.IsComposite || intent.HasSubqueries)
                     {
-                        System.Diagnostics.Debug.WriteLine(
+                        Debug.WriteLine(
                             $"Composite query detected: {intent.Subqueries?.Count ?? 0} subqueries");
                         foreach (var sq in intent.Subqueries ?? [])
-                            System.Diagnostics.Debug.WriteLine($"  - {sq}");
+                            Debug.WriteLine($"  - {sq}");
                     }
 
                     var router = await GetRouterAsync();
@@ -127,14 +166,16 @@ public partial class PromptInterpreter
                 // Log why SentinelIntent failed - show raw JSON for debugging
                 if (intent != null)
                 {
-                    System.Diagnostics.Debug.WriteLine(
+                    Debug.WriteLine(
                         $"Sentinel: parsed but empty categories. intent={intent.Intent ?? "null"}, queries={string.Join(", ", intent.SearchQueries ?? [])}");
-                    System.Diagnostics.Debug.WriteLine(
+                    Debug.WriteLine(
                         $"Raw JSON: {json[..Math.Min(json.Length, 500)]}");
                 }
                 else
-                    System.Diagnostics.Debug.WriteLine(
+                {
+                    Debug.WriteLine(
                         $"Sentinel: deserialized null. Raw: {json[..Math.Min(json.Length, 300)]}");
+                }
 
                 // Fallback: try legacy ParsedPrompt format (backward compatibility)
                 var parsed = JsonSerializer.Deserialize(json, PromptJsonContext.Default.ParsedPrompt);
@@ -161,10 +202,10 @@ public partial class PromptInterpreter
         catch (Exception ex)
         {
             var trace = ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim() ?? "";
-            System.Diagnostics.Debug.WriteLine(
+            Debug.WriteLine(
                 $"Sentinel failed: {ex.GetType().Name}: {ex.Message}");
             if (!string.IsNullOrEmpty(trace))
-                System.Diagnostics.Debug.WriteLine($"  at {trace}");
+                Debug.WriteLine($"  at {trace}");
         }
 
         var fallbackResult = await FallbackInterpretAsync(prompt);
@@ -174,49 +215,49 @@ public partial class PromptInterpreter
     }
 
     /// <summary>
-    /// Build the structured sentinel system prompt.
-    /// Simplified for small local models — Ollama JSON mode ensures valid output.
+    ///     Build the structured sentinel system prompt.
+    ///     Simplified for small local models — Ollama JSON mode ensures valid output.
     /// </summary>
     private static string BuildStructuredSentinelPrompt(QueryNerContext? nerContext)
     {
         var today = DateTime.Now.ToString("MMMM d, yyyy");
         return $$"""
-            Output JSON classifying the search query. Today is {{today}}.
+                 Output JSON classifying the search query. Today is {{today}}.
 
-            REQUIRED fields:
-            {
-              "categories": {"topic": 0.8},  // Use: technology, ai, programming, science, health, business, finance, politics, world, entertainment, sports
-              "intent": "qa",  // news|roundup|research|howto|qa|search_only|trend|comparison
-              "search_queries": ["optimized search query"],  // 2-3 search queries
-              "filter_keywords": ["keyword1", "keyword2"],  // 3-5 key terms
-              "tone": "neutral"  // neutral|doom|hopeful|snarky|funny
-            }
+                 REQUIRED fields:
+                 {
+                   "categories": {"topic": 0.8},  // Use: technology, ai, programming, science, health, business, finance, politics, world, entertainment, sports
+                   "intent": "qa",  // news|roundup|research|howto|qa|search_only|trend|comparison
+                   "search_queries": ["optimized search query"],  // 2-3 search queries
+                   "filter_keywords": ["keyword1", "keyword2"],  // 3-5 key terms
+                   "tone": "neutral"  // neutral|doom|hopeful|snarky|funny
+                 }
 
-            COMPOSITE queries (multiple questions joined by "and"/"also"):
-            {
-              "is_composite": true,
-              "subqueries": ["First standalone question?", "Second standalone question?"]
-            }
-            Resolve pronouns in each subquery: "it" → the actual subject.
+                 COMPOSITE queries (multiple questions joined by "and"/"also"):
+                 {
+                   "is_composite": true,
+                   "subqueries": ["First standalone question?", "Second standalone question?"]
+                 }
+                 Resolve pronouns in each subquery: "it" → the actual subject.
 
-            Use "search_only" for queries needing a direct web search answer, NOT news feeds:
-            weather, sports scores, stock prices, time zones, unit conversions, "what is X", definitions.
+                 Use "search_only" for queries needing a direct web search answer, NOT news feeds:
+                 weather, sports scores, stock prices, time zones, unit conversions, "what is X", definitions.
 
-            Example: "What happens in Wuthering Heights and when was the latest movie made?"
-            {
-              "categories": {"entertainment": 0.9},
-              "intent": "qa",
-              "search_queries": ["Wuthering Heights plot summary", "Wuthering Heights movie 2024"],
-              "filter_keywords": ["Wuthering Heights", "movie", "plot"],
-              "is_composite": true,
-              "subqueries": ["What is the plot of Wuthering Heights?", "When was the latest Wuthering Heights movie made?"],
-              "tone": "neutral"
-            }
-            """;
+                 Example: "What happens in Wuthering Heights and when was the latest movie made?"
+                 {
+                   "categories": {"entertainment": 0.9},
+                   "intent": "qa",
+                   "search_queries": ["Wuthering Heights plot summary", "Wuthering Heights movie 2024"],
+                   "filter_keywords": ["Wuthering Heights", "movie", "plot"],
+                   "is_composite": true,
+                   "subqueries": ["What is the plot of Wuthering Heights?", "When was the latest Wuthering Heights movie made?"],
+                   "tone": "neutral"
+                 }
+                 """;
     }
 
     /// <summary>
-    /// Keyword-based fallback when LLM isn't available
+    ///     Keyword-based fallback when LLM isn't available
     /// </summary>
     private async Task<InterpretedPrompt> FallbackInterpretAsync(string prompt)
     {
@@ -261,7 +302,6 @@ public partial class PromptInterpreter
         };
 
         foreach (var pattern in imagePatterns)
-        {
             if (lower.Contains(pattern))
             {
                 result.ShowImage = true;
@@ -278,9 +318,9 @@ public partial class PromptInterpreter
                     result.SearchQueries.Add(result.ImageQuery);
                     result.Topics.Add(result.ImageQuery);
                 }
+
                 break;
             }
-        }
 
         // Use YAML-driven topic routing for category detection
         var router = await GetRouterAsync();
@@ -295,6 +335,7 @@ public partial class PromptInterpreter
                 if (mapped != null && !result.Sources.Contains(mapped))
                     result.Sources.Add(mapped);
             }
+
             result.Topics.Add(detectedTopic);
         }
 
@@ -310,7 +351,9 @@ public partial class PromptInterpreter
             var subredditMatch = SubredditPattern().Match(lower);
             if (subredditMatch.Success)
             {
-                var sub = subredditMatch.Groups[1].Success ? subredditMatch.Groups[1].Value : subredditMatch.Groups[2].Value;
+                var sub = subredditMatch.Groups[1].Success
+                    ? subredditMatch.Groups[1].Value
+                    : subredditMatch.Groups[2].Value;
                 result.Sources.Add($"reddit:{sub}");
             }
             else
@@ -325,13 +368,9 @@ public partial class PromptInterpreter
             // Check for tag: "so c#", "stackoverflow python"
             var soTagMatch = StackOverflowTagPattern().Match(lower);
             if (soTagMatch.Success)
-            {
                 result.Sources.Add($"so:{soTagMatch.Groups[1].Value}");
-            }
             else
-            {
                 result.Sources.Add("so");
-            }
         }
 
         // Detect news sources (use source name, not URL - we handle it in ScrollCommand)
@@ -343,7 +382,6 @@ public partial class PromptInterpreter
             "mostlylucid", "medium", "substack"
         };
         foreach (var source in newsSources)
-        {
             if (lower.Contains(source) && !result.Sources.Contains(source))
             {
                 result.Sources.Add(source);
@@ -357,7 +395,6 @@ public partial class PromptInterpreter
                         result.Topics.Add(topicTerms);
                 }
             }
-        }
 
         // If "search" or "find" with a topic, add search query
         if ((lower.Contains("search") || lower.Contains("find") || lower.Contains("about")) &&
@@ -365,10 +402,7 @@ public partial class PromptInterpreter
         {
             // Extract likely search terms - words after "about", "for", "search"
             var searchTerms = ExtractSearchTerms(prompt);
-            if (!string.IsNullOrEmpty(searchTerms))
-            {
-                result.SearchQueries.Add(searchTerms);
-            }
+            if (!string.IsNullOrEmpty(searchTerms)) result.SearchQueries.Add(searchTerms);
         }
 
         // If nothing was detected, treat the prompt as a topic search with YAML routing
@@ -417,8 +451,8 @@ public partial class PromptInterpreter
     }
 
     /// <summary>
-    /// Map a YAML source name (e.g., "google_news", "bbc", "hn") to the CLI source identifier
-    /// used by ScrollCommand (e.g., "gnews:query", "bbc:health", "hn").
+    ///     Map a YAML source name (e.g., "google_news", "bbc", "hn") to the CLI source identifier
+    ///     used by ScrollCommand (e.g., "gnews:query", "bbc:health", "hn").
     /// </summary>
     private static string? MapYamlSourceToCliSource(string yamlSource, RoutingResult routing, string? query)
     {
@@ -464,23 +498,6 @@ public partial class PromptInterpreter
         };
     }
 
-    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "might", "must", "shall", "can", "need", "dare",
-        "about", "for", "with", "what", "how", "why", "when", "where", "who",
-        "show", "me", "tell", "give", "get", "find", "search", "scroll",
-        "summarize", "summary", "news", "latest", "recent", "today", "now", "on",
-        "new", "any", "some", "all", "current", "happening", "update", "updates"
-    };
-
-    /// <summary>
-    /// Lazy-loaded source router for YAML-driven topic routing.
-    /// Initialized with semantic embeddings when EmbeddingService is available.
-    /// </summary>
-    private static readonly Lazy<SourceRouter> SharedRouter = new(() => SourceRouter.Load());
-
     private async Task<SourceRouter> GetRouterAsync()
     {
         var router = SharedRouter.Value;
@@ -491,11 +508,11 @@ public partial class PromptInterpreter
     }
 
     /// <summary>
-    /// Enrich an interpreted prompt with NER-extracted entity queries.
-    /// Only adds precise entity search queries (gnews + search) — does NOT add
-    /// news outlet preferences (bbc:business, reuters, etc.) because NER entity type
-    /// (ORG/PER/LOC) doesn't determine topic category (e.g., "SNL" is ORG but entertainment).
-    /// Topic-based source routing is handled by the sentinel LLM and YAML routing.
+    ///     Enrich an interpreted prompt with NER-extracted entity queries.
+    ///     Only adds precise entity search queries (gnews + search) — does NOT add
+    ///     news outlet preferences (bbc:business, reuters, etc.) because NER entity type
+    ///     (ORG/PER/LOC) doesn't determine topic category (e.g., "SNL" is ORG but entertainment).
+    ///     Topic-based source routing is handled by the sentinel LLM and YAML routing.
     /// </summary>
     private static void EnrichWithNerContext(InterpretedPrompt result, QueryNerContext nerContext)
     {
@@ -505,17 +522,15 @@ public partial class PromptInterpreter
         {
             // Add entity-specific quoted queries as search queries
             if (!result.SearchQueries.Any(q =>
-                q.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase)))
-            {
+                    q.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase)))
                 result.SearchQueries.Add(eq.Query);
-            }
 
             // Add entity-specific gnews queries
             var gnewsQuery = $"gnews:{eq.EntityText}";
             if (!result.Sources.Any(s =>
-                s.Equals(gnewsQuery, StringComparison.OrdinalIgnoreCase) ||
-                (s.StartsWith("gnews:", StringComparison.OrdinalIgnoreCase) &&
-                 s.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase))))
+                    s.Equals(gnewsQuery, StringComparison.OrdinalIgnoreCase) ||
+                    (s.StartsWith("gnews:", StringComparison.OrdinalIgnoreCase) &&
+                     s.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase))))
             {
                 // Insert after existing gnews sources (don't displace them)
                 var lastGnews = result.Sources.FindLastIndex(s =>
@@ -529,28 +544,10 @@ public partial class PromptInterpreter
     }
 
     /// <summary>
-    /// Tech-only sources that should be removed when query isn't about tech.
-    /// The legacy sentinel LLM often defaults to tech sources (hn, reddit)
-    /// even for entertainment, health, sports queries.
-    /// </summary>
-    private static readonly HashSet<string> TechOnlySources = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "hn", "lobsters", "devto", "techcrunch", "wired", "theregister", "ars", "verge"
-    };
-
-    /// <summary>
-    /// Topics that warrant tech-specific sources.
-    /// </summary>
-    private static readonly HashSet<string> TechTopics = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "technology", "programming", "ai", "security"
-    };
-
-    /// <summary>
-    /// Enrich an interpreted prompt with YAML-driven routing.
-    /// The LLM often returns sparse or mismatched sources (e.g., tech sources for entertainment).
-    /// YAML routing ensures the correct source spread for the detected topic AND removes
-    /// tech-only sources when the topic is non-tech.
+    ///     Enrich an interpreted prompt with YAML-driven routing.
+    ///     The LLM often returns sparse or mismatched sources (e.g., tech sources for entertainment).
+    ///     YAML routing ensures the correct source spread for the detected topic AND removes
+    ///     tech-only sources when the topic is non-tech.
     /// </summary>
     private async Task EnrichWithYamlRoutingAsync(InterpretedPrompt result, string prompt)
     {
@@ -563,20 +560,16 @@ public partial class PromptInterpreter
         // If detected topic is NOT tech, remove tech-only sources the LLM mistakenly added.
         // This prevents the legacy sentinel from defaulting to hn/reddit for entertainment queries.
         if (!TechTopics.Contains(detectedTopic))
-        {
             result.Sources.RemoveAll(s => TechOnlySources.Contains(s.Split(':')[0]));
-        }
 
         // Add YAML-routed sources that aren't already present
         foreach (var src in routing.Sources)
         {
             var mapped = MapYamlSourceToCliSource(src, routing, prompt);
             if (mapped != null && !result.Sources.Any(s =>
-                s.Equals(mapped, StringComparison.OrdinalIgnoreCase) ||
-                s.StartsWith(mapped.Split(':')[0], StringComparison.OrdinalIgnoreCase)))
-            {
+                    s.Equals(mapped, StringComparison.OrdinalIgnoreCase) ||
+                    s.StartsWith(mapped.Split(':')[0], StringComparison.OrdinalIgnoreCase)))
                 result.Sources.Add(mapped);
-            }
         }
 
         // Add topic if not already present
@@ -584,8 +577,10 @@ public partial class PromptInterpreter
             result.Topics.Add(detectedTopic);
     }
 
-    private static string ExtractTopicTerms(string prompt) =>
-        ExtractTopicTermsExcluding(prompt, []);
+    private static string ExtractTopicTerms(string prompt)
+    {
+        return ExtractTopicTermsExcluding(prompt, []);
+    }
 
     private static string ExtractTopicTermsExcluding(string prompt, IEnumerable<string> exclude)
     {
@@ -637,31 +632,31 @@ public record InterpretedPrompt
     public List<string> Topics { get; set; } = [];
 
     /// <summary>
-    /// True if user wants to see an image (e.g., "show me an image for...")
+    ///     True if user wants to see an image (e.g., "show me an image for...")
     /// </summary>
     public bool ShowImage { get; set; }
 
     /// <summary>
-    /// Specific image query extracted from prompt
+    ///     Specific image query extracted from prompt
     /// </summary>
     public string? ImageQuery { get; set; }
 
     /// <summary>
-    /// NER-extracted entity context from query preprocessing.
-    /// Available when NER model is installed and query contains named entities.
+    ///     NER-extracted entity context from query preprocessing.
+    ///     Available when NER model is installed and query contains named entities.
     /// </summary>
     public QueryNerContext? NerContext { get; set; }
 
     /// <summary>
-    /// Structured sentinel intent (when using structured JSON sentinel).
-    /// Contains category weights, intent type, tone, time sensitivity.
+    ///     Structured sentinel intent (when using structured JSON sentinel).
+    ///     Contains category weights, intent type, tone, time sensitivity.
     /// </summary>
     public SentinelIntent? SentinelIntent { get; set; }
 
     /// <summary>
-    /// GraphRAG scope: Local (specific), Global (sensemaking), Connective (DRIFT).
-    /// Auto-detected from query patterns and sentinel intent.
-    /// When Global or Connective, entity graph enrichment is auto-enabled.
+    ///     GraphRAG scope: Local (specific), Global (sensemaking), Connective (DRIFT).
+    ///     Auto-detected from query patterns and sentinel intent.
+    ///     When Global or Connective, entity graph enrichment is auto-enabled.
     /// </summary>
     public GraphScope GraphScope { get; set; } = GraphScope.Local;
 }

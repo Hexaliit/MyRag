@@ -1,11 +1,13 @@
 namespace Mostlylucid.DocSummarizer.Data.Models;
 
 /// <summary>
-/// Represents a data file to be analyzed.
-/// Wraps file path with format detection and metadata.
+///     Represents a data file to be analyzed.
+///     Wraps file path with format detection and metadata.
 /// </summary>
 public class DataFile
 {
+    private long? _sizeBytes;
+
     public DataFile(string filePath)
     {
         FilePath = filePath;
@@ -15,38 +17,37 @@ public class DataFile
     }
 
     /// <summary>
-    /// Full path to the data file.
+    ///     Full path to the data file.
     /// </summary>
     public string FilePath { get; }
 
     /// <summary>
-    /// File name without path.
+    ///     File name without path.
     /// </summary>
     public string FileName { get; }
 
     /// <summary>
-    /// File extension (lowercase, with dot).
+    ///     File extension (lowercase, with dot).
     /// </summary>
     public string Extension { get; }
 
     /// <summary>
-    /// Detected data format.
+    ///     Detected data format.
     /// </summary>
     public DataFormat Format { get; }
 
     /// <summary>
-    /// File size in bytes (lazy loaded).
+    ///     File size in bytes (lazy loaded).
     /// </summary>
     public long SizeBytes => _sizeBytes ??= new FileInfo(FilePath).Length;
-    private long? _sizeBytes;
 
     /// <summary>
-    /// Whether the file exists.
+    ///     Whether the file exists.
     /// </summary>
     public bool Exists => File.Exists(FilePath);
 
     /// <summary>
-    /// Get the DuckDB read expression for this file.
+    ///     Get the DuckDB read expression for this file.
     /// </summary>
     public string GetDuckDbReadExpression()
     {
@@ -58,8 +59,10 @@ public class DataFile
             DataFormat.JsonLines => $"read_json('{EscapePath(FilePath)}', format='nd', auto_detect=true)",
             DataFormat.Parquet => $"read_parquet('{EscapePath(FilePath)}')",
             DataFormat.Excel => throw new NotSupportedException("Excel files require special handling - use ClosedXML"),
-            DataFormat.SQLite => throw new NotSupportedException("SQLite files require special handling - use SqliteDatabaseReader"),
-            DataFormat.Access => throw new NotSupportedException("Access files require special handling - use IDatabaseReader"),
+            DataFormat.SQLite => throw new NotSupportedException(
+                "SQLite files require special handling - use SqliteDatabaseReader"),
+            DataFormat.Access => throw new NotSupportedException(
+                "Access files require special handling - use IDatabaseReader"),
             _ => throw new NotSupportedException($"Unsupported format: {Format}")
         };
     }
@@ -88,7 +91,7 @@ public class DataFile
 }
 
 /// <summary>
-/// Supported data file formats.
+///     Supported data file formats.
 /// </summary>
 public enum DataFormat
 {

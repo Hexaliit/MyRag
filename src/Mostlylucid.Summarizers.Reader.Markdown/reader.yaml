@@ -16,7 +16,7 @@ mime_types:
 
 priority: 100
 
-dependencies: []
+dependencies: [ ]
 
 capabilities:
   tables: false          # Passes through markdown tables as-is

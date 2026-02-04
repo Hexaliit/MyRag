@@ -3,10 +3,10 @@ using Spectre.Console;
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Standard progress bar setup used across commands.
-/// Wraps Spectre progress rendering with markup-safety: if any task description
-/// contains unescaped brackets (e.g. "[Go.pdf]"), the error is caught and
-/// the progress bar falls back gracefully instead of crashing the command.
+///     Standard progress bar setup used across commands.
+///     Wraps Spectre progress rendering with markup-safety: if any task description
+///     contains unescaped brackets (e.g. "[Go.pdf]"), the error is caught and
+///     the progress bar falls back gracefully instead of crashing the command.
 /// </summary>
 public static class ProgressHelper
 {
@@ -35,6 +35,7 @@ public static class ProgressHelper
                     Console.Error.WriteLine($"[DIAG] Outer: {ex.GetType().Name}: {ex.Message}");
                 return; // Swallow — the action completed, error is cosmetic
             }
+
             throw; // Not a markup error — rethrow
         }
     }
@@ -47,6 +48,7 @@ public static class ProgressHelper
                 return ex;
             ex = ex.InnerException;
         }
+
         return null;
     }
 }

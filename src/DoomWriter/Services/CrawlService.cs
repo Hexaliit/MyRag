@@ -1,26 +1,23 @@
+using System.Diagnostics;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomWriter.Services;
 
 public class CrawlService : IDisposable
 {
     private readonly IEmbeddingService _embedding;
-    private readonly StorageService _storage;
-    private readonly DuckDbVectorStore _vectorStore;
     private readonly IEntityGraphStore _entityGraph;
     private readonly NerService _ner;
     private readonly WriterSettingsService _settings;
-    private LuceneSearchService? _lucene;
+    private readonly StorageService _storage;
+    private readonly DuckDbVectorStore _vectorStore;
 
     private CancellationTokenSource? _crawlCts;
-
-    public event EventHandler<CrawlProgressUpdate>? CrawlProgress;
-    public event EventHandler<CrawlSessionResult>? CrawlCompleted;
-
-    public bool IsCrawling { get; private set; }
+    private LuceneSearchService? _lucene;
 
     public CrawlService(
         IEmbeddingService embedding,
@@ -38,7 +35,21 @@ public class CrawlService : IDisposable
         _settings = settings;
     }
 
-    public void SetLucene(LuceneSearchService lucene) => _lucene = lucene;
+    public bool IsCrawling { get; private set; }
+
+    public void Dispose()
+    {
+        _crawlCts?.Cancel();
+        _crawlCts?.Dispose();
+    }
+
+    public event EventHandler<CrawlProgressUpdate>? CrawlProgress;
+    public event EventHandler<CrawlSessionResult>? CrawlCompleted;
+
+    public void SetLucene(LuceneSearchService lucene)
+    {
+        _lucene = lucene;
+    }
 
     public async Task StartCrawlAsync(CrawlSource source, CancellationToken ct = default)
     {
@@ -66,16 +77,16 @@ public class CrawlService : IDisposable
 
             var crawler = new WebCrawlerService(httpClient, config);
 
-            int itemsIndexed = 0;
-            int totalVisited = 0;
+            var itemsIndexed = 0;
+            var totalVisited = 0;
 
             CrawlProgress?.Invoke(this, new CrawlProgressUpdate(
                 CrawlStage.Crawling, $"Starting crawl of {source.Url}"));
 
             await foreach (var result in crawler.CrawlAsync(
-                source.Url,
-                cacheProvider: url => GetCacheForUrl(url),
-                ct: token))
+                               source.Url,
+                               url => GetCacheForUrl(url),
+                               ct: token))
             {
                 totalVisited++;
 
@@ -84,8 +95,8 @@ public class CrawlService : IDisposable
                     CrawlProgress?.Invoke(this, new CrawlProgressUpdate(
                         CrawlStage.Crawling,
                         $"Not modified: {result.Url}",
-                        Current: totalVisited,
-                        Total: config.MaxPages));
+                        totalVisited,
+                        config.MaxPages));
                     continue;
                 }
 
@@ -95,9 +106,9 @@ public class CrawlService : IDisposable
                 CrawlProgress?.Invoke(this, new CrawlProgressUpdate(
                     CrawlStage.Embedding,
                     $"Embedding: {item.Title}",
-                    Current: totalVisited,
-                    Total: config.MaxPages,
-                    ItemsIndexed: itemsIndexed));
+                    totalVisited,
+                    config.MaxPages,
+                    itemsIndexed));
 
                 try
                 {
@@ -107,25 +118,23 @@ public class CrawlService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine(
+                    Debug.WriteLine(
                         $"Embedding failed for {item.Url}: {ex.Message}");
                     continue;
                 }
 
                 // Store in DuckDB HNSW
                 if (item.Embedding != null)
-                {
                     await _vectorStore.UpsertItemEmbeddingAsync(
                         item.Id, item.Title, item.Source, item.Url, item.Embedding);
-                }
 
                 // Store in SQLite
                 CrawlProgress?.Invoke(this, new CrawlProgressUpdate(
                     CrawlStage.Saving,
                     $"Saving: {item.Title}",
-                    Current: totalVisited,
-                    Total: config.MaxPages,
-                    ItemsIndexed: itemsIndexed));
+                    totalVisited,
+                    config.MaxPages,
+                    itemsIndexed));
 
                 await _storage.SaveItemAsync(item);
 
@@ -135,10 +144,10 @@ public class CrawlService : IDisposable
                 // Update URL cache
                 await _storage.UpdateUrlCacheAsync(
                     result.Url,
-                    contentHash: null,
-                    etag: result.ETag,
-                    lastModified: result.LastModified,
-                    contentLength: item.Content?.Length ?? 0);
+                    null,
+                    result.ETag,
+                    result.LastModified,
+                    item.Content?.Length ?? 0);
 
                 // NER extraction
                 if (_ner.IsAvailable && !string.IsNullOrEmpty(item.Content))
@@ -146,21 +155,18 @@ public class CrawlService : IDisposable
                     CrawlProgress?.Invoke(this, new CrawlProgressUpdate(
                         CrawlStage.ExtractingEntities,
                         $"Extracting entities: {item.Title}",
-                        Current: totalVisited,
-                        Total: config.MaxPages,
-                        ItemsIndexed: itemsIndexed));
+                        totalVisited,
+                        config.MaxPages,
+                        itemsIndexed));
 
                     try
                     {
                         var entities = await _ner.ExtractEntitiesAsync(item.Content, token);
-                        if (entities.Count > 0)
-                        {
-                            await PersistCrawlEntitiesAsync(item.Id, item.Title, entities);
-                        }
+                        if (entities.Count > 0) await PersistCrawlEntitiesAsync(item.Id, item.Title, entities);
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine(
+                        Debug.WriteLine(
                             $"NER failed for {item.Url}: {ex.Message}");
                     }
                 }
@@ -174,25 +180,25 @@ public class CrawlService : IDisposable
             _settings.Save();
 
             var sessionResult = new CrawlSessionResult(
-                PagesVisited: crawler.PagesVisited,
-                PagesExtracted: crawler.PagesExtracted,
-                PagesSkipped: crawler.PagesSkipped,
-                NewChanged: itemsIndexed,
-                HttpNotModified: crawler.PagesNotModified,
-                ContentHashCached: 0,
-                RetryCount: crawler.RetryCount,
-                FinalAdaptiveDelayMs: crawler.AdaptiveDelayMs,
-                KbName: config.Name);
+                crawler.PagesVisited,
+                crawler.PagesExtracted,
+                crawler.PagesSkipped,
+                itemsIndexed,
+                crawler.PagesNotModified,
+                0,
+                crawler.RetryCount,
+                crawler.AdaptiveDelayMs,
+                config.Name);
 
             CrawlCompleted?.Invoke(this, sessionResult);
 
             CrawlProgress?.Invoke(this, new CrawlProgressUpdate(
                 CrawlStage.Completed,
                 $"Crawl complete. {itemsIndexed} pages indexed.",
-                Current: totalVisited,
-                Total: totalVisited,
-                ItemsIndexed: itemsIndexed,
-                IsComplete: true));
+                totalVisited,
+                totalVisited,
+                itemsIndexed,
+                true));
         }
         catch (OperationCanceledException)
         {
@@ -227,7 +233,7 @@ public class CrawlService : IDisposable
     }
 
     private async Task PersistCrawlEntitiesAsync(
-        string itemId, string title, List<Mostlylucid.DocSummarizer.Services.Onnx.NerEntity> entities)
+        string itemId, string title, List<NerEntity> entities)
     {
         var deduped = entities
             .GroupBy(e => e.Text.ToLowerInvariant())
@@ -247,19 +253,9 @@ public class CrawlService : IDisposable
                 entityId, itemId, (float)entity.Confidence, title);
         }
 
-        for (int i = 0; i < entityIds.Count; i++)
-        {
-            for (int j = i + 1; j < entityIds.Count; j++)
-            {
-                await _entityGraph.UpsertRelationshipAsync(
-                    entityIds[i], entityIds[j], "co_occurs");
-            }
-        }
-    }
-
-    public void Dispose()
-    {
-        _crawlCts?.Cancel();
-        _crawlCts?.Dispose();
+        for (var i = 0; i < entityIds.Count; i++)
+        for (var j = i + 1; j < entityIds.Count; j++)
+            await _entityGraph.UpsertRelationshipAsync(
+                entityIds[i], entityIds[j]);
     }
 }

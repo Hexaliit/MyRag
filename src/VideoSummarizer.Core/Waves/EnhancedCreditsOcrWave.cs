@@ -6,19 +6,14 @@ using VideoSummarizer.Core.Services;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Enhanced OCR processing for title/credits sequences.
-/// Extracts additional frames from title/credits segments and runs
-/// quality OCR using ImageSummarizer's bounding box optimization.
-///
-/// This wave runs after TitleCreditsDetectionWave and uses its detections
-/// to know which regions need enhanced processing.
+///     Enhanced OCR processing for title/credits sequences.
+///     Extracts additional frames from title/credits segments and runs
+///     quality OCR using ImageSummarizer's bounding box optimization.
+///     This wave runs after TitleCreditsDetectionWave and uses its detections
+///     to know which regions need enhanced processing.
 /// </summary>
 public class EnhancedCreditsOcrWave : IVideoWave
 {
-    private readonly FFmpegAnalysisService _ffmpegService;
-    private readonly WaveOrchestrator? _imageOrchestrator;
-    private readonly ILogger<EnhancedCreditsOcrWave> _logger;
-
     // Configuration
     private const int FramesPerSecond = 2; // Sample 2 frames per second in credits
     private const int MaxCreditsFrames = 30; // Limit frames to process
@@ -26,10 +21,9 @@ public class EnhancedCreditsOcrWave : IVideoWave
     private const int ChunkSize = 5; // Process 5 frames per chunk
     private const double ChunkOverlapSeconds = 0.5; // 0.5s overlap between chunks for deduplication
     private const int MaxParallelChunks = 4; // Process up to 4 chunks in parallel
-
-    public string Name => "enhanced_credits_ocr";
-    public int Priority => 780; // After title detection (785), before subtitle extraction (750)
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual];
+    private readonly FFmpegAnalysisService _ffmpegService;
+    private readonly WaveOrchestrator? _imageOrchestrator;
+    private readonly ILogger<EnhancedCreditsOcrWave> _logger;
 
     public EnhancedCreditsOcrWave(
         FFmpegAnalysisService ffmpegService,
@@ -40,6 +34,10 @@ public class EnhancedCreditsOcrWave : IVideoWave
         _imageOrchestrator = imageOrchestrator;
         _logger = logger;
     }
+
+    public string Name => "enhanced_credits_ocr";
+    public int Priority => 780; // After title detection (785), before subtitle extraction (750)
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual];
 
     public bool ShouldRun(VideoContext context)
     {
@@ -128,8 +126,8 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Process a title or credits sequence by extracting frames and running OCR.
-    /// Uses parallel chunk processing with overlap for efficient deduplication.
+    ///     Process a title or credits sequence by extracting frames and running OCR.
+    ///     Uses parallel chunk processing with overlap for efficient deduplication.
     /// </summary>
     private async Task<List<CreditsOcrResult>> ProcessSequenceAsync(
         VideoContext context,
@@ -145,9 +143,9 @@ public class EnhancedCreditsOcrWave : IVideoWave
 
         // Generate timestamps for frame extraction
         var timestamps = new List<double>();
-        for (int i = 0; i < frameCount; i++)
+        for (var i = 0; i < frameCount; i++)
         {
-            var timestamp = segment.StartTime + (i * interval);
+            var timestamp = segment.StartTime + i * interval;
             if (timestamp < segment.EndTime)
                 timestamps.Add(timestamp);
         }
@@ -200,8 +198,8 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Create overlapping chunks from a list of frames for parallel processing.
-    /// Overlap ensures we don't miss text that spans chunk boundaries.
+    ///     Create overlapping chunks from a list of frames for parallel processing.
+    ///     Overlap ensures we don't miss text that spans chunk boundaries.
     /// </summary>
     private List<List<KeyValuePair<double, string>>> CreateOverlappingChunks(
         List<KeyValuePair<double, string>> frames,
@@ -210,25 +208,20 @@ public class EnhancedCreditsOcrWave : IVideoWave
     {
         var chunks = new List<List<KeyValuePair<double, string>>>();
 
-        for (int i = 0; i < frames.Count; i += chunkSize)
+        for (var i = 0; i < frames.Count; i += chunkSize)
         {
             var chunk = new List<KeyValuePair<double, string>>();
 
             // Add main frames for this chunk
-            for (int j = i; j < Math.Min(i + chunkSize, frames.Count); j++)
-            {
-                chunk.Add(frames[j]);
-            }
+            for (var j = i; j < Math.Min(i + chunkSize, frames.Count); j++) chunk.Add(frames[j]);
 
             // Add overlap frames from next chunk (if they exist and are within overlap window)
             var lastTimestamp = chunk.Last().Key;
-            for (int j = i + chunkSize; j < frames.Count; j++)
-            {
+            for (var j = i + chunkSize; j < frames.Count; j++)
                 if (frames[j].Key <= lastTimestamp + overlapSeconds)
                     chunk.Add(frames[j]);
                 else
                     break;
-            }
 
             chunks.Add(chunk);
         }
@@ -237,7 +230,7 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Process a single chunk of frames with ImageSummarizer.
+    ///     Process a single chunk of frames with ImageSummarizer.
     /// </summary>
     private async Task<List<CreditsOcrResult>> ProcessChunkAsync(
         List<KeyValuePair<double, string>> chunk,
@@ -257,17 +250,16 @@ public class EnhancedCreditsOcrWave : IVideoWave
 
                 // Extract OCR text
                 var ocrText = profile.GetValue<string>("ocr.text")
-                           ?? profile.GetValue<string>("ml_ocr.final_text")
-                           ?? "";
+                              ?? profile.GetValue<string>("ml_ocr.final_text")
+                              ?? "";
 
                 var ocrConfidence = profile.GetValue<double?>("ocr.confidence") ?? 0.5;
 
                 // Get bounding boxes if available
                 var boundingBoxes = profile.GetValue<List<object>>("text_detection.regions")
-                                 ?? profile.GetValue<List<object>>("ocr.boxes");
+                                    ?? profile.GetValue<List<object>>("ocr.boxes");
 
                 if (!string.IsNullOrWhiteSpace(ocrText))
-                {
                     results.Add(new CreditsOcrResult
                     {
                         Timestamp = timestamp,
@@ -276,7 +268,6 @@ public class EnhancedCreditsOcrWave : IVideoWave
                         Confidence = ocrConfidence,
                         HasBoundingBoxes = boundingBoxes?.Count > 0
                     });
-                }
             }
             catch (Exception ex)
             {
@@ -288,8 +279,8 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Deduplicate results from overlapping chunks.
-    /// Same timestamp appears once, preferring higher confidence results.
+    ///     Deduplicate results from overlapping chunks.
+    ///     Same timestamp appears once, preferring higher confidence results.
     /// </summary>
     private List<CreditsOcrResult> DeduplicateResults(List<CreditsOcrResult> results)
     {
@@ -301,7 +292,7 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Parse OCR text into individual text segments (names, roles, etc.)
+    ///     Parse OCR text into individual text segments (names, roles, etc.)
     /// </summary>
     private List<TextSegment> ParseTextSegments(string text)
     {
@@ -330,37 +321,33 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Aggregate OCR results using temporal voting to get consensus text.
-    /// Same text appearing in multiple frames increases confidence.
+    ///     Aggregate OCR results using temporal voting to get consensus text.
+    ///     Same text appearing in multiple frames increases confidence.
     /// </summary>
     private List<AggregatedTextEntry> AggregateOcrResults(List<CreditsOcrResult> results)
     {
         var textVotes = new Dictionary<string, TextVoteInfo>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var result in results)
+        foreach (var segment in result.TextSegments)
         {
-            foreach (var segment in result.TextSegments)
-            {
-                var normalizedText = NormalizeText(segment.Text);
-                if (string.IsNullOrWhiteSpace(normalizedText))
-                    continue;
+            var normalizedText = NormalizeText(segment.Text);
+            if (string.IsNullOrWhiteSpace(normalizedText))
+                continue;
 
-                if (!textVotes.ContainsKey(normalizedText))
+            if (!textVotes.ContainsKey(normalizedText))
+                textVotes[normalizedText] = new TextVoteInfo
                 {
-                    textVotes[normalizedText] = new TextVoteInfo
-                    {
-                        OriginalText = segment.Text,
-                        FirstSeen = result.Timestamp,
-                        LastSeen = result.Timestamp,
-                        IsRole = segment.IsRole
-                    };
-                }
+                    OriginalText = segment.Text,
+                    FirstSeen = result.Timestamp,
+                    LastSeen = result.Timestamp,
+                    IsRole = segment.IsRole
+                };
 
-                var vote = textVotes[normalizedText];
-                vote.VoteCount++;
-                vote.ConfidenceSum += result.Confidence;
-                vote.LastSeen = Math.Max(vote.LastSeen, result.Timestamp);
-            }
+            var vote = textVotes[normalizedText];
+            vote.VoteCount++;
+            vote.ConfidenceSum += result.Confidence;
+            vote.LastSeen = Math.Max(vote.LastSeen, result.Timestamp);
         }
 
         // Convert to aggregated entries, boosting confidence for repeated text
@@ -369,7 +356,7 @@ public class EnhancedCreditsOcrWave : IVideoWave
             {
                 Text = v.OriginalText,
                 VoteCount = v.VoteCount,
-                Confidence = Math.Min(0.95, (v.ConfidenceSum / v.VoteCount) + (v.VoteCount * 0.05)),
+                Confidence = Math.Min(0.95, v.ConfidenceSum / v.VoteCount + v.VoteCount * 0.05),
                 FirstSeen = v.FirstSeen,
                 LastSeen = v.LastSeen,
                 IsRole = v.IsRole
@@ -380,7 +367,7 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Normalize text for comparison (lowercase, remove extra whitespace).
+    ///     Normalize text for comparison (lowercase, remove extra whitespace).
     /// </summary>
     private static string NormalizeText(string text)
     {
@@ -389,7 +376,7 @@ public class EnhancedCreditsOcrWave : IVideoWave
     }
 
     /// <summary>
-    /// Create text tracks from aggregated credits OCR results.
+    ///     Create text tracks from aggregated credits OCR results.
     /// </summary>
     private void CreateTextTracksFromCredits(VideoContext context, List<CreditsOcrResult> results)
     {
@@ -406,7 +393,6 @@ public class EnhancedCreditsOcrWave : IVideoWave
                     .Take(10));
 
             if (!string.IsNullOrWhiteSpace(titleText))
-            {
                 context.TextTracks.Add(new TextTrack
                 {
                     Id = Guid.NewGuid(),
@@ -417,7 +403,6 @@ public class EnhancedCreditsOcrWave : IVideoWave
                     TextType = TextTrackType.TitleCard,
                     Confidence = titleResults.Average(r => r.Confidence)
                 });
-            }
         }
 
         if (creditsResults.Count > 0)
@@ -429,7 +414,6 @@ public class EnhancedCreditsOcrWave : IVideoWave
                     .Take(50)); // Credits can have many names
 
             if (!string.IsNullOrWhiteSpace(creditsText))
-            {
                 context.TextTracks.Add(new TextTrack
                 {
                     Id = Guid.NewGuid(),
@@ -440,13 +424,12 @@ public class EnhancedCreditsOcrWave : IVideoWave
                     TextType = TextTrackType.Credits, // Credits track type
                     Confidence = creditsResults.Average(r => r.Confidence)
                 });
-            }
         }
     }
 }
 
 /// <summary>
-/// OCR result from a single credits/title frame.
+///     OCR result from a single credits/title frame.
 /// </summary>
 public record CreditsOcrResult
 {
@@ -458,7 +441,7 @@ public record CreditsOcrResult
 }
 
 /// <summary>
-/// Individual text segment from OCR.
+///     Individual text segment from OCR.
 /// </summary>
 public record TextSegment
 {
@@ -468,7 +451,7 @@ public record TextSegment
 }
 
 /// <summary>
-/// Aggregated text entry after temporal voting.
+///     Aggregated text entry after temporal voting.
 /// </summary>
 public record AggregatedTextEntry
 {
@@ -481,7 +464,7 @@ public record AggregatedTextEntry
 }
 
 /// <summary>
-/// Internal class for vote tracking.
+///     Internal class for vote tracking.
 /// </summary>
 file class TextVoteInfo
 {

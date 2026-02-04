@@ -156,10 +156,7 @@ public static class ServiceCollectionExtensions
             };
 
             // Wire up VLM OCR callback if service is available
-            if (vlmOcrService != null)
-            {
-                service.VlmOcrCallback = vlmOcrService.OcrImageToMarkdownAsync;
-            }
+            if (vlmOcrService != null) service.VlmOcrCallback = vlmOcrService.OcrImageToMarkdownAsync;
 
             return service;
         });
@@ -286,10 +283,7 @@ public static class ServiceCollectionExtensions
             };
 
             // Wire up VLM OCR callback if service is available
-            if (vlmOcrService != null)
-            {
-                service.VlmOcrCallback = vlmOcrService.OcrImageToMarkdownAsync;
-            }
+            if (vlmOcrService != null) service.VlmOcrCallback = vlmOcrService.OcrImageToMarkdownAsync;
 
             return service;
         });
@@ -314,8 +308,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the document wave scanning system services.
-    /// Includes wave manifest loader, escalation service, orchestrator, and individual waves.
+    ///     Registers the document wave scanning system services.
+    ///     Includes wave manifest loader, escalation service, orchestrator, and individual waves.
     /// </summary>
     private static void RegisterDocumentWaveServices(IServiceCollection services)
     {

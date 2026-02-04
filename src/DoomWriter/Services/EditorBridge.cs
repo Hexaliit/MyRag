@@ -5,8 +5,8 @@ using DoomWriter.ViewModels;
 namespace DoomWriter.Services;
 
 /// <summary>
-/// Bridge between C# (Avalonia) and the Vditor JavaScript editor.
-/// Handles bidirectional communication via WebView message protocol.
+///     Bridge between C# (Avalonia) and the Vditor JavaScript editor.
+///     Handles bidirectional communication via WebView message protocol.
 /// </summary>
 public class EditorBridge
 {
@@ -21,8 +21,8 @@ public class EditorBridge
     }
 
     /// <summary>
-    /// Set the JavaScript invocation function from the WebView control.
-    /// Called during view initialization.
+    ///     Set the JavaScript invocation function from the WebView control.
+    ///     Called during view initialization.
     /// </summary>
     public void SetInvokeScript(Func<string, Task<string?>> invokeScript)
     {
@@ -169,23 +169,23 @@ public class EditorBridge
     // --- JS → C# message handling ---
 
     /// <summary>
-    /// Raised when autocomplete is requested from the editor.
+    ///     Raised when autocomplete is requested from the editor.
     /// </summary>
     public event EventHandler<string>? AutocompleteRequested;
 
     /// <summary>
-    /// Raised when a quick action is requested from the editor (Ctrl+. or lightbulb click).
+    ///     Raised when a quick action is requested from the editor (Ctrl+. or lightbulb click).
     /// </summary>
     public event EventHandler<QuickActionRequest>? QuickActionRequested;
 
     /// <summary>
-    /// Raised when spell check is requested for a paragraph (on typing pause).
+    ///     Raised when spell check is requested for a paragraph (on typing pause).
     /// </summary>
     public event EventHandler<string>? SpellCheckRequested;
 
     /// <summary>
-    /// Handle a message received from the WebView (Vditor → C#).
-    /// Call this from the WebView's WebMessageReceived event.
+    ///     Handle a message received from the WebView (Vditor → C#).
+    ///     Call this from the WebView's WebMessageReceived event.
     /// </summary>
     public void HandleWebMessage(string messageJson)
     {

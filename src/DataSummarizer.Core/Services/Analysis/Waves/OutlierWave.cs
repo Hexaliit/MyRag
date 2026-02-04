@@ -4,15 +4,14 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Seventh wave: detects outliers using IQR method.
+///     Seventh wave: detects outliers using IQR method.
 /// </summary>
 public class OutlierWave : IDataAnalysisWave
 {
-    private readonly DuckDbAnalyzer _analyzer;
-    private readonly ILogger<OutlierWave>? _logger;
-
     // IQR multiplier for outlier detection (typically 1.5)
     private const double IqrMultiplier = 1.5;
+    private readonly DuckDbAnalyzer _analyzer;
+    private readonly ILogger<OutlierWave>? _logger;
 
     public OutlierWave(DuckDbAnalyzer analyzer, ILogger<OutlierWave>? logger = null)
     {
@@ -49,18 +48,15 @@ public class OutlierWave : IDataAnalysisWave
             {
                 // Get quartiles from previous wave
                 var quartilesSignal = context.GetBestSignal(DataSignalKeys.StatsQuartiles(column));
-                if (quartilesSignal?.Value is not double[] quartiles || quartiles.Length < 3)
-                {
-                    return colSignals;
-                }
+                if (quartilesSignal?.Value is not double[] quartiles || quartiles.Length < 3) return colSignals;
 
                 var q1 = quartiles[0];
                 var q3 = quartiles[2];
                 var iqr = q3 - q1;
 
                 // Calculate bounds
-                var lowerBound = q1 - (IqrMultiplier * iqr);
-                var upperBound = q3 + (IqrMultiplier * iqr);
+                var lowerBound = q1 - IqrMultiplier * iqr;
+                var upperBound = q3 + IqrMultiplier * iqr;
 
                 // Count outliers
                 var outlierCount = await CountOutliersAsync(column, lowerBound, upperBound, ct);
@@ -69,7 +65,7 @@ public class OutlierWave : IDataAnalysisWave
                 colSignals.Add(CreateSignal(
                     DataSignalKeys.OutlierIqrBounds(column),
                     new[] { lowerBound, upperBound },
-                    metadata: new Dictionary<string, object>
+                    new Dictionary<string, object>
                     {
                         ["q1"] = q1,
                         ["q3"] = q3,
@@ -86,23 +82,21 @@ public class OutlierWave : IDataAnalysisWave
         });
 
         var results = await Task.WhenAll(tasks);
-        foreach (var colSignals in results)
-        {
-            signals.AddRange(colSignals);
-        }
+        foreach (var colSignals in results) signals.AddRange(colSignals);
 
         _logger?.LogDebug("OutlierWave: Analyzed {Count} numeric columns for outliers", numericColumns.Count);
 
         return signals;
     }
 
-    private async Task<int> CountOutliersAsync(string column, double lowerBound, double upperBound, CancellationToken ct)
+    private async Task<int> CountOutliersAsync(string column, double lowerBound, double upperBound,
+        CancellationToken ct)
     {
         var sql = $"""
-            SELECT COUNT(*) FROM data
-            WHERE "{column}" IS NOT NULL
-            AND ("{column}"::DOUBLE < {lowerBound} OR "{column}"::DOUBLE > {upperBound})
-            """;
+                   SELECT COUNT(*) FROM data
+                   WHERE "{column}" IS NOT NULL
+                   AND ("{column}"::DOUBLE < {lowerBound} OR "{column}"::DOUBLE > {upperBound})
+                   """;
 
         return await _analyzer.QueryScalarAsync<int>(sql, ct);
     }

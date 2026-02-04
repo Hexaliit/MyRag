@@ -1,4 +1,3 @@
-using CodeSummarizer.Mermaid.Jint;
 using CodeSummarizer.Parsing;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -13,7 +12,10 @@ public class ComplianceTests : IDisposable
     private readonly JintMermaidParser _jint = new(NullLogger<JintMermaidParser>.Instance);
     private readonly RegexMermaidParser _regex = new();
 
-    public void Dispose() => _jint.Dispose();
+    public void Dispose()
+    {
+        _jint.Dispose();
+    }
 
     // === Complex node shapes ===
 
@@ -22,9 +24,9 @@ public class ComplianceTests : IDisposable
     {
         // Stadium-shaped node: ([label])
         var mermaid = """
-            flowchart LR
-                A([Start]) --> B[Process] --> C([End])
-            """;
+                      flowchart LR
+                          A([Start]) --> B[Process] --> C([End])
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("flowchart");
@@ -36,10 +38,10 @@ public class ComplianceTests : IDisposable
     {
         // Hexagon node: {{label}}
         var mermaid = """
-            flowchart TD
-                A{{Decision}} --> B[Process]
-                A --> C[Alternative]
-            """;
+                      flowchart TD
+                          A{{Decision}} --> B[Process]
+                          A --> C[Alternative]
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("flowchart");
@@ -50,10 +52,10 @@ public class ComplianceTests : IDisposable
     {
         // Subroutine node: [[label]]
         var mermaid = """
-            flowchart TD
-                A[Start] --> B[[Subroutine]]
-                B --> C[End]
-            """;
+                      flowchart TD
+                          A[Start] --> B[[Subroutine]]
+                          B --> C[End]
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("flowchart");
@@ -64,10 +66,10 @@ public class ComplianceTests : IDisposable
     {
         // Database/cylinder: [(label)]
         var mermaid = """
-            flowchart LR
-                A[App] --> B[(Database)]
-                B --> C[Report]
-            """;
+                      flowchart LR
+                          A[App] --> B[(Database)]
+                          B --> C[Report]
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("flowchart");
@@ -79,11 +81,11 @@ public class ComplianceTests : IDisposable
     public void Parse_FlowchartWithBidirectionalLink_ParsesCorrectly()
     {
         var mermaid = """
-            flowchart LR
-                A <--> B
-                B <-.-> C
-                C <==> D
-            """;
+                      flowchart LR
+                          A <--> B
+                          B <-.-> C
+                          C <==> D
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("flowchart");
@@ -93,11 +95,11 @@ public class ComplianceTests : IDisposable
     public void Parse_FlowchartWithLinkText_ParsesCorrectly()
     {
         var mermaid = """
-            flowchart LR
-                A -- text --> B
-                A ---|text| B
-                A -->|text| B
-            """;
+                      flowchart LR
+                          A -- text --> B
+                          A ---|text| B
+                          A -->|text| B
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("flowchart");
@@ -109,15 +111,15 @@ public class ComplianceTests : IDisposable
     public void Parse_FlowchartWithNestedSubgraphs_ParsesCorrectly()
     {
         var mermaid = """
-            flowchart TB
-                subgraph Outer
-                    subgraph Inner
-                        A[Node A] --> B[Node B]
-                    end
-                    B --> C[Node C]
-                end
-                C --> D[Node D]
-            """;
+                      flowchart TB
+                          subgraph Outer
+                              subgraph Inner
+                                  A[Node A] --> B[Node B]
+                              end
+                              B --> C[Node C]
+                          end
+                          C --> D[Node D]
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("flowchart");
@@ -129,10 +131,10 @@ public class ComplianceTests : IDisposable
     public void Parse_SequenceWithActivation_ParsesCorrectly()
     {
         var mermaid = """
-            sequenceDiagram
-                Alice->>+John: Hello John
-                John-->>-Alice: Great!
-            """;
+                      sequenceDiagram
+                          Alice->>+John: Hello John
+                          John-->>-Alice: Great!
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("sequence");
@@ -142,13 +144,13 @@ public class ComplianceTests : IDisposable
     public void Parse_SequenceWithNotes_ParsesCorrectly()
     {
         var mermaid = """
-            sequenceDiagram
-                participant Alice
-                participant Bob
-                Note right of Alice: Alice thinks
-                Alice->>Bob: Hello Bob
-                Note over Alice,Bob: Both pause
-            """;
+                      sequenceDiagram
+                          participant Alice
+                          participant Bob
+                          Note right of Alice: Alice thinks
+                          Alice->>Bob: Hello Bob
+                          Note over Alice,Bob: Both pause
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("sequence");
@@ -158,17 +160,17 @@ public class ComplianceTests : IDisposable
     public void Parse_SequenceWithLoopAndAlt_ParsesCorrectly()
     {
         var mermaid = """
-            sequenceDiagram
-                Alice->>Bob: Hello Bob
-                loop Every minute
-                    Bob->>Alice: Ping
-                end
-                alt is sick
-                    Bob->>Alice: Not well
-                else is well
-                    Bob->>Alice: Feeling fine
-                end
-            """;
+                      sequenceDiagram
+                          Alice->>Bob: Hello Bob
+                          loop Every minute
+                              Bob->>Alice: Ping
+                          end
+                          alt is sick
+                              Bob->>Alice: Not well
+                          else is well
+                              Bob->>Alice: Feeling fine
+                          end
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("sequence");
@@ -180,14 +182,14 @@ public class ComplianceTests : IDisposable
     public void Parse_ClassWithMembers_ParsesCorrectly()
     {
         var mermaid = """
-            classDiagram
-                class BankAccount {
-                    +String owner
-                    +Bigdecimal balance
-                    +deposit(amount)
-                    +withdrawal(amount)
-                }
-            """;
+                      classDiagram
+                          class BankAccount {
+                              +String owner
+                              +Bigdecimal balance
+                              +deposit(amount)
+                              +withdrawal(amount)
+                          }
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("class");
@@ -197,16 +199,16 @@ public class ComplianceTests : IDisposable
     public void Parse_ClassWithGenericTypes_ParsesCorrectly()
     {
         var mermaid = """
-            classDiagram
-                class Square~Shape~ {
-                    int id
-                    List~int~ position
-                    setPoints(List~int~ points)
-                    getPoints() List~int~
-                }
-                Square : -List~string~ messages
-                Square : +setMessages(List~string~ messages)
-            """;
+                      classDiagram
+                          class Square~Shape~ {
+                              int id
+                              List~int~ position
+                              setPoints(List~int~ points)
+                              getPoints() List~int~
+                          }
+                          Square : -List~string~ messages
+                          Square : +setMessages(List~string~ messages)
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("class");
@@ -218,15 +220,15 @@ public class ComplianceTests : IDisposable
     public void Parse_StateWithCompositeStates_ParsesCorrectly()
     {
         var mermaid = """
-            stateDiagram-v2
-                [*] --> Active
-                state Active {
-                    [*] --> Idle
-                    Idle --> Processing : start
-                    Processing --> Idle : done
-                }
-                Active --> [*]
-            """;
+                      stateDiagram-v2
+                          [*] --> Active
+                          state Active {
+                              [*] --> Idle
+                              Idle --> Processing : start
+                              Processing --> Idle : done
+                          }
+                          Active --> [*]
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("state");
@@ -236,16 +238,16 @@ public class ComplianceTests : IDisposable
     public void Parse_StateWithForkJoin_ParsesCorrectly()
     {
         var mermaid = """
-            stateDiagram-v2
-                state fork_state <<fork>>
-                [*] --> fork_state
-                fork_state --> State2
-                fork_state --> State3
-                state join_state <<join>>
-                State2 --> join_state
-                State3 --> join_state
-                join_state --> State4
-            """;
+                      stateDiagram-v2
+                          state fork_state <<fork>>
+                          [*] --> fork_state
+                          fork_state --> State2
+                          fork_state --> State3
+                          state join_state <<join>>
+                          State2 --> join_state
+                          State3 --> join_state
+                          join_state --> State4
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("state");
@@ -257,11 +259,11 @@ public class ComplianceTests : IDisposable
     public void Parse_ErWithAllRelationshipTypes_ParsesCorrectly()
     {
         var mermaid = """
-            erDiagram
-                CUSTOMER ||--o{ ORDER : places
-                ORDER ||--|{ LINE-ITEM : contains
-                CUSTOMER }|..|{ DELIVERY-ADDRESS : uses
-            """;
+                      erDiagram
+                          CUSTOMER ||--o{ ORDER : places
+                          ORDER ||--|{ LINE-ITEM : contains
+                          CUSTOMER }|..|{ DELIVERY-ADDRESS : uses
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("er");
@@ -273,16 +275,16 @@ public class ComplianceTests : IDisposable
     public void Parse_Journey_DetectsType()
     {
         var mermaid = """
-            journey
-                title My working day
-                section Go to work
-                    Make tea: 5: Me
-                    Go upstairs: 3: Me
-                    Do work: 1: Me, Cat
-                section Go home
-                    Go downstairs: 5: Me
-                    Sit down: 5: Me
-            """;
+                      journey
+                          title My working day
+                          section Go to work
+                              Make tea: 5: Me
+                              Go upstairs: 3: Me
+                              Do work: 1: Me, Cat
+                          section Go home
+                              Go downstairs: 5: Me
+                              Sit down: 5: Me
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("journey");
@@ -292,13 +294,13 @@ public class ComplianceTests : IDisposable
     public void Parse_Timeline_DetectsType()
     {
         var mermaid = """
-            timeline
-                title History of Social Media
-                2002 : LinkedIn
-                2004 : Facebook : Google
-                2005 : YouTube
-                2006 : Twitter
-            """;
+                      timeline
+                          title History of Social Media
+                          2002 : LinkedIn
+                          2004 : Facebook : Google
+                          2005 : YouTube
+                          2006 : Twitter
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("timeline");
@@ -308,17 +310,17 @@ public class ComplianceTests : IDisposable
     public void Parse_QuadrantChart_DetectsType()
     {
         var mermaid = """
-            quadrantChart
-                title Reach and engagement
-                x-axis Low Reach --> High Reach
-                y-axis Low Engagement --> High Engagement
-                quadrant-1 We should expand
-                quadrant-2 Need to promote
-                quadrant-3 Re-evaluate
-                quadrant-4 May be improved
-                Campaign A: [0.3, 0.6]
-                Campaign B: [0.45, 0.23]
-            """;
+                      quadrantChart
+                          title Reach and engagement
+                          x-axis Low Reach --> High Reach
+                          y-axis Low Engagement --> High Engagement
+                          quadrant-1 We should expand
+                          quadrant-2 Need to promote
+                          quadrant-3 Re-evaluate
+                          quadrant-4 May be improved
+                          Campaign A: [0.3, 0.6]
+                          Campaign B: [0.45, 0.23]
+                      """;
 
         var result = _jint.Parse(mermaid);
         result.DiagramType.Should().Be("quadrant");

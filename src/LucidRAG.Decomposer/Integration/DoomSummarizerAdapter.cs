@@ -4,23 +4,22 @@ using LucidRAG.Decomposer.Refinement;
 namespace LucidRAG.Decomposer.Integration;
 
 /// <summary>
-/// Adapts DoomSummarizer.Core types to decomposer input/output.
-/// Keeps the decomposer decoupled from DoomSummarizer-specific types.
-///
-/// Usage in DoomSummarizer.Core:
-///   var input = DoomSummarizerAdapter.ToRefinementInput(sentinelIntent);
-///   var result = await pipeline.DecomposeAsync(query, entities, hasUrls, hasDates, input);
-///   var enriched = DoomSummarizerAdapter.EnrichPrompt(interpretedPrompt, result);
+///     Adapts DoomSummarizer.Core types to decomposer input/output.
+///     Keeps the decomposer decoupled from DoomSummarizer-specific types.
+///     Usage in DoomSummarizer.Core:
+///     var input = DoomSummarizerAdapter.ToRefinementInput(sentinelIntent);
+///     var result = await pipeline.DecomposeAsync(query, entities, hasUrls, hasDates, input);
+///     var enriched = DoomSummarizerAdapter.EnrichPrompt(interpretedPrompt, result);
 /// </summary>
 public static class DoomSummarizerAdapter
 {
     /// <summary>
-    /// Convert a SentinelIntent into the decomposer's SentinelRefinementInput.
-    /// Called from DoomSummarizer.Core after PromptInterpreter runs.
+    ///     Convert a SentinelIntent into the decomposer's SentinelRefinementInput.
+    ///     Called from DoomSummarizer.Core after PromptInterpreter runs.
     /// </summary>
     /// <remarks>
-    /// The actual conversion happens in DoomSummarizer.Core where SentinelIntent is accessible.
-    /// This method signature shows the expected mapping.
+    ///     The actual conversion happens in DoomSummarizer.Core where SentinelIntent is accessible.
+    ///     This method signature shows the expected mapping.
     /// </remarks>
     public static SentinelRefinementInput ToRefinementInput(
         bool isComposite,
@@ -50,8 +49,8 @@ public static class DoomSummarizerAdapter
     }
 
     /// <summary>
-    /// Extract enrichment data from a DecompositionResult for feeding back
-    /// to the existing pipeline.
+    ///     Extract enrichment data from a DecompositionResult for feeding back
+    ///     to the existing pipeline.
     /// </summary>
     public static DecompositionEnrichment GetEnrichment(DecompositionResult result)
     {
@@ -65,7 +64,7 @@ public static class DoomSummarizerAdapter
                 .Where(n => n.Type == QueryNodeType.ContentReference)
                 .Select(n => n.Reference!)
                 .ToList(),
-            PrecomputedEmbeddings = result.Signals?.EmbeddingCache ?? new(),
+            PrecomputedEmbeddings = result.Signals?.EmbeddingCache ?? new Dictionary<string, float[]>(),
             QueryEmbedding = result.Signals?.QueryEmbedding,
             LeafCount = result.LeafCount,
             HasPrerequisites = result.Plan.Prerequisites.Count > 0,
@@ -80,7 +79,7 @@ public static class DoomSummarizerAdapter
 }
 
 /// <summary>
-/// Enrichment data extracted from decomposition for the existing pipeline.
+///     Enrichment data extracted from decomposition for the existing pipeline.
 /// </summary>
 public record DecompositionEnrichment
 {

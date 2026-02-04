@@ -1,5 +1,5 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Images.Tests.Models.Dynamic;
 
@@ -81,7 +81,7 @@ public class DynamicImageProfileTests
         var profile = new DynamicImageProfile();
 
         // Act
-        var result = profile.GetValueOrDefault<int>("missing", 99);
+        var result = profile.GetValueOrDefault("missing", 99);
 
         // Assert
         // GetValueOrDefault returns the generic type default (0 for int) if key not found,
@@ -158,9 +158,14 @@ public class DynamicImageProfileTests
     {
         // Arrange
         var profile = new DynamicImageProfile();
-        profile.AddSignal(new Signal { Key = "test1", Value = "A", Confidence = 0.8, Source = "Wave1", Tags = new List<string> { "tag1" } });
-        profile.AddSignal(new Signal { Key = "test2", Value = "B", Confidence = 0.9, Source = "Wave2", Tags = new List<string> { "tag1", "tag2" } });
-        profile.AddSignal(new Signal { Key = "test1", Value = "C", Confidence = 0.7, Source = "Wave1", Tags = new List<string> { "tag2" } });
+        profile.AddSignal(new Signal
+            { Key = "test1", Value = "A", Confidence = 0.8, Source = "Wave1", Tags = new List<string> { "tag1" } });
+        profile.AddSignal(new Signal
+        {
+            Key = "test2", Value = "B", Confidence = 0.9, Source = "Wave2", Tags = new List<string> { "tag1", "tag2" }
+        });
+        profile.AddSignal(new Signal
+            { Key = "test1", Value = "C", Confidence = 0.7, Source = "Wave1", Tags = new List<string> { "tag2" } });
 
         // Act
         var stats = profile.GetStatistics();

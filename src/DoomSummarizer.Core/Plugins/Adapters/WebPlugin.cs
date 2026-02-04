@@ -4,8 +4,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts <see cref="WebsiteFetcher"/> and <see cref="FeedDiscovery"/> to the <see cref="ISourcePlugin"/> contract.
-/// Handles raw HTTP URLs with RSS feed discovery fallback.
+///     Adapts <see cref="WebsiteFetcher" /> and <see cref="FeedDiscovery" /> to the <see cref="ISourcePlugin" /> contract.
+///     Handles raw HTTP URLs with RSS feed discovery fallback.
 /// </summary>
 public sealed class WebPlugin : ISourcePlugin
 {

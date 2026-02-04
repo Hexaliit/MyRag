@@ -6,12 +6,13 @@ using Lucene.Net.Search;
 using Lucene.Net.Store;
 using Lucene.Net.Util;
 using Mostlylucid.DocSummarizer.Search;
+using Directory = System.IO.Directory;
 
 namespace Mostlylucid.DocSummarizer.FullText.Lucene;
 
 /// <summary>
-/// Lucene.NET-based full-text search implementing <see cref="IFullTextSearch"/>.
-/// File-based persistent index with advanced query syntax: fuzzy matching, phrase proximity, field boosting.
+///     Lucene.NET-based full-text search implementing <see cref="IFullTextSearch" />.
+///     File-based persistent index with advanced query syntax: fuzzy matching, phrase proximity, field boosting.
 /// </summary>
 public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
 {
@@ -29,25 +30,37 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
         [FieldContent] = 1.0f
     };
 
-    private readonly FSDirectory _directory;
     private readonly StandardAnalyzer _analyzer;
-    private IndexWriter? _writer;
+
+    private readonly FSDirectory _directory;
+    private readonly object _lock = new();
     private DirectoryReader? _reader;
     private IndexSearcher? _searcher;
-    private readonly object _lock = new();
-
-    public string IndexPath { get; }
+    private IndexWriter? _writer;
 
     public LuceneFullTextSearch(string indexPath)
     {
         IndexPath = indexPath;
-        System.IO.Directory.CreateDirectory(indexPath);
+        Directory.CreateDirectory(indexPath);
 
         _directory = FSDirectory.Open(indexPath);
         _analyzer = new StandardAnalyzer(AppLuceneVersion);
     }
 
-    /// <inheritdoc/>
+    public string IndexPath { get; }
+
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            _reader?.Dispose();
+            _writer?.Dispose();
+            _analyzer.Dispose();
+            _directory.Dispose();
+        }
+    }
+
+    /// <inheritdoc />
     public Task InitializeAsync(CancellationToken ct = default)
     {
         lock (_lock)
@@ -66,8 +79,9 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
         return Task.CompletedTask;
     }
 
-    /// <inheritdoc/>
-    public Task IndexDocumentAsync(string id, string title, string content, IEnumerable<string>? keywords = null, CancellationToken ct = default)
+    /// <inheritdoc />
+    public Task IndexDocumentAsync(string id, string title, string content, IEnumerable<string>? keywords = null,
+        CancellationToken ct = default)
     {
         if (_writer == null) throw new InvalidOperationException("Index not initialized. Call InitializeAsync first.");
 
@@ -88,7 +102,7 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
         return Task.CompletedTask;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public Task<List<FullTextResult>> SearchAsync(string query, int maxResults = 20, CancellationToken ct = default)
     {
         if (_searcher == null || string.IsNullOrWhiteSpace(query))
@@ -128,7 +142,7 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public Task DeleteDocumentAsync(string id, CancellationToken ct = default)
     {
         _writer?.DeleteDocuments(new Term(FieldId, id));
@@ -137,7 +151,7 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
         return Task.CompletedTask;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public Task DeleteAllAsync(CancellationToken ct = default)
     {
         _writer?.DeleteAll();
@@ -155,13 +169,11 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
 
         var boolQuery = new BooleanQuery();
         foreach (var term in terms)
+        foreach (var field in new[] { FieldTitle, FieldKeywords, FieldContent })
         {
-            foreach (var field in new[] { FieldTitle, FieldKeywords, FieldContent })
-            {
-                var boost = FieldBoosts.GetValueOrDefault(field, 1.0f);
-                var fuzzyQuery = new FuzzyQuery(new Term(field, term), 2) { Boost = boost };
-                boolQuery.Add(fuzzyQuery, Occur.SHOULD);
-            }
+            var boost = FieldBoosts.GetValueOrDefault(field, 1.0f);
+            var fuzzyQuery = new FuzzyQuery(new Term(field, term), 2) { Boost = boost };
+            boolQuery.Add(fuzzyQuery, Occur.SHOULD);
         }
 
         var topDocs = _searcher.Search(boolQuery, limit);
@@ -182,7 +194,7 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
         {
             var oldReader = _reader;
             _reader = _writer != null
-                ? DirectoryReader.Open(_writer, applyAllDeletes: true)
+                ? DirectoryReader.Open(_writer, true)
                 : DirectoryReader.Open(_directory);
             _searcher = new IndexSearcher(_reader);
             oldReader?.Dispose();
@@ -203,16 +215,5 @@ public sealed class LuceneFullTextSearch : IFullTextSearch, IDisposable
             .Replace("[", "\\[")
             .Replace("]", "\\]")
             .Replace("/", "\\/");
-    }
-
-    public void Dispose()
-    {
-        lock (_lock)
-        {
-            _reader?.Dispose();
-            _writer?.Dispose();
-            _analyzer.Dispose();
-            _directory.Dispose();
-        }
     }
 }

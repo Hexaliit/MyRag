@@ -3,49 +3,49 @@ using SharedAnalysis = Mostlylucid.Summarizer.Core.Analysis;
 namespace Mostlylucid.DocSummarizer.Scanning;
 
 /// <summary>
-/// Interface for document scanning waves.
-/// Waves are composable processing units that extract information from documents.
-/// Each wave emits signals that downstream waves can consume.
+///     Interface for document scanning waves.
+///     Waves are composable processing units that extract information from documents.
+///     Each wave emits signals that downstream waves can consume.
 /// </summary>
 public interface IDocumentWave
 {
     /// <summary>
-    /// Unique identifier for this wave.
+    ///     Unique identifier for this wave.
     /// </summary>
     string Name { get; }
 
     /// <summary>
-    /// Human-readable description.
+    ///     Human-readable description.
     /// </summary>
     string Description { get; }
 
     /// <summary>
-    /// Execution priority (higher = runs first).
+    ///     Execution priority (higher = runs first).
     /// </summary>
     int Priority { get; }
 
     /// <summary>
-    /// Tags for filtering and categorization.
+    ///     Tags for filtering and categorization.
     /// </summary>
     IReadOnlyList<string> Tags { get; }
 
     /// <summary>
-    /// Signals this wave requires to run.
+    ///     Signals this wave requires to run.
     /// </summary>
     IReadOnlyList<string> RequiredSignals { get; }
 
     /// <summary>
-    /// Signals this wave can emit.
+    ///     Signals this wave can emit.
     /// </summary>
     IReadOnlyList<string> EmittedSignals { get; }
 
     /// <summary>
-    /// Check if this wave should run given the current context.
+    ///     Check if this wave should run given the current context.
     /// </summary>
     bool ShouldRun(DocumentScanContext context);
 
     /// <summary>
-    /// Execute the wave and return signals.
+    ///     Execute the wave and return signals.
     /// </summary>
     Task<IReadOnlyList<DocumentSignal>> ProcessAsync(
         string documentPath,
@@ -54,109 +54,115 @@ public interface IDocumentWave
 }
 
 /// <summary>
-/// A signal emitted by a document wave.
-/// Signals are key-value pairs with metadata about confidence and source.
+///     A signal emitted by a document wave.
+///     Signals are key-value pairs with metadata about confidence and source.
 /// </summary>
 public class DocumentSignal
 {
     /// <summary>
-    /// Signal key using dot notation (e.g., "content.text", "table.0.rows").
+    ///     Signal key using dot notation (e.g., "content.text", "table.0.rows").
     /// </summary>
     public required string Key { get; init; }
 
     /// <summary>
-    /// The signal value (any type - string, int, List, etc.).
+    ///     The signal value (any type - string, int, List, etc.).
     /// </summary>
     public required object? Value { get; init; }
 
     /// <summary>
-    /// Confidence in this signal (0.0 - 1.0).
+    ///     Confidence in this signal (0.0 - 1.0).
     /// </summary>
     public double Confidence { get; init; } = 1.0;
 
     /// <summary>
-    /// Source wave/model that produced this signal.
+    ///     Source wave/model that produced this signal.
     /// </summary>
     public required string Source { get; init; }
 
     /// <summary>
-    /// Tags for categorization.
+    ///     Tags for categorization.
     /// </summary>
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     /// <summary>
-    /// Additional metadata.
+    ///     Additional metadata.
     /// </summary>
     public Dictionary<string, object>? Metadata { get; init; }
 
     /// <summary>
-    /// Convert to the shared Signal type from Summarizer.Core.
+    ///     Convert to the shared Signal type from Summarizer.Core.
     /// </summary>
-    public SharedAnalysis.Signal ToSharedSignal() => new()
+    public SharedAnalysis.Signal ToSharedSignal()
     {
-        Key = Key,
-        Value = Value,
-        Confidence = Confidence,
-        Source = Source,
-        Tags = Tags?.ToList(),
-        Metadata = Metadata
-    };
+        return new SharedAnalysis.Signal
+        {
+            Key = Key,
+            Value = Value,
+            Confidence = Confidence,
+            Source = Source,
+            Tags = Tags?.ToList(),
+            Metadata = Metadata
+        };
+    }
 
     /// <summary>
-    /// Create a DocumentSignal from a shared Signal.
+    ///     Create a DocumentSignal from a shared Signal.
     /// </summary>
-    public static DocumentSignal FromSharedSignal(SharedAnalysis.Signal signal) => new()
+    public static DocumentSignal FromSharedSignal(SharedAnalysis.Signal signal)
     {
-        Key = signal.Key,
-        Value = signal.Value,
-        Confidence = signal.Confidence,
-        Source = signal.Source,
-        Tags = signal.Tags ?? [],
-        Metadata = signal.Metadata
-    };
+        return new DocumentSignal
+        {
+            Key = signal.Key,
+            Value = signal.Value,
+            Confidence = signal.Confidence,
+            Source = signal.Source,
+            Tags = signal.Tags ?? [],
+            Metadata = signal.Metadata
+        };
+    }
 }
 
 /// <summary>
-/// Context shared across document waves during processing.
-/// Accumulates signals and tracks processing state.
+///     Context shared across document waves during processing.
+///     Accumulates signals and tracks processing state.
 /// </summary>
 public class DocumentScanContext
 {
-    private readonly Dictionary<string, DocumentSignal> _signals = new();
     private readonly Dictionary<string, object> _cache = new();
+    private readonly Dictionary<string, DocumentSignal> _signals = new();
 
     /// <summary>
-    /// Source document path.
+    ///     Source document path.
     /// </summary>
     public required string DocumentPath { get; init; }
 
     /// <summary>
-    /// Document extension (lowercase, with dot).
+    ///     Document extension (lowercase, with dot).
     /// </summary>
     public string Extension => Path.GetExtension(DocumentPath).ToLowerInvariant();
 
     /// <summary>
-    /// All signals collected so far.
+    ///     All signals collected so far.
     /// </summary>
     public IReadOnlyDictionary<string, DocumentSignal> Signals => _signals;
 
     /// <summary>
-    /// Processing options.
+    ///     Processing options.
     /// </summary>
     public DocumentScanOptions Options { get; init; } = new();
 
     /// <summary>
-    /// Whether processing has been cancelled.
+    ///     Whether processing has been cancelled.
     /// </summary>
     public bool IsCancelled { get; set; }
 
     /// <summary>
-    /// Whether to force VLM OCR (skip native extraction).
+    ///     Whether to force VLM OCR (skip native extraction).
     /// </summary>
     public bool ForceVlmOcr { get; set; }
 
     /// <summary>
-    /// Add a signal to the context.
+    ///     Add a signal to the context.
     /// </summary>
     public void AddSignal(DocumentSignal signal)
     {
@@ -164,7 +170,7 @@ public class DocumentScanContext
     }
 
     /// <summary>
-    /// Add multiple signals.
+    ///     Add multiple signals.
     /// </summary>
     public void AddSignals(IEnumerable<DocumentSignal> signals)
     {
@@ -173,12 +179,15 @@ public class DocumentScanContext
     }
 
     /// <summary>
-    /// Check if a signal exists.
+    ///     Check if a signal exists.
     /// </summary>
-    public bool HasSignal(string key) => _signals.ContainsKey(key);
+    public bool HasSignal(string key)
+    {
+        return _signals.ContainsKey(key);
+    }
 
     /// <summary>
-    /// Get a signal value.
+    ///     Get a signal value.
     /// </summary>
     public T? GetSignal<T>(string key)
     {
@@ -188,7 +197,7 @@ public class DocumentScanContext
     }
 
     /// <summary>
-    /// Get signal confidence.
+    ///     Get signal confidence.
     /// </summary>
     public double GetConfidence(string key)
     {
@@ -196,7 +205,7 @@ public class DocumentScanContext
     }
 
     /// <summary>
-    /// Check if a signal pattern matches (supports wildcards).
+    ///     Check if a signal pattern matches (supports wildcards).
     /// </summary>
     public bool HasSignalPattern(string pattern)
     {
@@ -205,11 +214,12 @@ public class DocumentScanContext
             var prefix = pattern[..^1];
             return _signals.Keys.Any(k => k.StartsWith(prefix));
         }
+
         return _signals.ContainsKey(pattern);
     }
 
     /// <summary>
-    /// Get or create a cached value.
+    ///     Get or create a cached value.
     /// </summary>
     public T GetOrCreate<T>(string key, Func<T> factory)
     {
@@ -222,7 +232,7 @@ public class DocumentScanContext
     }
 
     /// <summary>
-    /// Set a cached value.
+    ///     Set a cached value.
     /// </summary>
     public void SetCached<T>(string key, T value)
     {
@@ -230,7 +240,7 @@ public class DocumentScanContext
     }
 
     /// <summary>
-    /// Get a cached value.
+    ///     Get a cached value.
     /// </summary>
     public T? GetCached<T>(string key)
     {
@@ -239,47 +249,47 @@ public class DocumentScanContext
 }
 
 /// <summary>
-/// Options for document scanning.
+///     Options for document scanning.
 /// </summary>
 public class DocumentScanOptions
 {
     /// <summary>
-    /// Pipeline to use (e.g., "auto", "fast", "quality").
+    ///     Pipeline to use (e.g., "auto", "fast", "quality").
     /// </summary>
     public string Pipeline { get; set; } = "auto";
 
     /// <summary>
-    /// Preferred VLM model for OCR.
+    ///     Preferred VLM model for OCR.
     /// </summary>
     public string? PreferredOcrModel { get; set; }
 
     /// <summary>
-    /// Whether to extract tables.
+    ///     Whether to extract tables.
     /// </summary>
     public bool ExtractTables { get; set; } = true;
 
     /// <summary>
-    /// Whether to extract charts/figures.
+    ///     Whether to extract charts/figures.
     /// </summary>
     public bool ExtractCharts { get; set; } = false;
 
     /// <summary>
-    /// DPI for rendering PDF pages.
+    ///     DPI for rendering PDF pages.
     /// </summary>
     public int RenderDpi { get; set; } = 300;
 
     /// <summary>
-    /// Specific pages to process (null = all).
+    ///     Specific pages to process (null = all).
     /// </summary>
     public List<int>? Pages { get; set; }
 
     /// <summary>
-    /// Maximum time for processing in milliseconds.
+    ///     Maximum time for processing in milliseconds.
     /// </summary>
     public int TimeoutMs { get; set; } = 300000; // 5 minutes
 
     /// <summary>
-    /// Enable caching of results.
+    ///     Enable caching of results.
     /// </summary>
     public bool EnableCache { get; set; } = true;
 }

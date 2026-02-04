@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 // Orchestration types
 using LaneConfig = Mostlylucid.DocSummarizer.Images.Orchestration.LaneConfig;
 using SignalScope = Mostlylucid.DocSummarizer.Images.Orchestration.SignalScope;
@@ -7,14 +5,14 @@ using SignalScope = Mostlylucid.DocSummarizer.Images.Orchestration.SignalScope;
 namespace Mostlylucid.DocSummarizer.Images.Coordination;
 
 /// <summary>
-/// Coordinator profiles for different processing scenarios.
-/// Each profile configures lane concurrency, timeouts, and wave selection.
+///     Coordinator profiles for different processing scenarios.
+///     Each profile configures lane concurrency, timeouts, and wave selection.
 /// </summary>
 public static class CoordinatorProfiles
 {
     /// <summary>
-    /// Single synchronous request - fast response, limited concurrency.
-    /// Use for: API requests, UI interactions
+    ///     Single synchronous request - fast response, limited concurrency.
+    ///     Use for: API requests, UI interactions
     /// </summary>
     public static CoordinatorProfile SingleRequest => new()
     {
@@ -48,8 +46,8 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Background learning - async model improvement, embeddings, indexing.
-    /// Use for: CLIP embeddings, knowledge graph updates, model fine-tuning signals
+    ///     Background learning - async model improvement, embeddings, indexing.
+    ///     Use for: CLIP embeddings, knowledge graph updates, model fine-tuning signals
     /// </summary>
     public static CoordinatorProfile BackgroundLearning => new()
     {
@@ -79,8 +77,8 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Batch processing - high throughput, parallel execution.
-    /// Use for: Directory processing, bulk imports
+    ///     Batch processing - high throughput, parallel execution.
+    ///     Use for: Directory processing, bulk imports
     /// </summary>
     public static CoordinatorProfile Batch => new()
     {
@@ -116,8 +114,8 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Streaming/real-time - low latency, minimal processing.
-    /// Use for: Live preview, video frame analysis
+    ///     Streaming/real-time - low latency, minimal processing.
+    ///     Use for: Live preview, video frame analysis
     /// </summary>
     public static CoordinatorProfile Streaming => new()
     {
@@ -147,8 +145,8 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Quality analysis - comprehensive, all waves enabled.
-    /// Use for: Final processing, archival, full feature extraction
+    ///     Quality analysis - comprehensive, all waves enabled.
+    ///     Use for: Final processing, archival, full feature extraction
     /// </summary>
     public static CoordinatorProfile Quality => new()
     {
@@ -173,8 +171,8 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Stats only - ultra-fast, identity and color analysis only.
-    /// Use for: Quick metadata extraction, thumbnailing, sorting
+    ///     Stats only - ultra-fast, identity and color analysis only.
+    ///     Use for: Quick metadata extraction, thumbnailing, sorting
     /// </summary>
     public static CoordinatorProfile Stats => new()
     {
@@ -202,8 +200,8 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Motion only - fast GIF/animation analysis.
-    /// Use for: Quick motion detection, animation characterization
+    ///     Motion only - fast GIF/animation analysis.
+    ///     Use for: Quick motion detection, animation characterization
     /// </summary>
     public static CoordinatorProfile Motion => new()
     {
@@ -232,8 +230,8 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Florence2 only - fast local ONNX captioning/OCR.
-    /// Use for: Quick captions without external API calls
+    ///     Florence2 only - fast local ONNX captioning/OCR.
+    ///     Use for: Quick captions without external API calls
     /// </summary>
     public static CoordinatorProfile Florence2 => new()
     {
@@ -262,13 +260,13 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Auto pipeline - fast and good, balanced approach.
-    /// Default pipeline that gives good results without being slow.
-    /// Use for: Most common use cases, quick analysis with quality
+    ///     Auto pipeline - fast and good, balanced approach.
+    ///     Default pipeline that gives good results without being slow.
+    ///     Use for: Most common use cases, quick analysis with quality
     /// </summary>
     /// <summary>
-    /// Fast analysis - quick metadata, color, motion without slow ML.
-    /// Use for: Quick sorting, thumbnailing, basic categorization
+    ///     Fast analysis - quick metadata, color, motion without slow ML.
+    ///     Use for: Quick sorting, thumbnailing, basic categorization
     /// </summary>
     public static CoordinatorProfile Fast => new()
     {
@@ -326,7 +324,7 @@ public static class CoordinatorProfiles
     };
 
     /// <summary>
-    /// Get profile by name (pipeline name mapping).
+    ///     Get profile by name (pipeline name mapping).
     /// </summary>
     public static CoordinatorProfile GetByName(string name)
     {
@@ -340,7 +338,7 @@ public static class CoordinatorProfiles
             "batch" => Batch,
             "quality" => Quality,
             "background-learning" or "learning" => BackgroundLearning,
-            "auto" => Auto,  // Fast without ML by default
+            "auto" => Auto, // Fast without ML by default
             "caption" or "alttext" or "socialmediaalt" or "vision" => SingleRequest, // Full analysis for caption tasks
             _ => Auto // Default to Auto for best experience
         };
@@ -348,7 +346,7 @@ public static class CoordinatorProfiles
 }
 
 /// <summary>
-/// Configuration profile for a coordinator.
+///     Configuration profile for a coordinator.
 /// </summary>
 public sealed class CoordinatorProfile
 {

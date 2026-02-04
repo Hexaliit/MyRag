@@ -4,6 +4,11 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Books.Tests;
 
 public class BookTypeDetectorTests
 {
+    // --- Real sample data tests ---
+
+    private static readonly string SampleDataDir = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Mostlylucid.DocSummarizer", "sampledata"));
+
     [Theory]
     [InlineData("pg12345.txt", BookTypeDetector.Fiction)]
     [InlineData("pg84.txt", BookTypeDetector.Fiction)]
@@ -21,7 +26,7 @@ public class BookTypeDetectorTests
         var result = BookTypeDetector.Detect("Some content here.", filename, wordCount: 10_000);
 
         result.Signals.Should().Contain(s => s.Category == "filename",
-            because: $"filename '{filename}' should produce filename signals");
+            $"filename '{filename}' should produce filename signals");
 
         // The filename signal should vote for the expected type
         result.Signals
@@ -48,12 +53,12 @@ public class BookTypeDetectorTests
     public void Detect_ChapterMarkers_VotesFiction()
     {
         var content = """
-            Chapter 1
-            It was a dark and stormy night.
+                      Chapter 1
+                      It was a dark and stormy night.
 
-            Chapter 2
-            The next morning dawned bright and clear.
-            """;
+                      Chapter 2
+                      The next morning dawned bright and clear.
+                      """;
 
         var result = BookTypeDetector.Detect(content, wordCount: 20_000);
 
@@ -64,13 +69,13 @@ public class BookTypeDetectorTests
     public void Detect_ActSceneMarkers_VotesPlay()
     {
         var content = """
-            ACT I
-            SCENE 1. Elsinore. A platform before the castle.
+                      ACT I
+                      SCENE 1. Elsinore. A platform before the castle.
 
-            FRANCISCO at his post. Enter to him BERNARDO.
+                      FRANCISCO at his post. Enter to him BERNARDO.
 
-            BERNARDO. Who's there?
-            """;
+                      BERNARDO. Who's there?
+                      """;
 
         var result = BookTypeDetector.Detect(content, wordCount: 30_000);
 
@@ -82,15 +87,15 @@ public class BookTypeDetectorTests
     public void Detect_AcademicStructure_VotesAcademic()
     {
         var content = """
-            Abstract
-            This paper presents a novel approach to machine learning.
+                      Abstract
+                      This paper presents a novel approach to machine learning.
 
-            Introduction
-            Recent advances in deep learning have shown that...
+                      Introduction
+                      Recent advances in deep learning have shown that...
 
-            Methodology
-            We employ a transformer-based architecture...
-            """;
+                      Methodology
+                      We employ a transformer-based architecture...
+                      """;
 
         var result = BookTypeDetector.Detect(content, wordCount: 8_000);
 
@@ -115,9 +120,9 @@ public class BookTypeDetectorTests
     public void Detect_Dialogue_VotesFiction()
     {
         var content = """
-            "I never expected this," Sarah said.
-            "Neither did I," replied Tom, looking worried.
-            """;
+                      "I never expected this," Sarah said.
+                      "Neither did I," replied Tom, looking worried.
+                      """;
 
         var result = BookTypeDetector.Detect(content, wordCount: 50_000);
 
@@ -156,11 +161,6 @@ public class BookTypeDetectorTests
         result.Type.Should().BeOneOf(BookTypeDetector.Unknown, BookTypeDetector.Technical);
     }
 
-    // --- Real sample data tests ---
-
-    private static readonly string SampleDataDir = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Mostlylucid.DocSummarizer", "sampledata"));
-
     private static string? TryReadSampleFile(string filename)
     {
         var path = Path.Combine(SampleDataDir, filename);
@@ -172,18 +172,16 @@ public class BookTypeDetectorTests
     {
         var content = TryReadSampleFile("pg84.txt");
         if (content == null)
-        {
             // Skip if sample data not available
             return;
-        }
 
         var result = BookTypeDetector.Detect(content, "pg84.txt");
 
         result.Type.Should().Be(BookTypeDetector.Fiction,
-            because: "pg84.txt (Frankenstein) is a fiction novel");
+            "pg84.txt (Frankenstein) is a fiction novel");
         result.Confidence.Should().BeGreaterThan(0.2);
         result.Signals.Count.Should().BeGreaterThan(2,
-            because: "multiple signals should fire for a real book");
+            "multiple signals should fire for a real book");
     }
 
     [Fact]

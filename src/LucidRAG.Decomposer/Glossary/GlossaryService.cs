@@ -1,4 +1,4 @@
-using System.Reflection;
+using LucidRAG.Decomposer.Models;
 using LucidRAG.Decomposer.Orchestration;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
@@ -7,12 +7,11 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace LucidRAG.Decomposer.Glossary;
 
 /// <summary>
-/// Loads glossary files at startup and seeds the KB with foundational terms.
-/// Plugin packs can ship their own glossary.yaml files (discovered via assembly scanning).
-///
-/// Lifecycle:
-///   Startup glossary (static YAML) → seed at boot → Central Corpus (KB)
-///   KnowledgeGapDetector (runtime) → enriches dynamically → Central Corpus (KB)
+///     Loads glossary files at startup and seeds the KB with foundational terms.
+///     Plugin packs can ship their own glossary.yaml files (discovered via assembly scanning).
+///     Lifecycle:
+///     Startup glossary (static YAML) → seed at boot → Central Corpus (KB)
+///     KnowledgeGapDetector (runtime) → enriches dynamically → Central Corpus (KB)
 /// </summary>
 public class GlossaryService
 {
@@ -24,7 +23,7 @@ public class GlossaryService
     }
 
     /// <summary>
-    /// Load the core glossary from embedded resource.
+    ///     Load the core glossary from embedded resource.
     /// </summary>
     public GlossaryConfig LoadCoreGlossary()
     {
@@ -46,8 +45,8 @@ public class GlossaryService
     }
 
     /// <summary>
-    /// Discover and load glossary files from plugin pack assemblies.
-    /// Scans loaded assemblies for embedded resources named *glossary.yaml.
+    ///     Discover and load glossary files from plugin pack assemblies.
+    ///     Scans loaded assemblies for embedded resources named *glossary.yaml.
     /// </summary>
     public List<GlossaryConfig> DiscoverPluginGlossaries()
     {
@@ -90,8 +89,8 @@ public class GlossaryService
     }
 
     /// <summary>
-    /// Seed all glossary terms into the KB via the provided executor.
-    /// Skips terms already present and fresh (within TTL).
+    ///     Seed all glossary terms into the KB via the provided executor.
+    ///     Skips terms already present and fresh (within TTL).
     /// </summary>
     public async Task SeedAsync(
         ISubQueryExecutor executor,
@@ -110,39 +109,38 @@ public class GlossaryService
             totalTerms, allGlossaries.Count);
 
         foreach (var glossary in allGlossaries)
+        foreach (var term in glossary.Terms)
         {
-            foreach (var term in glossary.Terms)
+            if (ct.IsCancellationRequested) break;
+
+            // Check if already fresh in KB
+            if (await isTermFreshInKb(term.Term))
             {
-                if (ct.IsCancellationRequested) break;
+                skipped++;
+                continue;
+            }
 
-                // Check if already fresh in KB
-                if (await isTermFreshInKb(term.Term))
+            // Seed via executor (rate-limited)
+            try
+            {
+                var node = new QueryNode
                 {
-                    skipped++;
-                    continue;
-                }
+                    Query = term.Query,
+                    Type = QueryNodeType.KnowledgeGap,
+                    IsPrerequisite = false,
+                    StoreResultInKb = true,
+                    Concept = Enum.TryParse<ConceptType>(term.ConceptType, true, out var ct2)
+                        ? ct2
+                        : ConceptType.Definition,
+                    Depth = 0
+                };
 
-                // Seed via executor (rate-limited)
-                try
-                {
-                    var node = new Models.QueryNode
-                    {
-                        Query = term.Query,
-                        Type = Models.QueryNodeType.KnowledgeGap,
-                        IsPrerequisite = false,
-                        StoreResultInKb = true,
-                        Concept = Enum.TryParse<Models.ConceptType>(term.ConceptType, true, out var ct2)
-                            ? ct2 : Models.ConceptType.Definition,
-                        Depth = 0
-                    };
-
-                    await executor.ExecuteAsync(node, ct);
-                    seeded++;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogWarning(ex, "Failed to seed glossary term: {Term}", term.Term);
-                }
+                await executor.ExecuteAsync(node, ct);
+                seeded++;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to seed glossary term: {Term}", term.Term);
             }
         }
 

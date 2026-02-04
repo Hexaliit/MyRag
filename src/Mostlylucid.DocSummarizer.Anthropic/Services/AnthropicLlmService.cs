@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Anthropic.Config;
 using Mostlylucid.DocSummarizer.Services;
@@ -47,7 +48,7 @@ public class AnthropicLlmService : ILlmService
     public AnthropicLlmService(AnthropicConfig config, ILogger<AnthropicLlmService>? logger = null)
     {
         _config = config;
-        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AnthropicLlmService>.Instance;
+        _logger = logger ?? NullLogger<AnthropicLlmService>.Instance;
 
         _jsonOptions = new JsonSerializerOptions
         {

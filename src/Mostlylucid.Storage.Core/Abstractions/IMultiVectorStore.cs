@@ -3,14 +3,14 @@ using Mostlylucid.Storage.Core.Abstractions.Models;
 namespace Mostlylucid.Storage.Core.Abstractions;
 
 /// <summary>
-/// Extended vector store with support for named vectors (multi-modal embeddings).
-/// Allows storing and searching across multiple embedding spaces per document
-/// (e.g., "voice", "visual", "color", "motion").
+///     Extended vector store with support for named vectors (multi-modal embeddings).
+///     Allows storing and searching across multiple embedding spaces per document
+///     (e.g., "voice", "visual", "color", "motion").
 /// </summary>
 public interface IMultiVectorStore : IVectorStore
 {
     /// <summary>
-    /// Initialize a collection with both a primary schema and additional named vectors.
+    ///     Initialize a collection with both a primary schema and additional named vectors.
     /// </summary>
     /// <param name="collectionName">Collection name</param>
     /// <param name="primarySchema">Schema for the primary embedding vector</param>
@@ -23,8 +23,8 @@ public interface IMultiVectorStore : IVectorStore
         CancellationToken ct = default);
 
     /// <summary>
-    /// Upsert documents with named vectors.
-    /// The primary embedding is stored via the base path; named vectors are stored alongside.
+    ///     Upsert documents with named vectors.
+    ///     The primary embedding is stored via the base path; named vectors are stored alongside.
     /// </summary>
     /// <param name="collectionName">Collection name</param>
     /// <param name="documents">Documents with named vectors</param>
@@ -35,7 +35,7 @@ public interface IMultiVectorStore : IVectorStore
         CancellationToken ct = default);
 
     /// <summary>
-    /// Search against a specific named vector.
+    ///     Search against a specific named vector.
     /// </summary>
     /// <param name="collectionName">Collection name</param>
     /// <param name="vectorName">Named vector to search (e.g., "voice", "visual")</param>

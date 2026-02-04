@@ -4,13 +4,13 @@ using AudioSummarizer.Core.Models;
 namespace AudioSummarizer.Core.Services.Analysis;
 
 /// <summary>
-/// Orchestrates the execution of audio analysis waves in priority order.
-/// Follows the wave-based architecture pattern from ImageSummarizer.Core.
+///     Orchestrates the execution of audio analysis waves in priority order.
+///     Follows the wave-based architecture pattern from ImageSummarizer.Core.
 /// </summary>
 public sealed class AudioWaveOrchestrator
 {
-    private readonly IEnumerable<IAudioWave> _waves;
     private readonly ILogger<AudioWaveOrchestrator> _logger;
+    private readonly IEnumerable<IAudioWave> _waves;
 
     public AudioWaveOrchestrator(
         IEnumerable<IAudioWave> waves,
@@ -21,17 +21,14 @@ public sealed class AudioWaveOrchestrator
     }
 
     /// <summary>
-    /// Analyze an audio file by running all waves in priority order
+    ///     Analyze an audio file by running all waves in priority order
     /// </summary>
     /// <param name="audioPath">Path to the audio file</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Complete audio profile with all extracted signals</returns>
     public async Task<AudioProfile> AnalyzeAsync(string audioPath, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(audioPath))
-        {
-            throw new FileNotFoundException($"Audio file not found: {audioPath}");
-        }
+        if (!File.Exists(audioPath)) throw new FileNotFoundException($"Audio file not found: {audioPath}");
 
         var profile = new AudioProfile { AudioPath = audioPath };
         var context = new AnalysisContext();
@@ -45,7 +42,6 @@ public sealed class AudioWaveOrchestrator
         _logger.LogDebug("Executing {WaveCount} waves in priority order", orderedWaves.Count);
 
         foreach (var wave in orderedWaves)
-        {
             try
             {
                 // Check if wave should run
@@ -80,7 +76,6 @@ public sealed class AudioWaveOrchestrator
                 _logger.LogError(ex, "Wave {WaveName} failed: {Message}", wave.Name, ex.Message);
                 profile.Errors.Add($"{wave.Name}: {ex.Message}");
             }
-        }
 
         stopwatch.Stop();
         profile.ProcessingTimeMs = stopwatch.ElapsedMilliseconds;
@@ -95,7 +90,10 @@ public sealed class AudioWaveOrchestrator
     }
 
     /// <summary>
-    /// Get all registered waves ordered by priority
+    ///     Get all registered waves ordered by priority
     /// </summary>
-    public IEnumerable<IAudioWave> GetWaves() => _waves.OrderByDescending(w => w.Priority);
+    public IEnumerable<IAudioWave> GetWaves()
+    {
+        return _waves.OrderByDescending(w => w.Priority);
+    }
 }

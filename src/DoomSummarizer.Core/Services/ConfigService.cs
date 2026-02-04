@@ -1,4 +1,4 @@
-using System.Reflection;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DoomSummarizer.Models;
@@ -20,26 +20,29 @@ public static class ConfigService
 
     public static string? LoadedConfigPath { get; private set; }
 
-    public static string GetConfigDir() => ConfigDir;
-
     /// <summary>
-    /// Optional profile name to apply during LoadAsync.
-    /// Set this before calling LoadAsync to apply a profile via CLI --profile flag.
+    ///     Optional profile name to apply during LoadAsync.
+    ///     Set this before calling LoadAsync to apply a profile via CLI --profile flag.
     /// </summary>
     public static string? RequestedProfile { get; set; }
 
     /// <summary>
-    /// The profile name that was actually applied (after dynamic resolution).
+    ///     The profile name that was actually applied (after dynamic resolution).
     /// </summary>
     public static string? AppliedProfile { get; private set; }
 
+    public static string GetConfigDir()
+    {
+        return ConfigDir;
+    }
+
     /// <summary>
-    /// Load configuration with layered merging:
-    ///   1. YAML embedded defaults (base)
-    ///   2. Profile overlay (if --profile or config.profile is set)
-    ///   3. ~/.doomsummarizer/config.json (user overrides)
-    ///   4. ./doomsummarizer.json (local overrides)
-    /// Env vars and user secrets are handled separately by ApiKeyService.
+    ///     Load configuration with layered merging:
+    ///     1. YAML embedded defaults (base)
+    ///     2. Profile overlay (if --profile or config.profile is set)
+    ///     3. ~/.doomsummarizer/config.json (user overrides)
+    ///     4. ./doomsummarizer.json (local overrides)
+    ///     Env vars and user secrets are handled separately by ApiKeyService.
     /// </summary>
     public static async Task<DoomConfig> LoadAsync()
     {
@@ -56,15 +59,16 @@ public static class ConfigService
 
         // Peek at user config for a persisted profile if no CLI override
         if (profileName == null && File.Exists(ConfigPath))
-        {
             try
             {
                 var peekJson = await File.ReadAllTextAsync(ConfigPath);
                 var peekNode = JsonNode.Parse(peekJson);
                 profileName = peekNode?["profile"]?.GetValue<string>();
             }
-            catch { /* ignore parse errors in profile peek */ }
-        }
+            catch
+            {
+                /* ignore parse errors in profile peek */
+            }
 
         // 2b. Resolve profile name (needed for both early and late application)
         string? resolvedProfileName = null;
@@ -133,7 +137,7 @@ public static class ConfigService
     }
 
     /// <summary>
-    /// Load defaults from embedded YAML resource. Falls back to embedded JSON if YAML is missing.
+    ///     Load defaults from embedded YAML resource. Falls back to embedded JSON if YAML is missing.
     /// </summary>
     internal static DoomConfig LoadYamlDefaults()
     {
@@ -161,7 +165,7 @@ public static class ConfigService
     }
 
     /// <summary>
-    /// Load the raw YAML text from the embedded resource (for --reference output).
+    ///     Load the raw YAML text from the embedded resource (for --reference output).
     /// </summary>
     public static string? LoadYamlDefaultsText()
     {
@@ -183,7 +187,7 @@ public static class ConfigService
         using var stream = assembly.GetManifestResourceStream(resourceName);
         if (stream == null)
         {
-            System.Diagnostics.Debug.WriteLine("Warning: Could not load default config, using hardcoded defaults");
+            Debug.WriteLine("Warning: Could not load default config, using hardcoded defaults");
             LoadedSources.Add("hardcoded defaults");
             return new DoomConfig();
         }
@@ -195,8 +199,8 @@ public static class ConfigService
     }
 
     /// <summary>
-    /// Convert a DoomConfig to a JsonNode tree for merging.
-    /// Uses the same camelCase serializer options as DoomConfigContext.
+    ///     Convert a DoomConfig to a JsonNode tree for merging.
+    ///     Uses the same camelCase serializer options as DoomConfigContext.
     /// </summary>
     internal static JsonNode ConfigToJsonNode(DoomConfig config)
     {
@@ -205,8 +209,8 @@ public static class ConfigService
     }
 
     /// <summary>
-    /// Deep-merge <paramref name="overrides"/> into <paramref name="baseNode"/> in place.
-    /// Objects are merged key-by-key; scalars and arrays are replaced outright.
+    ///     Deep-merge <paramref name="overrides" /> into <paramref name="baseNode" /> in place.
+    ///     Objects are merged key-by-key; scalars and arrays are replaced outright.
     /// </summary>
     internal static void DeepMerge(JsonNode baseNode, JsonNode overrides)
     {
@@ -222,7 +226,8 @@ public static class ConfigService
                 continue;
             }
 
-            if (baseObj.ContainsKey(key) && baseObj[key] is JsonObject existingObj && value is JsonObject nestedOverride)
+            if (baseObj.ContainsKey(key) && baseObj[key] is JsonObject existingObj &&
+                value is JsonObject nestedOverride)
             {
                 // Recursively merge nested objects
                 DeepMerge(existingObj, nestedOverride);
@@ -237,8 +242,8 @@ public static class ConfigService
     }
 
     /// <summary>
-    /// Compare two configs and return keys where the effective value differs from defaults.
-    /// Returns a flat dictionary of dotted paths to their effective values.
+    ///     Compare two configs and return keys where the effective value differs from defaults.
+    ///     Returns a flat dictionary of dotted paths to their effective values.
     /// </summary>
     public static Dictionary<string, string> GetOverrides(DoomConfig defaults, DoomConfig effective)
     {
@@ -277,7 +282,7 @@ public static class ConfigService
     }
 
     /// <summary>
-    /// Generate a starter config.json with commonly-changed settings only.
+    ///     Generate a starter config.json with commonly-changed settings only.
     /// </summary>
     public static async Task InitializeStarterConfigAsync()
     {
@@ -301,7 +306,7 @@ public static class ConfigService
     }
 
     /// <summary>
-    /// Generate a full config.json with all settings (for --init --full).
+    ///     Generate a full config.json with all settings (for --init --full).
     /// </summary>
     public static async Task InitializeFullConfigAsync()
     {

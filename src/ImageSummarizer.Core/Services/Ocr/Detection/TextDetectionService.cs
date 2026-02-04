@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Mostlylucid.DocSummarizer.Images.Config;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -11,23 +10,15 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.Detection;
 
 /// <summary>
-/// Text detection service that identifies text regions in images.
-///
-/// Detection methods (in order of preference):
-/// 1. EAST (ONNX) - Deep learning scene text detector (if model available)
-/// 2. CRAFT (ONNX) - Character-level text detector (if model available)
-/// 3. Tesseract PSM - Fallback using Tesseract's page segmentation
-///
-/// Gracefully falls back to simpler methods if ONNX models unavailable.
+///     Text detection service that identifies text regions in images.
+///     Detection methods (in order of preference):
+///     1. EAST (ONNX) - Deep learning scene text detector (if model available)
+///     2. CRAFT (ONNX) - Character-level text detector (if model available)
+///     3. Tesseract PSM - Fallback using Tesseract's page segmentation
+///     Gracefully falls back to simpler methods if ONNX models unavailable.
 /// </summary>
 public class TextDetectionService : ITextDetectionService
 {
-    private readonly ILogger<TextDetectionService>? _logger;
-    private readonly ModelDownloader _modelDownloader;
-    private readonly OnnxSessionFactory? _sessionFactory;
-    private readonly OcrConfig _config;
-    private readonly bool _verbose;
-
     // EAST model constants
     private const int EastInputSize = 320; // Must be multiple of 32
     private const float EastScoreThreshold = 0.5f;
@@ -36,6 +27,11 @@ public class TextDetectionService : ITextDetectionService
     // Cached ONNX sessions
     private static InferenceSession? _eastSession;
     private static readonly object _modelLock = new();
+    private readonly OcrConfig _config;
+    private readonly ILogger<TextDetectionService>? _logger;
+    private readonly ModelDownloader _modelDownloader;
+    private readonly OnnxSessionFactory? _sessionFactory;
+    private readonly bool _verbose;
 
     public TextDetectionService(
         ModelDownloader modelDownloader,
@@ -51,8 +47,8 @@ public class TextDetectionService : ITextDetectionService
     }
 
     /// <summary>
-    /// Detect text regions in an image.
-    /// Returns bounding boxes for detected text regions.
+    ///     Detect text regions in an image.
+    ///     Returns bounding boxes for detected text regions.
     /// </summary>
     public async Task<TextDetectionResult> DetectTextRegionsAsync(
         string imagePath,
@@ -68,7 +64,6 @@ public class TextDetectionService : ITextDetectionService
             {
                 var eastPath = await _modelDownloader.GetModelPathAsync(ModelType.EAST, ct);
                 if (eastPath != null)
-                {
                     try
                     {
                         _logger?.LogInformation("Using EAST text detection (ONNX model available)");
@@ -81,7 +76,6 @@ public class TextDetectionService : ITextDetectionService
                         _logger?.LogWarning(ex, "EAST inference failed, falling back to Tesseract PSM");
                         detectionMethod = "None";
                     }
-                }
             }
 
             // Try CRAFT detection if enabled and EAST not available/failed
@@ -89,7 +83,6 @@ public class TextDetectionService : ITextDetectionService
             {
                 var craftPath = await _modelDownloader.GetModelPathAsync(ModelType.CRAFT, ct);
                 if (craftPath != null)
-                {
                     try
                     {
                         _logger?.LogInformation("Using CRAFT text detection (ONNX model available)");
@@ -102,7 +95,6 @@ public class TextDetectionService : ITextDetectionService
                         _logger?.LogWarning(ex, "CRAFT inference failed, falling back to Tesseract PSM");
                         detectionMethod = "None";
                     }
-                }
             }
 
             // Fallback: Use Tesseract PSM (no external models needed)
@@ -138,7 +130,7 @@ public class TextDetectionService : ITextDetectionService
     }
 
     /// <summary>
-    /// Apply non-maximum suppression to merge overlapping bounding boxes.
+    ///     Apply non-maximum suppression to merge overlapping bounding boxes.
     /// </summary>
     public List<BoundingBox> ApplyNonMaximumSuppression(
         List<BoundingBox> boxes,
@@ -174,7 +166,7 @@ public class TextDetectionService : ITextDetectionService
     }
 
     /// <summary>
-    /// Compute Intersection over Union (IoU) between two bounding boxes.
+    ///     Compute Intersection over Union (IoU) between two bounding boxes.
     /// </summary>
     private double ComputeIoU(BoundingBox box1, BoundingBox box2)
     {
@@ -196,8 +188,8 @@ public class TextDetectionService : ITextDetectionService
     #region EAST Detection
 
     /// <summary>
-    /// Run EAST (Efficient and Accurate Scene Text) detection on an image.
-    /// EAST outputs score map and geometry for rotated bounding boxes.
+    ///     Run EAST (Efficient and Accurate Scene Text) detection on an image.
+    ///     EAST outputs score map and geometry for rotated bounding boxes.
     /// </summary>
     private async Task<List<BoundingBox>> RunEastDetectionAsync(
         string imagePath,
@@ -214,8 +206,8 @@ public class TextDetectionService : ITextDetectionService
         var originalHeight = image.Height;
 
         // EAST requires input size to be multiple of 32
-        var inputWidth = ((originalWidth + 31) / 32) * 32;
-        var inputHeight = ((originalHeight + 31) / 32) * 32;
+        var inputWidth = (originalWidth + 31) / 32 * 32;
+        var inputHeight = (originalHeight + 31) / 32 * 32;
         inputWidth = Math.Min(inputWidth, EastInputSize);
         inputHeight = Math.Min(inputHeight, EastInputSize);
 
@@ -306,9 +298,9 @@ public class TextDetectionService : ITextDetectionService
                 {
                     var pixel = row[x];
                     // BGR order with mean subtraction
-                    tensor[0, 0, y, x] = pixel.B - meanB;  // B channel
-                    tensor[0, 1, y, x] = pixel.G - meanG;  // G channel
-                    tensor[0, 2, y, x] = pixel.R - meanR;  // R channel
+                    tensor[0, 0, y, x] = pixel.B - meanB; // B channel
+                    tensor[0, 1, y, x] = pixel.G - meanG; // G channel
+                    tensor[0, 2, y, x] = pixel.R - meanR; // R channel
                 }
             }
         });
@@ -333,46 +325,42 @@ public class TextDetectionService : ITextDetectionService
         var scaleY = (float)originalHeight / inputHeight;
 
         for (var y = 0; y < scoreHeight; y++)
+        for (var x = 0; x < scoreWidth; x++)
         {
-            for (var x = 0; x < scoreWidth; x++)
-            {
-                var score = scores[0, 0, y, x];
-                if (score < EastScoreThreshold) continue;
+            var score = scores[0, 0, y, x];
+            if (score < EastScoreThreshold) continue;
 
-                // Geometry: [top, right, bottom, left, angle]
-                var top = geometry[0, 0, y, x];
-                var right = geometry[0, 1, y, x];
-                var bottom = geometry[0, 2, y, x];
-                var left = geometry[0, 3, y, x];
-                // var angle = geometry[0, 4, y, x]; // For rotated boxes
+            // Geometry: [top, right, bottom, left, angle]
+            var top = geometry[0, 0, y, x];
+            var right = geometry[0, 1, y, x];
+            var bottom = geometry[0, 2, y, x];
+            var left = geometry[0, 3, y, x];
 
-                // Convert to image coordinates
-                var offsetX = x * 4.0f; // EAST uses stride 4
-                var offsetY = y * 4.0f;
+            // var angle = geometry[0, 4, y, x]; // For rotated boxes
+            // Convert to image coordinates
+            var offsetX = x * 4.0f; // EAST uses stride 4
+            var offsetY = y * 4.0f;
 
-                var x1 = (int)((offsetX - left) * scaleX);
-                var y1 = (int)((offsetY - top) * scaleY);
-                var x2 = (int)((offsetX + right) * scaleX);
-                var y2 = (int)((offsetY + bottom) * scaleY);
+            var x1 = (int)((offsetX - left) * scaleX);
+            var y1 = (int)((offsetY - top) * scaleY);
+            var x2 = (int)((offsetX + right) * scaleX);
+            var y2 = (int)((offsetY + bottom) * scaleY);
 
-                // Clamp to image bounds
-                x1 = Math.Max(0, Math.Min(x1, originalWidth - 1));
-                y1 = Math.Max(0, Math.Min(y1, originalHeight - 1));
-                x2 = Math.Max(0, Math.Min(x2, originalWidth - 1));
-                y2 = Math.Max(0, Math.Min(y2, originalHeight - 1));
+            // Clamp to image bounds
+            x1 = Math.Max(0, Math.Min(x1, originalWidth - 1));
+            y1 = Math.Max(0, Math.Min(y1, originalHeight - 1));
+            x2 = Math.Max(0, Math.Min(x2, originalWidth - 1));
+            y2 = Math.Max(0, Math.Min(y2, originalHeight - 1));
 
-                if (x2 > x1 && y2 > y1)
+            if (x2 > x1 && y2 > y1)
+                boxes.Add(new BoundingBox
                 {
-                    boxes.Add(new BoundingBox
-                    {
-                        X1 = x1,
-                        Y1 = y1,
-                        X2 = x2,
-                        Y2 = y2,
-                        Confidence = score
-                    });
-                }
-            }
+                    X1 = x1,
+                    Y1 = y1,
+                    X2 = x2,
+                    Y2 = y2,
+                    Confidence = score
+                });
         }
 
         _logger?.LogDebug("EAST decoded {Count} candidate boxes before NMS", boxes.Count);
@@ -384,8 +372,8 @@ public class TextDetectionService : ITextDetectionService
     #region CRAFT Detection
 
     /// <summary>
-    /// Run CRAFT (Character Region Awareness for Text) detection on an image.
-    /// CRAFT excels at detecting curved and rotated text by finding character-level regions.
+    ///     Run CRAFT (Character Region Awareness for Text) detection on an image.
+    ///     CRAFT excels at detecting curved and rotated text by finding character-level regions.
     /// </summary>
     private async Task<List<BoundingBox>> RunCraftDetectionAsync(
         string imagePath,
@@ -529,43 +517,39 @@ public class TextDetectionService : ITextDetectionService
         var visited = new bool[scoreHeight, scoreWidth];
 
         for (var y = 0; y < scoreHeight; y++)
+        for (var x = 0; x < scoreWidth; x++)
         {
-            for (var x = 0; x < scoreWidth; x++)
-            {
-                if (visited[y, x]) continue;
+            if (visited[y, x]) continue;
 
-                var score = textScore[0, 0, y, x];
-                if (score < threshold) continue;
+            var score = textScore[0, 0, y, x];
+            if (score < threshold) continue;
 
-                // Find connected component (simple flood fill)
-                var (minX, minY, maxX, maxY, avgScore) = FloodFillRegion(
-                    textScore, visited, x, y, scoreWidth, scoreHeight, threshold);
+            // Find connected component (simple flood fill)
+            var (minX, minY, maxX, maxY, avgScore) = FloodFillRegion(
+                textScore, visited, x, y, scoreWidth, scoreHeight, threshold);
 
-                // Convert to image coordinates
-                var x1 = (int)(minX * scaleX);
-                var y1 = (int)(minY * scaleY);
-                var x2 = (int)(maxX * scaleX);
-                var y2 = (int)(maxY * scaleY);
+            // Convert to image coordinates
+            var x1 = (int)(minX * scaleX);
+            var y1 = (int)(minY * scaleY);
+            var x2 = (int)(maxX * scaleX);
+            var y2 = (int)(maxY * scaleY);
 
-                // Clamp and add padding
-                const int padding = 5;
-                x1 = Math.Max(0, x1 - padding);
-                y1 = Math.Max(0, y1 - padding);
-                x2 = Math.Min(originalWidth - 1, x2 + padding);
-                y2 = Math.Min(originalHeight - 1, y2 + padding);
+            // Clamp and add padding
+            const int padding = 5;
+            x1 = Math.Max(0, x1 - padding);
+            y1 = Math.Max(0, y1 - padding);
+            x2 = Math.Min(originalWidth - 1, x2 + padding);
+            y2 = Math.Min(originalHeight - 1, y2 + padding);
 
-                if (x2 > x1 + 10 && y2 > y1 + 5) // Min size filter
+            if (x2 > x1 + 10 && y2 > y1 + 5) // Min size filter
+                boxes.Add(new BoundingBox
                 {
-                    boxes.Add(new BoundingBox
-                    {
-                        X1 = x1,
-                        Y1 = y1,
-                        X2 = x2,
-                        Y2 = y2,
-                        Confidence = avgScore
-                    });
-                }
-            }
+                    X1 = x1,
+                    Y1 = y1,
+                    X2 = x2,
+                    Y2 = y2,
+                    Confidence = avgScore
+                });
         }
 
         _logger?.LogDebug("CRAFT decoded {Count} text regions before NMS", boxes.Count);
@@ -623,28 +607,28 @@ public class TextDetectionService : ITextDetectionService
 }
 
 /// <summary>
-/// Result of text detection operation.
+///     Result of text detection operation.
 /// </summary>
 public record TextDetectionResult
 {
     /// <summary>
-    /// Detection method used (EAST, CRAFT, TesseractPSM, or Failed).
+    ///     Detection method used (EAST, CRAFT, TesseractPSM, or Failed).
     /// </summary>
     public required string DetectionMethod { get; init; }
 
     /// <summary>
-    /// Detected text region bounding boxes.
-    /// Empty list means "use full image OCR" (Tesseract PSM mode).
+    ///     Detected text region bounding boxes.
+    ///     Empty list means "use full image OCR" (Tesseract PSM mode).
     /// </summary>
     public required List<BoundingBox> BoundingBoxes { get; init; }
 
     /// <summary>
-    /// Whether detection succeeded.
+    ///     Whether detection succeeded.
     /// </summary>
     public required bool Success { get; init; }
 
     /// <summary>
-    /// Error message if detection failed.
+    ///     Error message if detection failed.
     /// </summary>
     public string? ErrorMessage { get; init; }
 }

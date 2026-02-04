@@ -18,6 +18,11 @@ public sealed partial class TreeSitterParser : IDisposable
         _logger = logger;
     }
 
+    public void Dispose()
+    {
+        // Tree-sitter resources are disposed per-parse via using statements
+    }
+
     /// <summary>
     ///     Parse code and extract structural elements using Tree-sitter.
     ///     Falls back to regex-based heuristics if the language isn't supported
@@ -64,7 +69,8 @@ public sealed partial class TreeSitterParser : IDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Tree-sitter parse failed for '{Language}', falling back to heuristic", fenceLanguage);
+            _logger?.LogWarning(ex, "Tree-sitter parse failed for '{Language}', falling back to heuristic",
+                fenceLanguage);
             return HeuristicParse(code, fenceLanguage, totalLines);
         }
     }
@@ -103,37 +109,46 @@ public sealed partial class TreeSitterParser : IDisposable
             WalkTree(child, source, functions, classes, imports, language);
     }
 
-    private static bool IsFunctionNode(string nodeType) =>
-        nodeType is "function_definition" or "function_declaration"
+    private static bool IsFunctionNode(string nodeType)
+    {
+        return nodeType is "function_definition" or "function_declaration"
             or "method_definition" or "method_declaration"
             or "function_item" // Rust
             or "arrow_function"
             or "function_expression"
             or "constructor_declaration"
             or "function" // some grammars
-            or "decorated_definition"; // Python with decorators
+            or "decorated_definition";
+        // Python with decorators
+    }
 
-    private static bool IsClassNode(string nodeType) =>
-        nodeType is "class_definition" or "class_declaration"
+    private static bool IsClassNode(string nodeType)
+    {
+        return nodeType is "class_definition" or "class_declaration"
             or "struct_definition" or "struct_declaration"
             or "struct_item" // Rust
             or "interface_declaration"
             or "enum_declaration" or "enum_definition"
             or "record_declaration"
-            or "trait_item"; // Rust
+            or "trait_item";
+        // Rust
+    }
 
-    private static bool IsImportNode(string nodeType) =>
-        nodeType is "import_statement" or "import_declaration"
+    private static bool IsImportNode(string nodeType)
+    {
+        return nodeType is "import_statement" or "import_declaration"
             or "using_directive" or "using_declaration"
             or "include_directive" or "preproc_include"
             or "require_expression"
             or "use_declaration" // Rust
-            or "import_from_statement"; // Python
+            or "import_from_statement";
+        // Python
+    }
 
     private FunctionSignature? ExtractFunctionSignature(Node node, string source, string language)
     {
         string? name = null;
-        string parameters = "";
+        var parameters = "";
         string? returnType = null;
         var isAsync = false;
 
@@ -223,18 +238,16 @@ public sealed partial class TreeSitterParser : IDisposable
     {
         var count = 0;
         foreach (var child in bodyNode.Children)
-        {
             if (IsFunctionNode(child.Type))
                 count++;
-        }
 
         return count;
     }
 
     private static string GetNodeText(Node node, string source)
     {
-        var start = (int)node.StartIndex;
-        var end = (int)node.EndIndex;
+        var start = node.StartIndex;
+        var end = node.EndIndex;
         if (start >= 0 && end <= source.Length && start < end)
             return source[start..end];
         return "";
@@ -260,14 +273,12 @@ public sealed partial class TreeSitterParser : IDisposable
 
         // Function patterns (cover most C-like and scripting languages)
         foreach (Match m in FunctionPatternRegex().Matches(code))
-        {
             functions.Add(new FunctionSignature
             {
                 Name = m.Groups[2].Value,
                 Parameters = m.Groups[3].Value,
                 IsAsync = m.Groups[1].Value == "async"
             });
-        }
 
         // Class/struct/interface patterns
         foreach (Match m in ClassPatternRegex().Matches(code))
@@ -297,17 +308,16 @@ public sealed partial class TreeSitterParser : IDisposable
     }
 
     // Heuristic regexes for languages without tree-sitter support
-    [GeneratedRegex(@"(?:^|\n)\s*(?:export\s+)?(?:public\s+|private\s+|protected\s+|static\s+|internal\s+)*(async\s+)?(?:def|function|fun|func|fn|sub)\s+(\w+)\s*\(([^)]*)\)", RegexOptions.Multiline)]
+    [GeneratedRegex(
+        @"(?:^|\n)\s*(?:export\s+)?(?:public\s+|private\s+|protected\s+|static\s+|internal\s+)*(async\s+)?(?:def|function|fun|func|fn|sub)\s+(\w+)\s*\(([^)]*)\)",
+        RegexOptions.Multiline)]
     private static partial Regex FunctionPatternRegex();
 
-    [GeneratedRegex(@"(?:^|\n)\s*(?:export\s+)?(?:public\s+|abstract\s+|sealed\s+|final\s+)*(class|struct|interface|enum|record|trait)\s+(\w+)(?:\s*(?:extends|implements|:)\s*(\w+))?", RegexOptions.Multiline)]
+    [GeneratedRegex(
+        @"(?:^|\n)\s*(?:export\s+)?(?:public\s+|abstract\s+|sealed\s+|final\s+)*(class|struct|interface|enum|record|trait)\s+(\w+)(?:\s*(?:extends|implements|:)\s*(\w+))?",
+        RegexOptions.Multiline)]
     private static partial Regex ClassPatternRegex();
 
     [GeneratedRegex(@"^(?:using|import|require|include|from\s+\S+\s+import)\s+.+$", RegexOptions.Multiline)]
     private static partial Regex ImportPatternRegex();
-
-    public void Dispose()
-    {
-        // Tree-sitter resources are disposed per-parse via using statements
-    }
 }

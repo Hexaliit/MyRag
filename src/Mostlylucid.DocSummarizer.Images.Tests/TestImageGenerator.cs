@@ -6,12 +6,12 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Tests;
 
 /// <summary>
-/// Helper class to generate test images with known characteristics
+///     Helper class to generate test images with known characteristics
 /// </summary>
 public static class TestImageGenerator
 {
     /// <summary>
-    /// Create a solid color image
+    ///     Create a solid color image
     /// </summary>
     public static Image<Rgba32> CreateSolidColor(int width, int height, Color color)
     {
@@ -21,7 +21,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create an image with horizontal stripes (good for testing edge detection)
+    ///     Create an image with horizontal stripes (good for testing edge detection)
     /// </summary>
     public static Image<Rgba32> CreateHorizontalStripes(int width, int height, int stripeHeight = 10)
     {
@@ -40,7 +40,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create an image with vertical stripes
+    ///     Create an image with vertical stripes
     /// </summary>
     public static Image<Rgba32> CreateVerticalStripes(int width, int height, int stripeWidth = 10)
     {
@@ -59,7 +59,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a checkerboard pattern (high edge density)
+    ///     Create a checkerboard pattern (high edge density)
     /// </summary>
     public static Image<Rgba32> CreateCheckerboard(int width, int height, int squareSize = 10)
     {
@@ -69,7 +69,7 @@ public static class TestImageGenerator
             for (var y = 0; y < height; y += squareSize)
             for (var x = 0; x < width; x += squareSize)
             {
-                var isWhite = ((x / squareSize) + (y / squareSize)) % 2 == 0;
+                var isWhite = (x / squareSize + y / squareSize) % 2 == 0;
                 var color = isWhite ? Color.White : Color.Black;
                 ctx.Fill(color, new Rectangle(x, y,
                     Math.Min(squareSize, width - x),
@@ -80,7 +80,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a gradient image (smooth transitions, low edge density)
+    ///     Create a gradient image (smooth transitions, low edge density)
     /// </summary>
     public static Image<Rgba32> CreateGradient(int width, int height, Color startColor, Color endColor)
     {
@@ -97,17 +97,14 @@ public static class TestImageGenerator
             var b = (byte)(start.B + (end.B - start.B) * t);
             var color = new Rgba32(r, g, b);
 
-            for (var x = 0; x < width; x++)
-            {
-                image[x, y] = color;
-            }
+            for (var x = 0; x < width; x++) image[x, y] = color;
         }
 
         return image;
     }
 
     /// <summary>
-    /// Create an image with random noise (blurry appearance)
+    ///     Create an image with random noise (blurry appearance)
     /// </summary>
     public static Image<Rgba32> CreateNoiseImage(int width, int height, int seed = 42)
     {
@@ -125,7 +122,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a blurred image (low Laplacian variance)
+    ///     Create a blurred image (low Laplacian variance)
     /// </summary>
     public static Image<Rgba32> CreateBlurredImage(int width, int height)
     {
@@ -135,7 +132,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a sharp image with clear edges
+    ///     Create a sharp image with clear edges
     /// </summary>
     public static Image<Rgba32> CreateSharpImage(int width, int height)
     {
@@ -153,7 +150,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a text-like image (high contrast, bimodal, horizontal patterns)
+    ///     Create a text-like image (high contrast, bimodal, horizontal patterns)
     /// </summary>
     public static Image<Rgba32> CreateTextLikeImage(int width, int height)
     {
@@ -174,10 +171,11 @@ public static class TestImageGenerator
                 var x = 30;
                 while (x < width - 50)
                 {
-                    var wordWidth = 20 + (y * x) % 50; // Variable "word" lengths
+                    var wordWidth = 20 + y * x % 50; // Variable "word" lengths
                     ctx.Fill(Color.Black, new Rectangle(x, y, Math.Min(wordWidth, width - x - 30), lineHeight / 2));
                     x += wordWidth + 10; // Word spacing
                 }
+
                 y += lineHeight + lineGap;
             }
         });
@@ -185,7 +183,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a colorful image with dominant colors
+    ///     Create a colorful image with dominant colors
     /// </summary>
     public static Image<Rgba32> CreateColorBlocks(int width, int height)
     {
@@ -203,14 +201,15 @@ public static class TestImageGenerator
             // Bottom row
             ctx.Fill(Color.Yellow, new Rectangle(0, blockHeight, blockWidth, height - blockHeight));
             ctx.Fill(Color.Cyan, new Rectangle(blockWidth, blockHeight, blockWidth, height - blockHeight));
-            ctx.Fill(Color.Magenta, new Rectangle(blockWidth * 2, blockHeight, width - blockWidth * 2, height - blockHeight));
+            ctx.Fill(Color.Magenta,
+                new Rectangle(blockWidth * 2, blockHeight, width - blockWidth * 2, height - blockHeight));
         });
 
         return image;
     }
 
     /// <summary>
-    /// Create a grayscale image
+    ///     Create a grayscale image
     /// </summary>
     public static Image<Rgba32> CreateGrayscaleImage(int width, int height)
     {
@@ -220,7 +219,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a screenshot-like image (UI elements, straight edges)
+    ///     Create a screenshot-like image (UI elements, straight edges)
     /// </summary>
     public static Image<Rgba32> CreateScreenshotLike(int width, int height)
     {
@@ -242,15 +241,13 @@ public static class TestImageGenerator
 
             // "Text" lines
             for (var y = 120; y < height - 50; y += 30)
-            {
                 ctx.Fill(new Color(new Rgba32(100, 100, 100)), new Rectangle(220, y, 300, 15));
-            }
         });
         return image;
     }
 
     /// <summary>
-    /// Create a diagram-like image (shapes, limited colors)
+    ///     Create a diagram-like image (shapes, limited colors)
     /// </summary>
     public static Image<Rgba32> CreateDiagramLike(int width, int height)
     {
@@ -273,7 +270,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Create a small icon-like image
+    ///     Create a small icon-like image
     /// </summary>
     public static Image<Rgba32> CreateIconLike(int size = 64)
     {
@@ -294,7 +291,7 @@ public static class TestImageGenerator
     }
 
     /// <summary>
-    /// Save a test image to a file
+    ///     Save a test image to a file
     /// </summary>
     public static string SaveTestImage(Image<Rgba32> image, string directory, string filename)
     {

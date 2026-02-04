@@ -1,30 +1,26 @@
 namespace LucidRAG.Models;
 
 /// <summary>
-/// Request to start a web crawl
+///     Request to start a web crawl
 /// </summary>
 public record CrawlRequest(
     /// <summary>
     /// Seed URLs to start crawling from
     /// </summary>
     string[] SeedUrls,
-
     /// <summary>
     /// CSS selector for content extraction (e.g., "article", ".post-content", "#main")
     /// If null, defaults to: article, main, [role="main"], .content, #content, body
     /// </summary>
     string? ContentSelector = null,
-
     /// <summary>
     /// Maximum number of pages to crawl
     /// </summary>
     int MaxPages = 50,
-
     /// <summary>
     /// Maximum crawl depth from seed URLs
     /// </summary>
     int MaxDepth = 3,
-
     /// <summary>
     /// Collection to add crawled documents to
     /// </summary>
@@ -32,7 +28,7 @@ public record CrawlRequest(
 );
 
 /// <summary>
-/// Active crawl job tracking
+///     Active crawl job tracking
 /// </summary>
 public record CrawlJob(
     Guid Id,
@@ -63,7 +59,7 @@ public enum CrawlStatus
 }
 
 /// <summary>
-/// Progress update for SSE streaming
+///     Progress update for SSE streaming
 /// </summary>
 public record CrawlProgress(
     Guid CrawlId,
@@ -76,7 +72,7 @@ public record CrawlProgress(
 );
 
 /// <summary>
-/// Response after starting a crawl
+///     Response after starting a crawl
 /// </summary>
 public record CrawlStartResponse(
     Guid CrawlId,
@@ -84,7 +80,7 @@ public record CrawlStartResponse(
 );
 
 /// <summary>
-/// Crawled page result before processing
+///     Crawled page result before processing
 /// </summary>
 public record CrawledPage(
     string Url,

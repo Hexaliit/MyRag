@@ -7,7 +7,7 @@ public class VectorMathTests
     private const float Tolerance = 1e-5f;
 
     /// <summary>
-    /// Reference scalar cosine similarity for validation.
+    ///     Reference scalar cosine similarity for validation.
     /// </summary>
     private static float ScalarCosineSimilarity(float[] a, float[] b)
     {
@@ -18,6 +18,7 @@ public class VectorMathTests
             normA += a[i] * a[i];
             normB += b[i] * b[i];
         }
+
         var denom = MathF.Sqrt(normA) * MathF.Sqrt(normB);
         return denom > 0 ? dot / denom : 0;
     }
@@ -95,7 +96,7 @@ public class VectorMathTests
     [Fact]
     public void L2Normalize_ProducesUnitVector()
     {
-        var v = new float[] { 3.0f, 4.0f }; // norm = 5
+        var v = new[] { 3.0f, 4.0f }; // norm = 5
         VectorMath.L2Normalize(v);
 
         Assert.InRange(v[0], 0.6f - Tolerance, 0.6f + Tolerance);
@@ -132,7 +133,7 @@ public class VectorMathTests
         var source = new float[] { 10, 20, 30, 40, 50, 60, 70, 80 };
         VectorMath.AddScaled(target, source, 0.5f);
 
-        Assert.InRange(target[0], 6.0f - Tolerance, 6.0f + Tolerance);  // 1 + 10*0.5
+        Assert.InRange(target[0], 6.0f - Tolerance, 6.0f + Tolerance); // 1 + 10*0.5
         Assert.InRange(target[7], 48.0f - Tolerance, 48.0f + Tolerance); // 8 + 80*0.5
     }
 
@@ -154,8 +155,8 @@ public class VectorMathTests
     public void CosineSimilarity_SmallVector_MatchesScalar()
     {
         // Very small vector — all scalar tail, no SIMD
-        var a = new float[] { 1.0f, 2.0f, 3.0f };
-        var b = new float[] { 4.0f, 5.0f, 6.0f };
+        var a = new[] { 1.0f, 2.0f, 3.0f };
+        var b = new[] { 4.0f, 5.0f, 6.0f };
 
         var expected = ScalarCosineSimilarity(a, b);
         var actual = VectorMath.CosineSimilarity(a, b);

@@ -1,3 +1,4 @@
+using System.Net;
 using AngleSharp;
 using AngleSharp.Dom;
 using DoomSummarizer.Models;
@@ -6,23 +7,23 @@ using Mostlylucid.Summarizer.Core.Utilities;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// One-hop link following service. Extracts links from article pages and
-/// fetches linked content to enrich the parent article with additional context.
-/// Uses content hashing + ETags to skip re-processing unchanged pages.
-/// When an embedder + query embedding are provided, links are ranked by
-/// semantic relevance before fetching (avoids wasting bandwidth on irrelevant links).
+///     One-hop link following service. Extracts links from article pages and
+///     fetches linked content to enrich the parent article with additional context.
+///     Uses content hashing + ETags to skip re-processing unchanged pages.
+///     When an embedder + query embedding are provided, links are ranked by
+///     semantic relevance before fetching (avoids wasting bandwidth on irrelevant links).
 /// </summary>
 public class LinkFollowingService
 {
-    private readonly HttpClient _httpClient;
     private readonly LinkFollowingConfig _config;
     private readonly ContentExtractor _contentExtractor;
-    private readonly StorageService? _storage;
     private readonly Func<string, float[]>? _embedder;
+    private readonly HttpClient _httpClient;
     private readonly float[]? _queryEmbedding;
-    private int _totalLinksFetched;
+    private readonly StorageService? _storage;
     private int _cacheHits;
     private int _linksSkippedByRelevance;
+    private int _totalLinksFetched;
 
     /// <param name="httpClient">HTTP client for fetching linked pages.</param>
     /// <param name="config">Link following configuration.</param>
@@ -48,8 +49,8 @@ public class LinkFollowingService
     public int LinksSkippedByRelevance => _linksSkippedByRelevance;
 
     /// <summary>
-    /// Follow links from a batch of content items, enriching each with linked page content.
-    /// Respects MaxTotalLinks across all items.
+    ///     Follow links from a batch of content items, enriching each with linked page content.
+    ///     Respects MaxTotalLinks across all items.
     /// </summary>
     public async Task FollowLinksAsync(
         List<ContentItem> items,
@@ -98,6 +99,7 @@ public class LinkFollowingService
                     var structInfo = item.ContentStructure?.ToSummary() ?? $"{item.Content?.Length ?? 0:N0} chars";
                     onActivity?.Invoke($"[green]Enriched[/] {host} ({structInfo})");
                 }
+
                 if (linkedPages.Count > 0)
                     onActivity?.Invoke($"Found {linkedPages.Count} linked pages from {host}");
             }
@@ -123,17 +125,25 @@ public class LinkFollowingService
     private static string GetHostName(string? url)
     {
         if (string.IsNullOrEmpty(url)) return "?";
-        try { return new Uri(url).Host.Replace("www.", ""); }
-        catch { return "?"; }
+        try
+        {
+            return new Uri(url).Host.Replace("www.", "");
+        }
+        catch
+        {
+            return "?";
+        }
     }
 
-    private static string Truncate(string text, int maxLen) =>
-        text.Length > maxLen ? text[..(maxLen - 3)] + "..." : text;
+    private static string Truncate(string text, int maxLen)
+    {
+        return text.Length > maxLen ? text[..(maxLen - 3)] + "..." : text;
+    }
 
     /// <summary>
-    /// Extract and follow links from a single article page.
-    /// Uses content hashing + ETags to avoid re-processing unchanged content.
-    /// When embedder is available, ranks links by semantic relevance before fetching.
+    ///     Extract and follow links from a single article page.
+    ///     Uses content hashing + ETags to avoid re-processing unchanged content.
+    ///     When embedder is available, ranks links by semantic relevance before fetching.
     /// </summary>
     private async Task<List<LinkedPage>> FollowLinksForItemAsync(ContentItem item, CancellationToken ct)
     {
@@ -180,10 +190,11 @@ public class LinkFollowingService
             using var response = await _httpClient.SendAsync(request, cts.Token);
 
             // 304 Not Modified — content unchanged, skip processing
-            if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+            if (response.StatusCode == HttpStatusCode.NotModified)
             {
                 if (_storage != null)
-                    await _storage.UpdateUrlCacheAsync(item.Url!, cacheEntry?.ContentHash, cacheEntry?.ETag, cacheEntry?.LastModified, cacheEntry?.ContentLength ?? 0);
+                    await _storage.UpdateUrlCacheAsync(item.Url!, cacheEntry?.ContentHash, cacheEntry?.ETag,
+                        cacheEntry?.LastModified, cacheEntry?.ContentLength ?? 0);
                 Interlocked.Increment(ref _cacheHits);
                 return results;
             }
@@ -216,7 +227,8 @@ public class LinkFollowingService
                 if (_storage != null && cacheEntry?.ContentHash == contentHash)
                 {
                     // Content area unchanged — update cache timestamp but skip enrichment
-                    await _storage.UpdateUrlCacheAsync(item.Url!, contentHash, responseETag, responseLastModified, extracted.BestContent.Length);
+                    await _storage.UpdateUrlCacheAsync(item.Url!, contentHash, responseETag, responseLastModified,
+                        extracted.BestContent.Length);
                     Interlocked.Increment(ref _cacheHits);
                     return results;
                 }
@@ -227,7 +239,8 @@ public class LinkFollowingService
                 item.ContentStructure = extracted.Structure;
 
                 if (_storage != null)
-                    await _storage.UpdateUrlCacheAsync(item.Url!, contentHash, responseETag, responseLastModified, extracted.BestContent.Length);
+                    await _storage.UpdateUrlCacheAsync(item.Url!, contentHash, responseETag, responseLastModified,
+                        extracted.BestContent.Length);
             }
         }
         catch
@@ -246,23 +259,21 @@ public class LinkFollowingService
         var fetched = await Task.WhenAll(fetchTasks);
 
         foreach (var page in fetched)
-        {
             if (page != null)
             {
                 results.Add(page);
                 Interlocked.Increment(ref _totalLinksFetched);
             }
-        }
 
         return results;
     }
 
     /// <summary>
-    /// Rank candidate links by a composite score combining:
-    ///   1. Query relevance — cosine similarity of link context vs query embedding
-    ///   2. Segment salience — positional weighting (inverted pyramid: top links > bottom)
-    ///      and paragraph length (longer paragraphs = more substantive content)
-    /// Falls back to positional ordering when no embedder is available.
+    ///     Rank candidate links by a composite score combining:
+    ///     1. Query relevance — cosine similarity of link context vs query embedding
+    ///     2. Segment salience — positional weighting (inverted pyramid: top links > bottom)
+    ///     and paragraph length (longer paragraphs = more substantive content)
+    ///     Falls back to positional ordering when no embedder is available.
     /// </summary>
     private List<CandidateLink> RankAndSelectLinks(List<CandidateLink> candidates, int maxLinks)
     {
@@ -276,7 +287,6 @@ public class LinkFollowingService
         // Score each link on two axes
         var scored = new List<(CandidateLink link, float compositeScore)>();
         foreach (var candidate in candidates)
-        {
             try
             {
                 // Axis 1: Query relevance (cosine similarity of context vs query)
@@ -285,26 +295,25 @@ public class LinkFollowingService
 
                 // Axis 2: Segment salience
                 //   - Position decay: top of article = 1.0, bottom = 0.5 (linear decay)
-                var positionScore = 1.0f - (candidate.PositionRatio * 0.5f);
+                var positionScore = 1.0f - candidate.PositionRatio * 0.5f;
 
                 //   - Paragraph substance: longer paragraphs are more likely to contain
                 //     real analysis rather than nav/sidebar snippets. Sigmoid-like scaling.
                 var substanceScore = Math.Min(1.0f, candidate.ParagraphLength / 300f);
 
                 // Combined segment salience (weighted average of position + substance)
-                var salience = (positionScore * 0.6f) + (substanceScore * 0.4f);
+                var salience = positionScore * 0.6f + substanceScore * 0.4f;
 
                 // Final composite: 70% query relevance + 30% segment salience
-                var composite = (queryRelevance * 0.7f) + (salience * 0.3f);
+                var composite = queryRelevance * 0.7f + salience * 0.3f;
                 scored.Add((candidate, composite));
             }
             catch
             {
                 // Embedding failure — score by salience only
-                var positionScore = 1.0f - (candidate.PositionRatio * 0.5f);
+                var positionScore = 1.0f - candidate.PositionRatio * 0.5f;
                 scored.Add((candidate, positionScore * 0.3f));
             }
-        }
 
         // Sort by composite score descending
         var sorted = scored
@@ -331,9 +340,9 @@ public class LinkFollowingService
     }
 
     /// <summary>
-    /// Extract links from within the main content area of an HTML page.
-    /// Returns structured candidates with anchor text and surrounding paragraph context
-    /// for semantic relevance scoring.
+    ///     Extract links from within the main content area of an HTML page.
+    ///     Returns structured candidates with anchor text and surrounding paragraph context
+    ///     for semantic relevance scoring.
     /// </summary>
     private List<CandidateLink> ExtractContentLinks(string html, string baseUrl)
     {
@@ -399,7 +408,7 @@ public class LinkFollowingService
                 // Skip blocked domains
                 var host = resolvedUri.Host.ToLowerInvariant();
                 if (_config.BlockedDomains.Any(d =>
-                    host == d || host.EndsWith("." + d)))
+                        host == d || host.EndsWith("." + d)))
                     continue;
 
                 // Skip same-page anchors and already-seen URLs
@@ -420,8 +429,8 @@ public class LinkFollowingService
                     resolvedUri.AbsoluteUri,
                     anchorText,
                     paragraphContext,
-                    PositionRatio: 0f,
-                    ParagraphLength: paragraphLength));
+                    0f,
+                    paragraphLength));
             }
         }
         catch
@@ -431,21 +440,17 @@ public class LinkFollowingService
 
         // Assign position ratios (0.0 = first link = most salient in inverted pyramid)
         if (candidates.Count > 1)
-        {
             for (var i = 0; i < candidates.Count; i++)
-            {
                 candidates[i] = candidates[i] with { PositionRatio = (float)i / (candidates.Count - 1) };
-            }
-        }
 
         return candidates;
     }
 
     /// <summary>
-    /// Extract the surrounding paragraph or sentence context for a link.
-    /// This gives the embedder richer signal than just the anchor text alone.
-    /// E.g. "Researchers at MIT developed a new [quantum framework] that..."
-    /// is more informative than just "quantum framework".
+    ///     Extract the surrounding paragraph or sentence context for a link.
+    ///     This gives the embedder richer signal than just the anchor text alone.
+    ///     E.g. "Researchers at MIT developed a new [quantum framework] that..."
+    ///     is more informative than just "quantum framework".
     /// </summary>
     /// <returns>Tuple of (context text for embedding, full paragraph length for salience scoring).</returns>
     private static (string context, int paragraphLength) GetSurroundingContext(IElement anchor, string anchorText)
@@ -463,6 +468,7 @@ public class LinkFollowingService
                 parent = null;
                 break;
             }
+
             parent = parent.ParentElement;
         }
 
@@ -493,7 +499,7 @@ public class LinkFollowingService
     }
 
     /// <summary>
-    /// Fetch a linked page and extract its content.
+    ///     Fetch a linked page and extract its content.
     /// </summary>
     private async Task<LinkedPage?> FetchLinkedPageAsync(string url, CancellationToken ct)
     {
@@ -542,14 +548,15 @@ public class LinkFollowingService
             normA += a[i] * a[i];
             normB += b[i] * b[i];
         }
+
         var denom = MathF.Sqrt(normA) * MathF.Sqrt(normB);
         return denom > 0 ? dot / denom : 0;
     }
 }
 
 /// <summary>
-/// A candidate link extracted from article content, with anchor text,
-/// surrounding paragraph context, and positional salience for ranking.
+///     A candidate link extracted from article content, with anchor text,
+///     surrounding paragraph context, and positional salience for ranking.
 /// </summary>
 /// <param name="Url">Resolved absolute URL of the link.</param>
 /// <param name="AnchorText">Visible text of the anchor element.</param>

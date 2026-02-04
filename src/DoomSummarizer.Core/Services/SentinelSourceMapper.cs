@@ -3,36 +3,36 @@ using System.Text.Json.Serialization;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Structured intent output from the sentinel LLM.
-/// The sentinel classifies the query into structured parameters (categories, tone, intent)
-/// instead of selecting specific sources — source selection is done heuristically
-/// by <see cref="SentinelSourceMapper"/>.
+///     Structured intent output from the sentinel LLM.
+///     The sentinel classifies the query into structured parameters (categories, tone, intent)
+///     instead of selecting specific sources — source selection is done heuristically
+///     by <see cref="SentinelSourceMapper" />.
 /// </summary>
 public record SentinelIntent
 {
     /// <summary>
-    /// Query intent type: news, research, howto, roundup, opinion, qa, deep_dive, trend, comparison.
+    ///     Query intent type: news, research, howto, roundup, opinion, qa, deep_dive, trend, comparison.
     /// </summary>
     [JsonPropertyName("intent")]
     public string Intent { get; init; } = "news";
 
     /// <summary>
-    /// Category weights (0.0–1.0). Keys match sources.yaml routing categories:
-    /// technology, programming, health, pharma, science, environment, climate,
-    /// business, finance, politics, world, entertainment, humor, sports,
-    /// ai, security, space, disaster, factcheck.
+    ///     Category weights (0.0–1.0). Keys match sources.yaml routing categories:
+    ///     technology, programming, health, pharma, science, environment, climate,
+    ///     business, finance, politics, world, entertainment, humor, sports,
+    ///     ai, security, space, disaster, factcheck.
     /// </summary>
     [JsonPropertyName("categories")]
     public Dictionary<string, double> Categories { get; init; } = new();
 
     /// <summary>
-    /// Output tone: neutral, doom, hopeful, snarky, funny, upbeat, friendly.
+    ///     Output tone: neutral, doom, hopeful, snarky, funny, upbeat, friendly.
     /// </summary>
     [JsonPropertyName("tone")]
     public string Tone { get; init; } = "neutral";
 
     /// <summary>
-    /// How time-sensitive is this query: breaking, today, week, any.
+    ///     How time-sensitive is this query: breaking, today, week, any.
     /// </summary>
     [JsonPropertyName("time_sensitivity")]
     public string TimeSensitivity { get; init; } = "any";
@@ -40,37 +40,37 @@ public record SentinelIntent
     // ─── Temporal Extraction (NEW) ───
 
     /// <summary>
-    /// Parsed date range for the query. Extracted from natural language like
-    /// "last week", "since Monday", "past 3 days", "January 2024".
+    ///     Parsed date range for the query. Extracted from natural language like
+    ///     "last week", "since Monday", "past 3 days", "January 2024".
     /// </summary>
     [JsonPropertyName("date_range")]
     public DateRangeIntent? DateRange { get; init; }
 
     /// <summary>
-    /// Whether this query requires fresh data (skip cache).
-    /// True for: "latest", "breaking", "right now", "just happened".
+    ///     Whether this query requires fresh data (skip cache).
+    ///     True for: "latest", "breaking", "right now", "just happened".
     /// </summary>
     [JsonPropertyName("requires_fresh")]
     public bool RequiresFresh { get; init; }
 
     /// <summary>
-    /// Whether this is a continuation query referencing previous results.
-    /// True for: "since last time", "more like this", "update on", "any changes".
+    ///     Whether this is a continuation query referencing previous results.
+    ///     True for: "since last time", "more like this", "update on", "any changes".
     /// </summary>
     [JsonPropertyName("is_continuation")]
     public bool IsContinuation { get; init; }
 
     /// <summary>
-    /// Whether this query asks about change/drift over time.
-    /// True for: "how has X changed", "sentiment shift", "evolution of", "trend in".
-    /// Enables temporal comparison mode.
+    ///     Whether this query asks about change/drift over time.
+    ///     True for: "how has X changed", "sentiment shift", "evolution of", "trend in".
+    ///     Enables temporal comparison mode.
     /// </summary>
     [JsonPropertyName("is_temporal_comparison")]
     public bool IsTemporalComparison { get; init; }
 
     /// <summary>
-    /// Reference topic for continuation queries (what to continue from).
-    /// E.g., for "any updates on the trial?", this would be "trial" or the entity name.
+    ///     Reference topic for continuation queries (what to continue from).
+    ///     E.g., for "any updates on the trial?", this would be "trial" or the entity name.
     /// </summary>
     [JsonPropertyName("continuation_topic")]
     public string? ContinuationTopic { get; init; }
@@ -78,27 +78,27 @@ public record SentinelIntent
     // ─── Query Enhancement Fields ───
 
     /// <summary>
-    /// Spellchecked/corrected version of the user's query.
-    /// Fixes common typos, expands abbreviations (SNL → Saturday Night Live).
-    /// Used as the canonical query text for all downstream filtering.
+    ///     Spellchecked/corrected version of the user's query.
+    ///     Fixes common typos, expands abbreviations (SNL → Saturday Night Live).
+    ///     Used as the canonical query text for all downstream filtering.
     /// </summary>
     [JsonPropertyName("corrected_query")]
     public string? CorrectedQuery { get; init; }
 
     /// <summary>
-    /// Filter keywords for Lucene/SQLite pre-filtering.
-    /// These are the core salient terms that MUST appear in relevant documents.
-    /// Excludes stop words and low-information terms.
-    /// Example: "history of LLMs" → ["llm", "llms", "language model", "history"]
+    ///     Filter keywords for Lucene/SQLite pre-filtering.
+    ///     These are the core salient terms that MUST appear in relevant documents.
+    ///     Excludes stop words and low-information terms.
+    ///     Example: "history of LLMs" → ["llm", "llms", "language model", "history"]
     /// </summary>
     [JsonPropertyName("filter_keywords")]
     public List<string> FilterKeywords { get; init; } = [];
 
     /// <summary>
-    /// Lucene query syntax for advanced filtering.
-    /// Generated by sentinel with proper boosting, fuzzy, and phrase operators.
-    /// Example: "title:LLM^3 \"language model\"~2 history~"
-    /// If empty, use FilterKeywords with simple OR logic.
+    ///     Lucene query syntax for advanced filtering.
+    ///     Generated by sentinel with proper boosting, fuzzy, and phrase operators.
+    ///     Example: "title:LLM^3 \"language model\"~2 history~"
+    ///     If empty, use FilterKeywords with simple OR logic.
     /// </summary>
     [JsonPropertyName("lucene_query")]
     public string? LuceneQuery { get; init; }
@@ -106,34 +106,34 @@ public record SentinelIntent
     // ─── Search Engine Query Fields ───
 
     /// <summary>
-    /// Specific search terms to use for search-based sources (gnews, duckduckgo).
+    ///     Specific search terms to use for search-based sources (gnews, duckduckgo).
     /// </summary>
     [JsonPropertyName("search_queries")]
     public List<string> SearchQueries { get; init; } = [];
 
     /// <summary>
-    /// Named entities extracted by the sentinel (people, orgs, places).
+    ///     Named entities extracted by the sentinel (people, orgs, places).
     /// </summary>
     [JsonPropertyName("entities")]
     public List<string> Entities { get; init; } = [];
 
     /// <summary>
-    /// Sources the user explicitly named (e.g., "hacker news" → "hn", "bbc" → "bbc").
-    /// Only populated when the user directly references a source by name.
+    ///     Sources the user explicitly named (e.g., "hacker news" → "hn", "bbc" → "bbc").
+    ///     Only populated when the user directly references a source by name.
     /// </summary>
     [JsonPropertyName("explicit_sources")]
     public List<string> ExplicitSources { get; init; } = [];
 
     /// <summary>
-    /// Requested item limit.
+    ///     Requested item limit.
     /// </summary>
     [JsonPropertyName("limit")]
     public int Limit { get; init; } = 20;
 
     /// <summary>
-    /// GraphRAG query scope: "local" (specific), "global" (sensemaking), "connective" (DRIFT).
-    /// When "global" or "connective", entity graph enrichment is auto-enabled.
-    /// See: https://microsoft.github.io/graphrag/
+    ///     GraphRAG query scope: "local" (specific), "global" (sensemaking), "connective" (DRIFT).
+    ///     When "global" or "connective", entity graph enrichment is auto-enabled.
+    ///     See: https://microsoft.github.io/graphrag/
     /// </summary>
     [JsonPropertyName("graph_scope")]
     public string? GraphScope { get; init; }
@@ -141,98 +141,100 @@ public record SentinelIntent
     // ─── Query Decomposition (Composite Questions) ───
 
     /// <summary>
-    /// For composite questions (multiple sub-questions joined by "and", "also", etc.),
-    /// this contains the decomposed subqueries that should be answered separately.
-    /// Example: "What happens in Wuthering Heights and when was the latest movie made?"
-    /// → ["What happens in Wuthering Heights?", "When was the latest Wuthering Heights movie made?"]
+    ///     For composite questions (multiple sub-questions joined by "and", "also", etc.),
+    ///     this contains the decomposed subqueries that should be answered separately.
+    ///     Example: "What happens in Wuthering Heights and when was the latest movie made?"
+    ///     → ["What happens in Wuthering Heights?", "When was the latest Wuthering Heights movie made?"]
     /// </summary>
     [JsonPropertyName("subqueries")]
     public List<string>? Subqueries { get; init; }
 
     /// <summary>
-    /// True if the query contains multiple distinct sub-questions that need separate answers.
+    ///     True if the query contains multiple distinct sub-questions that need separate answers.
     /// </summary>
     [JsonPropertyName("is_composite")]
     public bool IsComposite { get; init; }
 
     /// <summary>
-    /// True if decomposed subqueries were provided.
+    ///     True if decomposed subqueries were provided.
     /// </summary>
     public bool HasSubqueries => Subqueries is { Count: > 1 };
 }
 
 /// <summary>
-/// Parsed date range from natural language temporal expressions.
+///     Parsed date range from natural language temporal expressions.
 /// </summary>
 public record DateRangeIntent
 {
     /// <summary>
-    /// Start of the date range (null = no lower bound).
-    /// ISO 8601 format: "2024-01-15" or "2024-01-15T10:00:00Z".
+    ///     Start of the date range (null = no lower bound).
+    ///     ISO 8601 format: "2024-01-15" or "2024-01-15T10:00:00Z".
     /// </summary>
     [JsonPropertyName("start")]
     public string? Start { get; init; }
 
     /// <summary>
-    /// End of the date range (null = now).
-    /// ISO 8601 format: "2024-01-22" or "2024-01-22T23:59:59Z".
+    ///     End of the date range (null = now).
+    ///     ISO 8601 format: "2024-01-22" or "2024-01-22T23:59:59Z".
     /// </summary>
     [JsonPropertyName("end")]
     public string? End { get; init; }
 
     /// <summary>
-    /// Original natural language expression that was parsed.
-    /// E.g., "last week", "since Monday", "past 3 days".
+    ///     Original natural language expression that was parsed.
+    ///     E.g., "last week", "since Monday", "past 3 days".
     /// </summary>
     [JsonPropertyName("original")]
     public string? Original { get; init; }
 
     /// <summary>
-    /// Relative time unit if applicable: hour, day, week, month, year.
+    ///     Relative time unit if applicable: hour, day, week, month, year.
     /// </summary>
     [JsonPropertyName("unit")]
     public string? Unit { get; init; }
 
     /// <summary>
-    /// Number of units (e.g., 3 for "past 3 days").
+    ///     Number of units (e.g., 3 for "past 3 days").
     /// </summary>
     [JsonPropertyName("count")]
     public int? Count { get; init; }
 
     /// <summary>
-    /// Parse the Start string to DateTimeOffset (returns null if unparseable).
+    ///     Parse the Start string to DateTimeOffset (returns null if unparseable).
     /// </summary>
     public DateTimeOffset? ParsedStart => TryParse(Start);
 
     /// <summary>
-    /// Parse the End string to DateTimeOffset (returns null if unparseable).
+    ///     Parse the End string to DateTimeOffset (returns null if unparseable).
     /// </summary>
     public DateTimeOffset? ParsedEnd => TryParse(End);
 
-    private static DateTimeOffset? TryParse(string? s) =>
-        DateTimeOffset.TryParse(s, out var dt) ? dt : null;
+    private static DateTimeOffset? TryParse(string? s)
+    {
+        return DateTimeOffset.TryParse(s, out var dt) ? dt : null;
+    }
 }
 
 /// <summary>
-/// Heuristically maps a <see cref="SentinelIntent"/> to concrete CLI source identifiers
-/// using the YAML-driven <see cref="SourceRouter"/> routing rules.
-/// The sentinel LLM only classifies the query — this class picks the actual sources.
+///     Heuristically maps a <see cref="SentinelIntent" /> to concrete CLI source identifiers
+///     using the YAML-driven <see cref="SourceRouter" /> routing rules.
+///     The sentinel LLM only classifies the query — this class picks the actual sources.
 /// </summary>
 public static class SentinelSourceMapper
 {
     /// <summary>
-    /// Default maximum total sources to select (avoids excessive fetching).
-    /// Overridden per-intent in <see cref="MapToSources"/>.
+    ///     Default maximum total sources to select (avoids excessive fetching).
+    ///     Overridden per-intent in <see cref="MapToSources" />.
     /// </summary>
     private const int DefaultMaxTotalSources = 10;
 
     /// <summary>
-    /// Minimum category weight to include sources from that category.
+    ///     Minimum category weight to include sources from that category.
     /// </summary>
     private const double MinCategoryWeight = 0.15;
 
     /// <summary>
-    /// Sources that only make sense for technology/programming queries.
+    ///     Sources that only make sense for technology/programming queries.
     /// </summary>
     private static readonly HashSet<string> TechOnlySources = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -240,8 +242,8 @@ public static class SentinelSourceMapper
     };
 
     /// <summary>
-    /// Sources that are archives/research, not current news.
-    /// Excluded from roundup and breaking news intents.
+    ///     Sources that are archives/research, not current news.
+    ///     Excluded from roundup and breaking news intents.
     /// </summary>
     private static readonly HashSet<string> ArchiveSources = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -249,7 +251,7 @@ public static class SentinelSourceMapper
     };
 
     /// <summary>
-    /// Categories that imply tech content.
+    ///     Categories that imply tech content.
     /// </summary>
     private static readonly HashSet<string> TechCategories = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -257,7 +259,7 @@ public static class SentinelSourceMapper
     };
 
     /// <summary>
-    /// Valid YAML routing categories. Used to validate sentinel output.
+    ///     Valid YAML routing categories. Used to validate sentinel output.
     /// </summary>
     private static readonly HashSet<string> ValidCategories = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -267,8 +269,8 @@ public static class SentinelSourceMapper
     };
 
     /// <summary>
-    /// Map unknown sentinel categories to valid routing categories.
-    /// Local LLMs sometimes invent categories not in our YAML routing.
+    ///     Map unknown sentinel categories to valid routing categories.
+    ///     Local LLMs sometimes invent categories not in our YAML routing.
     /// </summary>
     private static readonly Dictionary<string, string> CategoryAliases = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -295,11 +297,11 @@ public static class SentinelSourceMapper
         ["medicine"] = "health",
         ["weather"] = "environment",
         ["astronomy"] = "space",
-        ["economics"] = "business",
+        ["economics"] = "business"
     };
 
     /// <summary>
-    /// Map a sentinel intent to concrete source identifiers for the fetch pipeline.
+    ///     Map a sentinel intent to concrete source identifiers for the fetch pipeline.
     /// </summary>
     /// <param name="intent">Structured intent from sentinel LLM.</param>
     /// <param name="router">YAML source router for category → source lookups.</param>
@@ -319,13 +321,13 @@ public static class SentinelSourceMapper
         var maxTotalSources = intent.Intent switch
         {
             "qa" or "howto" => 4,
-            "deep_dive" or "research" => 8,  // room for arxiv/wikipedia enrichment
+            "deep_dive" or "research" => 8, // room for arxiv/wikipedia enrichment
             _ => DefaultMaxTotalSources
         };
 
         // Null-guard all collection properties — JSON deserialization can set them to null
         // even though the record has default initializers.
-        var categories = intent.Categories ?? new();
+        var categories = intent.Categories ?? new Dictionary<string, double>();
         var explicitSources = intent.ExplicitSources ?? [];
         var intentSearchQueries = intent.SearchQueries ?? [];
 
@@ -338,10 +340,7 @@ public static class SentinelSourceMapper
             TechCategories.Contains(c.Key) && c.Value >= MinCategoryWeight);
 
         // --- Phase 1: Explicit user-named sources (always honored) ---
-        foreach (var src in explicitSources)
-        {
-            AddSource(sources, usedRoots, src);
-        }
+        foreach (var src in explicitSources) AddSource(sources, usedRoots, src);
 
         // --- Phase 2: Search queries as gnews/search sources ---
         // For QA/howto, search is the primary answer source — also add the raw query
@@ -354,9 +353,7 @@ public static class SentinelSourceMapper
             var rawTerms = query.Trim();
             if (!searchQueries.Any(sq => sq.Contains(rawTerms, StringComparison.OrdinalIgnoreCase) ||
                                          rawTerms.Contains(sq, StringComparison.OrdinalIgnoreCase)))
-            {
                 searchQueries.Add(rawTerms); // backup after sentinel's crafted queries
-            }
         }
 
         // QA gets more search slots (answer is in search results, not RSS feeds)
@@ -366,7 +363,7 @@ public static class SentinelSourceMapper
             if (!usedRoots.Contains("gnews"))
                 AddSource(sources, usedRoots, $"gnews:{sq}");
             else if (!sources.Any(s => s.StartsWith("gnews:", StringComparison.OrdinalIgnoreCase) &&
-                                      s.Contains(sq, StringComparison.OrdinalIgnoreCase)))
+                                       s.Contains(sq, StringComparison.OrdinalIgnoreCase)))
                 sources.Add($"gnews:{sq}"); // allow multiple gnews with different queries
 
             if (!usedRoots.Contains("search"))
@@ -388,7 +385,8 @@ public static class SentinelSourceMapper
         var sortedCategories = categories
             .Select(kv =>
             {
-                var normalizedKey = ValidCategories.Contains(kv.Key) ? kv.Key
+                var normalizedKey = ValidCategories.Contains(kv.Key)
+                    ? kv.Key
                     : CategoryAliases.GetValueOrDefault(kv.Key, "default");
                 return new KeyValuePair<string, double>(normalizedKey, kv.Value);
             })
@@ -416,8 +414,8 @@ public static class SentinelSourceMapper
             // Higher weight → more sources from this category
             // QA needs fewer RSS/feed sources (search results are the primary answer source)
             var maxFromCategory = isQA
-                ? Math.Max(1, (int)Math.Ceiling(weight * 2))   // QA: 1-2 feed sources
-                : Math.Max(1, (int)Math.Ceiling(weight * 4));  // News/roundup: 1-4 feed sources
+                ? Math.Max(1, (int)Math.Ceiling(weight * 2)) // QA: 1-2 feed sources
+                : Math.Max(1, (int)Math.Ceiling(weight * 4)); // News/roundup: 1-4 feed sources
             var added = 0;
 
             foreach (var yamlSource in routing.Sources)
@@ -463,17 +461,13 @@ public static class SentinelSourceMapper
         // Entity type (ORG/PER/LOC) doesn't determine topic category — that's the sentinel's job.
         // e.g., "SNL" is ORG but entertainment, not business.
         if (nerContext?.HasEntities == true)
-        {
             foreach (var eq in nerContext.EntityQueries.Take(2))
             {
                 var gnewsQuery = $"gnews:{eq.EntityText}";
                 if (!sources.Any(s => s.Contains(eq.EntityText, StringComparison.OrdinalIgnoreCase)))
-                {
                     if (sources.Count < maxTotalSources)
                         sources.Add(gnewsQuery);
-                }
             }
-        }
 
         // --- Phase 6: Minimum diversity floor ---
         // search_only: skip diversity floor — we want minimal, targeted search sources
@@ -498,8 +492,8 @@ public static class SentinelSourceMapper
     }
 
     /// <summary>
-    /// Convert a SentinelIntent into an InterpretedPrompt for backward compatibility
-    /// with the existing pipeline.
+    ///     Convert a SentinelIntent into an InterpretedPrompt for backward compatibility
+    ///     with the existing pipeline.
     /// </summary>
     public static InterpretedPrompt ToInterpretedPrompt(
         SentinelIntent intent,
@@ -510,7 +504,7 @@ public static class SentinelSourceMapper
         var sources = MapToSources(intent, router, query, nerContext);
 
         // Extract topics from top-weighted categories
-        var categories = intent.Categories ?? new();
+        var categories = intent.Categories ?? new Dictionary<string, double>();
         var topics = categories
             .Where(kv => kv.Value >= 0.3)
             .OrderByDescending(kv => kv.Value)
@@ -544,7 +538,7 @@ public static class SentinelSourceMapper
     }
 
     /// <summary>
-    /// Map a YAML source name to CLI source identifier.
+    ///     Map a YAML source name to CLI source identifier.
     /// </summary>
     internal static string? MapYamlSourceToCli(string yamlSource, RoutingResult routing, string query)
     {

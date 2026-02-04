@@ -1,12 +1,12 @@
 using System.Text.RegularExpressions;
-using Mostlylucid.Summarizer.Core.Analysis;
 using DoomWriter.Models;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace DoomWriter.Waves;
 
 /// <summary>
-/// Extracts text segments (paragraphs) with salience scoring.
-/// Fast lane, high priority — entity extraction depends on segments.
+///     Extracts text segments (paragraphs) with salience scoring.
+///     Fast lane, high priority — entity extraction depends on segments.
 /// </summary>
 public sealed partial class SegmentExtractionWave : ITypedAnalysisWave<string>
 {
@@ -16,8 +16,10 @@ public sealed partial class SegmentExtractionWave : ITypedAnalysisWave<string>
     public IReadOnlyList<string> Tags => [SignalTags.Structure, SignalTags.Content];
     public bool Enabled { get; set; } = true;
 
-    public bool ShouldRun(string content, AnalysisContext context) =>
-        !string.IsNullOrWhiteSpace(content);
+    public bool ShouldRun(string content, AnalysisContext context)
+    {
+        return !string.IsNullOrWhiteSpace(content);
+    }
 
     public Task<IEnumerable<Signal>> AnalyzeAsync(
         string markdown, AnalysisContext context, CancellationToken ct = default)
@@ -115,7 +117,7 @@ public sealed partial class SegmentExtractionWave : ITypedAnalysisWave<string>
     }
 
     /// <summary>
-    /// Extract entities from a single segment using regex patterns.
+    ///     Extract entities from a single segment using regex patterns.
     /// </summary>
     internal static List<string> ExtractInlineEntities(string text)
     {
@@ -149,7 +151,9 @@ public sealed partial class SegmentExtractionWave : ITypedAnalysisWave<string>
     [GeneratedRegex(@"`([^`]+)`")]
     private static partial Regex BacktickRegex();
 
-    private static bool IsCommonPhrase(string phrase) =>
-        phrase is "The" or "This" or "That" or "These" or "Those" or "Here"
+    private static bool IsCommonPhrase(string phrase)
+    {
+        return phrase is "The" or "This" or "That" or "These" or "Those" or "Here"
             or "There" or "In The" or "On The" or "For The";
+    }
 }

@@ -2,14 +2,14 @@
 
 ## Built-in Pipelines
 
-| Pipeline | Description | Speed | Use Case |
-|----------|-------------|-------|----------|
-| `ProfileOnly` | Deterministic analysis only | ~10ms | Fast metadata |
-| `auto` | Smart routing based on image | ~100-500ms | General purpose |
-| `florence2` | Florence-2 captions | ~200ms | Photos, screenshots |
-| `motion` | GIF motion analysis | ~300ms | Animations |
-| `florence2+llm` | Florence-2 + Vision LLM | ~1-5s | Best quality |
-| `advancedocr` | Multi-stage OCR | ~500ms | Text extraction |
+| Pipeline        | Description                  | Speed      | Use Case            |
+|-----------------|------------------------------|------------|---------------------|
+| `ProfileOnly`   | Deterministic analysis only  | ~10ms      | Fast metadata       |
+| `auto`          | Smart routing based on image | ~100-500ms | General purpose     |
+| `florence2`     | Florence-2 captions          | ~200ms     | Photos, screenshots |
+| `motion`        | GIF motion analysis          | ~300ms     | Animations          |
+| `florence2+llm` | Florence-2 + Vision LLM      | ~1-5s      | Best quality        |
+| `advancedocr`   | Multi-stage OCR              | ~500ms     | Text extraction     |
 
 ## Auto Pipeline
 
@@ -60,13 +60,13 @@ output:
 
 Pre-defined signal groups:
 
-| Collection | Signals |
-|------------|---------|
-| `@minimal` | identity.*, quality.sharpness |
+| Collection | Signals                                 |
+|------------|-----------------------------------------|
+| `@minimal` | identity.*, quality.sharpness           |
 | `@alttext` | caption.text, ocr.text, color.dominant* |
-| `@motion` | motion.*, identity.frame_count |
-| `@full` | All signals |
-| `@tool` | Optimized for MCP/automation |
+| `@motion`  | motion.*, identity.frame_count          |
+| `@full`    | All signals                             |
+| `@tool`    | Optimized for MCP/automation            |
 
 ## Pipeline Selection Guide
 

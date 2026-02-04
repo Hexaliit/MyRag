@@ -34,9 +34,9 @@ public class EntityDisambiguationService
     private const double ClusterThreshold = 0.65;
 
     /// <summary>
-    /// Full disambiguation with sentinel LLM feature extraction.
-    /// Use in AskCommand where an interactive LLM call is acceptable.
-    /// Falls back: sentinel → NER → domain+title → ONNX embed → cluster.
+    ///     Full disambiguation with sentinel LLM feature extraction.
+    ///     Use in AskCommand where an interactive LLM call is acceptable.
+    ///     Falls back: sentinel → NER → domain+title → ONNX embed → cluster.
     /// </summary>
     public async Task<DisambiguationResult> DisambiguateAsync(
         List<ContentItem> evidence,
@@ -58,10 +58,10 @@ public class EntityDisambiguationService
     }
 
     /// <summary>
-    /// Fast deterministic disambiguation — zero LLM/NER calls.
-    /// Uses only data already on ContentItem (topic, domain, title, existing embedding).
-    /// Fingerprints are embedded via ONNX (~1ms each) with feature_cache.
-    /// Use in ScrollCommand where the sentinel already contributed upfront.
+    ///     Fast deterministic disambiguation — zero LLM/NER calls.
+    ///     Uses only data already on ContentItem (topic, domain, title, existing embedding).
+    ///     Fingerprints are embedded via ONNX (~1ms each) with feature_cache.
+    ///     Use in ScrollCommand where the sentinel already contributed upfront.
     /// </summary>
     public async Task<DisambiguationResult> DisambiguateFastAsync(
         List<ContentItem> evidence,
@@ -86,7 +86,6 @@ public class EntityDisambiguationService
             return new DisambiguationResult { IsAmbiguous = false, Clusters = [], Method = "skip" };
 
         if (evidence.Count < 4)
-        {
             return new DisambiguationResult
             {
                 IsAmbiguous = false,
@@ -101,7 +100,6 @@ public class EntityDisambiguationService
                 ],
                 Method = "skip"
             };
-        }
 
         return null; // don't skip
     }
@@ -152,8 +150,8 @@ public class EntityDisambiguationService
     // --- Feature Extraction: Fast (existing ContentItem data only) ---
 
     /// <summary>
-    /// Build features from data already on ContentItem — zero model calls.
-    /// Uses: DetectedTopic, URL domain, Source, Title keywords.
+    ///     Build features from data already on ContentItem — zero model calls.
+    ///     Uses: DetectedTopic, URL domain, Source, Title keywords.
     /// </summary>
     private static List<EntityFeatures> ExtractExistingFeatures(List<ContentItem> evidence)
     {
@@ -172,11 +170,12 @@ public class EntityDisambiguationService
 
             features.Add(new EntityFeatures(
                 i,
-                OrgName: null, // no org extraction without NER/LLM
-                Location: null,
-                Industry: topic,
-                Description: desc));
+                null, // no org extraction without NER/LLM
+                null,
+                topic,
+                desc));
         }
+
         return features;
     }
 
@@ -207,7 +206,8 @@ public class EntityDisambiguationService
 
             sb.AppendLine();
             sb.AppendLine("For each, extract the primary entity discussed.");
-            sb.AppendLine("Respond JSON only: {\"items\":[{\"idx\":0,\"org\":\"name\",\"loc\":\"location\",\"industry\":\"sector\",\"desc\":\"one phrase\"},...]}");
+            sb.AppendLine(
+                "Respond JSON only: {\"items\":[{\"idx\":0,\"org\":\"name\",\"loc\":\"location\",\"industry\":\"sector\",\"desc\":\"one phrase\"},...]}");
             sb.AppendLine("Use \"unknown\" for missing fields.");
 
             var response = await ollama.SentinelGenerateAsync(sb.ToString(), null, 0.1, ct);
@@ -225,15 +225,12 @@ public class EntityDisambiguationService
             // Build validated lookup — reject out-of-range Idx values
             var lookup = new Dictionary<int, FeatureExtractionItem>();
             foreach (var item in parsed.Items)
-            {
                 if (item.Idx >= 0 && item.Idx < evidence.Count)
                     lookup.TryAdd(item.Idx, item);
-            }
 
             // Normalize: exactly evidence.Count features, fill gaps with domain fallback
             var features = new List<EntityFeatures>(evidence.Count);
             for (var i = 0; i < evidence.Count; i++)
-            {
                 if (lookup.TryGetValue(i, out var llmItem))
                 {
                     features.Add(new EntityFeatures(
@@ -249,7 +246,6 @@ public class EntityDisambiguationService
                     features.Add(new EntityFeatures(i, null, null, null,
                         $"{evidence[i].Title} [{domain}]"));
                 }
-            }
 
             return features;
         }
@@ -310,6 +306,7 @@ public class EntityDisambiguationService
             features.Add(new EntityFeatures(i, null, null, null,
                 $"{evidence[i].Title} [{domain}]"));
         }
+
         return features;
     }
 
@@ -417,7 +414,7 @@ public class EntityDisambiguationService
                 var centroid = clusterCentroids[bestCluster];
                 var count = clusterMembers[bestCluster].Count;
                 for (var d = 0; d < centroid.Length; d++)
-                    centroid[d] = ((centroid[d] * (count - 1)) + emb[d]) / count;
+                    centroid[d] = (centroid[d] * (count - 1) + emb[d]) / count;
                 L2Normalize(centroid);
             }
             else
@@ -433,23 +430,18 @@ public class EntityDisambiguationService
         var allAssigned = new HashSet<int>(clusterMembers.SelectMany(m => m));
         var orphans = new List<int>();
         for (var i = 0; i < evidence.Count; i++)
-        {
             if (!allAssigned.Contains(i))
                 orphans.Add(i);
-        }
         for (var c = clusterMembers.Count - 1; c >= 0; c--)
-        {
             if (clusterMembers[c].Count == 1)
             {
                 orphans.Add(clusterMembers[c][0]);
                 clusterMembers.RemoveAt(c);
                 clusterCentroids.RemoveAt(c);
             }
-        }
 
         // Assign orphans to nearest multi-member cluster
         if (clusterCentroids.Count > 0)
-        {
             foreach (var orphanIdx in orphans)
             {
                 var emb = featureEmbeddings[orphanIdx];
@@ -457,7 +449,8 @@ public class EntityDisambiguationService
                 var bestSim = -1.0f;
                 for (var c = 0; c < clusterCentroids.Count; c++)
                 {
-                    var sim = IsZeroVector(emb) ? 0f
+                    var sim = IsZeroVector(emb)
+                        ? 0f
                         : VectorMath.CosineSimilarity(emb, clusterCentroids[c]);
                     if (sim > bestSim)
                     {
@@ -465,9 +458,9 @@ public class EntityDisambiguationService
                         bestCluster = c;
                     }
                 }
+
                 clusterMembers[bestCluster].Add(orphanIdx);
             }
-        }
 
         // Build cluster objects
         var clusters = new List<EntityCluster>();
@@ -498,14 +491,12 @@ public class EntityDisambiguationService
         }
 
         if (clusters.Count == 0)
-        {
             clusters.Add(new EntityCluster
             {
                 Items = evidence.ToList(),
                 AverageRelevance = evidence.Average(e => e.RelevanceScore),
                 Label = "All results"
             });
-        }
 
         clusters.Sort((a, b) => b.AverageRelevance.CompareTo(a.AverageRelevance));
         return clusters;
@@ -564,23 +555,35 @@ public class EntityDisambiguationService
     // --- Helpers ---
 
     private static string TruncateTitle(string title)
-        => title.Length > 60 ? title[..57] + "..." : title;
+    {
+        return title.Length > 60 ? title[..57] + "..." : title;
+    }
 
     private static string ExtractDomain(string? url)
     {
         if (string.IsNullOrEmpty(url)) return "";
-        try { return new Uri(url).Host.Replace("www.", ""); }
-        catch { return ""; }
+        try
+        {
+            return new Uri(url).Host.Replace("www.", "");
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static string? NormalizeUnknown(string? value)
-        => string.IsNullOrWhiteSpace(value) || value.Equals("unknown", StringComparison.OrdinalIgnoreCase)
-            ? null : value;
+    {
+        return string.IsNullOrWhiteSpace(value) || value.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : value;
+    }
 
     private static bool IsZeroVector(float[] v)
     {
         for (var i = 0; i < v.Length; i++)
-            if (v[i] != 0f) return false;
+            if (v[i] != 0f)
+                return false;
         return true;
     }
 

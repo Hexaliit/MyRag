@@ -5,18 +5,14 @@ using VideoSummarizer.Core.Services;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Wave that enriches video metadata from external sources (TMDB, OMDB).
-/// Runs early in the pipeline to inform other waves (e.g., face recognition can use cast info).
+///     Wave that enriches video metadata from external sources (TMDB, OMDB).
+///     Runs early in the pipeline to inform other waves (e.g., face recognition can use cast info).
 /// </summary>
 public class ExternalMetadataWave : IVideoWave
 {
-    private readonly MediaMetadataService _metadataService;
     private readonly MediaFilenameParser _filenameParser;
     private readonly ILogger<ExternalMetadataWave> _logger;
-
-    public string Name => "ExternalMetadata";
-    public int Priority => 990; // Very early, after normalize
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Metadata];
+    private readonly MediaMetadataService _metadataService;
 
     public ExternalMetadataWave(
         MediaMetadataService metadataService,
@@ -27,6 +23,10 @@ public class ExternalMetadataWave : IVideoWave
         _filenameParser = filenameParser;
         _logger = logger;
     }
+
+    public string Name => "ExternalMetadata";
+    public int Priority => 990; // Very early, after normalize
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Metadata];
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {

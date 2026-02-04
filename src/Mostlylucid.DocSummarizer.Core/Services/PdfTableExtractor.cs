@@ -12,6 +12,9 @@ namespace Mostlylucid.DocSummarizer.Core.Services;
 /// </summary>
 public class PdfTableExtractor : ITableExtractor
 {
+    /// <summary>Maximum pages to scan for tables. Large PDFs rarely have useful tables past this point.</summary>
+    private const int MaxTableExtractionPages = 100;
+
     private readonly ILogger<PdfTableExtractor> _logger;
 
     public PdfTableExtractor(ILogger<PdfTableExtractor> logger)
@@ -27,9 +30,6 @@ public class PdfTableExtractor : ITableExtractor
         // Always available (no external dependencies)
         return Task.FromResult(true);
     }
-
-    /// <summary>Maximum pages to scan for tables. Large PDFs rarely have useful tables past this point.</summary>
-    private const int MaxTableExtractionPages = 100;
 
     public async Task<TableExtractionResult> ExtractTablesAsync(
         string filePath,
@@ -55,11 +55,9 @@ public class PdfTableExtractor : ITableExtractor
                     : allPages;
 
                 if (allPages.Count > MaxTableExtractionPages)
-                {
                     _logger.LogInformation(
                         "Table extraction limited to first {Max} of {Total} pages for {File}",
                         MaxTableExtractionPages, document.NumberOfPages, Path.GetFileName(filePath));
-                }
 
                 var globalTableNumber = 1;
 

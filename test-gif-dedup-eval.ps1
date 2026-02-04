@@ -11,14 +11,15 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "Text-Aware Deduplication - Evaluation" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-if (-not (Test-Path $GifPath)) {
+if (-not (Test-Path $GifPath))
+{
     Write-Host "GIF not found: $GifPath" -ForegroundColor Red
     exit 1
 }
 
 Write-Host "GIF: $GifPath" -ForegroundColor Yellow
 $gifInfo = Get-Item $GifPath
-Write-Host "Size: $([math]::Round($gifInfo.Length/1KB, 1)) KB`n" -ForegroundColor Gray
+Write-Host "Size: $([math]::Round($gifInfo.Length/1KB, 1) ) KB`n" -ForegroundColor Gray
 
 # Create test C# script
 $testCode = @'

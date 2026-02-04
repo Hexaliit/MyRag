@@ -225,17 +225,26 @@ public class OllamaConfig
     /// <summary>
     ///     Get the model for the specified synthesis profile
     /// </summary>
-    public string GetSynthesisModel(string? profile = null) => GetSynthesisProfile(profile).Model;
+    public string GetSynthesisModel(string? profile = null)
+    {
+        return GetSynthesisProfile(profile).Model;
+    }
 
     /// <summary>
     ///     Get the max tokens for the specified synthesis profile
     /// </summary>
-    public int GetSynthesisMaxTokens(string? profile = null) => GetSynthesisProfile(profile).MaxTokens;
+    public int GetSynthesisMaxTokens(string? profile = null)
+    {
+        return GetSynthesisProfile(profile).MaxTokens;
+    }
 
     /// <summary>
     ///     Get the temperature for the specified synthesis profile
     /// </summary>
-    public double GetSynthesisTemperature(string? profile = null) => GetSynthesisProfile(profile).Temperature;
+    public double GetSynthesisTemperature(string? profile = null)
+    {
+        return GetSynthesisProfile(profile).Temperature;
+    }
 }
 
 /// <summary>

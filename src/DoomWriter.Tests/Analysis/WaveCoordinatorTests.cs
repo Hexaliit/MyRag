@@ -11,8 +11,8 @@ public class WaveCoordinatorTests
     {
         var coordinator = new WaveCoordinator();
         coordinator.RegisterWaves([
-            new CountingWave("wave1", priority: 90),
-            new CountingWave("wave2", priority: 50)
+            new CountingWave("wave1", 90),
+            new CountingWave("wave2", 50)
         ]);
 
         var result = await coordinator.ExecuteAsync("test content");
@@ -25,8 +25,8 @@ public class WaveCoordinatorTests
     [Fact]
     public async Task ExecuteAsync_SkipsDisabledWaves()
     {
-        var disabledWave = new CountingWave("disabled", priority: 90) { Enabled = false };
-        var enabledWave = new CountingWave("enabled", priority: 50);
+        var disabledWave = new CountingWave("disabled", 90) { Enabled = false };
+        var enabledWave = new CountingWave("enabled", 50);
 
         var coordinator = new WaveCoordinator();
         coordinator.RegisterWaves([disabledWave, enabledWave]);
@@ -42,9 +42,9 @@ public class WaveCoordinatorTests
         var order = new List<string>();
         var coordinator = new WaveCoordinator();
         coordinator.RegisterWaves([
-            new TrackingWave("low", priority: 10, order),
-            new TrackingWave("high", priority: 90, order),
-            new TrackingWave("mid", priority: 50, order)
+            new TrackingWave("low", 10, order),
+            new TrackingWave("high", 90, order),
+            new TrackingWave("mid", 50, order)
         ]);
 
         // Use single-lane profile to force sequential execution
@@ -52,9 +52,9 @@ public class WaveCoordinatorTests
         {
             Name = "sequential",
             WaveTimeoutMs = 5000,
-            Lanes = new()
+            Lanes = new Dictionary<string, LaneConfig>
             {
-                ["fast"] = new LaneConfig { Name = "fast", MaxConcurrency = 1 }
+                ["fast"] = new() { Name = "fast", MaxConcurrency = 1 }
             }
         };
 
@@ -71,17 +71,17 @@ public class WaveCoordinatorTests
     {
         var coordinator = new WaveCoordinator();
         coordinator.RegisterWaves([
-            new ProducerWave("producer", priority: 90),
-            new ConsumerWave("consumer", priority: 50)
+            new ProducerWave("producer", 90),
+            new ConsumerWave("consumer", 50)
         ]);
 
         var profile = new CoordinatorProfile
         {
             Name = "sequential",
             WaveTimeoutMs = 5000,
-            Lanes = new()
+            Lanes = new Dictionary<string, LaneConfig>
             {
-                ["fast"] = new LaneConfig { Name = "fast", MaxConcurrency = 1 }
+                ["fast"] = new() { Name = "fast", MaxConcurrency = 1 }
             }
         };
 
@@ -101,7 +101,7 @@ public class WaveCoordinatorTests
         var coordinator = new WaveCoordinator();
         coordinator.RegisterWaves([
             new FailingWave("fails"),
-            new CountingWave("succeeds", priority: 50)
+            new CountingWave("succeeds", 50)
         ]);
 
         var result = await coordinator.ExecuteAsync("test");
@@ -120,7 +120,7 @@ public class WaveCoordinatorTests
     {
         var coordinator = new WaveCoordinator();
         coordinator.RegisterWaves([
-            new ConditionalWave("conditional", shouldRun: false)
+            new ConditionalWave("conditional", false)
         ]);
 
         var result = await coordinator.ExecuteAsync("test");
@@ -136,7 +136,7 @@ public class WaveCoordinatorTests
     public async Task ExecuteAsync_TracksTotalDuration()
     {
         var coordinator = new WaveCoordinator();
-        coordinator.RegisterWave(new CountingWave("wave1", priority: 90));
+        coordinator.RegisterWave(new CountingWave("wave1", 90));
 
         var result = await coordinator.ExecuteAsync("test");
 
@@ -149,8 +149,8 @@ public class WaveCoordinatorTests
     {
         var coordinator = new WaveCoordinator();
         coordinator.RegisterWaves([
-            new CountingWave("fast_wave", priority: 90), // No ml/llm/io tags → fast lane
-            new MlWave("ml_wave")                        // "ml" tag → ml lane
+            new CountingWave("fast_wave", 90), // No ml/llm/io tags → fast lane
+            new MlWave("ml_wave") // "ml" tag → ml lane
         ]);
 
         var result = await coordinator.ExecuteAsync("test");
@@ -185,7 +185,10 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => [];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => true;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return true;
+        }
 
         public Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
         {
@@ -206,7 +209,10 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => [];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => true;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return true;
+        }
 
         public Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
         {
@@ -223,7 +229,10 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => [];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => true;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return true;
+        }
 
         public Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
         {
@@ -243,7 +252,10 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => [];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => true;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return true;
+        }
 
         public Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
         {
@@ -263,7 +275,10 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => [];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => true;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return true;
+        }
 
         public Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
         {
@@ -279,7 +294,10 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => [];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => shouldRun;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return shouldRun;
+        }
 
         public Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
         {
@@ -298,7 +316,10 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => ["ml"];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => true;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return true;
+        }
 
         public Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
         {
@@ -317,9 +338,13 @@ public class WaveCoordinatorTests
         public IReadOnlyList<string> Tags => [];
         public bool Enabled { get; set; } = true;
 
-        public bool ShouldRun(string content, AnalysisContext context) => true;
+        public bool ShouldRun(string content, AnalysisContext context)
+        {
+            return true;
+        }
 
-        public async Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context, CancellationToken ct)
+        public async Task<IEnumerable<Signal>> AnalyzeAsync(string content, AnalysisContext context,
+            CancellationToken ct)
         {
             await Task.Delay(10000, ct);
             return [];

@@ -1,14 +1,16 @@
 using System.Text;
-using Mostlylucid.DocSummarizer.Images.Pipeline;
 using LucidRAG.Core.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Hubs;
 using Microsoft.EntityFrameworkCore;
 using Mostlylucid.DocSummarizer;
+using Mostlylucid.DocSummarizer.Images.Pipeline;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.Summarizer.Core.Pipeline;
+using Mostlylucid.Summarizer.Core.Utilities;
+using StyloFlow.Retrieval.Entities;
 using VideoSummarizer.Core.Pipeline;
 
 namespace LucidRAG.Services.Background;
@@ -27,7 +29,8 @@ public class DocumentQueueProcessor(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Document queue processor started with queue instance {QueueInstanceId}", queue.InstanceId);
+        logger.LogInformation("Document queue processor started with queue instance {QueueInstanceId}",
+            queue.InstanceId);
 
         // Clean up failed documents from previous runs
         await CleanupFailedDocumentsAsync(stoppingToken);
@@ -203,7 +206,6 @@ public class DocumentQueueProcessor(
 
             var queued = 0;
             foreach (var doc in pendingDocs)
-            {
                 try
                 {
                     // Only queue if file still exists
@@ -229,7 +231,6 @@ public class DocumentQueueProcessor(
                 {
                     logger.LogWarning(ex, "Failed to re-queue document {DocumentId}", doc.Id);
                 }
-            }
 
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Re-queued {Queued}/{Total} pending documents for processing",
@@ -243,7 +244,8 @@ public class DocumentQueueProcessor(
 
     private async Task ProcessDocumentAsync(DocumentProcessingJob job, CancellationToken ct)
     {
-        logger.LogInformation("ProcessDocumentAsync starting for {DocumentId}, FilePath={FilePath}", job.DocumentId, job.FilePath);
+        logger.LogInformation("ProcessDocumentAsync starting for {DocumentId}, FilePath={FilePath}", job.DocumentId,
+            job.FilePath);
         using var scope = scopeFactory.CreateScope();
         logger.LogDebug("Created scope for document {DocumentId}", job.DocumentId);
 
@@ -266,13 +268,14 @@ public class DocumentQueueProcessor(
 
         // Check if this is an image or video file - try to resolve pipelines with timeout
         var extension = Path.GetExtension(job.FilePath).ToLowerInvariant();
-        var isImageExtension = extension is ".gif" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".tiff" or ".tif";
-        var isVideoExtension = extension is ".mp4" or ".mkv" or ".avi" or ".mov" or ".wmv" or ".webm" or ".flv" or ".m4v" or ".mpeg" or ".mpg";
+        var isImageExtension =
+            extension is ".gif" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".tiff" or ".tif";
+        var isVideoExtension = extension is ".mp4" or ".mkv" or ".avi" or ".mov" or ".wmv" or ".webm" or ".flv"
+            or ".m4v" or ".mpeg" or ".mpg";
         ImagePipeline? imagePipeline = null;
         VideoPipeline? videoPipeline = null;
 
         if (isImageExtension)
-        {
             // Try to resolve ImagePipeline with timeout (was previously blocking on DI)
             try
             {
@@ -282,13 +285,9 @@ public class DocumentQueueProcessor(
                 {
                     imagePipeline = await pipelineTask;
                     if (imagePipeline != null)
-                    {
                         logger.LogInformation("ImagePipeline resolved successfully for image processing");
-                    }
                     else
-                    {
                         logger.LogWarning("ImagePipeline resolved as null, using fallback");
-                    }
                 }
                 else
                 {
@@ -299,9 +298,7 @@ public class DocumentQueueProcessor(
             {
                 logger.LogWarning(ex, "ImagePipeline resolution failed, using fallback");
             }
-        }
         else if (isVideoExtension)
-        {
             // Try to resolve VideoPipeline for video processing
             try
             {
@@ -311,13 +308,9 @@ public class DocumentQueueProcessor(
                 {
                     videoPipeline = await pipelineTask;
                     if (videoPipeline != null)
-                    {
                         logger.LogInformation("VideoPipeline resolved successfully for video processing");
-                    }
                     else
-                    {
                         logger.LogWarning("VideoPipeline resolved as null, video processing unavailable");
-                    }
                 }
                 else
                 {
@@ -328,7 +321,6 @@ public class DocumentQueueProcessor(
             {
                 logger.LogWarning(ex, "VideoPipeline resolution failed, video processing unavailable");
             }
-        }
 
         var document = await db.Documents.FindAsync([job.DocumentId], ct);
         if (document is null)
@@ -356,8 +348,10 @@ public class DocumentQueueProcessor(
             var isImageFile = imagePipeline != null && isImageExtension;
             var useImageFallback = imagePipeline == null && isImageExtension;
             var isVideoFile = videoPipeline != null && isVideoExtension;
-            logger.LogInformation("Pipeline check for {FilePath}: extension={Extension}, imagePipeline={HasImagePipeline}, videoPipeline={HasVideoPipeline}, isImageFile={IsImage}, isVideoFile={IsVideo}, fallback={UseFallback}",
-                job.FilePath, extension, imagePipeline != null ? "available" : "null", videoPipeline != null ? "available" : "null", isImageFile, isVideoFile, useImageFallback);
+            logger.LogInformation(
+                "Pipeline check for {FilePath}: extension={Extension}, imagePipeline={HasImagePipeline}, videoPipeline={HasVideoPipeline}, isImageFile={IsImage}, isVideoFile={IsVideo}, fallback={UseFallback}",
+                job.FilePath, extension, imagePipeline != null ? "available" : "null",
+                videoPipeline != null ? "available" : "null", isImageFile, isVideoFile, useImageFallback);
             DocumentSummary? result = null;
             List<Segment>? mediaSegments = null; // Store segments for images/videos
 
@@ -372,26 +366,24 @@ public class DocumentQueueProcessor(
 
                 // Create a basic segment with just the filename and extension info
                 var fileBytes = await File.ReadAllBytesAsync(job.FilePath, ct);
-                var contentHash = Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(fileBytes);
+                var contentHash = ContentHasher.ComputeHash(fileBytes);
                 var filename = Path.GetFileNameWithoutExtension(job.FilePath);
                 document.VectorStoreDocId = $"{filename}_{contentHash}";
 
                 // Create a minimal segment describing the image
                 var description = $"Image file: {Path.GetFileName(job.FilePath)} ({fileBytes.Length / 1024} KB)";
                 if (extension == ".gif")
-                {
                     description = $"Animated GIF: {Path.GetFileName(job.FilePath)} ({fileBytes.Length / 1024} KB)";
-                }
 
                 // Create segment using proper constructor
                 var segment = new Segment(
-                    docId: document.VectorStoreDocId,
-                    text: description,
-                    type: SegmentType.Sentence, // Using Sentence as fallback for image description
-                    index: 0,
-                    startChar: 0,
-                    endChar: description.Length,
-                    contentHashOverride: contentHash);
+                    document.VectorStoreDocId,
+                    description,
+                    SegmentType.Sentence, // Using Sentence as fallback for image description
+                    0,
+                    0,
+                    description.Length,
+                    contentHash);
 
                 // Generate embedding
                 var embedding = await embeddingService.EmbedAsync(description, ct);
@@ -409,7 +401,8 @@ public class DocumentQueueProcessor(
 
                 mediaSegments = [segment];
 
-                logger.LogInformation("Image fallback created 1 segment for {FileName}", Path.GetFileName(job.FilePath));
+                logger.LogInformation("Image fallback created 1 segment for {FileName}",
+                    Path.GetFileName(job.FilePath));
             }
             else if (isImageFile)
             {
@@ -433,7 +426,7 @@ public class DocumentQueueProcessor(
 
                 // Compute content hash from file for stable document ID (matches BertRagSummarizer pattern)
                 var fileBytes = await File.ReadAllBytesAsync(job.FilePath, ct);
-                var contentHash = Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(fileBytes);
+                var contentHash = ContentHasher.ComputeHash(fileBytes);
                 var filename = Path.GetFileNameWithoutExtension(job.FilePath);
                 document.VectorStoreDocId = $"{filename}_{contentHash}";
 
@@ -491,7 +484,7 @@ public class DocumentQueueProcessor(
 
                 // Compute content hash from file for stable document ID
                 var fileBytes = await File.ReadAllBytesAsync(job.FilePath, ct);
-                var contentHash = Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(fileBytes);
+                var contentHash = ContentHasher.ComputeHash(fileBytes);
                 var filename = Path.GetFileNameWithoutExtension(job.FilePath);
                 document.VectorStoreDocId = $"{filename}_{contentHash}";
 
@@ -530,7 +523,8 @@ public class DocumentQueueProcessor(
             else if (isVideoExtension && videoPipeline == null)
             {
                 // Video file but VideoPipeline not available - error since we can't process videos without it
-                throw new NotSupportedException($"Video processing is not available. VideoPipeline could not be resolved for file: {Path.GetFileName(job.FilePath)}");
+                throw new NotSupportedException(
+                    $"Video processing is not available. VideoPipeline could not be resolved for file: {Path.GetFileName(job.FilePath)}");
             }
             else
             {
@@ -729,7 +723,7 @@ public class DocumentQueueProcessor(
     ///     Convert ContentChunks from ImagePipeline to Segments with embeddings and index in vector store.
     /// </summary>
     private static async Task<List<Segment>> ConvertAndIndexImageChunksAsync(
-        IReadOnlyList<Mostlylucid.Summarizer.Core.Pipeline.ContentChunk> chunks,
+        IReadOnlyList<ContentChunk> chunks,
         string docId,
         IVectorStore vectorStore,
         IEmbeddingService embeddingService,
@@ -821,7 +815,7 @@ public class DocumentQueueProcessor(
     /// </summary>
     private static async Task StoreSegmentEvidenceAsync(
         IEvidenceRepository evidenceRepository,
-        StyloFlow.Retrieval.Entities.RetrievalEntity entity,
+        RetrievalEntity entity,
         IReadOnlyList<Segment> segments,
         ILogger logger,
         CancellationToken ct)

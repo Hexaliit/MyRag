@@ -5,16 +5,17 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizers.Reader.Docling;
 
 /// <summary>
-/// DI registration for the Docling reader.
+///     DI registration for the Docling reader.
 /// </summary>
 public static class DoclingReaderExtensions
 {
     /// <summary>
-    /// Register the Docling document reader.
+    ///     Register the Docling document reader.
     /// </summary>
     /// <param name="services">Service collection.</param>
     /// <param name="baseUrl">Docling service URL (default: http://localhost:5001).</param>
-    public static IServiceCollection AddDoclingReader(this IServiceCollection services, string baseUrl = "http://localhost:5001")
+    public static IServiceCollection AddDoclingReader(this IServiceCollection services,
+        string baseUrl = "http://localhost:5001")
     {
         services.AddHttpClient(nameof(DoclingReader));
         services.AddSingleton(sp =>

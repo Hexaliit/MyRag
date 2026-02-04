@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 
 namespace Mostlylucid.Summarizer.Core.Capabilities;
 
 /// <summary>
-/// Signal types for capability changes.
+///     Signal types for capability changes.
 /// </summary>
 public enum CapabilitySignalType
 {
@@ -39,8 +40,8 @@ public enum CapabilitySignalType
 }
 
 /// <summary>
-/// A capability signal that can be emitted and observed.
-/// Designed to be serializable for mesh distribution.
+///     A capability signal that can be emitted and observed.
+///     Designed to be serializable for mesh distribution.
 /// </summary>
 public record CapabilitySignal
 {
@@ -59,31 +60,31 @@ public record CapabilitySignal
 }
 
 /// <summary>
-/// Interface for capability signal sink - shared bus for coordinator communication.
+///     Interface for capability signal sink - shared bus for coordinator communication.
 /// </summary>
 public interface ICapabilitySignalSink
 {
     /// <summary>
-    /// Emit a signal to all subscribers.
+    ///     Emit a signal to all subscribers.
     /// </summary>
     Task EmitAsync(CapabilitySignal signal, CancellationToken ct = default);
 
     /// <summary>
-    /// Subscribe to signals matching a filter.
+    ///     Subscribe to signals matching a filter.
     /// </summary>
     IDisposable Subscribe(
         Action<CapabilitySignal> handler,
         Func<CapabilitySignal, bool>? filter = null);
 
     /// <summary>
-    /// Subscribe to signals as an async enumerable.
+    ///     Subscribe to signals as an async enumerable.
     /// </summary>
     IAsyncEnumerable<CapabilitySignal> ObserveAsync(
         Func<CapabilitySignal, bool>? filter = null,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Wait for a specific signal condition.
+    ///     Wait for a specific signal condition.
     /// </summary>
     Task<CapabilitySignal> WaitForAsync(
         Func<CapabilitySignal, bool> predicate,
@@ -91,22 +92,22 @@ public interface ICapabilitySignalSink
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get recent signal history (for late subscribers / debugging).
+    ///     Get recent signal history (for late subscribers / debugging).
     /// </summary>
     IReadOnlyList<CapabilitySignal> GetRecentSignals(int count = 100);
 }
 
 /// <summary>
-/// In-process capability signal sink implementation.
-/// For mesh distribution, this would be replaced with a distributed pub/sub.
+///     In-process capability signal sink implementation.
+///     For mesh distribution, this would be replaced with a distributed pub/sub.
 /// </summary>
 public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
 {
-    private readonly ILogger<CapabilitySignalSink> _logger;
-    private readonly ConcurrentDictionary<Guid, Subscription> _subscriptions = new();
-    private readonly ConcurrentQueue<CapabilitySignal> _signalHistory = new();
-    private readonly int _maxHistorySize;
     private readonly SemaphoreSlim _emitLock = new(1, 1);
+    private readonly ILogger<CapabilitySignalSink> _logger;
+    private readonly int _maxHistorySize;
+    private readonly ConcurrentQueue<CapabilitySignal> _signalHistory = new();
+    private readonly ConcurrentDictionary<Guid, Subscription> _subscriptions = new();
 
     public CapabilitySignalSink(ILogger<CapabilitySignalSink> logger, int maxHistorySize = 1000)
     {
@@ -118,17 +119,13 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
     {
         // Add to history
         _signalHistory.Enqueue(signal);
-        while (_signalHistory.Count > _maxHistorySize)
-        {
-            _signalHistory.TryDequeue(out _);
-        }
+        while (_signalHistory.Count > _maxHistorySize) _signalHistory.TryDequeue(out _);
 
         _logger.LogDebug("Emitting signal {SignalType} for {ModelId}/{ComponentId}",
             signal.SignalType, signal.ModelId, signal.ComponentId);
 
         // Notify all subscriptions
         foreach (var (_, subscription) in _subscriptions)
-        {
             try
             {
                 if (subscription.Filter == null || subscription.Filter(signal))
@@ -141,7 +138,6 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
             {
                 _logger.LogWarning(ex, "Error in signal handler");
             }
-        }
 
         await Task.CompletedTask;
     }
@@ -163,7 +159,7 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
 
     public async IAsyncEnumerable<CapabilitySignal> ObserveAsync(
         Func<CapabilitySignal, bool>? filter = null,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
         var id = Guid.NewGuid();
         var channel = Channel.CreateUnbounded<CapabilitySignal>(new UnboundedChannelOptions
@@ -183,10 +179,7 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
 
         try
         {
-            await foreach (var signal in channel.Reader.ReadAllAsync(ct))
-            {
-                yield return signal;
-            }
+            await foreach (var signal in channel.Reader.ReadAllAsync(ct)) yield return signal;
         }
         finally
         {
@@ -204,10 +197,7 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
 
         using var subscription = Subscribe(signal =>
         {
-            if (predicate(signal))
-            {
-                tcs.TrySetResult(signal);
-            }
+            if (predicate(signal)) tcs.TrySetResult(signal);
         });
 
         var timeoutTask = timeout.HasValue
@@ -216,10 +206,7 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
 
         var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
 
-        if (completedTask == timeoutTask)
-        {
-            throw new TimeoutException("Timed out waiting for signal");
-        }
+        if (completedTask == timeoutTask) throw new TimeoutException("Timed out waiting for signal");
 
         return await tcs.Task;
     }
@@ -231,10 +218,7 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
 
     public void Dispose()
     {
-        foreach (var (_, subscription) in _subscriptions)
-        {
-            subscription.Channel?.Writer.TryComplete();
-        }
+        foreach (var (_, subscription) in _subscriptions) subscription.Channel?.Writer.TryComplete();
         _subscriptions.Clear();
         _emitLock.Dispose();
     }
@@ -249,60 +233,71 @@ public class CapabilitySignalSink : ICapabilitySignalSink, IDisposable
 
     private class SubscriptionDisposer(Action onDispose) : IDisposable
     {
-        public void Dispose() => onDispose();
+        public void Dispose()
+        {
+            onDispose();
+        }
     }
 }
 
 /// <summary>
-/// Extension methods for signal filtering.
+///     Extension methods for signal filtering.
 /// </summary>
 public static class CapabilitySignalExtensions
 {
     /// <summary>
-    /// Filter to model-related signals.
+    ///     Filter to model-related signals.
     /// </summary>
-    public static Func<CapabilitySignal, bool> ModelSignals(string? modelId = null) =>
-        s => s.SignalType is CapabilitySignalType.ModelDownloadStarted
-            or CapabilitySignalType.ModelDownloadProgress
-            or CapabilitySignalType.ModelDownloadFailed
-            or CapabilitySignalType.ModelAvailable
-            or CapabilitySignalType.ModelUnloaded
-            && (modelId == null || s.ModelId == modelId);
+    public static Func<CapabilitySignal, bool> ModelSignals(string? modelId = null)
+    {
+        return s => s.SignalType is CapabilitySignalType.ModelDownloadStarted
+                        or CapabilitySignalType.ModelDownloadProgress
+                        or CapabilitySignalType.ModelDownloadFailed
+                        or CapabilitySignalType.ModelAvailable
+                        or CapabilitySignalType.ModelUnloaded
+                    && (modelId == null || s.ModelId == modelId);
+    }
 
     /// <summary>
-    /// Filter to component-related signals.
+    ///     Filter to component-related signals.
     /// </summary>
-    public static Func<CapabilitySignal, bool> ComponentSignals(string? componentId = null) =>
-        s => s.SignalType is CapabilitySignalType.ComponentActivated
-            or CapabilitySignalType.ComponentDeactivated
-            or CapabilitySignalType.ComponentReady
-            or CapabilitySignalType.ComponentBusy
-            or CapabilitySignalType.ComponentError
-            && (componentId == null || s.ComponentId == componentId);
+    public static Func<CapabilitySignal, bool> ComponentSignals(string? componentId = null)
+    {
+        return s => s.SignalType is CapabilitySignalType.ComponentActivated
+                        or CapabilitySignalType.ComponentDeactivated
+                        or CapabilitySignalType.ComponentReady
+                        or CapabilitySignalType.ComponentBusy
+                        or CapabilitySignalType.ComponentError
+                    && (componentId == null || s.ComponentId == componentId);
+    }
 
     /// <summary>
-    /// Wait for a model to become available.
+    ///     Wait for a model to become available.
     /// </summary>
     public static Task<CapabilitySignal> WaitForModelAsync(
         this ICapabilitySignalSink sink,
         string modelId,
         TimeSpan? timeout = null,
-        CancellationToken ct = default) =>
-        sink.WaitForAsync(
+        CancellationToken ct = default)
+    {
+        return sink.WaitForAsync(
             s => s.SignalType == CapabilitySignalType.ModelAvailable && s.ModelId == modelId,
             timeout,
             ct);
+    }
 
     /// <summary>
-    /// Wait for a component to be ready.
+    ///     Wait for a component to be ready.
     /// </summary>
     public static Task<CapabilitySignal> WaitForComponentReadyAsync(
         this ICapabilitySignalSink sink,
         string componentId,
         TimeSpan? timeout = null,
-        CancellationToken ct = default) =>
-        sink.WaitForAsync(
+        CancellationToken ct = default)
+    {
+        return sink.WaitForAsync(
             s => s.SignalType == CapabilitySignalType.ComponentReady && s.ComponentId == componentId,
             timeout,
             ct);
+    }
 }

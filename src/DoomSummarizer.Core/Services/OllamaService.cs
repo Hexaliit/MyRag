@@ -1,25 +1,21 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 using Polly;
 using Polly.Retry;
+
 namespace DoomSummarizer.Services;
 
 public partial class OllamaService
 {
-    private readonly HttpClient _httpClient;
     private readonly OllamaConfig _config;
+    private readonly HttpClient _httpClient;
     private readonly ResiliencePipeline<string> _pipeline;
-
-    /// <summary>
-    /// Optional LLM router for cloud provider fallback.
-    /// When set, GenerateWithModelAsync delegates to the router, which checks budgets
-    /// and tries cloud providers (OpenAI/Anthropic) before falling back to Ollama.
-    /// </summary>
-    public LlmRouter? Router { get; set; }
 
     public OllamaService(OllamaConfig config)
     {
@@ -41,7 +37,14 @@ public partial class OllamaService
     }
 
     /// <summary>
-    /// Get max evidence chars per item, using the cloud provider's context window if routed.
+    ///     Optional LLM router for cloud provider fallback.
+    ///     When set, GenerateWithModelAsync delegates to the router, which checks budgets
+    ///     and tries cloud providers (OpenAI/Anthropic) before falling back to Ollama.
+    /// </summary>
+    public LlmRouter? Router { get; set; }
+
+    /// <summary>
+    ///     Get max evidence chars per item, using the cloud provider's context window if routed.
     /// </summary>
     internal int GetMaxEvidenceCharsPerItem(bool sentinel, int itemCount)
     {
@@ -71,7 +74,7 @@ public partial class OllamaService
     }
 
     /// <summary>
-    /// Get list of locally available Ollama model names.
+    ///     Get list of locally available Ollama model names.
     /// </summary>
     public async Task<List<string>> GetAvailableModelsAsync()
     {
@@ -91,31 +94,45 @@ public partial class OllamaService
         }
     }
 
-    public async Task<string> GenerateAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
-        => await GenerateWithModelAsync(_config.Model, prompt, systemPrompt, temperature, format: null, ct);
+    public async Task<string> GenerateAsync(string prompt, string? systemPrompt = null, double? temperature = null,
+        CancellationToken ct = default)
+    {
+        return await GenerateWithModelAsync(_config.Model, prompt, systemPrompt, temperature, null, ct);
+    }
 
     /// <summary>
-    /// Generate using the sentinel (fast/small) model — for per-article triage.
+    ///     Generate using the sentinel (fast/small) model — for per-article triage.
     /// </summary>
-    public async Task<string> SentinelGenerateAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
-        => await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, format: null, ct);
+    public async Task<string> SentinelGenerateAsync(string prompt, string? systemPrompt = null,
+        double? temperature = null, CancellationToken ct = default)
+    {
+        return await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, null, ct);
+    }
 
     /// <summary>
-    /// Generate using the sentinel (fast/small) model with forced JSON output.
-    /// Combines the speed of the sentinel model with Ollama's format:"json" guarantee.
-    /// Used for structured outputs like conversation query rewriting.
+    ///     Generate using the sentinel (fast/small) model with forced JSON output.
+    ///     Combines the speed of the sentinel model with Ollama's format:"json" guarantee.
+    ///     Used for structured outputs like conversation query rewriting.
     /// </summary>
-    public async Task<string> SentinelGenerateJsonAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
-        => await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, format: "json", ct);
+    public async Task<string> SentinelGenerateJsonAsync(string prompt, string? systemPrompt = null,
+        double? temperature = null, CancellationToken ct = default)
+    {
+        return await GenerateWithModelAsync(_config.SentinelModel, prompt, systemPrompt, temperature, "json",
+            ct);
+    }
 
     /// <summary>
-    /// Generate using the main model with forced JSON output.
-    /// Ollama's format:"json" ensures the response is always valid JSON.
+    ///     Generate using the main model with forced JSON output.
+    ///     Ollama's format:"json" ensures the response is always valid JSON.
     /// </summary>
-    public async Task<string> GenerateJsonAsync(string prompt, string? systemPrompt = null, double? temperature = null, CancellationToken ct = default)
-        => await GenerateWithModelAsync(_config.Model, prompt, systemPrompt, temperature, format: "json", ct);
+    public async Task<string> GenerateJsonAsync(string prompt, string? systemPrompt = null, double? temperature = null,
+        CancellationToken ct = default)
+    {
+        return await GenerateWithModelAsync(_config.Model, prompt, systemPrompt, temperature, "json", ct);
+    }
 
-    private async Task<string> GenerateWithModelAsync(string model, string prompt, string? systemPrompt = null, double? temperature = null, string? format = null, CancellationToken ct = default)
+    private async Task<string> GenerateWithModelAsync(string model, string prompt, string? systemPrompt = null,
+        double? temperature = null, string? format = null, CancellationToken ct = default)
     {
         // When a cloud router is configured, delegate to it for budget-checked multi-provider fallback
         if (Router != null)
@@ -124,9 +141,9 @@ public partial class OllamaService
             return await Router.GenerateAsync(
                 prompt, systemPrompt,
                 temperature ?? _config.Temperature,
-                role: isSentinel ? "sentinel" : "main",
-                jsonMode: format == "json",
-                ct: ct);
+                isSentinel ? "sentinel" : "main",
+                format == "json",
+                ct);
         }
 
         // Direct Ollama call (default when no router)
@@ -165,40 +182,36 @@ public partial class OllamaService
     }
 
     /// <summary>
-    /// Stream tokens from Ollama using NDJSON streaming.
-    /// When a router is configured, delegates to the router's streaming method.
+    ///     Stream tokens from Ollama using NDJSON streaming.
+    ///     When a router is configured, delegates to the router's streaming method.
     /// </summary>
     public async IAsyncEnumerable<string> GenerateStreamingAsync(
         string prompt, string? systemPrompt = null, double? temperature = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         await foreach (var token in GenerateStreamingWithModelAsync(
-            _config.Model, prompt, systemPrompt, temperature, ct))
-        {
+                           _config.Model, prompt, systemPrompt, temperature, ct))
             yield return token;
-        }
     }
 
     /// <summary>
-    /// Stream synthesis summary tokens, yielding each token as it arrives.
-    /// This is the streaming counterpart of SynthesizeSummaryAsync — the caller
-    /// is responsible for building the prompt (typically via the same logic as
-    /// SynthesizeSummaryAsync but yielding tokens instead of collecting a string).
+    ///     Stream synthesis summary tokens, yielding each token as it arrives.
+    ///     This is the streaming counterpart of SynthesizeSummaryAsync — the caller
+    ///     is responsible for building the prompt (typically via the same logic as
+    ///     SynthesizeSummaryAsync but yielding tokens instead of collecting a string).
     /// </summary>
     public async IAsyncEnumerable<string> SynthesizeSummaryStreamingAsync(
         string prompt, string? systemPrompt = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         await foreach (var token in GenerateStreamingWithModelAsync(
-            _config.Model, prompt, systemPrompt, 0.6, ct))
-        {
+                           _config.Model, prompt, systemPrompt, 0.6, ct))
             yield return token;
-        }
     }
 
     /// <summary>
-    /// Build the system prompt for synthesis calls. Uses the system-synthesis template
-    /// so it can be customized via ~/.doomsummarizer/prompts/system-synthesis.txt.
+    ///     Build the system prompt for synthesis calls. Uses the system-synthesis template
+    ///     so it can be customized via ~/.doomsummarizer/prompts/system-synthesis.txt.
     /// </summary>
     public string BuildSynthesisSystemPrompt(string vibe, string vibePrompt)
     {
@@ -219,17 +232,14 @@ public partial class OllamaService
         if (Router != null)
         {
             var isSentinel = model == _config.SentinelModel;
-            var options = new Mostlylucid.DocSummarizer.Services.LlmOptions
+            var options = new LlmOptions
             {
                 SystemPrompt = systemPrompt,
                 Temperature = temperature ?? _config.Temperature,
                 MaxTokens = isSentinel ? 1024 : 4096,
-                Role = isSentinel ? "sentinel" : "main",
+                Role = isSentinel ? "sentinel" : "main"
             };
-            await foreach (var token in Router.GenerateStreamingAsync(prompt, options, ct))
-            {
-                yield return token;
-            }
+            await foreach (var token in Router.GenerateStreamingAsync(prompt, options, ct)) yield return token;
             yield break;
         }
 
@@ -259,7 +269,6 @@ public partial class OllamaService
         // Retry the connection up to 3 times with exponential backoff
         HttpResponseMessage? response = null;
         for (var attempt = 0; attempt < 3; attempt++)
-        {
             try
             {
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -272,7 +281,6 @@ public partial class OllamaService
             {
                 await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), ct);
             }
-        }
 
         if (response == null)
             yield break;
@@ -301,9 +309,10 @@ public partial class OllamaService
     }
 
     /// <summary>
-    /// Generate with a specific model and return timing data for benchmarking.
+    ///     Generate with a specific model and return timing data for benchmarking.
     /// </summary>
-    public async Task<BenchmarkResult> GenerateWithTimingAsync(string model, string prompt, string? systemPrompt = null, double temperature = 0.4, CancellationToken ct = default)
+    public async Task<BenchmarkResult> GenerateWithTimingAsync(string model, string prompt, string? systemPrompt = null,
+        double temperature = 0.4, CancellationToken ct = default)
     {
         var isSentinel = model == _config.SentinelModel;
         var numCtx = isSentinel ? _config.SentinelContextSize : _config.ContextSize;
@@ -320,7 +329,7 @@ public partial class OllamaService
         var json = JsonSerializer.Serialize(request, OllamaJsonContext.Default.OllamaGenerateRequest);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var response = await _httpClient.PostAsync("/api/generate", content, ct);
         response.EnsureSuccessStatusCode();
         sw.Stop();
@@ -339,7 +348,9 @@ public partial class OllamaService
             TokensGenerated = evalCount,
             PromptTokens = result?.PromptEvalCount ?? 0,
             TokensPerSecond = tokensPerSecond,
-            TotalDurationMs = result?.TotalDuration > 0 ? result.TotalDuration / 1_000_000.0 : sw.Elapsed.TotalMilliseconds,
+            TotalDurationMs = result?.TotalDuration > 0
+                ? result.TotalDuration / 1_000_000.0
+                : sw.Elapsed.TotalMilliseconds,
             LoadDurationMs = result?.LoadDuration > 0 ? result.LoadDuration / 1_000_000.0 : 0,
             EvalDurationMs = evalDurationNs > 0 ? evalDurationNs / 1_000_000.0 : 0
         };
@@ -348,28 +359,28 @@ public partial class OllamaService
     public async Task<(string summary, string topic, float sentiment)> AnalyzeContentAsync(
         string title, string? content, string vibePrompt, CancellationToken ct = default)
     {
-        var maxContentChars = GetMaxEvidenceCharsPerItem(sentinel: true, 1);
+        var maxContentChars = GetMaxEvidenceCharsPerItem(true, 1);
         var textToAnalyze = string.IsNullOrEmpty(content)
             ? title
             : $"{title}\n\n{content[..Math.Min(content.Length, maxContentChars)]}";
 
         var prompt = $$"""
-            Analyze this content and respond with JSON only:
+                       Analyze this content and respond with JSON only:
 
-            TITLE: {{title}}
-            CONTENT: {{textToAnalyze}}
+                       TITLE: {{title}}
+                       CONTENT: {{textToAnalyze}}
 
-            Respond with this exact JSON structure:
-            {
-                "summary": "2-3 sentence summary",
-                "topic": "single word topic category (e.g., ai, security, career, tools, language, cloud, database)",
-                "sentiment": 0.0
-            }
+                       Respond with this exact JSON structure:
+                       {
+                           "summary": "2-3 sentence summary",
+                           "topic": "single word topic category (e.g., ai, security, career, tools, language, cloud, database)",
+                           "sentiment": 0.0
+                       }
 
-            For sentiment, use: -1.0 (very negative) to 1.0 (very positive), 0.0 is neutral.
+                       For sentiment, use: -1.0 (very negative) to 1.0 (very positive), 0.0 is neutral.
 
-            Vibe instruction: {{vibePrompt}}
-            """;
+                       Vibe instruction: {{vibePrompt}}
+                       """;
 
         var response = await SentinelGenerateAsync(prompt, null, 0.3, ct);
 
@@ -384,9 +395,7 @@ public partial class OllamaService
                 var jsonStr = response[jsonStart..(jsonEnd + 1)];
                 var analysis = JsonSerializer.Deserialize(jsonStr, OllamaJsonContext.Default.ContentAnalysis);
                 if (analysis != null)
-                {
                     return (analysis.Summary ?? title, analysis.Topic ?? "general", analysis.Sentiment);
-                }
             }
         }
         catch
@@ -432,7 +441,8 @@ public partial class OllamaService
                 // Deduplicate by URL (keep the higher-relevance duplicate)
                 // For unresolved Google News URLs, deduplicate by title instead
                 .GroupBy(i => i.url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
-                    ? i.title : i.url)
+                    ? i.title
+                    : i.url)
                 .Select(g => g.First())
                 .Take(15)
                 .ToList();
@@ -454,7 +464,7 @@ public partial class OllamaService
 
             // Confidence + re-ranking both need the query embedding — compute once.
             double? avgQuerySimilarity = null;
-            float[]? queryEmb = embedder != null ? embedder(userQuery) : null;
+            var queryEmb = embedder != null ? embedder(userQuery) : null;
 
             // Confidence: use raw pipeline embeddings (ContentItem.Embedding) which reflect
             // the actual indexed content, not re-embedded title+summary which inflates similarity.
@@ -500,7 +510,7 @@ public partial class OllamaService
             }
 
             // Smart evidence budgeting: redistribute unused chars from short items to long ones
-            var totalBudget = GetMaxEvidenceCharsPerItem(sentinel: false, topItems.Count) * topItems.Count;
+            var totalBudget = GetMaxEvidenceCharsPerItem(false, topItems.Count) * topItems.Count;
 
             // Pass 1: measure actual content lengths and resolve ContentItems
             var itemContents = new List<(
@@ -538,7 +548,7 @@ public partial class OllamaService
                     if (rawContent.Length > itemBudget)
                     {
                         var snippet = embedder != null
-                            ? TextRankExtractor.ExtractKeySentences(rawContent, embedder, batchEmbedder, maxChars: itemBudget)
+                            ? TextRankExtractor.ExtractKeySentences(rawContent, embedder, batchEmbedder, itemBudget)
                             : rawContent[..itemBudget] + "...";
                         evidence.AppendLine(snippet);
                     }
@@ -555,9 +565,8 @@ public partial class OllamaService
 
             // Safety: if too few items survived filtering, report it honestly
             if (topItems.Count == 0)
-            {
-                return "### Answer\nNo relevant evidence found for this query. Try a more specific search or different sources.\n";
-            }
+                return
+                    "### Answer\nNo relevant evidence found for this query. Try a more specific search or different sources.\n";
 
             // Term verification is the strongest signal: if the sentinel/NER extracted
             // specific terms from the query and Lucene found zero hits in the corpus,
@@ -566,7 +575,8 @@ public partial class OllamaService
             if (missingTerms is { Count: > 0 })
             {
                 var termList = string.Join(", ", missingTerms.Select(t => $"\"{t}\""));
-                confidenceNote = $"IMPORTANT: The following terms from the question do NOT appear anywhere in the source material: {termList}. " +
+                confidenceNote =
+                    $"IMPORTANT: The following terms from the question do NOT appear anywhere in the source material: {termList}. " +
                     "Do NOT claim support for features, formats, or concepts that are not mentioned. " +
                     "If the question is specifically about one of these missing terms, say \"No\" or \"Not directly\" and explain what IS supported instead.";
             }
@@ -578,8 +588,10 @@ public partial class OllamaService
                 confidenceNote = matchConfidence switch
                 {
                     >= 0.50 => "",
-                    >= 0.30 => "NOTE: The source material is only a partial match. If the question asks about a specific format, feature, or term, check whether that EXACT term appears in the evidence. Do NOT say 'Yes' for something the evidence never mentions by name.",
-                    _ => $"NOTE: The source material is a weak match for this question. Start your answer with: \"I don't have a strong match for that question, but here's what I found in the {(topItems.Count == 1 ? "closest source" : $"{topItems.Count} closest sources")}:\" Then summarize what the sources actually cover."
+                    >= 0.30 =>
+                        "NOTE: The source material is only a partial match. If the question asks about a specific format, feature, or term, check whether that EXACT term appears in the evidence. Do NOT say 'Yes' for something the evidence never mentions by name.",
+                    _ =>
+                        $"NOTE: The source material is a weak match for this question. Start your answer with: \"I don't have a strong match for that question, but here's what I found in the {(topItems.Count == 1 ? "closest source" : $"{topItems.Count} closest sources")}:\" Then summarize what the sources actually cover."
                 };
             }
 
@@ -597,7 +609,7 @@ public partial class OllamaService
             // 2. Sentinel intent + query pattern (auto-detected: howto, yesno)
             // 3. Default "answer" template
             var answerTemplate = promptTemplate
-                ?? QueryTypeDetector.ResolveAnswerTemplate(userQuery, sentinelIntent);
+                                 ?? QueryTypeDetector.ResolveAnswerTemplate(userQuery, sentinelIntent);
             prompt = isRoundup
                 ? PromptTemplateService.Render("roundup", templateVars)
                 : PromptTemplateService.Render(answerTemplate, templateVars);
@@ -615,9 +627,7 @@ public partial class OllamaService
             {
                 itemsList.AppendLine($"\n## {group.Key.ToUpperInvariant()}");
                 foreach (var item in group.OrderByDescending(i => i.relevance).Take(5))
-                {
                     itemsList.AppendLine($"- {item.title}: {item.summary}");
-                }
             }
 
             prompt = PromptTemplateService.Render("digest", new Dictionary<string, object?>
@@ -638,8 +648,8 @@ public partial class OllamaService
     }
 
     /// <summary>
-    /// Analyze a processed article using its top segments (signal-aware).
-    /// Returns structured analysis with evidence references.
+    ///     Analyze a processed article using its top segments (signal-aware).
+    ///     Returns structured analysis with evidence references.
     /// </summary>
     public async Task<ArticleAnalysis> AnalyzeProcessedArticleAsync(
         ProcessedArticle article,
@@ -668,29 +678,29 @@ public partial class OllamaService
         }
 
         var prompt = $$"""
-            Analyze this article using the extracted key segments:
+                       Analyze this article using the extracted key segments:
 
-            TITLE: {{article.Item.Title}}
-            SOURCE: {{article.Item.Source}}
-            URL: {{article.Item.Url ?? "N/A"}}
+                       TITLE: {{article.Item.Title}}
+                       SOURCE: {{article.Item.Source}}
+                       URL: {{article.Item.Url ?? "N/A"}}
 
-            KEY SEGMENTS (ranked by importance):
-            {{segmentContext}}
+                       KEY SEGMENTS (ranked by importance):
+                       {{segmentContext}}
 
-            Respond with JSON only:
-            {
-                "summary": "2-3 sentence summary focusing on the KEY and IMPORTANT segments",
-                "topic": "single word topic (technology, health, business, politics, science, world, entertainment, sports, security, climate, general)",
-                "sentiment": 0.0,
-                "keyPoints": ["point 1", "point 2"],
-                "confidence": 0.0
-            }
+                       Respond with JSON only:
+                       {
+                           "summary": "2-3 sentence summary focusing on the KEY and IMPORTANT segments",
+                           "topic": "single word topic (technology, health, business, politics, science, world, entertainment, sports, security, climate, general)",
+                           "sentiment": 0.0,
+                           "keyPoints": ["point 1", "point 2"],
+                           "confidence": 0.0
+                       }
 
-            Confidence should reflect how well the segments support a coherent summary (0.0-1.0).
-            Sentiment: -1.0 (very negative) to 1.0 (very positive).
+                       Confidence should reflect how well the segments support a coherent summary (0.0-1.0).
+                       Sentiment: -1.0 (very negative) to 1.0 (very positive).
 
-            Vibe instruction: {{vibePrompt}}
-            """;
+                       Vibe instruction: {{vibePrompt}}
+                       """;
 
         var response = await SentinelGenerateAsync(prompt, null, 0.3, ct);
 
@@ -703,7 +713,6 @@ public partial class OllamaService
                 var jsonStr = response[jsonStart..(jsonEnd + 1)];
                 var analysis = JsonSerializer.Deserialize(jsonStr, OllamaJsonContext.Default.ExtendedContentAnalysis);
                 if (analysis != null)
-                {
                     return new ArticleAnalysis
                     {
                         Summary = analysis.Summary ?? article.Item.Title,
@@ -714,7 +723,6 @@ public partial class OllamaService
                         Strategy = article.Strategy,
                         SegmentReferences = includeReferences ? segmentRefs : []
                     };
-                }
             }
         }
         catch
@@ -734,9 +742,9 @@ public partial class OllamaService
     }
 
     /// <summary>
-    /// Synthesize a multi-section blog article using two-pass generation:
-    /// 1. Sentinel generates an outline (section headings + evidence assignment)
-    /// 2. Main model generates each section with context bridging
+    ///     Synthesize a multi-section blog article using two-pass generation:
+    ///     1. Sentinel generates an outline (section headings + evidence assignment)
+    ///     2. Main model generates each section with context bridging
     /// </summary>
     public async Task<BlogArticleResult> SynthesizeBlogArticleAsync(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> items,
@@ -753,7 +761,7 @@ public partial class OllamaService
         var topItems = items.OrderByDescending(i => i.relevance).Take(15).ToList();
 
         // Build evidence block with content snippets — budget is model-context-aware
-        var outlineMaxChars = GetMaxEvidenceCharsPerItem(sentinel: true, topItems.Count);
+        var outlineMaxChars = GetMaxEvidenceCharsPerItem(true, topItems.Count);
         var evidenceBlock = new StringBuilder();
         for (var i = 0; i < topItems.Count; i++)
         {
@@ -765,11 +773,9 @@ public partial class OllamaService
             if (!string.IsNullOrEmpty(snippet))
             {
                 if (snippet.Length > outlineMaxChars)
-                {
                     snippet = embedder != null
-                        ? TextRankExtractor.ExtractKeySentences(snippet, embedder, maxChars: outlineMaxChars)
+                        ? TextRankExtractor.ExtractKeySentences(snippet, embedder, outlineMaxChars)
                         : snippet[..outlineMaxChars] + "...";
-                }
                 evidenceBlock.AppendLine($"    {snippet}");
             }
             else
@@ -793,7 +799,7 @@ public partial class OllamaService
                 {
                     var startIdx = sectionIdx * itemsPerSection;
                     var keyItems = Enumerable.Range(startIdx, Math.Min(itemsPerSection, topItems.Count - startIdx))
-                        .Select(i => (int)i).ToList();
+                        .Select(i => i).ToList();
                     sectionIdx++;
                     return new BlogOutlineSection
                     {
@@ -809,16 +815,16 @@ public partial class OllamaService
         {
             // Sentinel-generated outline (default)
             var outlineInstructions = templateDef?.OutlineInstructions
-                ?? (queryType == QueryType.Timeline
-                    ? """
-                      Create a CHRONOLOGICAL outline with eras/periods as sections.
-                      Each section heading should include a year range (e.g., "2017-2018: The Transformer Revolution").
-                      Order sections from earliest to most recent.
-                      """
-                    : """
-                      Create a logical outline with 4-6 sections that flow naturally.
-                      Start broad (context/background), go deep (key developments), end forward-looking.
-                      """);
+                                      ?? (queryType == QueryType.Timeline
+                                          ? """
+                                            Create a CHRONOLOGICAL outline with eras/periods as sections.
+                                            Each section heading should include a year range (e.g., "2017-2018: The Transformer Revolution").
+                                            Order sections from earliest to most recent.
+                                            """
+                                          : """
+                                            Create a logical outline with 4-6 sections that flow naturally.
+                                            Start broad (context/background), go deep (key developments), end forward-looking.
+                                            """);
 
             var outlinePrompt = PromptTemplateService.Render("blog-outline", new Dictionary<string, object?>
             {
@@ -833,11 +839,9 @@ public partial class OllamaService
                 var jsonStart = outlineJson.IndexOf('{');
                 var jsonEnd = outlineJson.LastIndexOf('}');
                 if (jsonStart >= 0 && jsonEnd > jsonStart)
-                {
                     outline = JsonSerializer.Deserialize(
                         outlineJson[jsonStart..(jsonEnd + 1)],
                         OllamaJsonContext.Default.BlogOutline);
-                }
             }
             catch
             {
@@ -852,7 +856,8 @@ public partial class OllamaService
             Sections =
             [
                 new BlogOutlineSection { Heading = "Background", KeyItems = [0, 1, 2], Notes = "Set the scene" },
-                new BlogOutlineSection { Heading = "Key Developments", KeyItems = [3, 4, 5, 6], Notes = "Main findings" },
+                new BlogOutlineSection
+                    { Heading = "Key Developments", KeyItems = [3, 4, 5, 6], Notes = "Main findings" },
                 new BlogOutlineSection { Heading = "Current State", KeyItems = [7, 8, 9], Notes = "Where things stand" }
             ],
             ConclusionAngle = "What's next"
@@ -866,15 +871,13 @@ public partial class OllamaService
         // Introduction
         var introEvidence = new StringBuilder();
         foreach (var idx in outline.Sections.SelectMany(s => s.KeyItems).Distinct().Take(5))
-        {
             if (idx >= 0 && idx < topItems.Count)
                 introEvidence.AppendLine($"- {topItems[idx].title}: {topItems[idx].summary}");
-        }
 
         var introExtra = templateDef?.Introduction?.Prompt
-            ?? (queryType == QueryType.Timeline
-                ? "Include the time span covered (e.g., 'from the 1920s to today')."
-                : "");
+                         ?? (queryType == QueryType.Timeline
+                             ? "Include the time span covered (e.g., 'from the 1920s to today')."
+                             : "");
         var introWords = templateDef?.Introduction?.TargetWords ?? 100;
 
         var introPrompt = PromptTemplateService.Render("blog-intro", new Dictionary<string, object?>
@@ -890,7 +893,7 @@ public partial class OllamaService
         var introduction = await GenerateAsync(introPrompt, null, 0.5, ct);
 
         // Generate each body section — evidence budget is model-context-aware
-        var sectionEvidenceMaxChars = GetMaxEvidenceCharsPerItem(sentinel: false,
+        var sectionEvidenceMaxChars = GetMaxEvidenceCharsPerItem(false,
             outline.Sections.SelectMany(s => s.KeyItems).Distinct().Count());
 
         // Pair outline sections with template section defs (if available)
@@ -913,11 +916,9 @@ public partial class OllamaService
                 if (!string.IsNullOrEmpty(content))
                 {
                     if (content.Length > sectionEvidenceMaxChars)
-                    {
                         content = embedder != null
-                            ? TextRankExtractor.ExtractKeySentences(content, embedder, maxChars: sectionEvidenceMaxChars)
+                            ? TextRankExtractor.ExtractKeySentences(content, embedder, sectionEvidenceMaxChars)
                             : content[..sectionEvidenceMaxChars] + "...";
-                    }
                     sectionEvidence.AppendLine($"### {item.title}");
                     sectionEvidence.AppendLine($"URL: {item.url}");
                     sectionEvidence.AppendLine($"CONTENT: {content}");
@@ -978,7 +979,9 @@ public partial class OllamaService
             var sentences = sectionContent.Split('.', StringSplitOptions.RemoveEmptyEntries);
             previousContext = sentences.Length >= 2
                 ? string.Join(".", sentences[^2..]).Trim() + "."
-                : sectionContent.Length > 200 ? sectionContent[^200..] : sectionContent;
+                : sectionContent.Length > 200
+                    ? sectionContent[^200..]
+                    : sectionContent;
         }
 
         // Conclusion — use template definition if available
@@ -1007,7 +1010,7 @@ public partial class OllamaService
     }
 
     /// <summary>
-    /// Synthesize a curated newsletter with editorial commentary.
+    ///     Synthesize a curated newsletter with editorial commentary.
     /// </summary>
     public async Task<NewsletterResult> SynthesizeNewsletterAsync(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> items,
@@ -1037,26 +1040,22 @@ public partial class OllamaService
             if (!string.IsNullOrEmpty(content))
             {
                 if (content.Length > 600)
-                {
                     content = embedder != null
-                        ? TextRankExtractor.ExtractKeySentences(content, embedder, maxChars: 600)
+                        ? TextRankExtractor.ExtractKeySentences(content, embedder, 600)
                         : content[..600] + "...";
-                }
                 topPicksEvidence.AppendLine($"CONTENT: {content}");
             }
             else
             {
                 topPicksEvidence.AppendLine($"SUMMARY: {item.summary}");
             }
+
             topPicksEvidence.AppendLine();
         }
 
         // Quick hits list
         var quickHitsList = new StringBuilder();
-        foreach (var item in quickHitItems)
-        {
-            quickHitsList.AppendLine($"- [{item.title}]({item.url}): {item.summary}");
-        }
+        foreach (var item in quickHitItems) quickHitsList.AppendLine($"- [{item.title}]({item.url}): {item.summary}");
 
         var topicDesc = !string.IsNullOrEmpty(query) ? $" about \"{query}\"" : "";
         var prompt = PromptTemplateService.Render("newsletter", new Dictionary<string, object?>
@@ -1092,7 +1091,6 @@ public partial class OllamaService
         var pickMatches = PickRegex().Matches(response);
 
         foreach (Match match in pickMatches)
-        {
             picks.Add(new NewsletterPick
             {
                 Title = match.Groups[1].Value.Trim(),
@@ -1100,11 +1098,9 @@ public partial class OllamaService
                 Source = match.Groups[3].Value.Trim(),
                 Commentary = match.Groups[4].Value.Trim()
             });
-        }
 
         // Fallback: if parsing failed, create picks from evidence
         if (picks.Count == 0)
-        {
             picks = topPicks.Select(p => new NewsletterPick
             {
                 Title = p.title,
@@ -1112,7 +1108,6 @@ public partial class OllamaService
                 Source = GetSourceFromUrl(p.url),
                 Commentary = p.summary
             }).ToList();
-        }
         result = result with { TopPicks = picks };
 
         // Parse QUICK_HITS
@@ -1125,27 +1120,23 @@ public partial class OllamaService
             {
                 var titleMatch = QuickHitLineRegex().Match(line);
                 if (titleMatch.Success)
-                {
                     quickHits.Add(new NewsletterQuickHit
                     {
                         Title = titleMatch.Groups[1].Value.Trim(),
                         Url = titleMatch.Groups[2].Value.Trim(),
                         OneLiner = titleMatch.Groups[3].Value.Trim()
                     });
-                }
             }
         }
 
         // Fallback
         if (quickHits.Count == 0)
-        {
             quickHits = quickHitItems.Select(q => new NewsletterQuickHit
             {
                 Title = q.title,
                 Url = q.url,
                 OneLiner = q.summary.Length > 80 ? q.summary[..77] + "..." : q.summary
             }).ToList();
-        }
         result = result with { QuickHits = quickHits };
 
         // Parse SIGN_OFF
@@ -1161,7 +1152,9 @@ public partial class OllamaService
     [GeneratedRegex(@"INTRO:\s*\n(.+?)(?=\nPICK_\d|\z)", RegexOptions.Singleline)]
     private static partial Regex IntroRegex();
 
-    [GeneratedRegex(@"PICK_\d+:\s*\nTITLE:\s*(.+?)\nURL:\s*(.+?)\nSOURCE:\s*(.+?)\nCOMMENTARY:\s*(.+?)(?=\nPICK_\d|\nQUICK_HITS|\z)", RegexOptions.Singleline)]
+    [GeneratedRegex(
+        @"PICK_\d+:\s*\nTITLE:\s*(.+?)\nURL:\s*(.+?)\nSOURCE:\s*(.+?)\nCOMMENTARY:\s*(.+?)(?=\nPICK_\d|\nQUICK_HITS|\z)",
+        RegexOptions.Singleline)]
     private static partial Regex PickRegex();
 
     [GeneratedRegex(@"QUICK_HITS:\s*\n(.+?)(?=\nSIGN_OFF|\z)", RegexOptions.Singleline)]
@@ -1175,12 +1168,18 @@ public partial class OllamaService
 
     private static string GetSourceFromUrl(string url)
     {
-        try { return new Uri(url).Host.Replace("www.", ""); }
-        catch { return url; }
+        try
+        {
+            return new Uri(url).Host.Replace("www.", "");
+        }
+        catch
+        {
+            return url;
+        }
     }
 
     /// <summary>
-    /// Synthesize summary from multiple processed articles with evidence.
+    ///     Synthesize summary from multiple processed articles with evidence.
     /// </summary>
     public async Task<SynthesizedSummary> SynthesizeFromProcessedAsync(
         List<(ProcessedArticle article, ArticleAnalysis analysis)> items,
@@ -1208,14 +1207,10 @@ public partial class OllamaService
                 itemsList.AppendLine($"- {confMarker}{article.Item.Title}: {analysis.Summary}");
 
                 // Key points as sub-items
-                foreach (var point in analysis.KeyPoints.Take(2))
-                {
-                    itemsList.AppendLine($"  - {point}");
-                }
+                foreach (var point in analysis.KeyPoints.Take(2)) itemsList.AppendLine($"  - {point}");
 
                 // Collect evidence
                 if (includeEvidence && analysis.SegmentReferences.Count > 0)
-                {
                     allEvidence.Add(new EvidenceItem
                     {
                         ArticleId = article.Item.Id,
@@ -1224,7 +1219,6 @@ public partial class OllamaService
                         Topic = analysis.Topic,
                         TopSegments = analysis.SegmentReferences.Take(3).ToList()
                     });
-                }
             }
         }
 
@@ -1252,7 +1246,7 @@ public partial class OllamaService
 }
 
 /// <summary>
-/// Extended analysis result with key points and confidence.
+///     Extended analysis result with key points and confidence.
 /// </summary>
 public class ArticleAnalysis
 {
@@ -1266,7 +1260,7 @@ public class ArticleAnalysis
 }
 
 /// <summary>
-/// Reference to a source segment (evidence).
+///     Reference to a source segment (evidence).
 /// </summary>
 public class SegmentReference
 {
@@ -1277,7 +1271,7 @@ public class SegmentReference
 }
 
 /// <summary>
-/// Evidence linking summary to source segments.
+///     Evidence linking summary to source segments.
 /// </summary>
 public class EvidenceItem
 {
@@ -1289,7 +1283,7 @@ public class EvidenceItem
 }
 
 /// <summary>
-/// Final synthesized summary with evidence.
+///     Final synthesized summary with evidence.
 /// </summary>
 public class SynthesizedSummary
 {
@@ -1310,7 +1304,7 @@ public record OllamaGenerateRequest
     [JsonPropertyName("options")] public OllamaOptions? Options { get; init; }
 
     /// <summary>
-    /// Output format. Set to "json" to force Ollama to output valid JSON.
+    ///     Output format. Set to "json" to force Ollama to output valid JSON.
     /// </summary>
     [JsonPropertyName("format")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1323,8 +1317,13 @@ public record OllamaGenerateResponse
     [JsonPropertyName("done")] public bool Done { get; init; }
     [JsonPropertyName("total_duration")] public long TotalDuration { get; init; }
     [JsonPropertyName("load_duration")] public long LoadDuration { get; init; }
-    [JsonPropertyName("prompt_eval_count")] public int PromptEvalCount { get; init; }
-    [JsonPropertyName("prompt_eval_duration")] public long PromptEvalDuration { get; init; }
+
+    [JsonPropertyName("prompt_eval_count")]
+    public int PromptEvalCount { get; init; }
+
+    [JsonPropertyName("prompt_eval_duration")]
+    public long PromptEvalDuration { get; init; }
+
     [JsonPropertyName("eval_count")] public int EvalCount { get; init; }
     [JsonPropertyName("eval_duration")] public long EvalDuration { get; init; }
 }
@@ -1333,8 +1332,14 @@ public record OllamaOptions
 {
     [JsonPropertyName("temperature")] public double Temperature { get; init; }
     [JsonPropertyName("num_ctx")] public int? NumCtx { get; init; }
-    [JsonPropertyName("num_predict")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public int? NumPredict { get; init; }
-    [JsonPropertyName("repeat_penalty")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public double RepeatPenalty { get; init; }
+
+    [JsonPropertyName("num_predict")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? NumPredict { get; init; }
+
+    [JsonPropertyName("repeat_penalty")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double RepeatPenalty { get; init; }
 }
 
 public record ContentAnalysis
@@ -1365,7 +1370,7 @@ public record OllamaModelEntry
 }
 
 /// <summary>
-/// Benchmark timing result from a single model run.
+///     Benchmark timing result from a single model run.
 /// </summary>
 public record BenchmarkResult
 {
@@ -1380,7 +1385,7 @@ public record BenchmarkResult
 }
 
 /// <summary>
-/// Sentinel LLM response for entity feature extraction (disambiguation).
+///     Sentinel LLM response for entity feature extraction (disambiguation).
 /// </summary>
 public record FeatureExtractionResponse
 {
@@ -1388,7 +1393,7 @@ public record FeatureExtractionResponse
 }
 
 /// <summary>
-/// A single extracted entity feature from the sentinel LLM.
+///     A single extracted entity feature from the sentinel LLM.
 /// </summary>
 public record FeatureExtractionItem
 {
@@ -1402,7 +1407,7 @@ public record FeatureExtractionItem
 // --- Blog Article Models ---
 
 /// <summary>
-/// LLM-generated outline for a blog article.
+///     LLM-generated outline for a blog article.
 /// </summary>
 public record BlogOutline
 {
@@ -1419,7 +1424,7 @@ public record BlogOutlineSection
 }
 
 /// <summary>
-/// Result of multi-section blog article synthesis.
+///     Result of multi-section blog article synthesis.
 /// </summary>
 public record BlogArticleResult
 {
@@ -1441,7 +1446,7 @@ public record BlogSectionResult
 // --- Newsletter Models ---
 
 /// <summary>
-/// Result of newsletter synthesis with editorial commentary.
+///     Result of newsletter synthesis with editorial commentary.
 /// </summary>
 public record NewsletterResult
 {
@@ -1484,5 +1489,5 @@ public record NewsletterQuickHit
 [JsonSerializable(typeof(SentinelIntent))]
 [JsonSerializable(typeof(DateRangeIntent))]
 [JsonSerializable(typeof(Dictionary<string, double>))]
-[JsonSerializable(typeof(List<string>))]  // For SentinelIntent's list properties
+[JsonSerializable(typeof(List<string>))] // For SentinelIntent's list properties
 public partial class OllamaJsonContext : JsonSerializerContext;

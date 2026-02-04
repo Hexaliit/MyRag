@@ -1,31 +1,60 @@
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
+using Mostlylucid.Summarizer.Core.Utilities;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Single ingestion pipeline for all content paths (scroll, crawl, man, page).
-/// Every IndexItemAsync / IndexBatchAsync call goes through the same steps:
-///   1. Extract keywords (DocumentProfileService)
-///   2. Save to SQLite
-///   3. Index to FTS5
-///   4. Update keyword corpus
-///   5. Index to Lucene (if collection name provided)
+///     Single ingestion pipeline for all content paths (scroll, crawl, man, page).
+///     Every IndexItemAsync / IndexBatchAsync call goes through the same steps:
+///     1. Extract keywords (DocumentProfileService)
+///     2. Save to SQLite
+///     3. Index to FTS5
+///     4. Update keyword corpus
+///     5. Index to Lucene (if collection name provided)
 /// </summary>
 public sealed class ItemProcessor : IDisposable
 {
-    private readonly float[] _positiveAnchor;
-    private readonly float[] _negativeAnchor;
-    private readonly Dictionary<string, float[]> _topicAnchors;
-    private readonly StorageService _storage;
+    // ── Shared text-preparation utilities ──────────────────────────────
+    // Used by all ingestion paths (crawl, scroll, man, page) so every item
+    // is embedded, NER'd, and hashed with identical logic.
+
+    public const int EmbeddingMaxChars = 1500;
+    public const int NerMaxChars = 2000;
     private readonly IEntityGraphStore? _entityStore;
     private readonly LuceneSearchService? _lucene;
+    private readonly float[] _negativeAnchor;
+    private readonly float[] _positiveAnchor;
+    private readonly StorageService _storage;
+    private readonly Dictionary<string, float[]> _topicAnchors;
     private bool _luceneDirty;
 
+    private ItemProcessor(
+        float[] positiveAnchor,
+        float[] negativeAnchor,
+        Dictionary<string, float[]> topicAnchors,
+        StorageService storage,
+        IEntityGraphStore? entityStore,
+        LuceneSearchService? lucene = null)
+    {
+        _storage = storage;
+        _entityStore = entityStore;
+        _positiveAnchor = positiveAnchor;
+        _negativeAnchor = negativeAnchor;
+        _topicAnchors = topicAnchors;
+        _lucene = lucene;
+    }
+
+    public void Dispose()
+    {
+        CommitLucene();
+        _lucene?.Dispose();
+    }
+
     /// <summary>
-    /// Async factory: pre-computes sentiment and topic anchor embeddings once.
-    /// Pass collectionName to enable Lucene indexing on every IndexItemAsync/IndexBatchAsync call.
+    ///     Async factory: pre-computes sentiment and topic anchor embeddings once.
+    ///     Pass collectionName to enable Lucene indexing on every IndexItemAsync/IndexBatchAsync call.
     /// </summary>
     public static async Task<ItemProcessor> CreateAsync(
         IEmbeddingService embedding,
@@ -64,25 +93,9 @@ public sealed class ItemProcessor : IDisposable
         return new ItemProcessor(positiveAnchor, negativeAnchor, topicAnchors, storage, entityStore, lucene);
     }
 
-    private ItemProcessor(
-        float[] positiveAnchor,
-        float[] negativeAnchor,
-        Dictionary<string, float[]> topicAnchors,
-        StorageService storage,
-        IEntityGraphStore? entityStore,
-        LuceneSearchService? lucene = null)
-    {
-        _storage = storage;
-        _entityStore = entityStore;
-        _positiveAnchor = positiveAnchor;
-        _negativeAnchor = negativeAnchor;
-        _topicAnchors = topicAnchors;
-        _lucene = lucene;
-    }
-
     /// <summary>
-    /// Score sentiment and infer topic from pre-computed anchor embeddings.
-    /// Thread-safe: reads only immutable pre-computed anchors + pure math.
+    ///     Score sentiment and infer topic from pre-computed anchor embeddings.
+    ///     Thread-safe: reads only immutable pre-computed anchors + pure math.
     /// </summary>
     public void ScoreSentimentAndTopic(ContentItem item)
     {
@@ -99,7 +112,7 @@ public sealed class ItemProcessor : IDisposable
     }
 
     /// <summary>
-    /// Full per-item indexing: keywords → SQLite → FTS5 → keyword corpus → Lucene.
+    ///     Full per-item indexing: keywords → SQLite → FTS5 → keyword corpus → Lucene.
     /// </summary>
     public async Task IndexItemAsync(ContentItem item)
     {
@@ -121,7 +134,7 @@ public sealed class ItemProcessor : IDisposable
     }
 
     /// <summary>
-    /// Batch indexing: keywords → SQLite + FTS5 → Lucene.
+    ///     Batch indexing: keywords → SQLite + FTS5 → Lucene.
     /// </summary>
     public async Task IndexBatchAsync(List<ContentItem> items)
     {
@@ -144,9 +157,9 @@ public sealed class ItemProcessor : IDisposable
     }
 
     /// <summary>
-    /// Index items into Lucene only (no SQLite save). Used for URL-cached items
-    /// that are already in storage but need to appear in the current collection's Lucene index.
-    /// Idempotent: Lucene UpdateDocument handles duplicates by ID.
+    ///     Index items into Lucene only (no SQLite save). Used for URL-cached items
+    ///     that are already in storage but need to appear in the current collection's Lucene index.
+    ///     Idempotent: Lucene UpdateDocument handles duplicates by ID.
     /// </summary>
     public void EnsureInLucene(IEnumerable<ContentItem> items)
     {
@@ -156,8 +169,8 @@ public sealed class ItemProcessor : IDisposable
     }
 
     /// <summary>
-    /// Commit pending Lucene writes to disk. Call after a batch of IndexItemAsync/IndexBatchAsync calls.
-    /// Also called automatically on Dispose.
+    ///     Commit pending Lucene writes to disk. Call after a batch of IndexItemAsync/IndexBatchAsync calls.
+    ///     Also called automatically on Dispose.
     /// </summary>
     public void CommitLucene()
     {
@@ -169,7 +182,7 @@ public sealed class ItemProcessor : IDisposable
     }
 
     /// <summary>
-    /// Deduplicate entities by name, persist to SQLite knowledge graph, and build co-occurrence edges.
+    ///     Deduplicate entities by name, persist to SQLite knowledge graph, and build co-occurrence edges.
     /// </summary>
     public async Task PersistEntitiesAsync(ContentItem item, List<NerEntity> entities)
     {
@@ -189,16 +202,12 @@ public sealed class ItemProcessor : IDisposable
 
         // Build co-occurrence edges
         for (var i = 0; i < entityIds.Count; i++)
-        {
-            for (var j = i + 1; j < entityIds.Count; j++)
-            {
-                await _entityStore!.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
-            }
-        }
+        for (var j = i + 1; j < entityIds.Count; j++)
+            await _entityStore!.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
     }
 
     /// <summary>
-    /// Infer a basic topic from the source name when embeddings aren't available.
+    ///     Infer a basic topic from the source name when embeddings aren't available.
     /// </summary>
     public static string InferTopicFromSource(string source)
     {
@@ -214,16 +223,9 @@ public sealed class ItemProcessor : IDisposable
         };
     }
 
-    // ── Shared text-preparation utilities ──────────────────────────────
-    // Used by all ingestion paths (crawl, scroll, man, page) so every item
-    // is embedded, NER'd, and hashed with identical logic.
-
-    public const int EmbeddingMaxChars = 1500;
-    public const int NerMaxChars = 2000;
-
     /// <summary>
-    /// Format text for embedding: "Title: Content", truncated to <see cref="EmbeddingMaxChars"/>.
-    /// Colon separator matches TreeRAG hierarchical context format.
+    ///     Format text for embedding: "Title: Content", truncated to <see cref="EmbeddingMaxChars" />.
+    ///     Colon separator matches TreeRAG hierarchical context format.
     /// </summary>
     public static string PrepareEmbeddingText(string? title, string? content)
     {
@@ -232,8 +234,8 @@ public sealed class ItemProcessor : IDisposable
     }
 
     /// <summary>
-    /// Format text for NER entity extraction: "Title Content[..maxChars]".
-    /// Space separator (not colon) so NER doesn't confuse punctuation with entities.
+    ///     Format text for NER entity extraction: "Title Content[..maxChars]".
+    ///     Space separator (not colon) so NER doesn't confuse punctuation with entities.
     /// </summary>
     public static string PrepareNerText(string? title, string? content, int maxChars = NerMaxChars)
     {
@@ -244,15 +246,11 @@ public sealed class ItemProcessor : IDisposable
     }
 
     /// <summary>
-    /// Compute content hash for cache comparison (ETag fallback).
-    /// Uses XxHash64 via shared ContentHasher — fast, non-cryptographic.
+    ///     Compute content hash for cache comparison (ETag fallback).
+    ///     Uses XxHash64 via shared ContentHasher — fast, non-cryptographic.
     /// </summary>
     public static string ComputeContentHash(string content)
-        => Mostlylucid.Summarizer.Core.Utilities.ContentHasher.ComputeHash(content);
-
-    public void Dispose()
     {
-        CommitLucene();
-        _lucene?.Dispose();
+        return ContentHasher.ComputeHash(content);
     }
 }

@@ -36,7 +36,8 @@ var result = await reader.ReadAsync("scanned-document.pdf");
 ## Dependencies
 
 - Docling service (external)
-- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) -
+  IDocumentReader interface
 
 ## License
 

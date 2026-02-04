@@ -1,14 +1,21 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Tavily AI Search API — optimised for AI agents.
-/// Free tier: 1,000 searches/month (~33/day).
-/// Returns AI-scored, filtered, and ranked results.
+///     Tavily AI Search API — optimised for AI agents.
+///     Free tier: 1,000 searches/month (~33/day).
+///     Returns AI-scored, filtered, and ranked results.
 /// </summary>
-public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class TavilySearchService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "tavily";
     private const string Endpoint = "https://api.tavily.com/search";
@@ -16,7 +23,7 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
     public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search via Tavily and return results as ContentItems.
+    ///     Search via Tavily and return results as ContentItems.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 10, bool newsOnly = false,
@@ -79,7 +86,7 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Diagnostics.Debug.WriteLine($"Tavily {(int)response.StatusCode}: {Truncate(body, 200)}");
+                Debug.WriteLine($"Tavily {(int)response.StatusCode}: {Truncate(body, 200)}");
                 return [];
             }
 
@@ -91,12 +98,12 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("Tavily timed out");
+            Debug.WriteLine("Tavily timed out");
             return [];
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Tavily error: {ex.Message}");
+            Debug.WriteLine($"Tavily error: {ex.Message}");
             return [];
         }
     }
@@ -118,7 +125,6 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             var score = r.TryGetProperty("score", out var s) ? s.GetDouble() : 0;
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(url))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"tavily_{Hash(url)}",
@@ -127,17 +133,21 @@ public class TavilySearchService(HttpClient httpClient, ApiKeyService keys, ApiB
                     Url = url,
                     Content = content,
                     CreatedAt = DateTimeOffset.UtcNow,
-                    Metadata = new() { ["relevance_score"] = score.ToString("F3") }
+                    Metadata = new Dictionary<string, string> { ["relevance_score"] = score.ToString("F3") }
                 });
-            }
         }
+
         return items;
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

@@ -4,7 +4,7 @@ using Spectre.Console.Cli;
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Base settings shared by all commands that support --quiet and --name.
+///     Base settings shared by all commands that support --quiet and --name.
 /// </summary>
 public abstract class CommonSettings : CommandSettings
 {
@@ -18,8 +18,8 @@ public abstract class CommonSettings : CommandSettings
 }
 
 /// <summary>
-/// Settings for commands that process and output content (scroll, page).
-/// Adds vibe, output, template, raw, no-llm, force, and no-entities options.
+///     Settings for commands that process and output content (scroll, page).
+///     Adds vibe, output, template, raw, no-llm, force, and no-entities options.
 /// </summary>
 public abstract class ContentProcessingSettings : CommonSettings
 {
@@ -55,7 +55,7 @@ public abstract class ContentProcessingSettings : CommonSettings
 }
 
 /// <summary>
-/// Settings for interactive Q&amp;A commands (ask, man).
+///     Settings for interactive Q&amp;A commands (ask, man).
 /// </summary>
 public abstract class InteractiveSettings : CommonSettings
 {

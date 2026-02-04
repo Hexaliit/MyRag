@@ -1,19 +1,19 @@
 namespace Mostlylucid.DocSummarizer.Resilience;
 
 /// <summary>
-/// Provides per-service budget configuration for the budget tracker.
-/// Implementations map from their domain-specific config (e.g., ApiKeyEntry) to this shared type.
+///     Provides per-service budget configuration for the budget tracker.
+///     Implementations map from their domain-specific config (e.g., ApiKeyEntry) to this shared type.
 /// </summary>
 public interface IServiceBudgetLookup
 {
     /// <summary>
-    /// Get budget info for a named service. Returns null if the service is unknown.
+    ///     Get budget info for a named service. Returns null if the service is unknown.
     /// </summary>
     ServiceBudgetInfo? GetServiceBudgetInfo(string service);
 }
 
 /// <summary>
-/// Budget-relevant configuration for a single API service.
+///     Budget-relevant configuration for a single API service.
 /// </summary>
 public record ServiceBudgetInfo
 {

@@ -8,11 +8,86 @@ using LfValidationResult = DoomSummarizer.Models.LongFormGeneration.ValidationRe
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for the deterministic phases of the long-form document generation pipeline.
-/// Phases 1, 3, 5, 6 and helper services are all deterministic and testable without LLM.
+///     Tests for the deterministic phases of the long-form document generation pipeline.
+///     Phases 1, 3, 5, 6 and helper services are all deterministic and testable without LLM.
 /// </summary>
 public class LongFormGenerationTests
 {
+    #region Integration: Full Deterministic Pipeline
+
+    [Fact]
+    public void FullDeterministicPipeline_ProducesCoherentOutput()
+    {
+        // Phase 1: Build corpus
+        var corpus = BuildTestCorpus();
+        corpus.Segments.Should().HaveCount(9);
+        corpus.Articles.Should().HaveCount(3);
+        corpus.GlobalCentroid.Should().NotBeNull();
+        corpus.GlobalEntities.Should().NotBeEmpty();
+
+        // Phase 2: Build plan (deterministic — no sentinel needed for test)
+        var plan = BuildTestPlan(corpus);
+        plan.Sections.Should().HaveCount(3);
+
+        // Phase 3: Assign evidence
+        EvidenceAssigner.AssignEvidence(plan, corpus);
+        var totalAssigned = plan.Sections.Sum(s => s.AssignedEvidence.Count);
+        totalAssigned.Should().BeGreaterThan(0);
+        totalAssigned.Should().BeLessThanOrEqualTo(9); // Can't assign more than total segments
+
+        // Simulate Phase 4: Fake generated content using evidence text
+        var runningSummary = new RunningSummary();
+        var entityTracker = new EntityContinuityTracker();
+        entityTracker.Initialize(corpus);
+
+        for (var i = 0; i < plan.Sections.Count; i++)
+        {
+            var section = plan.Sections[i];
+            entityTracker.ScanEvidence(section, i);
+
+            // "Generate" content from evidence (simulating LLM)
+            var evidenceText = string.Join(" ",
+                section.AssignedEvidence.Select(e => e.Segment.Text));
+            section.GeneratedContent = $"In this section about {section.Heading}: {evidenceText}";
+
+            runningSummary.RecordSection(section, i);
+            entityTracker.ScanGenerated(section.GeneratedContent, i);
+        }
+
+        // Running summary should have content
+        var summaryText = runningSummary.Build();
+        summaryText.Should().Contain("DOCUMENT SO FAR:");
+
+        // Entity tracker should provide guidance for later sections
+        var guidance = entityTracker.BuildGuidance(2);
+        // May or may not have guidance depending on entity matches — just verify it runs
+        guidance.Should().NotBeNull();
+
+        // Phase 5: Validate output
+        Func<string, float[]> embedder = text => MakeEmbedding(text.GetHashCode() * 0.001f);
+        var validation = OutputValidator.Validate(plan, corpus, embedder);
+        validation.Should().NotBeNull();
+        validation.OverallGroundingScore.Should().BeGreaterThanOrEqualTo(0);
+
+        // No hallucinated URLs since we only used evidence text
+        validation.HallucinatedUrls.Should().BeEmpty();
+
+        // Phase 6: Assemble
+        var result = DocumentAssembler.Assemble(
+            plan,
+            "Introduction to signal-driven AI.",
+            "The future is deterministic.",
+            validation,
+            corpus);
+
+        result.Title.Should().NotBeEmpty();
+        result.Sections.Should().HaveCount(3);
+        result.SourceUrls.Should().NotBeEmpty();
+        result.Conclusion.Should().Contain("Validated:");
+    }
+
+    #endregion
+
     #region Test Data Helpers
 
     private static float[] MakeEmbedding(float seed, int dim = 384)
@@ -367,7 +442,7 @@ public class LongFormGenerationTests
                 [
                     new EvidenceSegment
                     {
-                        Segment = MakeSegment($"s{i}", $"Fact {i} about topic.", 0.8 - i * 0.1, (float)i),
+                        Segment = MakeSegment($"s{i}", $"Fact {i} about topic.", 0.8 - i * 0.1, i),
                         ArticleTitle = "Test",
                         ArticleUrl = "https://test.com"
                     }
@@ -566,9 +641,9 @@ public class LongFormGenerationTests
 
         var result = DocumentAssembler.Assemble(
             plan,
-            introduction: "This article explores signal-driven AI architecture.",
-            conclusion: "The future is deterministic.",
-            validation: null,
+            "This article explores signal-driven AI architecture.",
+            "The future is deterministic.",
+            null,
             corpus);
 
         result.Title.Should().Be("Signal-Driven AI Architecture");
@@ -671,81 +746,6 @@ public class LongFormGenerationTests
         result.Should().Contain("DOCUMENT SO FAR:");
         result.Should().Contain("KEY ENTITIES:");
         result.Should().Contain("200-400");
-    }
-
-    #endregion
-
-    #region Integration: Full Deterministic Pipeline
-
-    [Fact]
-    public void FullDeterministicPipeline_ProducesCoherentOutput()
-    {
-        // Phase 1: Build corpus
-        var corpus = BuildTestCorpus();
-        corpus.Segments.Should().HaveCount(9);
-        corpus.Articles.Should().HaveCount(3);
-        corpus.GlobalCentroid.Should().NotBeNull();
-        corpus.GlobalEntities.Should().NotBeEmpty();
-
-        // Phase 2: Build plan (deterministic — no sentinel needed for test)
-        var plan = BuildTestPlan(corpus);
-        plan.Sections.Should().HaveCount(3);
-
-        // Phase 3: Assign evidence
-        EvidenceAssigner.AssignEvidence(plan, corpus);
-        var totalAssigned = plan.Sections.Sum(s => s.AssignedEvidence.Count);
-        totalAssigned.Should().BeGreaterThan(0);
-        totalAssigned.Should().BeLessThanOrEqualTo(9); // Can't assign more than total segments
-
-        // Simulate Phase 4: Fake generated content using evidence text
-        var runningSummary = new RunningSummary();
-        var entityTracker = new EntityContinuityTracker();
-        entityTracker.Initialize(corpus);
-
-        for (var i = 0; i < plan.Sections.Count; i++)
-        {
-            var section = plan.Sections[i];
-            entityTracker.ScanEvidence(section, i);
-
-            // "Generate" content from evidence (simulating LLM)
-            var evidenceText = string.Join(" ",
-                section.AssignedEvidence.Select(e => e.Segment.Text));
-            section.GeneratedContent = $"In this section about {section.Heading}: {evidenceText}";
-
-            runningSummary.RecordSection(section, i);
-            entityTracker.ScanGenerated(section.GeneratedContent, i);
-        }
-
-        // Running summary should have content
-        var summaryText = runningSummary.Build();
-        summaryText.Should().Contain("DOCUMENT SO FAR:");
-
-        // Entity tracker should provide guidance for later sections
-        var guidance = entityTracker.BuildGuidance(2);
-        // May or may not have guidance depending on entity matches — just verify it runs
-        guidance.Should().NotBeNull();
-
-        // Phase 5: Validate output
-        Func<string, float[]> embedder = text => MakeEmbedding(text.GetHashCode() * 0.001f);
-        var validation = OutputValidator.Validate(plan, corpus, embedder);
-        validation.Should().NotBeNull();
-        validation.OverallGroundingScore.Should().BeGreaterThanOrEqualTo(0);
-
-        // No hallucinated URLs since we only used evidence text
-        validation.HallucinatedUrls.Should().BeEmpty();
-
-        // Phase 6: Assemble
-        var result = DocumentAssembler.Assemble(
-            plan,
-            "Introduction to signal-driven AI.",
-            "The future is deterministic.",
-            validation,
-            corpus);
-
-        result.Title.Should().NotBeEmpty();
-        result.Sections.Should().HaveCount(3);
-        result.SourceUrls.Should().NotBeEmpty();
-        result.Conclusion.Should().Contain("Validated:");
     }
 
     #endregion

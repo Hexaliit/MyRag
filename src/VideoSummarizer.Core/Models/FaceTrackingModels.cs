@@ -1,8 +1,8 @@
 namespace VideoSummarizer.Core.Models;
 
 /// <summary>
-/// Persistent face identity for tracking across videos.
-/// Privacy-preserving: uses embeddings only, no face images stored.
+///     Persistent face identity for tracking across videos.
+///     Privacy-preserving: uses embeddings only, no face images stored.
 /// </summary>
 public record FaceIdentity
 {
@@ -48,7 +48,7 @@ public enum IdentitySource
 }
 
 /// <summary>
-/// Face appearance in a specific video frame.
+///     Face appearance in a specific video frame.
 /// </summary>
 public record FaceAppearance
 {
@@ -92,7 +92,7 @@ public record FaceBoundingBox(double X, double Y, double Width, double Height);
 public record HeadPose(double Yaw, double Pitch, double Roll);
 
 /// <summary>
-/// Face track - continuous appearance of a face across frames.
+///     Face track - continuous appearance of a face across frames.
 /// </summary>
 public record FaceTrack
 {
@@ -132,8 +132,8 @@ public record FaceTrack
 }
 
 /// <summary>
-/// Speaker-face linking for video meetings.
-/// Links audio speaker diarization with visual face tracking.
+///     Speaker-face linking for video meetings.
+///     Links audio speaker diarization with visual face tracking.
 /// </summary>
 public record SpeakerFaceLink
 {
@@ -165,7 +165,7 @@ public enum LinkingMethod
 }
 
 /// <summary>
-/// Face database for a collection/library.
+///     Face database for a collection/library.
 /// </summary>
 public record FaceDatabase
 {
@@ -194,7 +194,7 @@ public record FaceDatabaseStats
 }
 
 /// <summary>
-/// Options for face matching.
+///     Options for face matching.
 /// </summary>
 public record FaceMatchOptions
 {

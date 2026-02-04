@@ -4,7 +4,7 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Fourth wave: profiles each column for cardinality, distribution, and top values.
+///     Fourth wave: profiles each column for cardinality, distribution, and top values.
 /// </summary>
 public class ProfileWave : IDataAnalysisWave
 {
@@ -66,10 +66,7 @@ public class ProfileWave : IDataAnalysisWave
         });
 
         var results = await Task.WhenAll(tasks);
-        foreach (var colSignals in results)
-        {
-            signals.AddRange(colSignals);
-        }
+        foreach (var colSignals in results) signals.AddRange(colSignals);
 
         _logger?.LogDebug("ProfileWave: Profiled {Count} columns", columns.Count);
 

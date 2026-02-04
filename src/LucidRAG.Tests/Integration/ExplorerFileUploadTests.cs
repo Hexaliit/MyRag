@@ -7,12 +7,11 @@ namespace LucidRAG.Tests.Integration;
 /// <summary>
 ///     Browser functional tests for Explorer file upload.
 ///     Tests that drag-drop and button upload work correctly.
-///
 ///     Requires:
 ///     - LucidRAG app running on https://localhost:5020
 ///     - Authentication (tests login first)
-///
-///     Run locally with: dotnet test --filter "FullyQualifiedName~ExplorerFileUploadTests" src/LucidRAG.Tests/LucidRAG.Tests.csproj
+///     Run locally with: dotnet test --filter "FullyQualifiedName~ExplorerFileUploadTests"
+///     src/LucidRAG.Tests/LucidRAG.Tests.csproj
 /// </summary>
 [Collection("Browser")]
 [Trait("Category", "Browser")]
@@ -21,10 +20,10 @@ public class ExplorerFileUploadTests : IAsyncLifetime
     private const string BaseUrl = "https://localhost:5020";
     private const string TestEmail = "admin@lucidrag.local";
     private const string TestPassword = "Admin123!";
-    private readonly List<string> _consoleMessages = [];
     private readonly List<string> _consoleErrors = [];
-    private readonly List<string> _pageErrors = [];
+    private readonly List<string> _consoleMessages = [];
     private readonly List<string> _networkRequests = [];
+    private readonly List<string> _pageErrors = [];
     private IBrowser? _browser;
     private IPage? _page;
 
@@ -36,7 +35,8 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         _browser = await Puppeteer.LaunchAsync(new LaunchOptions
         {
             Headless = false, // Set to false to see the browser during debugging
-            Args = [
+            Args =
+            [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
@@ -52,20 +52,14 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         {
             var msg = $"[{e.Message.Type}] {e.Message.Text}";
             _consoleMessages.Add(msg);
-            if (e.Message.Type == ConsoleType.Error)
-            {
-                _consoleErrors.Add(msg);
-            }
+            if (e.Message.Type == ConsoleType.Error) _consoleErrors.Add(msg);
         };
         _page.Error += (_, e) => _pageErrors.Add($"[PageError] {e}");
 
         // Capture network requests
         _page.Request += (_, e) =>
         {
-            if (e.Request.Url.Contains("/api/"))
-            {
-                _networkRequests.Add($"[{e.Request.Method}] {e.Request.Url}");
-            }
+            if (e.Request.Url.Contains("/api/")) _networkRequests.Add($"[{e.Request.Method}] {e.Request.Url}");
         };
     }
 
@@ -198,7 +192,8 @@ public class ExplorerFileUploadTests : IAsyncLifetime
     private static async Task<string> CreateTestFileAsync()
     {
         var testFilePath = Path.Combine(Path.GetTempPath(), $"lucidrag-test-{Guid.NewGuid():N}.txt");
-        await File.WriteAllTextAsync(testFilePath, "This is a test document for LucidRAG upload testing.\n\nIt contains some sample content that can be processed by the document pipeline.");
+        await File.WriteAllTextAsync(testFilePath,
+            "This is a test document for LucidRAG upload testing.\n\nIt contains some sample content that can be processed by the document pipeline.");
         return testFilePath;
     }
 
@@ -220,7 +215,8 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         await Task.Delay(1000);
 
         // Take screenshot before upload
-        await _page!.ScreenshotAsync(@"E:\source\lucidrag\explorer-before-upload.png", new ScreenshotOptions { FullPage = true });
+        await _page!.ScreenshotAsync(@"E:\source\lucidrag\explorer-before-upload.png",
+            new ScreenshotOptions { FullPage = true });
         Console.WriteLine("Screenshot saved: explorer-before-upload.png");
 
         // Create a test file
@@ -269,10 +265,7 @@ public class ExplorerFileUploadTests : IAsyncLifetime
                 ");
 
                 Console.WriteLine("Alpine components found:");
-                foreach (var comp in alpineComponents)
-                {
-                    Console.WriteLine($"  - {comp}");
-                }
+                foreach (var comp in alpineComponents) Console.WriteLine($"  - {comp}");
 
                 return;
             }
@@ -323,38 +316,28 @@ public class ExplorerFileUploadTests : IAsyncLifetime
 
             // Check network requests made
             Console.WriteLine("Network requests during upload:");
-            foreach (var req in _networkRequests)
-            {
-                Console.WriteLine($"  {req}");
-            }
+            foreach (var req in _networkRequests) Console.WriteLine($"  {req}");
 
             // Take screenshot after upload
-            await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-after-upload.png", new ScreenshotOptions { FullPage = true });
+            await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-after-upload.png",
+                new ScreenshotOptions { FullPage = true });
             Console.WriteLine("Screenshot saved: explorer-after-upload.png");
 
             // Assert
             if (uploadResult.TryGetProperty("error", out var error))
-            {
                 Console.WriteLine($"Upload error: {error.GetString()}");
-            }
 
             // Check for any JavaScript errors
             if (_consoleErrors.Any())
             {
                 Console.WriteLine("Console errors during upload:");
-                foreach (var err in _consoleErrors)
-                {
-                    Console.WriteLine($"  {err}");
-                }
+                foreach (var err in _consoleErrors) Console.WriteLine($"  {err}");
             }
         }
         finally
         {
             // Cleanup test file
-            if (File.Exists(testFilePath))
-            {
-                File.Delete(testFilePath);
-            }
+            if (File.Exists(testFilePath)) File.Delete(testFilePath);
         }
     }
 
@@ -482,7 +465,8 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         Console.WriteLine($"Layout check: {layoutCheck}");
 
         // Take screenshot
-        await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-layout.png", new ScreenshotOptions { FullPage = true });
+        await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-layout.png",
+            new ScreenshotOptions { FullPage = true });
         Console.WriteLine("Screenshot saved: explorer-layout.png");
 
         // Report findings
@@ -495,11 +479,16 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         var fileList = layoutCheck.GetProperty("fileList");
         Console.WriteLine($"File List: {(fileList.GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
 
-        Console.WriteLine($"Upload Area: {(layoutCheck.GetProperty("uploadArea").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
-        Console.WriteLine($"Upload Button: {(layoutCheck.GetProperty("uploadButton").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
-        Console.WriteLine($"Entities Section: {(layoutCheck.GetProperty("entitiesSection").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
-        Console.WriteLine($"Info Panel: {(layoutCheck.GetProperty("infoPanel").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
-        Console.WriteLine($"Select All: {(layoutCheck.GetProperty("selectAll").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
+        Console.WriteLine(
+            $"Upload Area: {(layoutCheck.GetProperty("uploadArea").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
+        Console.WriteLine(
+            $"Upload Button: {(layoutCheck.GetProperty("uploadButton").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
+        Console.WriteLine(
+            $"Entities Section: {(layoutCheck.GetProperty("entitiesSection").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
+        Console.WriteLine(
+            $"Info Panel: {(layoutCheck.GetProperty("infoPanel").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
+        Console.WriteLine(
+            $"Select All: {(layoutCheck.GetProperty("selectAll").GetProperty("exists").GetBoolean() ? "EXISTS" : "MISSING")}");
         Console.WriteLine("=========================\n");
     }
 
@@ -569,9 +558,7 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         {
             Console.WriteLine("Headers found:");
             foreach (var header in fileListInfo.GetProperty("headers").EnumerateArray())
-            {
                 Console.WriteLine($"  - {header.GetString()}");
-            }
 
             Console.WriteLine($"Row count: {fileListInfo.GetProperty("rowCount").GetInt32()}");
             Console.WriteLine($"Shows entity count: {fileListInfo.GetProperty("hasEntityCount").GetBoolean()}");
@@ -582,6 +569,7 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         {
             Console.WriteLine("No table found in file list area");
         }
+
         Console.WriteLine("===========================\n");
     }
 
@@ -641,7 +629,8 @@ public class ExplorerFileUploadTests : IAsyncLifetime
         Console.WriteLine($"Details result: {detailsResult}");
 
         // Take screenshot
-        await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-details.png", new ScreenshotOptions { FullPage = true });
+        await _page.ScreenshotAsync(@"E:\source\lucidrag\explorer-details.png",
+            new ScreenshotOptions { FullPage = true });
         Console.WriteLine("Screenshot saved: explorer-details.png");
     }
 }

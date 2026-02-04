@@ -25,32 +25,43 @@ public static class FormattingHelpers
     // ── Centralized Spectre.Console markup safety ──────────────────────
 
     /// <summary>
-    /// Safely strip Spectre.Console markup tags from text.
-    /// Unlike Markup.Remove(), this does NOT throw on invalid markup like "[Go.pdf]".
-    /// Falls back to Markup.Escape() if the text can't be parsed as valid markup.
+    ///     Safely strip Spectre.Console markup tags from text.
+    ///     Unlike Markup.Remove(), this does NOT throw on invalid markup like "[Go.pdf]".
+    ///     Falls back to Markup.Escape() if the text can't be parsed as valid markup.
     /// </summary>
     public static string SafeStripMarkup(string? text)
     {
         if (string.IsNullOrEmpty(text)) return "";
-        try { return Markup.Remove(text); }
-        catch { return Markup.Escape(text); }
+        try
+        {
+            return Markup.Remove(text);
+        }
+        catch
+        {
+            return Markup.Escape(text);
+        }
     }
 
     /// <summary>
-    /// Escape user data for Spectre.Console markup. Null-safe.
-    /// Single source of truth for all markup escaping.
+    ///     Escape user data for Spectre.Console markup. Null-safe.
+    ///     Single source of truth for all markup escaping.
     /// </summary>
-    public static string Esc(string? text) => Markup.Escape(text ?? "");
+    public static string Esc(string? text)
+    {
+        return Markup.Escape(text ?? "");
+    }
 
     /// <summary>
-    /// Truncate and escape in one call — the most common pattern for titles.
+    ///     Truncate and escape in one call — the most common pattern for titles.
     /// </summary>
     public static string TruncEsc(string? text, int maxLength)
-        => Markup.Escape(Truncate(text ?? "", maxLength));
+    {
+        return Markup.Escape(Truncate(text ?? "", maxLength));
+    }
 
     /// <summary>
-    /// Safely write a Spectre renderable (Panel, Table, Tree, Rule, etc.).
-    /// Falls back to plain-text on markup parse errors instead of crashing.
+    ///     Safely write a Spectre renderable (Panel, Table, Tree, Rule, etc.).
+    ///     Falls back to plain-text on markup parse errors instead of crashing.
     /// </summary>
     public static void SafeWrite(IRenderable renderable, string? fallbackText = null)
     {
@@ -68,7 +79,7 @@ public static class FormattingHelpers
     }
 
     /// <summary>
-    /// Safely call AnsiConsole.MarkupLine, falling back to plain text on markup errors.
+    ///     Safely call AnsiConsole.MarkupLine, falling back to plain text on markup errors.
     /// </summary>
     public static void SafeMarkupLine(string markup)
     {

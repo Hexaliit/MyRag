@@ -1,24 +1,23 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Services.Storage;
-using System.Collections.Concurrent;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Tracks signal effectiveness with decay-based learning
-/// Maintains immutable ledger of discriminator scores and learns which signals
-/// reliably separate good from bad results
+///     Tracks signal effectiveness with decay-based learning
+///     Maintains immutable ledger of discriminator scores and learns which signals
+///     reliably separate good from bad results
 /// </summary>
 public class SignalEffectivenessTracker
 {
-    private readonly ILogger<SignalEffectivenessTracker> _logger;
+    private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private readonly ISignalDatabase _database;
 
     // In-memory cache of effectiveness weights (periodically synced with database)
     private readonly ConcurrentDictionary<string, DiscriminatorEffectiveness> _effectivenessCache = new();
-
-    private readonly SemaphoreSlim _cacheLock = new(1, 1);
+    private readonly ILogger<SignalEffectivenessTracker> _logger;
 
     public SignalEffectivenessTracker(
         ILogger<SignalEffectivenessTracker> logger,
@@ -29,7 +28,7 @@ public class SignalEffectivenessTracker
     }
 
     /// <summary>
-    /// Record a discriminator score to the immutable ledger
+    ///     Record a discriminator score to the immutable ledger
     /// </summary>
     public async Task RecordScoreAsync(DiscriminatorScore score, CancellationToken ct = default)
     {
@@ -44,7 +43,7 @@ public class SignalEffectivenessTracker
     }
 
     /// <summary>
-    /// Update discriminator effectiveness weights based on feedback
+    ///     Update discriminator effectiveness weights based on feedback
     /// </summary>
     public async Task UpdateEffectivenessAsync(DiscriminatorScore score, CancellationToken ct = default)
     {
@@ -121,7 +120,7 @@ public class SignalEffectivenessTracker
     }
 
     /// <summary>
-    /// Get effectiveness weight for a specific signal/type/goal combination
+    ///     Get effectiveness weight for a specific signal/type/goal combination
     /// </summary>
     public async Task<double> GetEffectivenessWeightAsync(
         string signalName,
@@ -135,9 +134,7 @@ public class SignalEffectivenessTracker
         try
         {
             if (_effectivenessCache.TryGetValue(key, out var effectiveness))
-            {
                 return effectiveness.GetDecayedWeight(DateTimeOffset.UtcNow);
-            }
 
             // Load from database
             var loaded = await _database.GetDiscriminatorEffectivenessAsync(signalName, imageType, goal, ct);
@@ -156,8 +153,8 @@ public class SignalEffectivenessTracker
     }
 
     /// <summary>
-    /// Get all effectiveness records for a specific image type and goal
-    /// Useful for understanding which signals are most valuable
+    ///     Get all effectiveness records for a specific image type and goal
+    ///     Useful for understanding which signals are most valuable
     /// </summary>
     public async Task<List<DiscriminatorEffectiveness>> GetTopDiscriminatorsAsync(
         ImageType imageType,
@@ -177,7 +174,7 @@ public class SignalEffectivenessTracker
     }
 
     /// <summary>
-    /// Get prior scores for an image (for novelty comparison)
+    ///     Get prior scores for an image (for novelty comparison)
     /// </summary>
     public async Task<List<DiscriminatorScore>> GetPriorScoresAsync(
         string imageHash,
@@ -188,8 +185,8 @@ public class SignalEffectivenessTracker
     }
 
     /// <summary>
-    /// Prune discriminators with weights below threshold across all types/goals
-    /// Should be run periodically (e.g., daily) to clean up ineffective discriminators
+    ///     Prune discriminators with weights below threshold across all types/goals
+    ///     Should be run periodically (e.g., daily) to clean up ineffective discriminators
     /// </summary>
     public async Task PruneIneffectiveDiscriminatorsAsync(
         double threshold = 0.1,
@@ -221,14 +218,11 @@ public class SignalEffectivenessTracker
             _cacheLock.Release();
         }
 
-        if (pruneCount > 0)
-        {
-            _logger.LogInformation("Pruned {PruneCount} ineffective discriminators", pruneCount);
-        }
+        if (pruneCount > 0) _logger.LogInformation("Pruned {PruneCount} ineffective discriminators", pruneCount);
     }
 
     /// <summary>
-    /// Get statistics about discriminator learning progress
+    ///     Get statistics about discriminator learning progress
     /// </summary>
     public async Task<DiscriminatorStats> GetStatsAsync(CancellationToken ct = default)
     {
@@ -292,8 +286,8 @@ public class SignalEffectivenessTracker
     }
 
     /// <summary>
-    /// Determine if a signal "agreed" with the outcome
-    /// Agreement = signal's contribution aligned with acceptance/rejection
+    ///     Determine if a signal "agreed" with the outcome
+    ///     Agreement = signal's contribution aligned with acceptance/rejection
     /// </summary>
     private bool DidSignalAgreeWithOutcome(SignalContribution contribution, bool accepted, double overallScore)
     {
@@ -305,31 +299,26 @@ public class SignalEffectivenessTracker
         var threshold = 0.5;
 
         if (accepted && overallScore > threshold)
-        {
             // Good result: high-strength signals agreed
             return contribution.Strength > threshold;
-        }
-        else if (!accepted && overallScore <= threshold)
-        {
+
+        if (!accepted && overallScore <= threshold)
             // Bad result: low-strength signals agreed (correctly indicated poor quality)
             return contribution.Strength <= threshold;
-        }
-        else if (accepted && overallScore <= threshold)
-        {
+
+        if (accepted && overallScore <= threshold)
             // Edge case: accepted despite low score
             // Likely user correction - trust user, so low-strength = disagreement
             return contribution.Strength <= threshold;
-        }
-        else // !accepted && overallScore > threshold
-        {
-            // Edge case: rejected despite high score
-            // User found issue not captured by signals - high strength = disagreement
-            return contribution.Strength <= threshold;
-        }
+
+        // !accepted && overallScore > threshold
+        // Edge case: rejected despite high score
+        // User found issue not captured by signals - high strength = disagreement
+        return contribution.Strength <= threshold;
     }
 
     /// <summary>
-    /// Calculate new weight using exponential moving average with decay
+    ///     Calculate new weight using exponential moving average with decay
     /// </summary>
     private double CalculateNewWeight(double currentWeight, bool agreed, int priorEvaluations)
     {
@@ -347,7 +336,7 @@ public class SignalEffectivenessTracker
 }
 
 /// <summary>
-/// Statistics about discriminator learning
+///     Statistics about discriminator learning
 /// </summary>
 public record DiscriminatorStats
 {

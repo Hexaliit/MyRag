@@ -4,12 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Mostlylucid.Summarizers.Reader.Pdf;
 
 /// <summary>
-/// DI registration for the PDF reader.
+///     DI registration for the PDF reader.
 /// </summary>
 public static class PdfReaderExtensions
 {
     /// <summary>
-    /// Register the PDF document reader.
+    ///     Register the PDF document reader.
     /// </summary>
     public static IServiceCollection AddPdfReader(this IServiceCollection services)
     {

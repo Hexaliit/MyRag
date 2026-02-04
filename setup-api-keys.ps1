@@ -14,46 +14,62 @@ Write-Host "`nNever commit API keys to git or share them publicly!`n" -Foregroun
 $existingOpenAI = [System.Environment]::GetEnvironmentVariable('OPENAI_API_KEY', 'User')
 $existingAnthropic = [System.Environment]::GetEnvironmentVariable('ANTHROPIC_API_KEY', 'User')
 
-if ($existingOpenAI) {
+if ($existingOpenAI)
+{
     Write-Host "✓ OpenAI API key already configured" -ForegroundColor Green
-    Write-Host "  Current value: $($existingOpenAI.Substring(0, 10))..." -ForegroundColor Gray
-} else {
+    Write-Host "  Current value: $($existingOpenAI.Substring(0, 10) )..." -ForegroundColor Gray
+}
+else
+{
     Write-Host "⚠ OpenAI API key not configured" -ForegroundColor Yellow
 }
 
-if ($existingAnthropic) {
+if ($existingAnthropic)
+{
     Write-Host "✓ Anthropic API key already configured" -ForegroundColor Green
-    Write-Host "  Current value: $($existingAnthropic.Substring(0, 10))..." -ForegroundColor Gray
-} else {
+    Write-Host "  Current value: $($existingAnthropic.Substring(0, 10) )..." -ForegroundColor Gray
+}
+else
+{
     Write-Host "⚠ Anthropic API key not configured" -ForegroundColor Yellow
 }
 
 Write-Host ""
 
 # Prompt for keys
-$updateOpenAI = if ($existingOpenAI) {
+$updateOpenAI = if ($existingOpenAI)
+{
     Read-Host "Update OpenAI key? (y/N)"
-} else {
+}
+else
+{
     "y"
 }
 
-if ($updateOpenAI -eq "y" -or $updateOpenAI -eq "Y") {
+if ($updateOpenAI -eq "y" -or $updateOpenAI -eq "Y")
+{
     $openAIKey = Read-Host "Enter OpenAI API key (starts with sk-proj- or sk-)"
-    if ($openAIKey) {
+    if ($openAIKey)
+    {
         [System.Environment]::SetEnvironmentVariable('OPENAI_API_KEY', $openAIKey, 'User')
         Write-Host "✓ OpenAI API key configured" -ForegroundColor Green
     }
 }
 
-$updateAnthropic = if ($existingAnthropic) {
+$updateAnthropic = if ($existingAnthropic)
+{
     Read-Host "Update Anthropic key? (y/N)"
-} else {
+}
+else
+{
     "y"
 }
 
-if ($updateAnthropic -eq "y" -or $updateAnthropic -eq "Y") {
+if ($updateAnthropic -eq "y" -or $updateAnthropic -eq "Y")
+{
     $anthropicKey = Read-Host "Enter Anthropic API key (starts with sk-ant-)"
-    if ($anthropicKey) {
+    if ($anthropicKey)
+    {
         [System.Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY', $anthropicKey, 'User')
         Write-Host "✓ Anthropic API key configured" -ForegroundColor Green
     }

@@ -1,35 +1,20 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Coordination;
-using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Deduplicates keyframes using perceptual hashing.
-/// Filters out visually similar frames to reduce downstream processing.
-/// Emits: keyframes.deduplicated
+///     Deduplicates keyframes using perceptual hashing.
+///     Filters out visually similar frames to reduce downstream processing.
+///     Emits: keyframes.deduplicated
 /// </summary>
 public class DeduplicationWave : IVideoWave, ISignalAwareVideoWave
 {
+    private const int HammingThreshold = 10;
     private readonly KeyframeDeduplicationService? _deduplicationService;
     private readonly ILogger<DeduplicationWave> _logger;
-
-    private const int HammingThreshold = 10;
-
-    public string Name => "keyframe_deduplication";
-    public int Priority => 820; // After thumbnail extraction
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual];
-
-    // Signal contracts
-    public IReadOnlyList<string> RequiredSignals => [VideoSignals.ThumbnailsExtracted];
-    public IReadOnlyList<string> OptionalSignals => [];
-    public IReadOnlyList<string> EmittedSignals => [
-        VideoSignals.KeyframesDeduplicated,
-        VideoSignals.KeyframesDuplicatesSkipped
-    ];
-    public IReadOnlyList<string> CacheEmits => ["unique_timestamps", "dhash_values"];
-    public IReadOnlyList<string> CacheUses => ["thumbnails", "keyframe_selections"];
 
     public DeduplicationWave(
         ILogger<DeduplicationWave> logger,
@@ -39,13 +24,32 @@ public class DeduplicationWave : IVideoWave, ISignalAwareVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        _deduplicationService != null &&
-        context.GetCached<Dictionary<double, string>>("thumbnails")?.Count > 5;
+    // Signal contracts
+    public IReadOnlyList<string> RequiredSignals => [VideoSignals.ThumbnailsExtracted];
+    public IReadOnlyList<string> OptionalSignals => [];
+
+    public IReadOnlyList<string> EmittedSignals =>
+    [
+        VideoSignals.KeyframesDeduplicated,
+        VideoSignals.KeyframesDuplicatesSkipped
+    ];
+
+    public IReadOnlyList<string> CacheEmits => ["unique_timestamps", "dhash_values"];
+    public IReadOnlyList<string> CacheUses => ["thumbnails", "keyframe_selections"];
+
+    public string Name => "keyframe_deduplication";
+    public int Priority => 820; // After thumbnail extraction
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return _deduplicationService != null &&
+               context.GetCached<Dictionary<double, string>>("thumbnails")?.Count > 5;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         context.ReportProgress("Deduplicating similar frames", 0);
 
         // Emit wave started signal

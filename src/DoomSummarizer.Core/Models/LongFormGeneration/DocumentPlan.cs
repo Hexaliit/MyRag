@@ -4,9 +4,9 @@ using DoomSummarizer.Services.LongFormGeneration;
 namespace DoomSummarizer.Models.LongFormGeneration;
 
 /// <summary>
-/// A planned section in the document outline.
-/// Contains the heading, theme keywords, and a theme embedding for deterministic
-/// evidence assignment via cosine similarity.
+///     A planned section in the document outline.
+///     Contains the heading, theme keywords, and a theme embedding for deterministic
+///     evidence assignment via cosine similarity.
 /// </summary>
 public class PlannedSection
 {
@@ -16,14 +16,14 @@ public class PlannedSection
     public string? Notes { get; init; }
 
     /// <summary>
-    /// Quality-adjusted target word count. Defaults to TargetWords but can be
-    /// reduced based on evidence quality to prevent hallucination.
+    ///     Quality-adjusted target word count. Defaults to TargetWords but can be
+    ///     reduced based on evidence quality to prevent hallucination.
     /// </summary>
     public int AdjustedTargetWords { get; set; }
 
     /// <summary>
-    /// Embedding of the theme keywords — used for cosine similarity
-    /// matching against evidence segments during assignment.
+    ///     Embedding of the theme keywords — used for cosine similarity
+    ///     matching against evidence segments during assignment.
     /// </summary>
     public float[]? ThemeEmbedding { get; set; }
 
@@ -31,20 +31,20 @@ public class PlannedSection
     public List<EvidenceSegment> AssignedEvidence { get; set; } = [];
 
     /// <summary>
-    /// Propositions (atomic facts) extracted from assigned evidence.
-    /// Used for precise evidence matching and cross-section deduplication.
+    ///     Propositions (atomic facts) extracted from assigned evidence.
+    ///     Used for precise evidence matching and cross-section deduplication.
     /// </summary>
     public List<Proposition> Propositions { get; set; } = [];
 
     /// <summary>
-    /// Topics/concepts to exclude from this section (populated from previous sections).
-    /// Used in negative prompts to prevent repetition: "Do not discuss: X, Y, Z"
+    ///     Topics/concepts to exclude from this section (populated from previous sections).
+    ///     Used in negative prompts to prevent repetition: "Do not discuss: X, Y, Z"
     /// </summary>
     public List<string> ExcludeTopics { get; set; } = [];
 
     /// <summary>
-    /// Key concepts covered in this section (extracted after generation).
-    /// Propagated to subsequent sections' ExcludeTopics to avoid repetition.
+    ///     Key concepts covered in this section (extracted after generation).
+    ///     Propagated to subsequent sections' ExcludeTopics to avoid repetition.
     /// </summary>
     public List<string> CoveredConcepts { get; set; } = [];
 
@@ -59,15 +59,15 @@ public class PlannedSection
         .ToList();
 
     /// <summary>
-    /// Get the effective target words — uses AdjustedTargetWords if set, otherwise TargetWords.
+    ///     Get the effective target words — uses AdjustedTargetWords if set, otherwise TargetWords.
     /// </summary>
     public int EffectiveTargetWords => AdjustedTargetWords > 0 ? AdjustedTargetWords : TargetWords;
 }
 
 /// <summary>
-/// The full document plan produced by the sentinel LLM (Phase 2).
-/// Contains the title, section outlines with theme embeddings, and a global
-/// theme embedding used for drift detection.
+///     The full document plan produced by the sentinel LLM (Phase 2).
+///     Contains the title, section outlines with theme embeddings, and a global
+///     theme embedding used for drift detection.
 /// </summary>
 public class DocumentPlan
 {
@@ -78,8 +78,8 @@ public class DocumentPlan
     public List<string> KeyEntities { get; init; } = [];
 
     /// <summary>
-    /// Embedding of the theme description — used as the drift detection anchor.
-    /// Sections whose generated content drifts too far from this get correction guidance.
+    ///     Embedding of the theme description — used as the drift detection anchor.
+    ///     Sections whose generated content drifts too far from this get correction guidance.
     /// </summary>
     public float[]? ThemeEmbedding { get; set; }
 
@@ -88,8 +88,8 @@ public class DocumentPlan
 }
 
 /// <summary>
-/// Raw sentinel outline JSON model (before embedding).
-/// Parsed from sentinel LLM output then converted to DocumentPlan.
+///     Raw sentinel outline JSON model (before embedding).
+///     Parsed from sentinel LLM output then converted to DocumentPlan.
 /// </summary>
 public class SentinelOutline
 {

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.ML.OnnxRuntime;
@@ -8,38 +10,51 @@ using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using System.Security.Cryptography;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// CLIP Embedding Wave - Generates semantic image embeddings for similarity search
-/// Uses ONNX CLIP model for fast, local embedding generation (no API calls)
-/// Auto-downloads CLIP model on first use (~350MB)
-/// Priority: 45 (runs after vision LLM, provides embeddings for RAG)
-///
-/// OPTIMIZATION: For animated GIFs, extracts key frames and batch processes
-/// all embeddings in a single GPU pass (3-5x faster than sequential).
+///     CLIP Embedding Wave - Generates semantic image embeddings for similarity search
+///     Uses ONNX CLIP model for fast, local embedding generation (no API calls)
+///     Auto-downloads CLIP model on first use (~350MB)
+///     Priority: 45 (runs after vision LLM, provides embeddings for RAG)
+///     OPTIMIZATION: For animated GIFs, extracts key frames and batch processes
+///     all embeddings in a single GPU pass (3-5x faster than sequential).
 /// </summary>
 public class ClipEmbeddingWave : IAnalysisWave
 {
-    private readonly ImageConfig _config;
-    private readonly ModelDownloader? _modelDownloader;
-    private readonly OnnxSessionFactory? _sessionFactory;
-    private readonly ILogger<ClipEmbeddingWave>? _logger;
-    private static InferenceSession? _clipSession;
-    private static readonly object _modelLock = new();
-
     // Batch processing constants
     private const int BatchSize = 8; // Images per GPU batch
     private const int MaxGifFramesToEmbed = 16; // Max frames to embed for GIFs
+
+    // CLIP ViT-B/32 input dimensions
+    private const int ClipImageSize = 224;
+    private const int ClipEmbeddingSize = 512;
+    private static InferenceSession? _clipSession;
+    private static readonly object _modelLock = new();
+    private readonly ImageConfig _config;
+    private readonly ILogger<ClipEmbeddingWave>? _logger;
+    private readonly ModelDownloader? _modelDownloader;
+    private readonly OnnxSessionFactory? _sessionFactory;
+
+    public ClipEmbeddingWave(
+        IOptions<ImageConfig> config,
+        ModelDownloader? modelDownloader = null,
+        OnnxSessionFactory? sessionFactory = null,
+        ILogger<ClipEmbeddingWave>? logger = null)
+    {
+        _config = config.Value;
+        _modelDownloader = modelDownloader;
+        _sessionFactory = sessionFactory;
+        _logger = logger;
+    }
 
     public string Name => "ClipEmbeddingWave";
     public int Priority => 45; // After vision LLM, before synthesis
     public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "embedding", "clip", "ml" };
 
     /// <summary>
-    /// Check if CLIP should run. Respects auto-routing (fast route skips CLIP).
+    ///     Check if CLIP should run. Respects auto-routing (fast route skips CLIP).
     /// </summary>
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -52,22 +67,6 @@ public class ClipEmbeddingWave : IAnalysisWave
             return false;
 
         return true;
-    }
-
-    // CLIP ViT-B/32 input dimensions
-    private const int ClipImageSize = 224;
-    private const int ClipEmbeddingSize = 512;
-
-    public ClipEmbeddingWave(
-        IOptions<ImageConfig> config,
-        ModelDownloader? modelDownloader = null,
-        OnnxSessionFactory? sessionFactory = null,
-        ILogger<ClipEmbeddingWave>? logger = null)
-    {
-        _config = config.Value;
-        _modelDownloader = modelDownloader;
-        _sessionFactory = sessionFactory;
-        _logger = logger;
     }
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
@@ -114,15 +113,11 @@ public class ClipEmbeddingWave : IAnalysisWave
             var frameCount = context.GetValue<int>("identity.frame_count");
 
             if (isAnimated && frameCount > 1)
-            {
                 // Batch process GIF frames for efficiency
                 await GenerateBatchGifEmbeddingsAsync(imagePath, session, frameCount, signals, ct);
-            }
             else
-            {
                 // Single image embedding
                 await GenerateSingleEmbeddingAsync(imagePath, session, signals, ct);
-            }
         }
         catch (Exception ex)
         {
@@ -141,7 +136,7 @@ public class ClipEmbeddingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Generate embedding for a single static image.
+    ///     Generate embedding for a single static image.
     /// </summary>
     private async Task GenerateSingleEmbeddingAsync(
         string imagePath,
@@ -193,8 +188,8 @@ public class ClipEmbeddingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Batch process GIF frames for efficient embedding generation.
-    /// Extracts key frames and processes them in batches (3-5x faster than sequential).
+    ///     Batch process GIF frames for efficient embedding generation.
+    ///     Extracts key frames and processes them in batches (3-5x faster than sequential).
     /// </summary>
     private async Task GenerateBatchGifEmbeddingsAsync(
         string imagePath,
@@ -203,7 +198,7 @@ public class ClipEmbeddingWave : IAnalysisWave
         List<Signal> signals,
         CancellationToken ct)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         // Load GIF and extract key frames
         using var image = await Image.LoadAsync<Rgba32>(imagePath, ct);
@@ -213,10 +208,7 @@ public class ClipEmbeddingWave : IAnalysisWave
         var step = Math.Max(1, frameCount / framesToEmbed);
 
         var frameIndices = new List<int>();
-        for (int i = 0; i < frameCount && frameIndices.Count < framesToEmbed; i += step)
-        {
-            frameIndices.Add(i);
-        }
+        for (var i = 0; i < frameCount && frameIndices.Count < framesToEmbed; i += step) frameIndices.Add(i);
 
         _logger?.LogInformation("Batch CLIP: processing {Count}/{Total} GIF frames in batches of {BatchSize}",
             frameIndices.Count, frameCount, BatchSize);
@@ -237,7 +229,7 @@ public class ClipEmbeddingWave : IAnalysisWave
         var allEmbeddings = new Dictionary<int, float[]>();
         var inputName = session.InputNames.FirstOrDefault() ?? "input";
 
-        for (int batchStart = 0; batchStart < preprocessedFrames.Count; batchStart += BatchSize)
+        for (var batchStart = 0; batchStart < preprocessedFrames.Count; batchStart += BatchSize)
         {
             ct.ThrowIfCancellationRequested();
             var batchFrames = preprocessedFrames.Skip(batchStart).Take(BatchSize).ToList();
@@ -250,18 +242,16 @@ public class ClipEmbeddingWave : IAnalysisWave
             var mean = new[] { 0.48145466f, 0.4578275f, 0.40821073f };
             var std = new[] { 0.26862954f, 0.26130258f, 0.27577711f };
 
-            for (int b = 0; b < batchSize; b++)
+            for (var b = 0; b < batchSize; b++)
             {
                 var frame = batchFrames[b].Frame;
-                for (int y = 0; y < ClipImageSize; y++)
+                for (var y = 0; y < ClipImageSize; y++)
+                for (var x = 0; x < ClipImageSize; x++)
                 {
-                    for (int x = 0; x < ClipImageSize; x++)
-                    {
-                        var pixel = frame[x, y];
-                        tensor[b, 0, y, x] = (pixel.R / 255f - mean[0]) / std[0];
-                        tensor[b, 1, y, x] = (pixel.G / 255f - mean[1]) / std[1];
-                        tensor[b, 2, y, x] = (pixel.B / 255f - mean[2]) / std[2];
-                    }
+                    var pixel = frame[x, y];
+                    tensor[b, 0, y, x] = (pixel.R / 255f - mean[0]) / std[0];
+                    tensor[b, 1, y, x] = (pixel.G / 255f - mean[1]) / std[1];
+                    tensor[b, 2, y, x] = (pixel.B / 255f - mean[2]) / std[2];
                 }
             }
 
@@ -275,23 +265,18 @@ public class ClipEmbeddingWave : IAnalysisWave
             var output = results.FirstOrDefault()?.AsEnumerable<float>()?.ToArray();
 
             if (output != null)
-            {
                 // Extract embeddings for each frame in batch
-                for (int b = 0; b < batchSize; b++)
+                for (var b = 0; b < batchSize; b++)
                 {
                     var embedding = new float[ClipEmbeddingSize];
                     Array.Copy(output, b * ClipEmbeddingSize, embedding, 0, ClipEmbeddingSize);
                     var normalized = NormalizeEmbedding(embedding);
                     allEmbeddings[batchFrames[b].Index] = normalized;
                 }
-            }
         }
 
         // Cleanup preprocessed frames
-        foreach (var (_, frame) in preprocessedFrames)
-        {
-            frame.Dispose();
-        }
+        foreach (var (_, frame) in preprocessedFrames) frame.Dispose();
 
         stopwatch.Stop();
         var avgMs = allEmbeddings.Count > 0 ? stopwatch.ElapsedMilliseconds / allEmbeddings.Count : 0;
@@ -353,7 +338,7 @@ public class ClipEmbeddingWave : IAnalysisWave
             var embeddings = allEmbeddings.Values.ToList();
             var similarities = new List<double>();
 
-            for (int i = 0; i < embeddings.Count - 1; i++)
+            for (var i = 0; i < embeddings.Count - 1; i++)
             {
                 var sim = CosineSimilarity(embeddings[i], embeddings[i + 1]);
                 similarities.Add(sim);
@@ -382,12 +367,13 @@ public class ClipEmbeddingWave : IAnalysisWave
     private static double CosineSimilarity(float[] a, float[] b)
     {
         double dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dot += a[i] * b[i];
             normA += a[i] * a[i];
             normB += b[i] * b[i];
         }
+
         return dot / (Math.Sqrt(normA) * Math.Sqrt(normB) + 1e-10);
     }
 
@@ -439,13 +425,10 @@ public class ClipEmbeddingWave : IAnalysisWave
     {
         // Check explicit config path first
         if (!string.IsNullOrEmpty(_config.ClipModelPath) && File.Exists(_config.ClipModelPath))
-        {
             return _config.ClipModelPath;
-        }
 
         // Try to get from ModelDownloader (auto-downloads if needed)
         if (_modelDownloader != null)
-        {
             try
             {
                 _logger?.LogInformation("Checking/downloading CLIP model (~350MB on first run)...");
@@ -460,7 +443,6 @@ public class ClipEmbeddingWave : IAnalysisWave
             {
                 _logger?.LogWarning(ex, "Failed to auto-download CLIP model");
             }
-        }
 
         // Fallback to checking default paths
         return GetClipModelPathFallback();
@@ -477,9 +459,8 @@ public class ClipEmbeddingWave : IAnalysisWave
         };
 
         foreach (var path in paths)
-        {
-            if (File.Exists(path)) return path;
-        }
+            if (File.Exists(path))
+                return path;
 
         _logger?.LogDebug("CLIP model not found in any default location");
         return null;
@@ -505,19 +486,17 @@ public class ClipEmbeddingWave : IAnalysisWave
         var mean = new[] { 0.48145466f, 0.4578275f, 0.40821073f };
         var std = new[] { 0.26862954f, 0.26130258f, 0.27577711f };
 
-        for (int y = 0; y < ClipImageSize; y++)
+        for (var y = 0; y < ClipImageSize; y++)
+        for (var x = 0; x < ClipImageSize; x++)
         {
-            for (int x = 0; x < ClipImageSize; x++)
-            {
-                var pixel = image[x, y];
+            var pixel = image[x, y];
 
-                // R channel
-                tensor[0, 0, y, x] = (pixel.R / 255f - mean[0]) / std[0];
-                // G channel
-                tensor[0, 1, y, x] = (pixel.G / 255f - mean[1]) / std[1];
-                // B channel
-                tensor[0, 2, y, x] = (pixel.B / 255f - mean[2]) / std[2];
-            }
+            // R channel
+            tensor[0, 0, y, x] = (pixel.R / 255f - mean[0]) / std[0];
+            // G channel
+            tensor[0, 1, y, x] = (pixel.G / 255f - mean[1]) / std[1];
+            // B channel
+            tensor[0, 2, y, x] = (pixel.B / 255f - mean[2]) / std[2];
         }
 
         // Run inference - get input name from model metadata (varies by CLIP export)
@@ -542,10 +521,7 @@ public class ClipEmbeddingWave : IAnalysisWave
         if (norm < 1e-10) return embedding;
 
         var normalized = new float[embedding.Length];
-        for (int i = 0; i < embedding.Length; i++)
-        {
-            normalized[i] = embedding[i] / (float)norm;
-        }
+        for (var i = 0; i < embedding.Length; i++) normalized[i] = embedding[i] / (float)norm;
 
         return normalized;
     }

@@ -4,8 +4,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts <see cref="NewsFetcher"/> to the <see cref="ISourcePlugin"/> contract.
-/// Handles all RSS-based news sources: bbc, guardian, ars, verge, etc.
+///     Adapts <see cref="NewsFetcher" /> to the <see cref="ISourcePlugin" /> contract.
+///     Handles all RSS-based news sources: bbc, guardian, ars, verge, etc.
 /// </summary>
 public sealed class NewsFeedPlugin : ISourcePlugin
 {
@@ -17,7 +17,8 @@ public sealed class NewsFeedPlugin : ISourcePlugin
         Keys = NewsFetcher.KnownSources.Concat(["news"]).ToList(),
         DisplayName = "News Feeds",
         Description = "RSS-based news feeds from BBC, Guardian, Ars Technica, Verge, Wired, TechCrunch, and more.",
-        Capabilities = SourceCapabilities.Feed | SourceCapabilities.SubSource | SourceCapabilities.NoAuth | SourceCapabilities.NewsOnly,
+        Capabilities = SourceCapabilities.Feed | SourceCapabilities.SubSource | SourceCapabilities.NoAuth |
+                       SourceCapabilities.NewsOnly,
         Scopes = NewsFetcher.KnownSources.ToList(),
         Examples = ["-s bbc", "-s guardian", "-s ars", "-s bbc:science"]
     };

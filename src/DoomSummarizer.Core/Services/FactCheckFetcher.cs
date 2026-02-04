@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
@@ -5,8 +9,8 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches from fact-checking RSS feeds: Snopes, PolitiFact, FactCheck.org, FullFact.
-/// No API keys required. Great for verifying claims and tracking misinformation.
+///     Fetches from fact-checking RSS feeds: Snopes, PolitiFact, FactCheck.org, FullFact.
+///     No API keys required. Great for verifying claims and tracking misinformation.
 /// </summary>
 public partial class FactCheckFetcher(HttpClient httpClient)
 {
@@ -15,11 +19,16 @@ public partial class FactCheckFetcher(HttpClient httpClient)
         ["snopes"] = "https://www.snopes.com/feed/",
         ["politifact"] = "https://www.politifact.com/rss/all/",
         ["factcheck"] = "https://www.factcheck.org/feed/",
-        ["fullfact"] = "https://fullfact.org/feed/",
+        ["fullfact"] = "https://fullfact.org/feed/"
     };
 
     /// <summary>
-    /// Fetch recent fact-checks from all configured sources.
+    ///     Available fact-checking sites.
+    /// </summary>
+    public static IEnumerable<string> Sites => Feeds.Keys;
+
+    /// <summary>
+    ///     Fetch recent fact-checks from all configured sources.
     /// </summary>
     public async Task<List<ContentItem>> FetchAsync(int limit = 20, string? site = null)
     {
@@ -72,7 +81,7 @@ public partial class FactCheckFetcher(HttpClient httpClient)
                 {
                     Id = $"factcheck_{siteName}_{GenerateId(link ?? title)}",
                     Source = "factcheck",
-                    Title = System.Net.WebUtility.HtmlDecode(title),
+                    Title = WebUtility.HtmlDecode(title),
                     Url = link,
                     Content = StripHtml(description ?? ""),
                     Author = $"{siteName}: {creator ?? siteName}",
@@ -82,21 +91,16 @@ public partial class FactCheckFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Fact-check feed '{siteName}' failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Fact-check feed '{siteName}' failed: {ex.Message}");
         }
 
         return items;
     }
 
-    /// <summary>
-    /// Available fact-checking sites.
-    /// </summary>
-    public static IEnumerable<string> Sites => Feeds.Keys;
-
     private static string StripHtml(string html)
     {
         var text = HtmlTagRegex().Replace(html, " ");
-        text = System.Net.WebUtility.HtmlDecode(text);
+        text = WebUtility.HtmlDecode(text);
         text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
@@ -107,11 +111,15 @@ public partial class FactCheckFetcher(HttpClient httpClient)
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
 
-    private static DateTimeOffset TryParseDate(string? dateStr) =>
-        string.IsNullOrEmpty(dateStr) ? DateTimeOffset.UtcNow
+    private static DateTimeOffset TryParseDate(string? dateStr)
+    {
+        return string.IsNullOrEmpty(dateStr) ? DateTimeOffset.UtcNow
             : DateTimeOffset.TryParse(dateStr, out var r) ? r : DateTimeOffset.UtcNow;
+    }
 
-    private static string GenerateId(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string GenerateId(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 }

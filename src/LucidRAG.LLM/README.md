@@ -1,6 +1,7 @@
 # Mostlylucid.LucidRAG.LLM
 
-Unified LLM provider infrastructure for LucidRAG with YAML-based configuration, resilience, and named provider selection.
+Unified LLM provider infrastructure for LucidRAG with YAML-based configuration, resilience, and named provider
+selection.
 
 ## Install
 

@@ -12,9 +12,7 @@ namespace Mostlylucid.GraphRag;
 ///     Main orchestrator for the GraphRAG pipeline.
 ///     Coordinates indexing, entity extraction, community detection, and querying.
 /// </summary>
-public class 
-    
-    
+public class
     GraphRagPipeline : IDisposable
 {
     private readonly GraphRagConfig _config;

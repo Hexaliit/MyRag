@@ -18,7 +18,7 @@ public sealed class EmbeddingService : IDisposable
             UseQuantized = false,
             ExecutionProvider = OnnxExecutionProvider.Auto
         };
-        _inner = new OnnxEmbeddingService(config, false);
+        _inner = new OnnxEmbeddingService(config);
     }
 
     public int Dimension => _inner.EmbeddingDimension;

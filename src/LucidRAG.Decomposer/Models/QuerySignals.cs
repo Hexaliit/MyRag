@@ -3,8 +3,8 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace LucidRAG.Decomposer.Models;
 
 /// <summary>
-/// Aggregated signals from Phase 1 deterministic analysis.
-/// Passed to Phase 2 (LLM refinement) and Phase 3 (orchestration).
+///     Aggregated signals from Phase 1 deterministic analysis.
+///     Passed to Phase 2 (LLM refinement) and Phase 3 (orchestration).
 /// </summary>
 public record QuerySignals
 {
@@ -30,8 +30,8 @@ public record QuerySignals
     public float[]? QueryEmbedding { get; init; }
 
     /// <summary>
-    /// Archetype similarity scores: Comparison, Timeline, Definition, etc.
-    /// Replaces regex word-list detection with embedding similarity.
+    ///     Archetype similarity scores: Comparison, Timeline, Definition, etc.
+    ///     Replaces regex word-list detection with embedding similarity.
     /// </summary>
     public Dictionary<string, float> ArchetypeScores { get; init; } = new();
 
@@ -39,47 +39,47 @@ public record QuerySignals
     public ConceptType DetectedConcept { get; init; } = ConceptType.General;
 
     /// <summary>
-    /// Query complexity classification for fast-path routing.
-    /// Simple queries skip decomposition entirely.
+    ///     Query complexity classification for fast-path routing.
+    ///     Simple queries skip decomposition entirely.
     /// </summary>
     public QueryComplexity Complexity { get; init; } = QueryComplexity.Simple;
 
     /// <summary>
-    /// Detected tool actions from ToolUseAnalyzer.
-    /// Each represents a tool invocation needed to fulfill the query.
-    /// "Sources are tools"  -  search, file system, indexer, KB query, crawl.
+    ///     Detected tool actions from ToolUseAnalyzer.
+    ///     Each represents a tool invocation needed to fulfill the query.
+    ///     "Sources are tools"  -  search, file system, indexer, KB query, crawl.
     /// </summary>
     public List<ToolAction> DetectedTools { get; init; } = [];
 
     /// <summary>
-    /// Embeddings computed during analysis, keyed by text.
-    /// Shared across analyzers to avoid re-embedding the same text.
+    ///     Embeddings computed during analysis, keyed by text.
+    ///     Shared across analyzers to avoid re-embedding the same text.
     /// </summary>
     public Dictionary<string, float[]> EmbeddingCache { get; init; } = new();
 }
 
 /// <summary>
-/// Fast-path complexity classification.
-/// Simple queries go straight to single-pass fetch+score.
-/// Complex queries get full decomposition + parallel execution.
+///     Fast-path complexity classification.
+///     Simple queries go straight to single-pass fetch+score.
+///     Complex queries get full decomposition + parallel execution.
 /// </summary>
 public enum QueryComplexity
 {
     /// <summary>
-    /// Single-topic, no references, no comparisons, no temporal splits.
-    /// → Fast path: single sentinel call, single fetch pass.
+    ///     Single-topic, no references, no comparisons, no temporal splits.
+    ///     → Fast path: single sentinel call, single fetch pass.
     /// </summary>
     Simple,
 
     /// <summary>
-    /// Has references or mild decomposition needs.
-    /// → Light decomposition: extract references, maybe one split.
+    ///     Has references or mild decomposition needs.
+    ///     → Light decomposition: extract references, maybe one split.
     /// </summary>
     Moderate,
 
     /// <summary>
-    /// Multi-topic, comparison, temporal comparison, knowledge gaps.
-    /// → Full decomposition: parallel execution, cache, KB routing.
+    ///     Multi-topic, comparison, temporal comparison, knowledge gaps.
+    ///     → Full decomposition: parallel execution, cache, KB routing.
     /// </summary>
     Complex
 }

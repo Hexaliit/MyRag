@@ -3,7 +3,7 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for ConfigService path helpers.
+///     Tests for ConfigService path helpers.
 /// </summary>
 public class ConfigServiceTests
 {

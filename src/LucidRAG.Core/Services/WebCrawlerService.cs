@@ -6,29 +6,27 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using AngleSharp;
 using AngleSharp.Dom;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using LucidRAG.Config;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Models;
 using LucidRAG.Services.Background;
+using Microsoft.Extensions.Options;
 
 namespace LucidRAG.Services;
 
 public partial class WebCrawlerService : IWebCrawlerService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly DocumentProcessingQueue _queue;
-    private readonly ILogger<WebCrawlerService> _logger;
     private readonly CrawlerConfig _crawlerConfig;
-    private readonly string _uploadPath;
 
     private readonly ConcurrentDictionary<Guid, CrawlJob> _crawlJobs = new();
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<WebCrawlerService> _logger;
     private readonly ConcurrentDictionary<Guid, Channel<CrawlProgress>> _progressChannels = new();
+    private readonly DocumentProcessingQueue _queue;
     private readonly ConcurrentDictionary<string, RobotsTxt> _robotsCache = new();
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly string _uploadPath;
 
     public WebCrawlerService(
         IHttpClientFactory httpClientFactory,
@@ -67,23 +65,22 @@ public partial class WebCrawlerService : IWebCrawlerService
         return crawlId;
     }
 
-    public CrawlJob? GetCrawlJob(Guid crawlId) =>
-        _crawlJobs.TryGetValue(crawlId, out var job) ? job : null;
+    public CrawlJob? GetCrawlJob(Guid crawlId)
+    {
+        return _crawlJobs.TryGetValue(crawlId, out var job) ? job : null;
+    }
 
-    public IEnumerable<CrawlJob> GetCrawlJobs() => _crawlJobs.Values;
+    public IEnumerable<CrawlJob> GetCrawlJobs()
+    {
+        return _crawlJobs.Values;
+    }
 
     public async IAsyncEnumerable<CrawlProgress> StreamProgressAsync(
         Guid crawlId, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        if (!_progressChannels.TryGetValue(crawlId, out var channel))
-        {
-            yield break;
-        }
+        if (!_progressChannels.TryGetValue(crawlId, out var channel)) yield break;
 
-        await foreach (var progress in channel.Reader.ReadAllAsync(ct))
-        {
-            yield return progress;
-        }
+        await foreach (var progress in channel.Reader.ReadAllAsync(ct)) yield return progress;
     }
 
     private async Task ExecuteCrawlAsync(Guid crawlId, CrawlRequest request, CancellationToken ct)
@@ -101,19 +98,18 @@ public partial class WebCrawlerService : IWebCrawlerService
             var baseHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seedUris = new List<string>();
             foreach (var seedUrl in request.SeedUrls)
-            {
                 if (Uri.TryCreate(seedUrl, UriKind.Absolute, out var uri))
                 {
                     baseHosts.Add(uri.Host);
                     seedUris.Add(uri.AbsoluteUri);
                 }
-            }
 
             // PHASE 1: Quick link discovery (no content extraction)
             job.Status = CrawlStatus.Crawling;
             await ReportProgressAsync(crawlId, job);
 
-            var discoveredUrls = await DiscoverLinksAsync(client, seedUris, baseHosts, request.MaxPages, request.MaxDepth, job, crawlId, ct);
+            var discoveredUrls = await DiscoverLinksAsync(client, seedUris, baseHosts, request.MaxPages,
+                request.MaxDepth, job, crawlId, ct);
 
             _logger.LogInformation("Crawl {CrawlId}: Discovered {Count} URLs", crawlId, discoveredUrls.Count);
 
@@ -199,7 +195,7 @@ public partial class WebCrawlerService : IWebCrawlerService
     }
 
     /// <summary>
-    /// Phase 1: Quick BFS link discovery without content extraction
+    ///     Phase 1: Quick BFS link discovery without content extraction
     /// </summary>
     private async Task<List<string>> DiscoverLinksAsync(
         HttpClient client,
@@ -215,10 +211,7 @@ public partial class WebCrawlerService : IWebCrawlerService
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<(string Url, int Depth)>();
 
-        foreach (var seed in seedUrls)
-        {
-            queue.Enqueue((seed, 0));
-        }
+        foreach (var seed in seedUrls) queue.Enqueue((seed, 0));
 
         var config = Configuration.Default;
         var context = BrowsingContext.New(config);
@@ -261,12 +254,8 @@ public partial class WebCrawlerService : IWebCrawlerService
 
                     var links = ExtractLinks(document, url, baseHosts);
                     foreach (var link in links)
-                    {
                         if (!visited.Contains(link) && !queue.Any(q => q.Url == link))
-                        {
                             queue.Enqueue((link, depth + 1));
-                        }
-                    }
                 }
 
                 // Minimal delay for discovery (faster than full download)
@@ -284,7 +273,6 @@ public partial class WebCrawlerService : IWebCrawlerService
     private async Task ReportProgressAsync(Guid crawlId, CrawlJob job)
     {
         if (_progressChannels.TryGetValue(crawlId, out var channel))
-        {
             await channel.Writer.WriteAsync(new CrawlProgress(
                 crawlId,
                 job.PagesDiscovered,
@@ -293,23 +281,18 @@ public partial class WebCrawlerService : IWebCrawlerService
                 job.CurrentUrl,
                 job.Status,
                 job.ErrorMessage));
-        }
     }
 
     private string ExtractContent(IDocument document, string? selector)
     {
         // Remove unwanted elements first
-        foreach (var el in document.QuerySelectorAll("script, style, nav, header, footer, aside, .sidebar, .navigation, .menu, .ad, .advertisement"))
-        {
+        foreach (var el in document.QuerySelectorAll(
+                     "script, style, nav, header, footer, aside, .sidebar, .navigation, .menu, .ad, .advertisement"))
             el.Remove();
-        }
 
         IElement? contentElement = null;
 
-        if (!string.IsNullOrEmpty(selector))
-        {
-            contentElement = document.QuerySelector(selector);
-        }
+        if (!string.IsNullOrEmpty(selector)) contentElement = document.QuerySelector(selector);
 
         // Fallback selectors
         contentElement ??= document.QuerySelector("article");
@@ -371,7 +354,8 @@ public partial class WebCrawlerService : IWebCrawlerService
         return sb.ToString();
     }
 
-    private async Task QueueCrawledPageAsync(string url, string title, string markdown, Guid? collectionId, CancellationToken ct)
+    private async Task QueueCrawledPageAsync(string url, string title, string markdown, Guid? collectionId,
+        CancellationToken ct)
     {
         // Compute content hash from URL (for deduplication)
         using var sha = SHA256.Create();
@@ -470,12 +454,12 @@ public partial class WebCrawlerService : IWebCrawlerService
 }
 
 /// <summary>
-/// Simple robots.txt parser
+///     Simple robots.txt parser
 /// </summary>
 public class RobotsTxt
 {
-    private readonly List<string> _disallowPatterns = [];
     private readonly List<string> _allowPatterns = [];
+    private readonly List<string> _disallowPatterns = [];
 
     public static RobotsTxt AllowAll { get; } = new();
 
@@ -520,27 +504,20 @@ public class RobotsTxt
     {
         // Check allow patterns first (they take precedence)
         foreach (var pattern in _allowPatterns)
-        {
             if (PathMatches(path, pattern))
                 return true;
-        }
 
         // Check disallow patterns
         foreach (var pattern in _disallowPatterns)
-        {
             if (PathMatches(path, pattern))
                 return false;
-        }
 
         return true;
     }
 
     private static bool PathMatches(string path, string pattern)
     {
-        if (pattern.EndsWith('*'))
-        {
-            return path.StartsWith(pattern[..^1], StringComparison.OrdinalIgnoreCase);
-        }
+        if (pattern.EndsWith('*')) return path.StartsWith(pattern[..^1], StringComparison.OrdinalIgnoreCase);
 
         return path.StartsWith(pattern, StringComparison.OrdinalIgnoreCase);
     }

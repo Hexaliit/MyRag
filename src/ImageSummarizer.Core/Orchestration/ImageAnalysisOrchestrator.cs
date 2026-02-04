@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 using SixLabors.ImageSharp;
@@ -14,17 +16,17 @@ namespace Mostlylucid.DocSummarizer.Images.Orchestration;
 ///     **Architecture:**
 ///     ```
 ///     Image → Load → Waves (parallel/staged) → DetectionLedger → ImageAnalysisResult
-///                          ↓
-///                    Logging (coordination)
-///                          ↓
-///                    Learning System
+///     ↓
+///     Logging (coordination)
+///     ↓
+///     Learning System
 ///     ```
 /// </remarks>
 public sealed class ImageAnalysisOrchestrator
 {
-    private readonly IEnumerable<IContributingWave> _waves;
     private readonly ILogger<ImageAnalysisOrchestrator> _logger;
     private readonly ImageAnalysisOptions _options;
+    private readonly IEnumerable<IContributingWave> _waves;
 
     public ImageAnalysisOrchestrator(
         IEnumerable<IContributingWave> waves,
@@ -178,9 +180,7 @@ public sealed class ImageAnalysisOrchestrator
 
             // Log any waves that couldn't run due to unmet triggers
             foreach (var wave in remainingWaves)
-            {
                 _logger.LogDebug("Wave {Wave} skipped - triggers not satisfied", wave.Name);
-            }
         }
         finally
         {
@@ -263,10 +263,7 @@ public sealed class ImageAnalysisOrchestrator
                     ledger.AddContribution(withTiming);
 
                     // Extract signals from contribution
-                    foreach (var (key, value) in contribution.Signals)
-                    {
-                        allSignals[key] = value;
-                    }
+                    foreach (var (key, value) in contribution.Signals) allSignals[key] = value;
                 }
 
                 completedWaves.Add(wave.Name);
@@ -349,8 +346,8 @@ public sealed class ImageAnalysisOptions
 /// </summary>
 public sealed class ImageAnalysisLedger : DetectionLedger
 {
-    private readonly ConcurrentDictionary<string, object> _signals = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _failures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, object> _signals = new(StringComparer.OrdinalIgnoreCase);
 
     public ImageAnalysisLedger(string sessionId, string imagePath)
         : base(sessionId, ComputeFingerprint(imagePath))
@@ -412,8 +409,8 @@ public sealed class ImageAnalysisLedger : DetectionLedger
     {
         // Simple fingerprint based on path - could be enhanced with content hash
         return Convert.ToBase64String(
-            System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(imagePath)))[..16];
+            SHA256.HashData(
+                Encoding.UTF8.GetBytes(imagePath)))[..16];
     }
 }
 
@@ -437,14 +434,6 @@ public sealed class ImageAnalysisResult
     public string? EarlyExitReason { get; init; }
 
     /// <summary>
-    ///     Get a typed signal value.
-    /// </summary>
-    public T? GetSignal<T>(string key)
-    {
-        return Signals.TryGetValue(key, out var value) && value is T typed ? typed : default;
-    }
-
-    /// <summary>
     ///     Get the caption (from vision waves).
     /// </summary>
     public string? Caption => GetSignal<string>(ImageSignalKeys.Caption);
@@ -458,6 +447,14 @@ public sealed class ImageAnalysisResult
     ///     Get dominant color (from color wave).
     /// </summary>
     public string? DominantColor => GetSignal<string>(ImageSignalKeys.ColorDominant);
+
+    /// <summary>
+    ///     Get a typed signal value.
+    /// </summary>
+    public T? GetSignal<T>(string key)
+    {
+        return Signals.TryGetValue(key, out var value) && value is T typed ? typed : default;
+    }
 }
 
 /// <summary>

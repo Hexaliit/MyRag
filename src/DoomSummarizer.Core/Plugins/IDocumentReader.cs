@@ -1,8 +1,8 @@
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// A reader converts a file or stream into structured Markdown.
-/// Reader packages are thin NuGet libraries with minimal dependencies.
+///     A reader converts a file or stream into structured Markdown.
+///     Reader packages are thin NuGet libraries with minimal dependencies.
 /// </summary>
 public interface IDocumentReader
 {
@@ -19,11 +19,12 @@ public interface IDocumentReader
     Task<ReaderResult> ReadAsync(string filePath, ReaderOptions? options = null, CancellationToken ct = default);
 
     /// <summary>Read from a stream and return structured Markdown.</summary>
-    Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null, CancellationToken ct = default);
+    Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null,
+        CancellationToken ct = default);
 }
 
 /// <summary>
-/// Options controlling reader behavior.
+///     Options controlling reader behavior.
 /// </summary>
 public record ReaderOptions
 {
@@ -38,7 +39,7 @@ public record ReaderOptions
 }
 
 /// <summary>
-/// Result of reading a document.
+///     Result of reading a document.
 /// </summary>
 public record ReaderResult
 {

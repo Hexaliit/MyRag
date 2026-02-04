@@ -3,14 +3,14 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.DocSummarizer.Scanning;
 
 /// <summary>
-/// Orchestrates document scanning waves.
-/// Executes waves in priority order, passing signals between them.
+///     Orchestrates document scanning waves.
+///     Executes waves in priority order, passing signals between them.
 /// </summary>
 public class DocumentWaveOrchestrator
 {
-    private readonly IEnumerable<IDocumentWave> _waves;
     private readonly IDocumentEscalationService _escalationService;
     private readonly ILogger<DocumentWaveOrchestrator>? _logger;
+    private readonly IEnumerable<IDocumentWave> _waves;
 
     public DocumentWaveOrchestrator(
         IEnumerable<IDocumentWave> waves,
@@ -24,12 +24,15 @@ public class DocumentWaveOrchestrator
     }
 
     /// <summary>
-    /// Get all registered waves.
+    ///     Get all registered waves.
     /// </summary>
-    public IReadOnlyList<IDocumentWave> GetWaves() => _waves.ToList();
+    public IReadOnlyList<IDocumentWave> GetWaves()
+    {
+        return _waves.ToList();
+    }
 
     /// <summary>
-    /// Process a document through all applicable waves.
+    ///     Process a document through all applicable waves.
     /// </summary>
     public async Task<DocumentScanResult> ProcessAsync(
         string documentPath,
@@ -146,7 +149,7 @@ public class DocumentWaveOrchestrator
     }
 
     /// <summary>
-    /// Process with specific waves only.
+    ///     Process with specific waves only.
     /// </summary>
     public async Task<DocumentScanResult> ProcessWithWavesAsync(
         string documentPath,
@@ -191,7 +194,7 @@ public class DocumentWaveOrchestrator
 }
 
 /// <summary>
-/// Result of document scanning.
+///     Result of document scanning.
 /// </summary>
 public class DocumentScanResult
 {
@@ -203,7 +206,7 @@ public class DocumentScanResult
     public TimeSpan ProcessingTime { get; init; }
 
     /// <summary>
-    /// Get the extracted markdown content.
+    ///     Get the extracted markdown content.
     /// </summary>
     public string? GetMarkdown()
     {
@@ -211,7 +214,7 @@ public class DocumentScanResult
     }
 
     /// <summary>
-    /// Get the extraction method used.
+    ///     Get the extraction method used.
     /// </summary>
     public string? GetExtractionMethod()
     {
@@ -219,7 +222,7 @@ public class DocumentScanResult
     }
 
     /// <summary>
-    /// Get average text density.
+    ///     Get average text density.
     /// </summary>
     public int GetTextDensity()
     {
@@ -228,7 +231,7 @@ public class DocumentScanResult
 }
 
 /// <summary>
-/// Progress during document scanning.
+///     Progress during document scanning.
 /// </summary>
 public class DocumentScanProgress
 {

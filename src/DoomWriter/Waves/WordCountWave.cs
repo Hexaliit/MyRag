@@ -3,8 +3,8 @@ using Mostlylucid.Summarizer.Core.Analysis;
 namespace DoomWriter.Waves;
 
 /// <summary>
-/// Counts words in the document.
-/// Fast lane, high priority — cheap computation.
+///     Counts words in the document.
+///     Fast lane, high priority — cheap computation.
 /// </summary>
 public sealed class WordCountWave : ITypedAnalysisWave<string>
 {
@@ -14,7 +14,10 @@ public sealed class WordCountWave : ITypedAnalysisWave<string>
     public IReadOnlyList<string> Tags => [SignalTags.Metadata];
     public bool Enabled { get; set; } = true;
 
-    public bool ShouldRun(string content, AnalysisContext context) => true;
+    public bool ShouldRun(string content, AnalysisContext context)
+    {
+        return true;
+    }
 
     public Task<IEnumerable<Signal>> AnalyzeAsync(
         string markdown, AnalysisContext context, CancellationToken ct = default)

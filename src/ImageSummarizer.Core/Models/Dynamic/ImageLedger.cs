@@ -1,58 +1,54 @@
-using Mostlylucid.DocSummarizer.Images.Models;
-using Mostlylucid.DocSummarizer;
-using Mostlylucid.DocSummarizer.Models;
-
 namespace Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 
 /// <summary>
-/// Structured ledger of salient image features accumulated from analysis waves.
-/// Designed for LLM consumption - provides constrained, factual information for synthesis tasks.
+///     Structured ledger of salient image features accumulated from analysis waves.
+///     Designed for LLM consumption - provides constrained, factual information for synthesis tasks.
 /// </summary>
 public class ImageLedger
 {
     /// <summary>
-    /// Image identity and format information
+    ///     Image identity and format information
     /// </summary>
     public ImageIdentity Identity { get; set; } = new();
 
     /// <summary>
-    /// Color palette and distribution
+    ///     Color palette and distribution
     /// </summary>
     public ColorLedger Colors { get; set; } = new();
 
     /// <summary>
-    /// Detected objects, their types and locations
+    ///     Detected objects, their types and locations
     /// </summary>
     public ObjectLedger Objects { get; set; } = new();
 
     /// <summary>
-    /// Text extraction and OCR results
+    ///     Text extraction and OCR results
     /// </summary>
     public TextLedger Text { get; set; } = new();
 
     /// <summary>
-    /// Motion and animation analysis
+    ///     Motion and animation analysis
     /// </summary>
     public MotionLedger? Motion { get; set; }
 
     /// <summary>
-    /// Image quality metrics
+    ///     Image quality metrics
     /// </summary>
     public QualityLedger Quality { get; set; } = new();
 
     /// <summary>
-    /// Visual composition and aesthetics
+    ///     Visual composition and aesthetics
     /// </summary>
     public CompositionLedger Composition { get; set; } = new();
 
     /// <summary>
-    /// Vision LLM and ML-based analysis results
+    ///     Vision LLM and ML-based analysis results
     /// </summary>
     public VisionLedger Vision { get; set; } = new();
 
     /// <summary>
-    /// Summarize long OCR text using DocSummarizer.
-    /// Populates Text.ExtractedTextSummary if text exceeds threshold.
+    ///     Summarize long OCR text using DocSummarizer.
+    ///     Populates Text.ExtractedTextSummary if text exceeds threshold.
     /// </summary>
     /// <param name="summarizer">DocSummarizer instance (configured via DI)</param>
     /// <param name="minLengthForSummary">Minimum text length to trigger summarization (default: 200)</param>
@@ -71,14 +67,12 @@ public class ImageLedger
             // Let DocSummarizer use its configured mode (BERT, MapReduce, etc.)
             var summary = await summarizer.SummarizeMarkdownAsync(
                 Text.ExtractedText,
-                documentId: "ocr-text",
-                focusQuery: "key information",
+                "ocr-text",
+                "key information",
                 cancellationToken: ct);
 
             if (!string.IsNullOrWhiteSpace(summary.ExecutiveSummary))
-            {
                 Text.ExtractedTextSummary = summary.ExecutiveSummary;
-            }
         }
         catch
         {
@@ -87,7 +81,7 @@ public class ImageLedger
     }
 
     /// <summary>
-    /// Build ledger from dynamic image profile by extracting salient signals
+    ///     Build ledger from dynamic image profile by extracting salient signals
     /// </summary>
     public static ImageLedger FromProfile(DynamicImageProfile profile)
     {
@@ -107,11 +101,12 @@ public class ImageLedger
         // Colors
         ledger.Colors = new ColorLedger
         {
-            DominantColors = profile.GetValue<List<DominantColor>>("color.dominant_colors") ?? new(),
+            DominantColors =
+                profile.GetValue<List<DominantColor>>("color.dominant_colors") ?? new List<DominantColor>(),
             ColorCount = profile.GetValue<int>("color.unique_count"),
             MeanSaturation = profile.GetValue<double>("color.mean_saturation"),
             IsGrayscale = profile.GetValue<bool>("color.is_grayscale"),
-            ColorPalette = profile.GetValue<List<string>>("color.palette") ?? new(),
+            ColorPalette = profile.GetValue<List<string>>("color.palette") ?? new List<string>(),
             VibrantColor = profile.GetValue<string>("color.vibrant"),
             MutedColor = profile.GetValue<string>("color.muted")
         };
@@ -119,15 +114,15 @@ public class ImageLedger
         // Objects (from ML detection if available)
         ledger.Objects = new ObjectLedger
         {
-            DetectedObjects = profile.GetValue<List<DetectedObject>>("objects.detected") ?? new(),
+            DetectedObjects = profile.GetValue<List<DetectedObject>>("objects.detected") ?? new List<DetectedObject>(),
             ObjectCount = profile.GetValue<int>("objects.count"),
-            ObjectTypes = profile.GetValue<List<string>>("objects.types") ?? new(),
-            Faces = profile.GetValue<List<FaceDetection>>("objects.faces") ?? new(),
-            Landmarks = profile.GetValue<List<LandmarkDetection>>("objects.landmarks") ?? new(),
+            ObjectTypes = profile.GetValue<List<string>>("objects.types") ?? new List<string>(),
+            Faces = profile.GetValue<List<FaceDetection>>("objects.faces") ?? new List<FaceDetection>(),
+            Landmarks = profile.GetValue<List<LandmarkDetection>>("objects.landmarks") ?? new List<LandmarkDetection>(),
             // Face embeddings for PII-respecting search
-            FaceEmbeddings = profile.GetValue<List<object>>("faces.embeddings") ?? new(),
-            FaceEmbeddingHashes = profile.GetValue<List<string>>("faces.embedding_hashes") ?? new(),
-            FaceClusters = profile.GetValue<List<object>>("faces.clusters") ?? new()
+            FaceEmbeddings = profile.GetValue<List<object>>("faces.embeddings") ?? new List<object>(),
+            FaceEmbeddingHashes = profile.GetValue<List<string>>("faces.embedding_hashes") ?? new List<string>(),
+            FaceClusters = profile.GetValue<List<object>>("faces.clusters") ?? new List<object>()
         };
 
         // Text
@@ -135,16 +130,16 @@ public class ImageLedger
         {
             // Priority: Corrected text from 3-tier pipeline > voting consensus > temporal median > raw OCR
             ExtractedText = profile.GetValue<string>("ocr.markdown") // Markdown-capable OCR (preferred)
-                ?? profile.GetValue<string>("ocr.final.corrected_text") // Tier 2/3 corrections
-                ?? profile.GetValue<string>("ocr.corrected.text") // Legacy Tier 3 signal
-                ?? profile.GetValue<string>("ocr.voting.consensus_text") // Temporal voting
-                ?? profile.GetValue<string>("ocr.temporal_median.full_text") // Temporal median
-                ?? profile.GetValue<string>("ocr.text") // Raw OCR
-                ?? string.Empty,
+                            ?? profile.GetValue<string>("ocr.final.corrected_text") // Tier 2/3 corrections
+                            ?? profile.GetValue<string>("ocr.corrected.text") // Legacy Tier 3 signal
+                            ?? profile.GetValue<string>("ocr.voting.consensus_text") // Temporal voting
+                            ?? profile.GetValue<string>("ocr.temporal_median.full_text") // Temporal median
+                            ?? profile.GetValue<string>("ocr.text") // Raw OCR
+                            ?? string.Empty,
             Confidence = profile.GetValue<double?>("ocr.voting.confidence")
-                ?? profile.GetValue<double?>("ocr.confidence")
-                ?? 0.0,
-            TextRegions = profile.GetValue<List<TextRegion>>("ocr.regions") ?? new(),
+                         ?? profile.GetValue<double?>("ocr.confidence")
+                         ?? 0.0,
+            TextRegions = profile.GetValue<List<TextRegion>>("ocr.regions") ?? new List<TextRegion>(),
             SpellCheckScore = profile.GetValue<double>("ocr.quality.spell_check_score"),
             IsGarbled = profile.GetValue<bool>("ocr.quality.is_garbled"),
             TextLikeliness = profile.GetValue<double>("content.text_likeliness")
@@ -171,9 +166,9 @@ public class ImageLedger
             ledger.Motion = new MotionLedger
             {
                 FrameCount = profile.GetValue<int?>("identity.frame_count")
-                    ?? profile.GetValue<int?>("motion.frame_count")
-                    ?? profile.GetValue<int?>("ocr.frames.extracted")
-                    ?? 0,
+                             ?? profile.GetValue<int?>("motion.frame_count")
+                             ?? profile.GetValue<int?>("ocr.frames.extracted")
+                             ?? 0,
                 Duration = profile.GetValue<double>("motion.duration"),
                 FrameRate = profile.GetValue<double>("motion.frame_rate"),
                 OpticalFlowMagnitude = profile.GetValue<double>("motion.magnitude"),
@@ -210,7 +205,8 @@ public class ImageLedger
             Complexity = profile.GetValue<double>("visual.complexity"),
             Symmetry = profile.GetValue<double>("composition.symmetry"),
             RuleOfThirds = profile.GetValue<double>("composition.rule_of_thirds"),
-            SalientRegions = profile.GetValue<List<SaliencyRegion>>("content.salient_regions") ?? new(),
+            SalientRegions = profile.GetValue<List<SaliencyRegion>>("content.salient_regions") ??
+                             new List<SaliencyRegion>(),
             Brightness = profile.GetValue<double>("visual.mean_luminance"),
             Contrast = profile.GetValue<double>("visual.luminance_stddev")
         };
@@ -221,10 +217,11 @@ public class ImageLedger
             Caption = profile.GetValue<string>("vision.llm.caption"),
             DetailedDescription = profile.GetValue<string>("vision.llm.detailed_description"),
             Scene = profile.GetValue<string>("vision.llm.scene"),
-            Entities = profile.GetValue<List<EntityDetection>>("vision.llm.entities") ?? new(),
+            Entities = profile.GetValue<List<EntityDetection>>("vision.llm.entities") ?? new List<EntityDetection>(),
             ClipEmbedding = profile.GetValue<float[]>("vision.clip.embedding"),
             ClipEmbeddingHash = profile.GetValue<string>("vision.clip.embedding_hash"),
-            MlObjectDetections = profile.GetValue<List<MlObjectDetection>>("vision.ml.objects") ?? new(),
+            MlObjectDetections = profile.GetValue<List<MlObjectDetection>>("vision.ml.objects") ??
+                                 new List<MlObjectDetection>(),
             SceneConfidence = profile.GetValue<double?>("vision.ml.scene_confidence")
         };
 
@@ -232,20 +229,20 @@ public class ImageLedger
     }
 
     /// <summary>
-    /// Generate a structured summary suitable for LLM prompts
+    ///     Generate a structured summary suitable for LLM prompts
     /// </summary>
     public string ToLlmSummary()
     {
         var parts = new List<string>();
 
         // Format and dimensions
-        parts.Add($"Format: {Identity.Format}, {Identity.Width}×{Identity.Height} ({Identity.AspectRatio:F2} aspect ratio)");
+        parts.Add(
+            $"Format: {Identity.Format}, {Identity.Width}×{Identity.Height} ({Identity.AspectRatio:F2} aspect ratio)");
 
         // Animation
         if (Identity.IsAnimated && Motion != null)
-        {
-            parts.Add($"Animation: {Motion.FrameCount} frames{(Motion.Duration.HasValue ? $", {Motion.Duration:F1}s duration" : "")}");
-        }
+            parts.Add(
+                $"Animation: {Motion.FrameCount} frames{(Motion.Duration.HasValue ? $", {Motion.Duration:F1}s duration" : "")}");
 
         // Colors (group by name and sum percentages)
         if (Colors.DominantColors.Count > 0)
@@ -260,10 +257,7 @@ public class ImageLedger
             parts.Add($"Colors: {colorList}");
         }
 
-        if (Colors.IsGrayscale)
-        {
-            parts.Add("Image is mostly grayscale");
-        }
+        if (Colors.IsGrayscale) parts.Add("Image is mostly grayscale");
 
         // Text content
         if (!string.IsNullOrWhiteSpace(Text.ExtractedText))
@@ -273,10 +267,7 @@ public class ImageLedger
                 : Text.ExtractedText;
             parts.Add($"Text (OCR, {Text.Confidence:F0}% confident): \"{preview}\"");
 
-            if (Text.SpellCheckScore.HasValue)
-            {
-                parts.Add($"Text quality: {Text.SpellCheckScore:F0}% correctly spelled");
-            }
+            if (Text.SpellCheckScore.HasValue) parts.Add($"Text quality: {Text.SpellCheckScore:F0}% correctly spelled");
         }
         else if (Text.TextLikeliness > 0.5)
         {
@@ -284,16 +275,10 @@ public class ImageLedger
         }
 
         // Vision LLM caption (primary description)
-        if (!string.IsNullOrWhiteSpace(Vision.Caption))
-        {
-            parts.Add($"Caption: {Vision.Caption}");
-        }
+        if (!string.IsNullOrWhiteSpace(Vision.Caption)) parts.Add($"Caption: {Vision.Caption}");
 
         // Scene classification
-        if (!string.IsNullOrWhiteSpace(Vision.Scene))
-        {
-            parts.Add($"Scene: {Vision.Scene}");
-        }
+        if (!string.IsNullOrWhiteSpace(Vision.Scene)) parts.Add($"Scene: {Vision.Scene}");
 
         // Entities from vision LLM
         if (Vision.Entities.Count > 0)
@@ -305,18 +290,13 @@ public class ImageLedger
 
             // Detailed entity list
             var entityDetails = string.Join(", ", Vision.Entities.Take(5).Select(e => e.Label));
-            if (Vision.Entities.Count > 5)
-            {
-                entityDetails += $" (and {Vision.Entities.Count - 5} more)";
-            }
+            if (Vision.Entities.Count > 5) entityDetails += $" (and {Vision.Entities.Count - 5} more)";
             parts.Add($"  Detected: {entityDetails}");
         }
 
         // Objects
         if (Objects.ObjectCount > 0)
-        {
             parts.Add($"Objects detected: {Objects.ObjectCount} ({string.Join(", ", Objects.ObjectTypes)})");
-        }
 
         // Faces (with privacy-preserving details)
         if (Objects.Faces.Count > 0)
@@ -325,19 +305,13 @@ public class ImageLedger
             var clusterCount = Objects.FaceClusters.Count;
 
             if (clusterCount > 0 && clusterCount < faceCount)
-            {
                 parts.Add($"Faces: {faceCount} detected ({clusterCount} unique person/people)");
-            }
             else
-            {
                 parts.Add($"Faces: {faceCount} detected");
-            }
 
             // Add embedding info for RAG searchability
             if (Objects.FaceEmbeddingHashes.Count > 0)
-            {
-                parts.Add($"Face signatures available for similarity search (PII-respecting)");
-            }
+                parts.Add("Face signatures available for similarity search (PII-respecting)");
         }
 
         // Quality
@@ -366,16 +340,14 @@ public class ImageLedger
         }
 
         if (Composition.SalientRegions.Count > 0)
-        {
             parts.Add($"Focus regions: {Composition.SalientRegions.Count} areas of interest");
-        }
 
         return string.Join("\n", parts);
     }
 
     /// <summary>
-    /// Generate a concise, WCAG-compliant alt text for accessibility
-    /// Focuses on what the image shows rather than technical details
+    ///     Generate a concise, WCAG-compliant alt text for accessibility
+    ///     Focuses on what the image shows rather than technical details
     /// </summary>
     /// <param name="maxLength">Maximum character length (WCAG recommends 125)</param>
     public string ToAltTextContext(int maxLength = 0)
@@ -393,13 +365,9 @@ public class ImageLedger
             var clusterCount = Objects.FaceClusters.Count;
 
             if (clusterCount > 0 && clusterCount < faceCount)
-            {
                 subjects.Add(clusterCount == 1 ? "A person" : $"{clusterCount} people");
-            }
             else
-            {
                 subjects.Add(faceCount == 1 ? "A person" : $"{faceCount} people");
-            }
         }
 
         // Objects/entities
@@ -408,13 +376,8 @@ public class ImageLedger
             // Use the detected objects, not technical labels
             var objectList = Objects.ObjectTypes.Take(3).ToList();
             if (objectList.Count > 0 && subjects.Count == 0)
-            {
                 subjects.Add(FormatObjectList(objectList));
-            }
-            else if (objectList.Count > 0)
-            {
-                subjects.Add($"with {FormatObjectList(objectList)}");
-            }
+            else if (objectList.Count > 0) subjects.Add($"with {FormatObjectList(objectList)}");
         }
 
         // What's happening (motion for animated images)
@@ -434,10 +397,7 @@ public class ImageLedger
                 {
                     // Simple motion description
                     var motionDesc = GetSimpleMotionDescription();
-                    if (!string.IsNullOrEmpty(motionDesc))
-                    {
-                        parts.Add(motionDesc);
-                    }
+                    if (!string.IsNullOrEmpty(motionDesc)) parts.Add(motionDesc);
                 }
 
                 parts.Add("(animated)");
@@ -446,17 +406,11 @@ public class ImageLedger
             {
                 // No detected subjects, describe motion directly
                 if (Motion.MovingObjects.Count > 0)
-                {
                     parts.Add($"Animation showing {string.Join(" and ", Motion.MovingObjects)} moving");
-                }
                 else if (Motion.HasMotion)
-                {
                     parts.Add($"Animated image with {GetSimpleMotionDescription()}");
-                }
                 else
-                {
                     parts.Add("Animated image");
-                }
             }
         }
         else if (subjects.Count > 0)
@@ -516,7 +470,7 @@ public class ImageLedger
     }
 
     /// <summary>
-    /// Get a brief context string for OCR-priority alt text
+    ///     Get a brief context string for OCR-priority alt text
     /// </summary>
     private string GetBriefContext(int maxLength)
     {
@@ -528,10 +482,7 @@ public class ImageLedger
             return desc.Length <= maxLength ? desc : desc[..(maxLength - 3)] + "...";
         }
 
-        if (Identity.IsAnimated)
-        {
-            return "Animated image".Length <= maxLength ? "Animated image" : "GIF";
-        }
+        if (Identity.IsAnimated) return "Animated image".Length <= maxLength ? "Animated image" : "GIF";
 
         if (Objects.ObjectCount > 0 && Objects.ObjectTypes.Count > 0)
         {
@@ -543,7 +494,7 @@ public class ImageLedger
     }
 
     /// <summary>
-    /// Get a simple, natural motion description
+    ///     Get a simple, natural motion description
     /// </summary>
     private string GetSimpleMotionDescription()
     {
@@ -569,7 +520,7 @@ public class ImageLedger
     }
 
     /// <summary>
-    /// Format a list of objects naturally
+    ///     Format a list of objects naturally
     /// </summary>
     private static string FormatObjectList(List<string> objects)
     {
@@ -606,8 +557,8 @@ public class ImageLedger
     }
 
     /// <summary>
-    /// Generate a synthesized summary using confidence-weighted signal fusion.
-    /// Uses RRF-like ranking to preserve high-confidence signals while reducing noise.
+    ///     Generate a synthesized summary using confidence-weighted signal fusion.
+    ///     Uses RRF-like ranking to preserve high-confidence signals while reducing noise.
     /// </summary>
     /// <param name="purpose">Output purpose: alttext, caption, verbose, technical, tool</param>
     /// <param name="maxSignals">Maximum number of signal categories to include</param>
@@ -627,8 +578,8 @@ public class ImageLedger
     }
 
     /// <summary>
-    /// Build ranked signal list with salience weights per purpose.
-    /// Weights define how important each signal category is for the purpose.
+    ///     Build ranked signal list with salience weights per purpose.
+    ///     Weights define how important each signal category is for the purpose.
     /// </summary>
     private List<RankedSignal> BuildRankedSignals(string purpose)
     {
@@ -656,7 +607,7 @@ public class ImageLedger
             var entities = Vision.Entities
                 .Where(e => e.Type != "text")
                 .GroupBy(e => e.Label.ToLowerInvariant())
-                .Select(g => new { Label = g.First().Label, AvgConf = g.Average(e => e.Confidence) })
+                .Select(g => new { g.First().Label, AvgConf = g.Average(e => e.Confidence) })
                 .OrderByDescending(e => e.AvgConf)
                 .Take(5);
 
@@ -733,7 +684,7 @@ public class ImageLedger
         // Quality (synthesize from multiple metrics)
         if (Quality.Sharpness.HasValue || Quality.Blur.HasValue)
         {
-            var qualityScore = (Quality.OverallQuality ?? 0.5);
+            var qualityScore = Quality.OverallQuality ?? 0.5;
             var qualityDesc = Quality.Sharpness switch
             {
                 > 1000 => "sharp",
@@ -757,20 +708,18 @@ public class ImageLedger
 
         // Vision caption (if different from what we'd synthesize)
         if (!string.IsNullOrWhiteSpace(Vision.Caption))
-        {
             signals.Add(new RankedSignal(
                 "caption",
                 weights.GetValueOrDefault("caption", 0.85) * 0.9,
                 $"[VisionCaption] {Vision.Caption}"
             ));
-        }
 
         return signals;
     }
 
     /// <summary>
-    /// Get salience weights for each signal category based on output purpose.
-    /// Higher weight = more important for this purpose.
+    ///     Get salience weights for each signal category based on output purpose.
+    ///     Higher weight = more important for this purpose.
     /// </summary>
     private static Dictionary<string, double> GetSalienceWeights(string purpose)
     {
@@ -778,15 +727,15 @@ public class ImageLedger
         {
             "alttext" => new Dictionary<string, double>
             {
-                ["subjects"] = 1.0,   // Who is in it - most important
-                ["entities"] = 0.9,   // What's visible
-                ["motion"] = 0.85,    // Action (critical for animations)
-                ["text"] = 0.7,       // Important if present
-                ["scene"] = 0.5,      // Context
-                ["colors"] = 0.1,     // Usually not needed
-                ["quality"] = 0.0,    // Never include
-                ["identity"] = 0.0,   // Never include
-                ["caption"] = 0.95,   // Use if available
+                ["subjects"] = 1.0, // Who is in it - most important
+                ["entities"] = 0.9, // What's visible
+                ["motion"] = 0.85, // Action (critical for animations)
+                ["text"] = 0.7, // Important if present
+                ["scene"] = 0.5, // Context
+                ["colors"] = 0.1, // Usually not needed
+                ["quality"] = 0.0, // Never include
+                ["identity"] = 0.0, // Never include
+                ["caption"] = 0.95 // Use if available
             },
             "caption" or "socialmedia" => new Dictionary<string, double>
             {
@@ -798,7 +747,7 @@ public class ImageLedger
                 ["colors"] = 0.3,
                 ["quality"] = 0.1,
                 ["identity"] = 0.1,
-                ["caption"] = 0.9,
+                ["caption"] = 0.9
             },
             "verbose" or "markdown" => new Dictionary<string, double>
             {
@@ -810,7 +759,7 @@ public class ImageLedger
                 ["colors"] = 0.6,
                 ["quality"] = 0.5,
                 ["identity"] = 0.7,
-                ["caption"] = 0.85,
+                ["caption"] = 0.85
             },
             "technical" or "tool" => new Dictionary<string, double>
             {
@@ -822,7 +771,7 @@ public class ImageLedger
                 ["colors"] = 0.9,
                 ["quality"] = 1.0,
                 ["identity"] = 1.0,
-                ["caption"] = 0.3,
+                ["caption"] = 0.3
             },
             _ => new Dictionary<string, double>
             {
@@ -834,19 +783,14 @@ public class ImageLedger
                 ["colors"] = 0.4,
                 ["quality"] = 0.3,
                 ["identity"] = 0.3,
-                ["caption"] = 0.85,
+                ["caption"] = 0.85
             }
         };
     }
 
     /// <summary>
-    /// Internal record for ranked signal fusion
-    /// </summary>
-    private record RankedSignal(string Category, double Score, string Display);
-
-    /// <summary>
-    /// Get salient signals for a specific purpose as key-value pairs.
-    /// Useful for structured output like JSON or prompt engineering.
+    ///     Get salient signals for a specific purpose as key-value pairs.
+    ///     Useful for structured output like JSON or prompt engineering.
     /// </summary>
     public Dictionary<string, object?> GetSalientSignals(string purpose = "caption")
     {
@@ -873,8 +817,11 @@ public class ImageLedger
                     if (Motion.MovingObjects.Count > 0)
                         signals["motion.moving_objects"] = Motion.MovingObjects;
                 }
+
                 if (!string.IsNullOrWhiteSpace(Text.ExtractedText))
-                    signals["text"] = Text.ExtractedText.Length > 50 ? Text.ExtractedText[..50] + "..." : Text.ExtractedText;
+                    signals["text"] = Text.ExtractedText.Length > 50
+                        ? Text.ExtractedText[..50] + "..."
+                        : Text.ExtractedText;
                 break;
 
             case "caption":
@@ -885,7 +832,9 @@ public class ImageLedger
                 if (Identity.IsAnimated && Motion != null)
                     signals["motion.summary"] = Motion.Summary;
                 if (!string.IsNullOrWhiteSpace(Text.ExtractedText))
-                    signals["text"] = Text.ExtractedText.Length > 100 ? Text.ExtractedText[..100] + "..." : Text.ExtractedText;
+                    signals["text"] = Text.ExtractedText.Length > 100
+                        ? Text.ExtractedText[..100] + "..."
+                        : Text.ExtractedText;
                 break;
 
             case "verbose":
@@ -902,6 +851,7 @@ public class ImageLedger
                     signals["motion.summary"] = Motion.Summary;
                     signals["motion.moving_objects"] = Motion.MovingObjects;
                 }
+
                 if (!string.IsNullOrWhiteSpace(Text.ExtractedText))
                     signals["text.full"] = Text.ExtractedText;
                 if (Colors.DominantColors.Count > 0)
@@ -913,11 +863,16 @@ public class ImageLedger
             case "technical":
             case "tool":
                 // All metrics, structured for API consumption
-                signals["identity"] = new { Identity.Format, Identity.Width, Identity.Height, Identity.AspectRatio, Identity.FileSize, Identity.IsAnimated };
+                signals["identity"] = new
+                {
+                    Identity.Format, Identity.Width, Identity.Height, Identity.AspectRatio, Identity.FileSize,
+                    Identity.IsAnimated
+                };
                 signals["colors"] = new { Colors.DominantColors, Colors.IsGrayscale, Colors.MeanSaturation };
                 signals["objects"] = new { Objects.ObjectCount, Objects.ObjectTypes, FaceCount = Objects.Faces.Count };
                 if (Identity.IsAnimated && Motion != null)
-                    signals["motion"] = new { Motion.FrameCount, Motion.Duration, Motion.Magnitude, Motion.MovingObjects, Motion.Summary };
+                    signals["motion"] = new
+                        { Motion.FrameCount, Motion.Duration, Motion.Magnitude, Motion.MovingObjects, Motion.Summary };
                 if (!string.IsNullOrWhiteSpace(Text.ExtractedText))
                     signals["text"] = new { Text.ExtractedText, Text.Confidence, Text.SpellCheckScore };
                 signals["quality"] = new { Quality.Sharpness, Quality.Blur, Quality.OverallQuality };
@@ -926,10 +881,15 @@ public class ImageLedger
 
         return signals;
     }
+
+    /// <summary>
+    ///     Internal record for ranked signal fusion
+    /// </summary>
+    private record RankedSignal(string Category, double Score, string Display);
 }
 
 /// <summary>
-/// Image identity and format
+///     Image identity and format
 /// </summary>
 public class ImageIdentity
 {
@@ -942,7 +902,7 @@ public class ImageIdentity
 }
 
 /// <summary>
-/// Color information ledger
+///     Color information ledger
 /// </summary>
 public class ColorLedger
 {
@@ -956,7 +916,7 @@ public class ColorLedger
 }
 
 /// <summary>
-/// Detected objects ledger
+///     Detected objects ledger
 /// </summary>
 public class ObjectLedger
 {
@@ -967,33 +927,33 @@ public class ObjectLedger
     public List<LandmarkDetection> Landmarks { get; set; } = new();
 
     /// <summary>
-    /// PII-respecting face embeddings for "same person" clustering.
-    /// Never stores actual face images, only anonymized 512-dim vectors.
+    ///     PII-respecting face embeddings for "same person" clustering.
+    ///     Never stores actual face images, only anonymized 512-dim vectors.
     /// </summary>
     public List<object> FaceEmbeddings { get; set; } = new();
 
     /// <summary>
-    /// Quick-lookup hashes of face embeddings.
+    ///     Quick-lookup hashes of face embeddings.
     /// </summary>
     public List<string> FaceEmbeddingHashes { get; set; } = new();
 
     /// <summary>
-    /// Face clusters (groups of faces that appear to be the same person).
+    ///     Face clusters (groups of faces that appear to be the same person).
     /// </summary>
     public List<object> FaceClusters { get; set; } = new();
 }
 
 /// <summary>
-/// Text and OCR ledger
+///     Text and OCR ledger
 /// </summary>
 public class TextLedger
 {
     public string ExtractedText { get; set; } = string.Empty;
 
     /// <summary>
-    /// DocSummarizer-generated summary of long OCR text.
-    /// Populated when ExtractedText exceeds threshold (e.g., 200 chars).
-    /// Uses configured summarization mode (BERT, MapReduce, etc.)
+    ///     DocSummarizer-generated summary of long OCR text.
+    ///     Populated when ExtractedText exceeds threshold (e.g., 200 chars).
+    ///     Uses configured summarization mode (BERT, MapReduce, etc.)
     /// </summary>
     public string? ExtractedTextSummary { get; set; }
 
@@ -1006,7 +966,7 @@ public class TextLedger
 }
 
 /// <summary>
-/// Motion and animation ledger
+///     Motion and animation ledger
 /// </summary>
 public class MotionLedger
 {
@@ -1029,7 +989,7 @@ public class MotionLedger
 }
 
 /// <summary>
-/// Quality metrics ledger
+///     Quality metrics ledger
 /// </summary>
 public class QualityLedger
 {
@@ -1042,7 +1002,7 @@ public class QualityLedger
 }
 
 /// <summary>
-/// Visual composition ledger
+///     Visual composition ledger
 /// </summary>
 public class CompositionLedger
 {
@@ -1056,7 +1016,7 @@ public class CompositionLedger
 }
 
 /// <summary>
-/// Detected object with type, confidence, and location
+///     Detected object with type, confidence, and location
 /// </summary>
 public class DetectedObject
 {
@@ -1067,7 +1027,7 @@ public class DetectedObject
 }
 
 /// <summary>
-/// Face detection result
+///     Face detection result
 /// </summary>
 public class FaceDetection
 {
@@ -1078,7 +1038,7 @@ public class FaceDetection
 }
 
 /// <summary>
-/// Landmark detection (buildings, monuments, etc.)
+///     Landmark detection (buildings, monuments, etc.)
 /// </summary>
 public class LandmarkDetection
 {
@@ -1088,7 +1048,7 @@ public class LandmarkDetection
 }
 
 /// <summary>
-/// Text region with location
+///     Text region with location
 /// </summary>
 public class TextRegion
 {
@@ -1098,7 +1058,7 @@ public class TextRegion
 }
 
 /// <summary>
-/// Bounding box for object/text locations
+///     Bounding box for object/text locations
 /// </summary>
 public class BoundingBox
 {
@@ -1109,7 +1069,7 @@ public class BoundingBox
 }
 
 /// <summary>
-/// Exposure quality classification
+///     Exposure quality classification
 /// </summary>
 public enum ExposureQuality
 {
@@ -1121,53 +1081,53 @@ public enum ExposureQuality
 }
 
 /// <summary>
-/// Vision LLM and ML-based analysis results
+///     Vision LLM and ML-based analysis results
 /// </summary>
 public class VisionLedger
 {
     /// <summary>
-    /// Primary caption from vision LLM (10-15 words, concise)
+    ///     Primary caption from vision LLM (10-15 words, concise)
     /// </summary>
     public string? Caption { get; set; }
 
     /// <summary>
-    /// Detailed description from vision LLM (100+ words, comprehensive)
+    ///     Detailed description from vision LLM (100+ words, comprehensive)
     /// </summary>
     public string? DetailedDescription { get; set; }
 
     /// <summary>
-    /// Scene classification (indoor, outdoor, food, nature, etc.)
+    ///     Scene classification (indoor, outdoor, food, nature, etc.)
     /// </summary>
     public string? Scene { get; set; }
 
     /// <summary>
-    /// Confidence score for scene classification (0-1)
+    ///     Confidence score for scene classification (0-1)
     /// </summary>
     public double? SceneConfidence { get; set; }
 
     /// <summary>
-    /// Entities extracted by vision LLM (people, animals, objects, text)
+    ///     Entities extracted by vision LLM (people, animals, objects, text)
     /// </summary>
     public List<EntityDetection> Entities { get; set; } = new();
 
     /// <summary>
-    /// CLIP embedding for image similarity search (512-dim vector)
+    ///     CLIP embedding for image similarity search (512-dim vector)
     /// </summary>
     public float[]? ClipEmbedding { get; set; }
 
     /// <summary>
-    /// Hash of CLIP embedding for deduplication
+    ///     Hash of CLIP embedding for deduplication
     /// </summary>
     public string? ClipEmbeddingHash { get; set; }
 
     /// <summary>
-    /// ML-based object detections (YOLO, DETR, etc.)
+    ///     ML-based object detections (YOLO, DETR, etc.)
     /// </summary>
     public List<MlObjectDetection> MlObjectDetections { get; set; } = new();
 }
 
 /// <summary>
-/// Entity detected by vision LLM
+///     Entity detected by vision LLM
 /// </summary>
 public class EntityDetection
 {
@@ -1178,7 +1138,7 @@ public class EntityDetection
 }
 
 /// <summary>
-/// ML-based object detection result
+///     ML-based object detection result
 /// </summary>
 public class MlObjectDetection
 {

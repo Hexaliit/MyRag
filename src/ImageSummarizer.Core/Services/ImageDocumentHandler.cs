@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Models;
@@ -7,12 +8,12 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer.Images.Services;
 
 /// <summary>
-/// Document handler for image files. Integrates with the DocSummarizer.Core handler registry.
+///     Document handler for image files. Integrates with the DocSummarizer.Core handler registry.
 /// </summary>
 public class ImageDocumentHandler : IDocumentHandler
 {
-    private readonly ImageConfig _config;
     private readonly IImageAnalyzer _analyzer;
+    private readonly ImageConfig _config;
 
     public ImageDocumentHandler(IOptions<ImageConfig> config, IImageAnalyzer analyzer)
     {
@@ -70,7 +71,7 @@ public class ImageDocumentHandler : IDocumentHandler
 
     private string ConvertProfileToMarkdown(ImageProfile profile, string filePath)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         // Title
         sb.AppendLine($"# Image: {Path.GetFileName(filePath)}");
@@ -95,20 +96,14 @@ public class ImageDocumentHandler : IDocumentHandler
         sb.AppendLine("## Color Analysis");
         sb.AppendLine();
         if (profile.IsMostlyGrayscale)
-        {
             sb.AppendLine("The image is **mostly grayscale**.");
-        }
         else
-        {
             sb.AppendLine($"**Saturation:** {profile.MeanSaturation:P0}");
-        }
         sb.AppendLine();
 
         sb.AppendLine("**Dominant Colors:**");
         foreach (var color in profile.DominantColors.Take(5))
-        {
             sb.AppendLine($"- {color.Name} ({color.Hex}): {color.Percentage:F1}%");
-        }
         sb.AppendLine();
 
         // Color grid summary if available
@@ -127,6 +122,7 @@ public class ImageDocumentHandler : IDocumentHandler
                 var position = r == 0 ? "Top" : r == grid.Rows - 1 ? "Bottom" : "Middle";
                 sb.AppendLine($"- {position}: {string.Join(", ", descriptions)}");
             }
+
             sb.AppendLine();
         }
 
@@ -153,8 +149,9 @@ public class ImageDocumentHandler : IDocumentHandler
         return sb.ToString();
     }
 
-    private static string DescribeBrightness(double meanLuminance) =>
-        meanLuminance switch
+    private static string DescribeBrightness(double meanLuminance)
+    {
+        return meanLuminance switch
         {
             < 40 => "Very dark",
             < 85 => "Dark",
@@ -162,32 +159,39 @@ public class ImageDocumentHandler : IDocumentHandler
             < 215 => "Bright",
             _ => "Very bright"
         };
+    }
 
-    private static string DescribeContrast(double stdDev) =>
-        stdDev switch
+    private static string DescribeContrast(double stdDev)
+    {
+        return stdDev switch
         {
             < 30 => "Low contrast",
             < 60 => "Normal contrast",
             _ => "High contrast"
         };
+    }
 
-    private static string DescribeSharpness(double laplacian) =>
-        laplacian switch
+    private static string DescribeSharpness(double laplacian)
+    {
+        return laplacian switch
         {
             < 100 => "Blurry",
             < 500 => "Slightly soft",
             < 1500 => "Sharp",
             _ => "Very sharp"
         };
+    }
 
-    private static string DescribeEdgeDensity(double density) =>
-        density switch
+    private static string DescribeEdgeDensity(double density)
+    {
+        return density switch
         {
             < 0.1 => "Minimal detail",
             < 0.25 => "Low detail",
             < 0.5 => "Moderate detail",
             _ => "High detail"
         };
+    }
 
     private static string GetSimpleColorName(string hex)
     {

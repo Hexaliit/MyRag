@@ -1,26 +1,20 @@
 using Microsoft.Extensions.Logging;
-using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 2.5: Shot thumbnail extraction.
-/// Ensures every shot has a representative thumbnail image.
-/// Extracts frames at shot midpoints for shots without keyframes.
+///     Stage 2.5: Shot thumbnail extraction.
+///     Ensures every shot has a representative thumbnail image.
+///     Extracts frames at shot midpoints for shots without keyframes.
 /// </summary>
 public class ShotThumbnailWave : IVideoWave
 {
-    private readonly FFmpegAnalysisService _ffmpegService;
-    private readonly ILogger<ShotThumbnailWave> _logger;
-
     // Configuration
     private const int MaxThumbnailsToExtract = 200; // Limit for very long videos
     private const int ThumbnailWidth = 320; // Thumbnail width (aspect ratio preserved)
-
-    public string Name => "shot_thumbnails";
-    public int Priority => 790; // After keyframe extraction (800), before subtitle extraction (750)
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+    private readonly FFmpegAnalysisService _ffmpegService;
+    private readonly ILogger<ShotThumbnailWave> _logger;
 
     public ShotThumbnailWave(
         FFmpegAnalysisService ffmpegService,
@@ -30,8 +24,14 @@ public class ShotThumbnailWave : IVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        context.Metadata != null && context.Shots.Count > 0;
+    public string Name => "shot_thumbnails";
+    public int Priority => 790; // After keyframe extraction (800), before subtitle extraction (750)
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null && context.Shots.Count > 0;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -71,8 +71,8 @@ public class ShotThumbnailWave : IVideoWave
             timestamps,
             thumbnailDir,
             ct,
-            prefix: "thumb_",
-            width: ThumbnailWidth);
+            "thumb_",
+            ThumbnailWidth);
 
         _logger.LogInformation("Extracted {Count} shot thumbnails", extractedFrames.Count);
 

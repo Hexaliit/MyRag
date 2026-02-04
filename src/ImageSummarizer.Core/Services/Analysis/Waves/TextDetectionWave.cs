@@ -7,27 +7,21 @@ using Mostlylucid.DocSummarizer.Images.Services.Ocr.Detection;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Text Detection Wave - Uses EAST/CRAFT ONNX models for fast text region detection.
-/// Emits signals for detected text regions that downstream OCR waves can use.
-///
-/// Priority: 82 (runs after Identity/Color, before OcrWave)
-///
-/// Signals emitted:
-/// - text_detection.method: Detection method used (EAST, CRAFT, TesseractPSM)
-/// - text_detection.region_count: Number of detected regions
-/// - text_detection.regions: Collection of detected bounding boxes
-/// - text_detection.has_text: Boolean indicating if text regions were found
-/// - text_detection.coverage: Percentage of image covered by text regions
+///     Text Detection Wave - Uses EAST/CRAFT ONNX models for fast text region detection.
+///     Emits signals for detected text regions that downstream OCR waves can use.
+///     Priority: 82 (runs after Identity/Color, before OcrWave)
+///     Signals emitted:
+///     - text_detection.method: Detection method used (EAST, CRAFT, TesseractPSM)
+///     - text_detection.region_count: Number of detected regions
+///     - text_detection.regions: Collection of detected bounding boxes
+///     - text_detection.has_text: Boolean indicating if text regions were found
+///     - text_detection.coverage: Percentage of image covered by text regions
 /// </summary>
 public class TextDetectionWave : IAnalysisWave
 {
     private readonly ITextDetectionService? _detectionService;
-    private readonly ILogger<TextDetectionWave>? _logger;
     private readonly bool _enabled;
-
-    public string Name => "TextDetectionWave";
-    public int Priority => 82; // After Identity/Color (100/99), before OcrWave (80)
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "text", "detection", "ml" };
+    private readonly ILogger<TextDetectionWave>? _logger;
 
     public TextDetectionWave(
         ITextDetectionService? detectionService = null,
@@ -38,6 +32,10 @@ public class TextDetectionWave : IAnalysisWave
         _logger = logger;
         _enabled = config?.Value.Ocr.EnableTextDetection ?? true;
     }
+
+    public string Name => "TextDetectionWave";
+    public int Priority => 82; // After Identity/Color (100/99), before OcrWave (80)
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "text", "detection", "ml" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -163,7 +161,6 @@ public class TextDetectionWave : IAnalysisWave
 
             // Collection signal for all regions (for easy downstream access)
             if (result.BoundingBoxes.Count > 0)
-            {
                 signals.Add(new Signal
                 {
                     Key = "text_detection.regions",
@@ -184,7 +181,6 @@ public class TextDetectionWave : IAnalysisWave
                         ["method"] = result.DetectionMethod
                     }
                 });
-            }
 
             _logger?.LogInformation(
                 "TextDetectionWave: {Method} detected {Count} regions for {Path}",

@@ -3,12 +3,15 @@ using System.Collections.Concurrent;
 namespace Mostlylucid.Summarizer.Core.Analysis;
 
 /// <summary>
-/// Thread-safe signal accumulator with query support.
+///     Thread-safe signal accumulator with query support.
 /// </summary>
 public sealed class SignalBag
 {
-    private readonly ConcurrentDictionary<string, ConcurrentBag<Signal>> _byKey = new();
     private readonly ConcurrentBag<Signal> _all = new();
+    private readonly ConcurrentDictionary<string, ConcurrentBag<Signal>> _byKey = new();
+
+    public IReadOnlyList<Signal> All => _all.ToList();
+    public int Count => _all.Count;
 
     public void Add(Signal signal)
     {
@@ -23,12 +26,14 @@ public sealed class SignalBag
     }
 
     /// <summary>
-    /// Get the highest-confidence signal for a key.
+    ///     Get the highest-confidence signal for a key.
     /// </summary>
-    public Signal? Get(string key) =>
-        _byKey.TryGetValue(key, out var bag)
+    public Signal? Get(string key)
+    {
+        return _byKey.TryGetValue(key, out var bag)
             ? bag.OrderByDescending(s => s.Confidence).FirstOrDefault()
             : null;
+    }
 
     public T? GetValue<T>(string key)
     {
@@ -36,8 +41,10 @@ public sealed class SignalBag
         return signal?.Value is T typed ? typed : default;
     }
 
-    public bool Has(string key) =>
-        _byKey.TryGetValue(key, out var bag) && !bag.IsEmpty;
+    public bool Has(string key)
+    {
+        return _byKey.TryGetValue(key, out var bag) && !bag.IsEmpty;
+    }
 
     public IReadOnlyList<Signal> GetByPrefix(string prefix)
     {
@@ -49,12 +56,13 @@ public sealed class SignalBag
             .ToList();
     }
 
-    public IReadOnlyList<Signal> GetAll(string key) =>
-        _byKey.TryGetValue(key, out var bag) ? bag.ToList() : [];
+    public IReadOnlyList<Signal> GetAll(string key)
+    {
+        return _byKey.TryGetValue(key, out var bag) ? bag.ToList() : [];
+    }
 
-    public IReadOnlyList<Signal> All => _all.ToList();
-    public int Count => _all.Count;
-
-    public IReadOnlyList<Signal> GetByTag(string tag) =>
-        _all.Where(s => s.Tags?.Contains(tag) == true).ToList();
+    public IReadOnlyList<Signal> GetByTag(string tag)
+    {
+        return _all.Where(s => s.Tags?.Contains(tag) == true).ToList();
+    }
 }

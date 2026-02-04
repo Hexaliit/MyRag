@@ -88,9 +88,7 @@ public sealed class FilmstripWave : ISignWave
                 TimeSpan.Zero);
 
             var filmstrip = _filmstripService.CreateFilmstrip(
-                atom,
-                12,
-                0.1f);
+                atom);
 
             var resultData = new Dictionary<string, object>
             {

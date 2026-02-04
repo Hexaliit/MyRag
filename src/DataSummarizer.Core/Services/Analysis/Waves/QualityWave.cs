@@ -4,7 +4,7 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Fifth wave: assesses data quality - null rates, completeness, duplicates.
+///     Fifth wave: assesses data quality - null rates, completeness, duplicates.
 /// </summary>
 public class QualityWave : IDataAnalysisWave
 {
@@ -56,7 +56,7 @@ public class QualityWave : IDataAnalysisWave
                 colSignals.Add(CreateSignal(
                     DataSignalKeys.QualityNullRate(column),
                     nullRate,
-                    metadata: new Dictionary<string, object> { ["null_count"] = nullCount }));
+                    new Dictionary<string, object> { ["null_count"] = nullCount }));
 
                 colSignals.Add(CreateSignal(
                     DataSignalKeys.QualityCompleteness(column),
@@ -71,10 +71,7 @@ public class QualityWave : IDataAnalysisWave
         });
 
         var columnResults = await Task.WhenAll(columnTasks);
-        foreach (var colSignals in columnResults)
-        {
-            signals.AddRange(colSignals);
-        }
+        foreach (var colSignals in columnResults) signals.AddRange(colSignals);
 
         // Check for duplicate rows (separate task)
         try

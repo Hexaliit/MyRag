@@ -1,32 +1,19 @@
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Coordination;
-using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Extracts low-resolution thumbnails for fast deduplication.
-/// Uses 128px wide thumbnails for perceptual hash comparison.
-/// Emits: keyframes.thumbnails_extracted
+///     Extracts low-resolution thumbnails for fast deduplication.
+///     Uses 128px wide thumbnails for perceptual hash comparison.
+///     Emits: keyframes.thumbnails_extracted
 /// </summary>
 public class ThumbnailExtractionWave : IVideoWave, ISignalAwareVideoWave
 {
+    private const int ThumbnailWidth = 128;
     private readonly FFmpegAnalysisService _ffmpegService;
     private readonly ILogger<ThumbnailExtractionWave> _logger;
-
-    private const int ThumbnailWidth = 128;
-
-    public string Name => "thumbnail_extraction";
-    public int Priority => 830; // After keyframe selection
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual];
-
-    // Signal contracts
-    public IReadOnlyList<string> RequiredSignals => [VideoSignals.KeyframesSelected];
-    public IReadOnlyList<string> OptionalSignals => [];
-    public IReadOnlyList<string> EmittedSignals => [VideoSignals.ThumbnailsExtracted];
-    public IReadOnlyList<string> CacheEmits => ["thumbnails"];
-    public IReadOnlyList<string> CacheUses => ["keyframe_selections"];
 
     public ThumbnailExtractionWave(
         FFmpegAnalysisService ffmpegService,
@@ -36,8 +23,22 @@ public class ThumbnailExtractionWave : IVideoWave, ISignalAwareVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        context.GetCached<List<KeyframeSelection>>("keyframe_selections")?.Count > 5; // Only if enough frames
+    // Signal contracts
+    public IReadOnlyList<string> RequiredSignals => [VideoSignals.KeyframesSelected];
+    public IReadOnlyList<string> OptionalSignals => [];
+    public IReadOnlyList<string> EmittedSignals => [VideoSignals.ThumbnailsExtracted];
+    public IReadOnlyList<string> CacheEmits => ["thumbnails"];
+    public IReadOnlyList<string> CacheUses => ["keyframe_selections"];
+
+    public string Name => "thumbnail_extraction";
+    public int Priority => 830; // After keyframe selection
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.GetCached<List<KeyframeSelection>>("keyframe_selections")?.Count > 5;
+        // Only if enough frames
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -53,8 +54,8 @@ public class ThumbnailExtractionWave : IVideoWave, ISignalAwareVideoWave
             selections.Select(k => k.Timestamp),
             thumbDir,
             ct,
-            prefix: "thumb_",
-            width: ThumbnailWidth);
+            "thumb_",
+            ThumbnailWidth);
 
         _logger.LogInformation("Extracted {Count} thumbnails for deduplication", thumbnails.Count);
 

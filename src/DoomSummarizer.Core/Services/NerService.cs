@@ -8,20 +8,22 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// ONNX-based Named Entity Recognition for extracting people, organizations, locations.
+///     ONNX-based Named Entity Recognition for extracting people, organizations, locations.
 /// </summary>
-public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerService
+public sealed class NerService : INerService
 {
     private static readonly Regex BioTagRx = new(@"^([BI])-(.+)$", RegexOptions.Compiled);
+
     private static readonly string[] DefaultLabels =
         ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"];
 
-    private readonly string _modelPath;
     private readonly SemaphoreSlim _initLock = new(1, 1);
+
+    private readonly string _modelPath;
+    private bool _initialized;
+    private string[]? _labels;
     private InferenceSession? _session;
     private Tokenizer? _tokenizer;
-    private string[]? _labels;
-    private bool _initialized;
 
     public NerService(string? modelPath = null)
     {
@@ -37,61 +39,6 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
     {
         _session?.Dispose();
         _initLock.Dispose();
-    }
-
-    public async Task<bool> EnsureModelAsync(Action<string>? progress = null, CancellationToken ct = default)
-    {
-        Directory.CreateDirectory(_modelPath);
-
-        var modelFile = Path.Combine(_modelPath, "model.onnx");
-        var vocabFile = Path.Combine(_modelPath, "vocab.txt");
-        var configFile = Path.Combine(_modelPath, "config.json");
-
-        if (File.Exists(modelFile) && File.Exists(vocabFile))
-        {
-            progress?.Invoke("NER model already downloaded");
-            return true;
-        }
-
-        progress?.Invoke("Downloading BERT-NER model (~430MB)...");
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-
-        try
-        {
-            const string repo = "protectai/bert-base-NER-onnx";
-
-            if (!File.Exists(modelFile))
-            {
-                progress?.Invoke("Downloading model.onnx...");
-                var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{repo}/resolve/main/model.onnx", ct);
-                await File.WriteAllBytesAsync(modelFile, bytes, ct);
-            }
-
-            if (!File.Exists(vocabFile))
-            {
-                progress?.Invoke("Downloading vocab.txt...");
-                var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{repo}/resolve/main/vocab.txt", ct);
-                await File.WriteAllBytesAsync(vocabFile, bytes, ct);
-            }
-
-            if (!File.Exists(configFile))
-            {
-                try
-                {
-                    var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{repo}/resolve/main/config.json", ct);
-                    await File.WriteAllBytesAsync(configFile, bytes, ct);
-                }
-                catch { /* optional */ }
-            }
-
-            progress?.Invoke("NER model download complete");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            progress?.Invoke($"NER download failed: {ex.Message}");
-            return false;
-        }
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -139,6 +86,7 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
                         _labels[int.Parse(prop.Name)] = prop.Value.GetString() ?? "O";
                 }
             }
+
             _labels ??= DefaultLabels;
             _initialized = true;
         }
@@ -206,6 +154,63 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
         return ExtractFromLogits(logits, tokens);
     }
 
+    public async Task<bool> EnsureModelAsync(Action<string>? progress = null, CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(_modelPath);
+
+        var modelFile = Path.Combine(_modelPath, "model.onnx");
+        var vocabFile = Path.Combine(_modelPath, "vocab.txt");
+        var configFile = Path.Combine(_modelPath, "config.json");
+
+        if (File.Exists(modelFile) && File.Exists(vocabFile))
+        {
+            progress?.Invoke("NER model already downloaded");
+            return true;
+        }
+
+        progress?.Invoke("Downloading BERT-NER model (~430MB)...");
+        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+
+        try
+        {
+            const string repo = "protectai/bert-base-NER-onnx";
+
+            if (!File.Exists(modelFile))
+            {
+                progress?.Invoke("Downloading model.onnx...");
+                var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{repo}/resolve/main/model.onnx", ct);
+                await File.WriteAllBytesAsync(modelFile, bytes, ct);
+            }
+
+            if (!File.Exists(vocabFile))
+            {
+                progress?.Invoke("Downloading vocab.txt...");
+                var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{repo}/resolve/main/vocab.txt", ct);
+                await File.WriteAllBytesAsync(vocabFile, bytes, ct);
+            }
+
+            if (!File.Exists(configFile))
+                try
+                {
+                    var bytes = await http.GetByteArrayAsync($"https://huggingface.co/{repo}/resolve/main/config.json",
+                        ct);
+                    await File.WriteAllBytesAsync(configFile, bytes, ct);
+                }
+                catch
+                {
+                    /* optional */
+                }
+
+            progress?.Invoke("NER model download complete");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            progress?.Invoke($"NER download failed: {ex.Message}");
+            return false;
+        }
+    }
+
     private List<NerEntity> ExtractFromLogits(Tensor<float> logits, string[] tokens)
     {
         var entities = new List<NerEntity>();
@@ -224,15 +229,20 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
             for (var j = 0; j < numLabels; j++)
             {
                 var prob = logits[0, i, j];
-                if (prob > maxProb) { maxProb = prob; maxIdx = j; }
+                if (prob > maxProb)
+                {
+                    maxProb = prob;
+                    maxIdx = j;
+                }
             }
+
             predictions.Add((token, _labels![maxIdx], Softmax(logits, i, numLabels, maxIdx), token.StartsWith("##")));
         }
 
         NerEntity? current = null;
         var currentTokens = new List<string>();
         float confSum = 0;
-        int confCount = 0;
+        var confCount = 0;
 
         foreach (var (token, label, confidence, isSubword) in predictions)
         {
@@ -273,6 +283,7 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
                 confCount = 0;
             }
         }
+
         SaveEntity(entities, ref current, currentTokens, confSum, confCount);
 
         return entities
@@ -282,7 +293,8 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
             .ToList();
     }
 
-    private static void SaveEntity(List<NerEntity> list, ref NerEntity? current, List<string> tokens, float confSum, int confCount)
+    private static void SaveEntity(List<NerEntity> list, ref NerEntity? current, List<string> tokens, float confSum,
+        int confCount)
     {
         if (current != null && tokens.Count > 0)
         {
@@ -291,6 +303,7 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
             if (current.Text.Length >= 2)
                 list.Add(current);
         }
+
         current = null;
     }
 
@@ -303,6 +316,7 @@ public sealed class NerService : Mostlylucid.DocSummarizer.Services.Onnx.INerSer
             var t = tokens[i];
             merged += t.StartsWith("##") ? t[2..] : " " + t;
         }
+
         return merged.Trim();
     }
 

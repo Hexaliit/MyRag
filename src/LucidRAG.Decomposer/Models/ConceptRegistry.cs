@@ -1,12 +1,11 @@
 namespace LucidRAG.Decomposer.Models;
 
 /// <summary>
-/// Registry of concept policies. Built-in defaults + plugin-contributed policies.
-/// This is the "programmable substrate" that plugins can extend.
-///
-/// Instead of: query → retrieve → summarize
-/// You get: query → ground concept(s) → select strategy + lens + renderer
-///            → retrieve → synthesize → validate → present
+///     Registry of concept policies. Built-in defaults + plugin-contributed policies.
+///     This is the "programmable substrate" that plugins can extend.
+///     Instead of: query → retrieve → summarize
+///     You get: query → ground concept(s) → select strategy + lens + renderer
+///     → retrieve → synthesize → validate → present
 /// </summary>
 public class ConceptRegistry
 {
@@ -18,19 +17,23 @@ public class ConceptRegistry
     }
 
     /// <summary>
-    /// Get the policy for a concept type. Returns General policy as fallback.
+    ///     Get the policy for a concept type. Returns General policy as fallback.
     /// </summary>
-    public ConceptPolicy GetPolicy(ConceptType concept) =>
-        _policies.TryGetValue(concept, out var policy) ? policy : _policies[ConceptType.General];
+    public ConceptPolicy GetPolicy(ConceptType concept)
+    {
+        return _policies.TryGetValue(concept, out var policy) ? policy : _policies[ConceptType.General];
+    }
 
     /// <summary>
-    /// Register or override a concept policy. Plugins can call this to customize behavior.
+    ///     Register or override a concept policy. Plugins can call this to customize behavior.
     /// </summary>
-    public void Register(ConceptPolicy policy) =>
+    public void Register(ConceptPolicy policy)
+    {
         _policies[policy.Concept] = policy;
+    }
 
     /// <summary>
-    /// Register a lens for a concept. Lenses modify retrieval + output.
+    ///     Register a lens for a concept. Lenses modify retrieval + output.
     /// </summary>
     public void AddLens(ConceptType concept, string lens)
     {
@@ -55,7 +58,7 @@ public class ConceptRegistry
         {
             Concept = ConceptType.Definition,
             PreferredSources = ["canonical", "wikipedia", "arxiv"],
-            SourceBoosts = new()
+            SourceBoosts = new Dictionary<string, double>
             {
                 ["wikipedia.org"] = 1.3,
                 ["arxiv.org"] = 1.2,
@@ -72,7 +75,7 @@ public class ConceptRegistry
         {
             Concept = ConceptType.Procedure,
             PreferredSources = ["official_docs", "canonical", "search"],
-            SourceBoosts = new()
+            SourceBoosts = new Dictionary<string, double>
             {
                 ["docs.*"] = 1.4,
                 ["learn.microsoft.com"] = 1.3,
@@ -122,7 +125,7 @@ public class ConceptRegistry
         {
             Concept = ConceptType.Policy,
             PreferredSources = ["canonical", "official_docs"],
-            SourceBoosts = new()
+            SourceBoosts = new Dictionary<string, double>
             {
                 ["*.gov"] = 1.5,
                 ["*.org"] = 1.2
@@ -139,7 +142,7 @@ public class ConceptRegistry
         {
             Concept = ConceptType.Troubleshooting,
             PreferredSources = ["issues", "stackoverflow", "runbooks", "search"],
-            SourceBoosts = new()
+            SourceBoosts = new Dictionary<string, double>
             {
                 ["github.com"] = 1.3,
                 ["stackoverflow.com"] = 1.3,

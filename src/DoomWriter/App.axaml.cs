@@ -4,10 +4,11 @@ using Avalonia.Markup.Xaml;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using DoomWriter.Services;
-using Mostlylucid.DocSummarizer.Services;
 using DoomWriter.ViewModels;
 using DoomWriter.Views;
 using Microsoft.Extensions.DependencyInjection;
+using Mostlylucid.DocSummarizer.Services;
+using OllamaService = DoomSummarizer.Services.OllamaService;
 
 namespace DoomWriter;
 
@@ -104,7 +105,7 @@ public class App : Application
                 SentinelModel = settings.Config.SentinelModel,
                 ContextSize = settings.Config.ContextWindow
             };
-            return new DoomSummarizer.Services.OllamaService(config);
+            return new OllamaService(config);
         });
 
         // DoomWriter services

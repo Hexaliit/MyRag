@@ -1,30 +1,27 @@
-using System.Text;
-using DoomSummarizer.Services;
 using DoomWriter.Models;
 using Mostlylucid.DocSummarizer.Services;
+using OllamaService = DoomSummarizer.Services.OllamaService;
 
 namespace DoomWriter.Services;
 
 /// <summary>
-/// Context-aware autocomplete using signals + corpus + sentinel LLM.
-/// Provides three types of completion:
-/// 1. Entity/link completion — from document entities + corpus entities
-/// 2. Sentence completion — after 5+ words, sentinel model suggests the rest
-/// 3. Link URL completion — after [text]( suggests from corpus URLs
+///     Context-aware autocomplete using signals + corpus + sentinel LLM.
+///     Provides three types of completion:
+///     1. Entity/link completion — from document entities + corpus entities
+///     2. Sentence completion — after 5+ words, sentinel model suggests the rest
+///     3. Link URL completion — after [text]( suggests from corpus URLs
 /// </summary>
 public class AutocompleteService
 {
-    private readonly DoomSummarizer.Services.OllamaService _ollama;
     private readonly CorpusService _corpus;
     private readonly IEmbeddingService _embedding;
+    private readonly OllamaService _ollama;
     private readonly WriterSettingsService _settings;
 
     private CancellationTokenSource? _pendingCts;
 
-    public event EventHandler<AutocompleteResult>? SuggestionReady;
-
     public AutocompleteService(
-        DoomSummarizer.Services.OllamaService ollama,
+        OllamaService ollama,
         CorpusService corpus,
         IEmbeddingService embedding,
         WriterSettingsService settings)
@@ -35,9 +32,11 @@ public class AutocompleteService
         _settings = settings;
     }
 
+    public event EventHandler<AutocompleteResult>? SuggestionReady;
+
     /// <summary>
-    /// Request autocomplete for the current typing context.
-    /// Called on every keystroke (internally debounced).
+    ///     Request autocomplete for the current typing context.
+    ///     Called on every keystroke (internally debounced).
     /// </summary>
     public async Task RequestCompletionAsync(
         string textBeforeCursor,
@@ -59,7 +58,9 @@ public class AutocompleteService
             if (result != null)
                 SuggestionReady?.Invoke(this, result);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private async Task<AutocompleteResult?> DetermineAndComplete(
@@ -73,10 +74,7 @@ public class AutocompleteService
         var lastLine = GetLastLine(textBeforeCursor);
 
         // 1. Link URL completion: [text]( → suggest from corpus
-        if (lastLine.Contains("](") && !lastLine.EndsWith(')'))
-        {
-            return await CompleteLinkUrlAsync(lastLine, ct);
-        }
+        if (lastLine.Contains("](") && !lastLine.EndsWith(')')) return await CompleteLinkUrlAsync(lastLine, ct);
 
         // 2. Entity mention completion: typing a capitalized word
         var lastWord = GetLastWord(lastLine);
@@ -89,17 +87,14 @@ public class AutocompleteService
 
         // 3. Sentence completion: after 5+ words on current line, use sentinel LLM
         var wordCount = lastLine.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-        if (wordCount >= 5)
-        {
-            return await CompleteSentenceAsync(textBeforeCursor, signals, ct);
-        }
+        if (wordCount >= 5) return await CompleteSentenceAsync(textBeforeCursor, signals, ct);
 
         return null;
     }
 
     /// <summary>
-    /// Complete a link URL from corpus articles.
-    /// When user types [some text]( → suggest matching corpus URLs.
+    ///     Complete a link URL from corpus articles.
+    ///     When user types [some text]( → suggest matching corpus URLs.
     /// </summary>
     private async Task<AutocompleteResult?> CompleteLinkUrlAsync(string line, CancellationToken ct)
     {
@@ -112,7 +107,7 @@ public class AutocompleteService
         if (string.IsNullOrWhiteSpace(linkText)) return null;
 
         // Search corpus for matching content
-        var matches = await _corpus.SearchAsync(linkText, topK: 5);
+        var matches = await _corpus.SearchAsync(linkText, 5);
         if (matches.Count == 0) return null;
 
         var suggestions = matches.Select(m => new AutocompleteSuggestion
@@ -131,7 +126,7 @@ public class AutocompleteService
     }
 
     /// <summary>
-    /// Complete an entity name from document + corpus entities.
+    ///     Complete an entity name from document + corpus entities.
     /// </summary>
     private AutocompleteResult? CompleteEntityName(string partialName, DocumentSignals signals)
     {
@@ -159,8 +154,8 @@ public class AutocompleteService
     }
 
     /// <summary>
-    /// Complete a sentence using the sentinel (fast/small) LLM.
-    /// Context-aware: uses document signals to ground the completion.
+    ///     Complete a sentence using the sentinel (fast/small) LLM.
+    ///     Context-aware: uses document signals to ground the completion.
     /// </summary>
     private async Task<AutocompleteResult?> CompleteSentenceAsync(
         string textBeforeCursor,
@@ -176,21 +171,21 @@ public class AutocompleteService
             .Select(e => e.Name));
 
         var prompt = $"""
-            Continue this text naturally. Write only the completion of the current sentence (10-30 words max).
-            Topic: {currentSection}
-            Key terms: {entityHints}
+                      Continue this text naturally. Write only the completion of the current sentence (10-30 words max).
+                      Topic: {currentSection}
+                      Key terms: {entityHints}
 
-            Text to continue:
-            {lastParagraph}
-            """;
+                      Text to continue:
+                      {lastParagraph}
+                      """;
 
         try
         {
             var completion = await _ollama.SentinelGenerateAsync(
                 prompt,
-                systemPrompt: "Complete the sentence naturally. Output ONLY the completion words, nothing else. No quotes, no explanation.",
-                temperature: 0.3,
-                ct: ct);
+                "Complete the sentence naturally. Output ONLY the completion words, nothing else. No quotes, no explanation.",
+                0.3,
+                ct);
 
             completion = completion.Trim().TrimStart('.', ',', ' ');
 

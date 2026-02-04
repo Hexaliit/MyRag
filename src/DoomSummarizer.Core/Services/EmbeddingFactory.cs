@@ -1,22 +1,22 @@
-using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
+using EmbeddingConfig = DoomSummarizer.Models.EmbeddingConfig;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Factory for creating IEmbeddingService instances from DoomSummarizer config.
-/// Bridges DoomSummarizer's EmbeddingConfig to DocSummarizer.Core's OnnxEmbeddingService.
+///     Factory for creating IEmbeddingService instances from DoomSummarizer config.
+///     Bridges DoomSummarizer's EmbeddingConfig to DocSummarizer.Core's OnnxEmbeddingService.
 /// </summary>
 public static class EmbeddingFactory
 {
     /// <summary>
-    /// Create an initialized IEmbeddingService using ONNX (default, local, no API keys).
-    /// Uses the same all-MiniLM-L6-v2 model as the old EmbeddingService.
+    ///     Create an initialized IEmbeddingService using ONNX (default, local, no API keys).
+    ///     Uses the same all-MiniLM-L6-v2 model as the old EmbeddingService.
     /// </summary>
     public static async Task<IEmbeddingService> CreateAsync(
-        DoomSummarizer.Models.EmbeddingConfig? config = null,
+        EmbeddingConfig? config = null,
         Action<string>? onStatus = null,
         CancellationToken ct = default)
     {
@@ -29,7 +29,7 @@ public static class EmbeddingFactory
             ModelDirectory = GetModelDirectory()
         };
 
-        var service = new OnnxEmbeddingService(onnxConfig, verbose: false);
+        var service = new OnnxEmbeddingService(onnxConfig, false);
         onStatus?.Invoke("Initializing embedding model...");
         await service.InitializeAsync(ct);
         onStatus?.Invoke("Embedding model ready");

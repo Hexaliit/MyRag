@@ -1,21 +1,20 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for KnowledgeGraphService entity ingestion, co-occurrence, and display.
+///     Tests for KnowledgeGraphService entity ingestion, co-occurrence, and display.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class KnowledgeGraphServiceTests : IAsyncLifetime
 {
     private readonly string _dbPath;
-    private DuckDbVectorStore _store = null!;
     private IEntityGraphStore _entityStore = null!;
     private KnowledgeGraphService _graph = null!;
+    private DuckDbVectorStore _store = null!;
 
     public KnowledgeGraphServiceTests()
     {
@@ -41,7 +40,10 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
             var walPath = _dbPath + ".wal";
             if (File.Exists(walPath)) File.Delete(walPath);
         }
-        catch { /* best effort */ }
+        catch
+        {
+            /* best effort */
+        }
     }
 
     [Fact]
@@ -88,7 +90,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
         {
             new() { Text = "Alice", Type = "PER", Confidence = 0.9f },
             new() { Text = "alice", Type = "PER", Confidence = 0.7f }, // Same entity, lower case
-            new() { Text = "ALICE", Type = "PER", Confidence = 0.5f }  // Same entity, upper case
+            new() { Text = "ALICE", Type = "PER", Confidence = 0.5f } // Same entity, upper case
         };
 
         await _graph.IngestEntitiesAsync([(item, entities)]);
@@ -103,8 +105,11 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
         var item1 = CreateContentItem("item1", "First Article about Alice");
         var item2 = CreateContentItem("item2", "Second Article about Alice");
 
-        await _graph.IngestEntitiesAsync([(item1, [new NerEntity { Text = "Alice", Type = "PER", Confidence = 0.9f }])]);
-        await _graph.IngestEntitiesAsync([(item2, [new NerEntity { Text = "Alice", Type = "PER", Confidence = 0.85f }])]);
+        await _graph.IngestEntitiesAsync([
+            (item1, [new NerEntity { Text = "Alice", Type = "PER", Confidence = 0.9f }])
+        ]);
+        await _graph.IngestEntitiesAsync(
+            [(item2, [new NerEntity { Text = "Alice", Type = "PER", Confidence = 0.85f }])]);
 
         var topEntities = await _entityStore.GetTopEntitiesAsync(10);
         topEntities.Should().HaveCount(1);
@@ -155,7 +160,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 
         await _graph.IndexItemEmbeddingsAsync([item]);
 
-        var results = await _graph.FindSimilarAsync(embedding, topK: 5, minSimilarity: 0.5f);
+        var results = await _graph.FindSimilarAsync(embedding, 5, 0.5f);
         results.Should().NotBeEmpty();
         results[0].itemId.Should().Be("item1");
     }
@@ -273,7 +278,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
 
         // Find related to ai_article_1 - should find ai_article_2 (similar AI entities)
         var related = await graphWithProfiles.FindRelatedByEntityProfileAsync(
-            ["ai_article_1"], topK: 3, minSimilarity: 0.1f);
+            ["ai_article_1"], 3, 0.1f);
 
         related.Should().NotBeEmpty();
         // The AI article should be in results
@@ -297,23 +302,28 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
         // Ingest with entities
         var item = CreateContentItem("item1", "Test");
         item.Embedding = CreateRandomEmbedding();
-        await graphWithProfiles.IngestEntitiesAsync([(item, [
-            new NerEntity { Text = "Test Entity", Type = "ORG", Confidence = 0.9f }
-        ])]);
+        await graphWithProfiles.IngestEntitiesAsync([
+            (item, [
+                new NerEntity { Text = "Test Entity", Type = "ORG", Confidence = 0.9f }
+            ])
+        ]);
 
         // After ingestion
         var hasAfter = await graphWithProfiles.HasEntityProfilesAsync();
         hasAfter.Should().BeTrue();
     }
 
-    private static ContentItem CreateContentItem(string id, string title) => new()
+    private static ContentItem CreateContentItem(string id, string title)
     {
-        Id = id,
-        Source = "test",
-        Title = title,
-        Url = $"https://example.com/{id}",
-        Content = $"Content for {title}"
-    };
+        return new ContentItem
+        {
+            Id = id,
+            Source = "test",
+            Title = title,
+            Url = $"https://example.com/{id}",
+            Content = $"Content for {title}"
+        };
+    }
 
     private static float[] CreateRandomEmbedding()
     {
@@ -328,7 +338,7 @@ public class KnowledgeGraphServiceTests : IAsyncLifetime
     {
         var embedding = new float[384];
         for (var i = 0; i < 384; i++)
-            embedding[i] = bias + (i % 10) * 0.01f;
+            embedding[i] = bias + i % 10 * 0.01f;
         return Normalize(embedding);
     }
 

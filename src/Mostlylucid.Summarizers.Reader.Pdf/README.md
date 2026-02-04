@@ -31,7 +31,8 @@ Console.WriteLine(result.Markdown);
 ## Dependencies
 
 - [PdfPig](https://github.com/UglyToad/PdfPig) - PDF text extraction
-- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) -
+  IDocumentReader interface
 
 ## License
 

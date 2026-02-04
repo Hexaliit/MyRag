@@ -1,7 +1,7 @@
 namespace Mostlylucid.DocSummarizer.Resilience;
 
 /// <summary>
-/// Result of a pre-flight budget check for an API call.
+///     Result of a pre-flight budget check for an API call.
 /// </summary>
 public record BudgetCheckResult
 {
@@ -21,14 +21,18 @@ public record BudgetCheckResult
     public double CostPerRequest { get; init; }
 
     public static BudgetCheckResult Allowed(int dailyCount = 0, int dailyLimit = 0, double costPerRequest = 0)
-        => new()
+    {
+        return new BudgetCheckResult
         {
             IsAllowed = true,
             DailyCount = dailyCount,
             DailyLimit = dailyLimit,
             CostPerRequest = costPerRequest
         };
+    }
 
     public static BudgetCheckResult Denied(string reason)
-        => new() { IsAllowed = false, DenialReason = reason };
+    {
+        return new BudgetCheckResult { IsAllowed = false, DenialReason = reason };
+    }
 }

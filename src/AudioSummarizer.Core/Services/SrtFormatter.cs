@@ -4,13 +4,13 @@ using AudioSummarizer.Core.Services.Voice;
 namespace AudioSummarizer.Core.Services;
 
 /// <summary>
-/// Formats transcription segments with optional speaker diarization into SRT subtitle format.
-/// SRT format: sequence number, timecode --> timecode, text (with optional speaker label).
+///     Formats transcription segments with optional speaker diarization into SRT subtitle format.
+///     SRT format: sequence number, timecode --> timecode, text (with optional speaker label).
 /// </summary>
 public sealed class SrtFormatter
 {
     /// <summary>
-    /// Format transcript segments to SRT format without speaker labels.
+    ///     Format transcript segments to SRT format without speaker labels.
     /// </summary>
     public string FormatToSrt(IEnumerable<TranscriptSegment> segments)
     {
@@ -18,7 +18,7 @@ public sealed class SrtFormatter
     }
 
     /// <summary>
-    /// Format transcript segments to SRT format with speaker labels from diarization.
+    ///     Format transcript segments to SRT format with speaker labels from diarization.
     /// </summary>
     public string FormatToSrt(
         IEnumerable<TranscriptSegment> segments,
@@ -38,10 +38,7 @@ public sealed class SrtFormatter
 
             // Find speaker for this segment (if diarization available)
             string? speakerLabel = null;
-            if (includeSpeakerLabels && turnsList.Count > 0)
-            {
-                speakerLabel = FindSpeakerForSegment(segment, turnsList);
-            }
+            if (includeSpeakerLabels && turnsList.Count > 0) speakerLabel = FindSpeakerForSegment(segment, turnsList);
 
             // Sequence number
             sb.AppendLine(index.ToString());
@@ -53,13 +50,9 @@ public sealed class SrtFormatter
 
             // Text (with optional speaker prefix)
             if (!string.IsNullOrEmpty(speakerLabel))
-            {
                 sb.AppendLine($"[{speakerLabel}]: {segment.Text.Trim()}");
-            }
             else
-            {
                 sb.AppendLine(segment.Text.Trim());
-            }
 
             // Blank line between entries
             sb.AppendLine();
@@ -70,7 +63,7 @@ public sealed class SrtFormatter
     }
 
     /// <summary>
-    /// Format transcript segments to WebVTT format with optional speaker labels.
+    ///     Format transcript segments to WebVTT format with optional speaker labels.
     /// </summary>
     public string FormatToWebVtt(
         IEnumerable<TranscriptSegment> segments,
@@ -90,10 +83,7 @@ public sealed class SrtFormatter
                 continue;
 
             string? speakerLabel = null;
-            if (includeSpeakerLabels && turnsList.Count > 0)
-            {
-                speakerLabel = FindSpeakerForSegment(segment, turnsList);
-            }
+            if (includeSpeakerLabels && turnsList.Count > 0) speakerLabel = FindSpeakerForSegment(segment, turnsList);
 
             // WebVTT timecode uses period instead of comma for ms
             var startTime = FormatTimecode(segment.Start).Replace(',', '.');
@@ -101,13 +91,9 @@ public sealed class SrtFormatter
             sb.AppendLine($"{startTime} --> {endTime}");
 
             if (!string.IsNullOrEmpty(speakerLabel))
-            {
                 sb.AppendLine($"<v {speakerLabel}>{segment.Text.Trim()}");
-            }
             else
-            {
                 sb.AppendLine(segment.Text.Trim());
-            }
 
             sb.AppendLine();
         }
@@ -116,7 +102,7 @@ public sealed class SrtFormatter
     }
 
     /// <summary>
-    /// Merge transcript segments with speaker diarization to create speaker-labeled segments.
+    ///     Merge transcript segments with speaker diarization to create speaker-labeled segments.
     /// </summary>
     public IEnumerable<DiarizedSegment> MergeWithDiarization(
         IEnumerable<TranscriptSegment> segments,
@@ -141,23 +127,20 @@ public sealed class SrtFormatter
     }
 
     /// <summary>
-    /// Parse SRT file content into transcript segments with optional speaker labels.
+    ///     Parse SRT file content into transcript segments with optional speaker labels.
     /// </summary>
     public IEnumerable<DiarizedSegment> ParseSrt(string srtContent)
     {
         if (string.IsNullOrWhiteSpace(srtContent))
             yield break;
 
-        var lines = srtContent.Split('\n', StringSplitOptions.None);
-        int i = 0;
+        var lines = srtContent.Split('\n');
+        var i = 0;
 
         while (i < lines.Length)
         {
             // Skip empty lines and look for sequence number
-            while (i < lines.Length && !int.TryParse(lines[i].Trim(), out _))
-            {
-                i++;
-            }
+            while (i < lines.Length && !int.TryParse(lines[i].Trim(), out _)) i++;
 
             if (i >= lines.Length)
                 break;
@@ -305,7 +288,7 @@ public sealed class SrtFormatter
 }
 
 /// <summary>
-/// Transcript segment with timing.
+///     Transcript segment with timing.
 /// </summary>
 public record TranscriptSegment
 {
@@ -316,7 +299,7 @@ public record TranscriptSegment
 }
 
 /// <summary>
-/// Transcript segment with speaker attribution.
+///     Transcript segment with speaker attribution.
 /// </summary>
 public record DiarizedSegment
 {

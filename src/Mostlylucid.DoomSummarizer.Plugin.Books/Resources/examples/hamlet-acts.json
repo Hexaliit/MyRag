@@ -13,11 +13,41 @@
         "level": 1,
         "levelLabel": "act",
         "children": [
-          { "title": "SCENE 1", "sequence": 1, "level": 2, "levelLabel": "scene", "wordCount": 1800 },
-          { "title": "SCENE 2", "sequence": 2, "level": 2, "levelLabel": "scene", "wordCount": 3200 },
-          { "title": "SCENE 3", "sequence": 3, "level": 2, "levelLabel": "scene", "wordCount": 1500 },
-          { "title": "SCENE 4", "sequence": 4, "level": 2, "levelLabel": "scene", "wordCount": 900 },
-          { "title": "SCENE 5", "sequence": 5, "level": 2, "levelLabel": "scene", "wordCount": 1600 }
+          {
+            "title": "SCENE 1",
+            "sequence": 1,
+            "level": 2,
+            "levelLabel": "scene",
+            "wordCount": 1800
+          },
+          {
+            "title": "SCENE 2",
+            "sequence": 2,
+            "level": 2,
+            "levelLabel": "scene",
+            "wordCount": 3200
+          },
+          {
+            "title": "SCENE 3",
+            "sequence": 3,
+            "level": 2,
+            "levelLabel": "scene",
+            "wordCount": 1500
+          },
+          {
+            "title": "SCENE 4",
+            "sequence": 4,
+            "level": 2,
+            "levelLabel": "scene",
+            "wordCount": 900
+          },
+          {
+            "title": "SCENE 5",
+            "sequence": 5,
+            "level": 2,
+            "levelLabel": "scene",
+            "wordCount": 1600
+          }
         ]
       },
       {
@@ -26,8 +56,20 @@
         "level": 1,
         "levelLabel": "act",
         "children": [
-          { "title": "SCENE 1", "sequence": 1, "level": 2, "levelLabel": "scene", "wordCount": 1200 },
-          { "title": "SCENE 2", "sequence": 2, "level": 2, "levelLabel": "scene", "wordCount": 4500 }
+          {
+            "title": "SCENE 1",
+            "sequence": 1,
+            "level": 2,
+            "levelLabel": "scene",
+            "wordCount": 1200
+          },
+          {
+            "title": "SCENE 2",
+            "sequence": 2,
+            "level": 2,
+            "levelLabel": "scene",
+            "wordCount": 4500
+          }
         ]
       },
       {
@@ -37,8 +79,18 @@
         "levelLabel": "act",
         "note": "Contains the 'To be or not to be' soliloquy"
       },
-      { "title": "ACT IV", "sequence": 4, "level": 1, "levelLabel": "act" },
-      { "title": "ACT V", "sequence": 5, "level": 1, "levelLabel": "act" }
+      {
+        "title": "ACT IV",
+        "sequence": 4,
+        "level": 1,
+        "levelLabel": "act"
+      },
+      {
+        "title": "ACT V",
+        "sequence": 5,
+        "level": 1,
+        "levelLabel": "act"
+      }
     ],
     "totalActs": 5,
     "totalScenes": 20,

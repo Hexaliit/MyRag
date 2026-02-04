@@ -1,14 +1,14 @@
 namespace Mostlylucid.Summarizer.Core.FileAnalysis;
 
 /// <summary>
-/// Detects MIME types using both file extension and magic bytes.
+///     Detects MIME types using both file extension and magic bytes.
 /// </summary>
 public static class MimeTypeDetector
 {
     private const string DefaultMimeType = "application/octet-stream";
 
     /// <summary>
-    /// Magic byte signatures for common file types.
+    ///     Magic byte signatures for common file types.
     /// </summary>
     private static readonly (byte[] Signature, int Offset, string MimeType)[] MagicSignatures =
     [
@@ -55,16 +55,17 @@ public static class MimeTypeDetector
 
         // Data formats
         ([0x50, 0x41, 0x52, 0x31], 0, "application/x-parquet"), // PAR1
-        ([0x53, 0x51, 0x4C, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6F, 0x72, 0x6D, 0x61, 0x74, 0x20, 0x33], 0, "application/x-sqlite3"),
+        ([0x53, 0x51, 0x4C, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6F, 0x72, 0x6D, 0x61, 0x74, 0x20, 0x33], 0,
+            "application/x-sqlite3"),
 
         // Text with BOM
         ([0xEF, 0xBB, 0xBF], 0, "text/plain"), // UTF-8 BOM
         ([0xFF, 0xFE], 0, "text/plain"), // UTF-16 LE BOM
-        ([0xFE, 0xFF], 0, "text/plain"), // UTF-16 BE BOM
+        ([0xFE, 0xFF], 0, "text/plain") // UTF-16 BE BOM
     ];
 
     /// <summary>
-    /// Extension to MIME type mapping.
+    ///     Extension to MIME type mapping.
     /// </summary>
     private static readonly Dictionary<string, string> ExtensionMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -193,11 +194,11 @@ public static class MimeTypeDetector
         [".wasm"] = "application/wasm",
         [".onnx"] = "application/x-onnx",
         [".safetensors"] = "application/x-safetensors",
-        [".bin"] = "application/octet-stream",
+        [".bin"] = "application/octet-stream"
     };
 
     /// <summary>
-    /// Detect MIME type from file extension.
+    ///     Detect MIME type from file extension.
     /// </summary>
     public static string FromExtension(string extension)
     {
@@ -211,7 +212,7 @@ public static class MimeTypeDetector
     }
 
     /// <summary>
-    /// Detect MIME type from magic bytes.
+    ///     Detect MIME type from magic bytes.
     /// </summary>
     public static string? FromMagicBytes(ReadOnlySpan<byte> bytes)
     {
@@ -232,18 +233,18 @@ public static class MimeTypeDetector
     }
 
     /// <summary>
-    /// Detect MIME type from file, using magic bytes first, then extension fallback.
+    ///     Detect MIME type from file, using magic bytes first, then extension fallback.
     /// </summary>
     public static string Detect(string filePath)
     {
-        if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
             return FromExtension(Path.GetExtension(filePath));
 
         try
         {
             // Read first 512 bytes for magic detection
             var buffer = new byte[512];
-            using var stream = System.IO.File.OpenRead(filePath);
+            using var stream = File.OpenRead(filePath);
             var bytesRead = stream.Read(buffer, 0, buffer.Length);
 
             if (bytesRead > 0)
@@ -252,10 +253,7 @@ public static class MimeTypeDetector
                 if (magicMime != null)
                 {
                     // Special handling for ZIP-based formats
-                    if (magicMime == "application/zip")
-                    {
-                        return RefineZipMimeType(filePath);
-                    }
+                    if (magicMime == "application/zip") return RefineZipMimeType(filePath);
                     return magicMime;
                 }
             }
@@ -269,7 +267,7 @@ public static class MimeTypeDetector
     }
 
     /// <summary>
-    /// Detect MIME type from stream and extension.
+    ///     Detect MIME type from stream and extension.
     /// </summary>
     public static string Detect(Stream stream, string? extension)
     {
@@ -299,17 +297,17 @@ public static class MimeTypeDetector
     }
 
     /// <summary>
-    /// Get magic bytes from file (first N bytes as hex string).
+    ///     Get magic bytes from file (first N bytes as hex string).
     /// </summary>
     public static (byte[] Bytes, string Hex) GetMagicBytes(string filePath, int count = 16)
     {
-        if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
             return ([], string.Empty);
 
         try
         {
             var buffer = new byte[count];
-            using var stream = System.IO.File.OpenRead(filePath);
+            using var stream = File.OpenRead(filePath);
             var bytesRead = stream.Read(buffer, 0, buffer.Length);
 
             if (bytesRead == 0)
@@ -330,7 +328,7 @@ public static class MimeTypeDetector
     }
 
     /// <summary>
-    /// Refine ZIP MIME type based on file extension (for OOXML documents).
+    ///     Refine ZIP MIME type based on file extension (for OOXML documents).
     /// </summary>
     private static string RefineZipMimeType(string filePath)
     {

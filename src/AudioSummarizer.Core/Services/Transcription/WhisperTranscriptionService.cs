@@ -1,5 +1,6 @@
+using System.Diagnostics;
+using System.Text;
 using AudioSummarizer.Core.Config;
-using AudioSummarizer.Core.Models;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Whisper.net;
@@ -7,19 +8,17 @@ using Whisper.net;
 namespace AudioSummarizer.Core.Services.Transcription;
 
 /// <summary>
-/// Local transcription service using Whisper.NET (offline-capable)
-/// Supports tiered model escalation for quality/speed tradeoffs
+///     Local transcription service using Whisper.NET (offline-capable)
+///     Supports tiered model escalation for quality/speed tradeoffs
 /// </summary>
 public sealed class WhisperTranscriptionService : ITranscriptionService, IDisposable
 {
     private readonly AudioConfig _config;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
     private readonly ILogger<WhisperTranscriptionService> _logger;
     private readonly WhisperModelDownloader _modelDownloader;
-    private WhisperFactory? _factory;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
     private bool _disposed;
-
-    public string ProviderName => "Whisper.NET";
+    private WhisperFactory? _factory;
 
     public WhisperTranscriptionService(
         IOptions<AudioConfig> config,
@@ -30,6 +29,17 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
         _logger = logger;
         _modelDownloader = modelDownloader;
     }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        _factory?.Dispose();
+        _initLock.Dispose();
+        _disposed = true;
+    }
+
+    public string ProviderName => "Whisper.NET";
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
@@ -50,22 +60,19 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
         string? language = null,
         CancellationToken cancellationToken = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         try
         {
             await EnsureModelLoadedAsync(cancellationToken);
 
-            if (_factory == null)
-            {
-                throw new InvalidOperationException("Whisper model not loaded");
-            }
+            if (_factory == null) throw new InvalidOperationException("Whisper model not loaded");
 
             _logger.LogDebug("Transcribing {AudioPath} with Whisper.NET (language: {Language})",
                 audioPath, language ?? "auto");
 
             var segments = new List<TranscriptSegment>();
-            var fullText = new System.Text.StringBuilder();
+            var fullText = new StringBuilder();
             var confidenceSum = 0.0;
             var segmentCount = 0;
 
@@ -73,10 +80,7 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
             var processorBuilder = _factory.CreateBuilder()
                 .WithThreads(_config.Whisper.Threads);
 
-            if (!string.IsNullOrEmpty(language))
-            {
-                processorBuilder.WithLanguage(language);
-            }
+            if (!string.IsNullOrEmpty(language)) processorBuilder.WithLanguage(language);
 
             using var processor = processorBuilder.Build();
 
@@ -162,20 +166,16 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
             ISampleProvider sampleProvider = reader;
 
             if (reader.WaveFormat.SampleRate != 16000)
-            {
                 // Use WdlResamplingSampleProvider - pure .NET resampler that implements ISampleProvider
                 sampleProvider = new WdlResamplingSampleProvider(reader, 16000);
-            }
 
             // Convert to mono if needed (Whisper.NET requires mono)
             if (sampleProvider.WaveFormat.Channels > 1)
-            {
                 sampleProvider = new StereoToMonoSampleProvider(sampleProvider)
                 {
                     LeftVolume = 0.5f,
                     RightVolume = 0.5f
                 };
-            }
 
             // Read all samples into memory
             var sampleList = new List<float>();
@@ -183,12 +183,8 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
             int samplesRead;
 
             while ((samplesRead = sampleProvider.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                for (int i = 0; i < samplesRead; i++)
-                {
+                for (var i = 0; i < samplesRead; i++)
                     sampleList.Add(buffer[i]);
-                }
-            }
 
             _logger.LogDebug("Converted {AudioPath} to {SampleCount} float samples (16kHz mono)",
                 audioPath, sampleList.Count);
@@ -198,7 +194,7 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
     }
 
     /// <summary>
-    /// Stream wrapper that deletes temp file on dispose
+    ///     Stream wrapper that deletes temp file on dispose
     /// </summary>
     private class TempFileStream : FileStream
     {
@@ -228,14 +224,5 @@ public sealed class WhisperTranscriptionService : ITranscriptionService, IDispos
                 _logger?.LogWarning(ex, "Failed to delete temp WAV file: {FilePath}", _filePath);
             }
         }
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-
-        _factory?.Dispose();
-        _initLock.Dispose();
-        _disposed = true;
     }
 }

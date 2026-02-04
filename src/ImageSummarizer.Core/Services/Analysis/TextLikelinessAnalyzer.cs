@@ -3,18 +3,19 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using Size = OpenCvSharp.Size;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzer for detecting text-like regions in images.
-/// Uses heuristics based on high-frequency edges, contrast patterns, and horizontal stroke bias.
+///     Analyzer for detecting text-like regions in images.
+///     Uses heuristics based on high-frequency edges, contrast patterns, and horizontal stroke bias.
 /// </summary>
 public class TextLikelinessAnalyzer
 {
     /// <summary>
-    /// Calculate text-likeliness score (0-1).
-    /// Higher values indicate the image likely contains readable text.
+    ///     Calculate text-likeliness score (0-1).
+    ///     Higher values indicate the image likely contains readable text.
     /// </summary>
     /// <param name="image">Image to analyze</param>
     /// <returns>Text-likeliness score (0-1)</returns>
@@ -54,7 +55,7 @@ public class TextLikelinessAnalyzer
     }
 
     /// <summary>
-    /// Calculate high-frequency edge score
+    ///     Calculate high-frequency edge score
     /// </summary>
     private double CalculateHighFrequencyScore(Image<Rgba32> image)
     {
@@ -91,7 +92,7 @@ public class TextLikelinessAnalyzer
     }
 
     /// <summary>
-    /// Calculate bimodal distribution score (text is usually two distinct colors)
+    ///     Calculate bimodal distribution score (text is usually two distinct colors)
     /// </summary>
     private double CalculateBimodalScore(Image<Rgba32> image)
     {
@@ -129,7 +130,7 @@ public class TextLikelinessAnalyzer
     }
 
     /// <summary>
-    /// Calculate horizontal stroke bias (text typically has horizontal alignment)
+    ///     Calculate horizontal stroke bias (text typically has horizontal alignment)
     /// </summary>
     private double CalculateHorizontalBias(Image<Rgba32> image)
     {
@@ -172,7 +173,7 @@ public class TextLikelinessAnalyzer
     }
 
     /// <summary>
-    /// Calculate local contrast score (text regions have consistent high contrast)
+    ///     Calculate local contrast score (text regions have consistent high contrast)
     /// </summary>
     private double CalculateLocalContrastScore(Image<Rgba32> image)
     {
@@ -209,12 +210,14 @@ public class TextLikelinessAnalyzer
         return totalBlocks > 0 ? (double)highContrastBlocks / totalBlocks : 0;
     }
 
-    private static int GetLuminance(Rgba32 p) =>
-        (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    private static int GetLuminance(Rgba32 p)
+    {
+        return (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    }
 
     /// <summary>
-    /// Detect text regions using OpenCV MSER (Maximally Stable Extremal Regions).
-    /// MSER is specifically designed for text detection - finds stable connected regions.
+    ///     Detect text regions using OpenCV MSER (Maximally Stable Extremal Regions).
+    ///     MSER is specifically designed for text detection - finds stable connected regions.
     /// </summary>
     public List<TextRegionResult> DetectTextRegionsMser(string imagePath)
     {
@@ -222,19 +225,18 @@ public class TextLikelinessAnalyzer
 
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return results;
 
             using var gray = new Mat();
             Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
 
             // MSER for dark text on light background
-            using var mser = MSER.Create(
-                delta: 5,           // Stability threshold
-                minArea: 60,        // Min region size (filter noise)
-                maxArea: 14400,     // Max region size (filter large blobs)
-                maxVariation: 0.25, // Max area variation between levels
-                minDiversity: 0.2); // Min diversity of regions
+            using var mser = MSER.Create(// Stability threshold
+                // Min region size (filter noise)
+                // Max region size (filter large blobs)
+                // Max area variation between levels
+            ); // Min diversity of regions
 
             mser.DetectRegions(gray, out var regions, out var bboxes);
 
@@ -263,7 +265,6 @@ public class TextLikelinessAnalyzer
             var grouped = GroupIntoLines(candidates);
 
             foreach (var line in grouped)
-            {
                 results.Add(new TextRegionResult
                 {
                     BoundingBox = line.bbox,
@@ -272,7 +273,6 @@ public class TextLikelinessAnalyzer
                     IsHorizontal = line.bbox.Width > line.bbox.Height,
                     RegionType = line.charCount > 3 ? "text_line" : "text_fragment"
                 });
-            }
         }
         catch
         {
@@ -283,7 +283,7 @@ public class TextLikelinessAnalyzer
     }
 
     /// <summary>
-    /// Group MSER regions into text lines based on proximity and alignment.
+    ///     Group MSER regions into text lines based on proximity and alignment.
     /// </summary>
     private List<(Rect bbox, double confidence, int charCount)> GroupIntoLines(
         List<(Rect bbox, double score)> candidates)
@@ -295,7 +295,7 @@ public class TextLikelinessAnalyzer
         var sorted = candidates.OrderBy(c => c.bbox.Y).ThenBy(c => c.bbox.X).ToList();
         var used = new bool[sorted.Count];
 
-        for (int i = 0; i < sorted.Count; i++)
+        for (var i = 0; i < sorted.Count; i++)
         {
             if (used[i]) continue;
 
@@ -306,7 +306,7 @@ public class TextLikelinessAnalyzer
             var baseHeight = sorted[i].bbox.Height;
 
             // Find horizontally adjacent regions at similar Y
-            for (int j = i + 1; j < sorted.Count; j++)
+            for (var j = i + 1; j < sorted.Count; j++)
             {
                 if (used[j]) continue;
 
@@ -349,8 +349,8 @@ public class TextLikelinessAnalyzer
     }
 
     /// <summary>
-    /// Detect if image has structured text layout (document, screenshot, etc.)
-    /// using OpenCV contour analysis and stroke width transform approximation.
+    ///     Detect if image has structured text layout (document, screenshot, etc.)
+    ///     using OpenCV contour analysis and stroke width transform approximation.
     /// </summary>
     public (bool IsDocument, double DocumentScore, List<Rect> TextBlocks) DetectDocumentLayout(string imagePath)
     {
@@ -358,7 +358,7 @@ public class TextLikelinessAnalyzer
 
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return (false, 0, textBlocks);
 
             using var gray = new Mat();
@@ -374,9 +374,9 @@ public class TextLikelinessAnalyzer
 
             // Dilate to connect text characters into blocks
             using var horizontalKernel = Cv2.GetStructuringElement(
-                MorphShapes.Rect, new OpenCvSharp.Size(15, 1));
+                MorphShapes.Rect, new Size(15, 1));
             using var verticalKernel = Cv2.GetStructuringElement(
-                MorphShapes.Rect, new OpenCvSharp.Size(1, 3));
+                MorphShapes.Rect, new Size(1, 3));
 
             Cv2.Dilate(binary, morphed, horizontalKernel);
             Cv2.Dilate(morphed, morphed, verticalKernel);
@@ -434,7 +434,7 @@ public class TextLikelinessAnalyzer
         foreach (var edge in leftEdges)
         {
             // Round to nearest 10px for clustering
-            var cluster = (edge / 10) * 10;
+            var cluster = edge / 10 * 10;
             edgeClusters[cluster] = edgeClusters.GetValueOrDefault(cluster) + 1;
         }
 
@@ -445,7 +445,7 @@ public class TextLikelinessAnalyzer
 }
 
 /// <summary>
-/// Result of text region detection.
+///     Result of text region detection.
 /// </summary>
 public class TextRegionResult
 {

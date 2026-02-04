@@ -6,35 +6,32 @@ using DoomWriter.Services;
 namespace DoomWriter.ViewModels;
 
 /// <summary>
-/// ViewModel for the Settings dialog.
+///     ViewModel for the Settings dialog.
 /// </summary>
 public partial class SettingsViewModel : ObservableObject
 {
-    private readonly WriterSettingsService _settings;
     private readonly OllamaService _ollama;
-    private Action? _closeAction;
-
-    // LLM
-    [ObservableProperty] private string _ollamaBaseUrl = "";
-    [ObservableProperty] private string _mainModel = "";
-    [ObservableProperty] private string _sentinelModel = "";
-    [ObservableProperty] private int _contextWindow;
-    [ObservableProperty] private string _connectionStatus = "";
-
-    // Editor
-    [ObservableProperty] private string _editorMode = "ir";
-    [ObservableProperty] private int _fontSize;
-    [ObservableProperty] private string _theme = "dark";
+    private readonly WriterSettingsService _settings;
     [ObservableProperty] private int _autoSaveInterval;
+    private Action? _closeAction;
+    [ObservableProperty] private string _connectionStatus = "";
+    [ObservableProperty] private int _contextWindow;
 
     // Analysis
     [ObservableProperty] private int _debounceMs;
-    [ObservableProperty] private bool _enableNer;
+
+    // Editor
+    [ObservableProperty] private string _editorMode = "ir";
     [ObservableProperty] private bool _enableDriftDetection;
+    [ObservableProperty] private bool _enableNer;
+    [ObservableProperty] private int _fontSize;
+    [ObservableProperty] private string _mainModel = "";
     [ObservableProperty] private double _minSalienceThreshold;
 
-    public List<string> EditorModes { get; } = ["ir", "wysiwyg", "sv"];
-    public List<string> Themes { get; } = ["dark", "classic"];
+    // LLM
+    [ObservableProperty] private string _ollamaBaseUrl = "";
+    [ObservableProperty] private string _sentinelModel = "";
+    [ObservableProperty] private string _theme = "dark";
 
     public SettingsViewModel(WriterSettingsService settings, OllamaService ollama)
     {
@@ -43,7 +40,13 @@ public partial class SettingsViewModel : ObservableObject
         LoadFromConfig();
     }
 
-    public void SetCloseAction(Action closeAction) => _closeAction = closeAction;
+    public List<string> EditorModes { get; } = ["ir", "wysiwyg", "sv"];
+    public List<string> Themes { get; } = ["dark", "classic"];
+
+    public void SetCloseAction(Action closeAction)
+    {
+        _closeAction = closeAction;
+    }
 
     private void LoadFromConfig()
     {

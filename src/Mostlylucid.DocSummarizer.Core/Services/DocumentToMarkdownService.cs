@@ -1,14 +1,21 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
-#if !SLIM_BUILD
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
-#endif
+using DocumentFormat.OpenXml.Drawing;
+using DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Core.Models;
 using UglyToad.PdfPig;
+using Break = DocumentFormat.OpenXml.Wordprocessing.Break;
+using Hyperlink = DocumentFormat.OpenXml.Wordprocessing.Hyperlink;
+using Paragraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
+using Path = System.IO.Path;
+using Run = DocumentFormat.OpenXml.Wordprocessing.Run;
+using Text = DocumentFormat.OpenXml.Wordprocessing.Text;
+#if !SLIM_BUILD
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
+#endif
 
 #if !SLIM_BUILD
 // Alias to avoid ambiguity with OpenXml types
@@ -20,8 +27,8 @@ using WordTableRow = DocumentFormat.OpenXml.Wordprocessing.TableRow;
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
 /// <summary>
-/// Converts documents (PDF, images, DOCX) to structured Markdown.
-/// Uses native extraction for text-based documents, falls back to VLM OCR for scanned/complex documents.
+///     Converts documents (PDF, images, DOCX) to structured Markdown.
+///     Uses native extraction for text-based documents, falls back to VLM OCR for scanned/complex documents.
 /// </summary>
 public class DocumentToMarkdownService
 {
@@ -32,19 +39,19 @@ public class DocumentToMarkdownService
     private readonly ILogger<DocumentToMarkdownService>? _logger;
 
     /// <summary>
-    /// Minimum text density (chars per page) to consider native extraction successful.
-    /// Below this threshold, VLM OCR is used instead.
+    ///     Minimum text density (chars per page) to consider native extraction successful.
+    ///     Below this threshold, VLM OCR is used instead.
     /// </summary>
     public int MinTextDensityForNative { get; set; } = 100;
 
     /// <summary>
-    /// Whether to always use VLM OCR (skip native extraction).
+    ///     Whether to always use VLM OCR (skip native extraction).
     /// </summary>
     public bool ForceVlmOcr { get; set; } = false;
 
     /// <summary>
-    /// Callback to process each rendered page image with VLM OCR.
-    /// Receives image path, returns markdown text.
+    ///     Callback to process each rendered page image with VLM OCR.
+    ///     Receives image path, returns markdown text.
     /// </summary>
     public Func<string, CancellationToken, Task<VlmOcrResult>>? VlmOcrCallback { get; set; }
 
@@ -69,7 +76,7 @@ public class DocumentToMarkdownService
 #endif
 
     /// <summary>
-    /// Convert a document to Markdown.
+    ///     Convert a document to Markdown.
     /// </summary>
     /// <param name="documentPath">Path to PDF, image, or DOCX</param>
     /// <param name="options">Conversion options</param>
@@ -129,7 +136,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Convert a PDF document to Markdown.
+    ///     Convert a PDF document to Markdown.
     /// </summary>
     private async Task<DocumentToMarkdownResult> ConvertPdfAsync(
         string pdfPath,
@@ -160,7 +167,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Try native PDF text extraction.
+    ///     Try native PDF text extraction.
     /// </summary>
     private async Task<DocumentToMarkdownResult> TryNativeExtractionAsync(
         string pdfPath,
@@ -228,7 +235,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Convert PDF using VLM OCR on rendered pages.
+    ///     Convert PDF using VLM OCR on rendered pages.
     /// </summary>
     private async Task<DocumentToMarkdownResult> ConvertPdfWithVlmAsync(
         string pdfPath,
@@ -237,14 +244,12 @@ public class DocumentToMarkdownService
         CancellationToken ct)
     {
         if (VlmOcrCallback == null)
-        {
             return new DocumentToMarkdownResult
             {
                 SourcePath = pdfPath,
                 Success = false,
                 Error = "VLM OCR callback not configured. Set VlmOcrCallback property."
             };
-        }
 
 #if SLIM_BUILD
         // Slim build: VLM OCR not available (no PDFtoImage)
@@ -277,7 +282,7 @@ public class DocumentToMarkdownService
             var pageResults = new List<PageOcrResult>();
 
             // Process each page with VLM OCR
-            for (int i = 0; i < renderedPages.Count; i++)
+            for (var i = 0; i < renderedPages.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -329,7 +334,7 @@ public class DocumentToMarkdownService
 
 #if !SLIM_BUILD
     /// <summary>
-    /// Convert a DOCX document to Markdown.
+    ///     Convert a DOCX document to Markdown.
     /// </summary>
     private async Task<DocumentToMarkdownResult> ConvertDocxAsync(
         string docxPath,
@@ -375,6 +380,7 @@ public class DocumentToMarkdownService
                             sb.AppendLine(markdown);
                             totalChars += markdown.Length;
                         }
+
                         break;
 
                     case WordTable table:
@@ -384,6 +390,7 @@ public class DocumentToMarkdownService
                             listState.Reset();
                             sb.AppendLine();
                         }
+
                         var tableMarkdown = ConvertTableToMarkdown(table);
                         if (!string.IsNullOrEmpty(tableMarkdown))
                         {
@@ -392,6 +399,7 @@ public class DocumentToMarkdownService
                             sb.AppendLine();
                             totalChars += tableMarkdown.Length;
                         }
+
                         break;
 
                     case SdtBlock sdtBlock:
@@ -405,6 +413,7 @@ public class DocumentToMarkdownService
                                 totalChars += sdtMarkdown.Length;
                             }
                         }
+
                         break;
                 }
             }
@@ -438,7 +447,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Convert a Word paragraph to Markdown.
+    ///     Convert a Word paragraph to Markdown.
     /// </summary>
     private string ConvertParagraphToMarkdown(Paragraph para, MainDocumentPart mainPart, ListProcessingState listState)
     {
@@ -449,11 +458,9 @@ public class DocumentToMarkdownService
             if (listState.IsInList)
             {
                 listState.ConsecutiveEmptyLines++;
-                if (listState.ConsecutiveEmptyLines >= 2)
-                {
-                    listState.Reset();
-                }
+                if (listState.ConsecutiveEmptyLines >= 2) listState.Reset();
             }
+
             return "";
         }
 
@@ -500,10 +507,8 @@ public class DocumentToMarkdownService
                     listState.ItemCounts[ilvl]++;
                     return $"{indent}{listState.ItemCounts[ilvl]}. {text}";
                 }
-                else
-                {
-                    return $"{indent}- {text}";
-                }
+
+                return $"{indent}- {text}";
             }
         }
 
@@ -515,14 +520,13 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Get formatted text from a paragraph, handling runs with formatting.
+    ///     Get formatted text from a paragraph, handling runs with formatting.
     /// </summary>
     private string GetParagraphText(Paragraph para, MainDocumentPart mainPart)
     {
         var sb = new StringBuilder();
 
         foreach (var element in para.ChildElements)
-        {
             switch (element)
             {
                 case Run run:
@@ -541,20 +545,18 @@ public class DocumentToMarkdownService
                     // Skip these elements
                     break;
             }
-        }
 
         return sb.ToString().Trim();
     }
 
     /// <summary>
-    /// Get formatted text from a run element.
+    ///     Get formatted text from a run element.
     /// </summary>
     private string GetRunText(Run run, MainDocumentPart mainPart)
     {
         var sb = new StringBuilder();
 
         foreach (var element in run.ChildElements)
-        {
             switch (element)
             {
                 case Text text:
@@ -584,7 +586,6 @@ public class DocumentToMarkdownService
                     sb.Append(GetSymbolChar(symbol));
                     break;
             }
-        }
 
         var text2 = sb.ToString();
         if (string.IsNullOrEmpty(text2))
@@ -617,7 +618,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Get markdown for a hyperlink.
+    ///     Get markdown for a hyperlink.
     /// </summary>
     private string GetHyperlinkMarkdown(Hyperlink hyperlink, MainDocumentPart mainPart)
     {
@@ -629,28 +630,22 @@ public class DocumentToMarkdownService
         if (!string.IsNullOrEmpty(relId))
         {
             var rel = mainPart.HyperlinkRelationships.FirstOrDefault(r => r.Id == relId);
-            if (rel != null)
-            {
-                return $"[{text}]({rel.Uri})";
-            }
+            if (rel != null) return $"[{text}]({rel.Uri})";
         }
 
         // Internal bookmark link
         var anchor = hyperlink.Anchor?.Value;
-        if (!string.IsNullOrEmpty(anchor))
-        {
-            return $"[{text}](#{anchor})";
-        }
+        if (!string.IsNullOrEmpty(anchor)) return $"[{text}](#{anchor})";
 
         return text;
     }
 
     /// <summary>
-    /// Get markdown for an embedded image.
+    ///     Get markdown for an embedded image.
     /// </summary>
     private string GetImageMarkdown(Drawing drawing, MainDocumentPart mainPart)
     {
-        var blip = drawing.Descendants<DocumentFormat.OpenXml.Drawing.Blip>().FirstOrDefault();
+        var blip = drawing.Descendants<Blip>().FirstOrDefault();
         if (blip?.Embed?.Value == null)
             return "";
 
@@ -659,7 +654,7 @@ public class DocumentToMarkdownService
             return "";
 
         // Get image description/alt text
-        var docProperties = drawing.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>().FirstOrDefault();
+        var docProperties = drawing.Descendants<DocProperties>().FirstOrDefault();
         var altText = docProperties?.Description?.Value ?? docProperties?.Name?.Value ?? "image";
 
         // For embedded images, we can't easily extract them to markdown
@@ -668,7 +663,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Convert a Word table to Markdown.
+    ///     Convert a Word table to Markdown.
     /// </summary>
     private string ConvertTableToMarkdown(WordTable table)
     {
@@ -698,7 +693,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Get text content from a table cell.
+    ///     Get text content from a table cell.
     /// </summary>
     private string GetCellText(WordTableCell cell)
     {
@@ -717,7 +712,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Get heading level from style ID (e.g., "Heading1" → 1).
+    ///     Get heading level from style ID (e.g., "Heading1" → 1).
     /// </summary>
     private static int GetHeadingLevel(string styleId)
     {
@@ -739,7 +734,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Check if a numbering definition is an ordered list.
+    ///     Check if a numbering definition is an ordered list.
     /// </summary>
     private static bool IsOrderedList(MainDocumentPart mainPart, int numId, int level)
     {
@@ -775,22 +770,22 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Get character representation for a symbol.
+    ///     Get character representation for a symbol.
     /// </summary>
     private static string GetSymbolChar(SymbolChar symbol)
     {
         // Common symbol mappings
         return symbol.Char?.Value switch
         {
-            "F0B7" => "•",  // Bullet
-            "F0A7" => "§",  // Section
-            "F0D8" => "→",  // Arrow
+            "F0B7" => "•", // Bullet
+            "F0A7" => "§", // Section
+            "F0D8" => "→", // Arrow
             _ => "•"
         };
     }
 
     /// <summary>
-    /// Escape special markdown characters.
+    ///     Escape special markdown characters.
     /// </summary>
     private static string EscapeMarkdown(string text)
     {
@@ -798,7 +793,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// State for tracking list processing.
+    ///     State for tracking list processing.
     /// </summary>
     private class ListProcessingState
     {
@@ -817,7 +812,7 @@ public class DocumentToMarkdownService
     }
 
     /// <summary>
-    /// Convert an image to Markdown using VLM OCR.
+    ///     Convert an image to Markdown using VLM OCR.
     /// </summary>
     private async Task<DocumentToMarkdownResult> ConvertImageAsync(
         string imagePath,
@@ -826,14 +821,12 @@ public class DocumentToMarkdownService
         CancellationToken ct)
     {
         if (VlmOcrCallback == null)
-        {
             return new DocumentToMarkdownResult
             {
                 SourcePath = imagePath,
                 Success = false,
                 Error = "VLM OCR callback not configured. Set VlmOcrCallback property."
             };
-        }
 
         progress?.Report(new ConversionProgress
         {
@@ -853,22 +846,24 @@ public class DocumentToMarkdownService
             ExtractionMethod = "vlm_ocr",
             Error = vlmResult.Error,
             HasSufficientText = !string.IsNullOrWhiteSpace(vlmResult.Markdown),
-            PageResults = vlmResult.Success ? new List<PageOcrResult>
-            {
-                new()
+            PageResults = vlmResult.Success
+                ? new List<PageOcrResult>
                 {
-                    PageNumber = 1,
-                    Markdown = vlmResult.Markdown ?? "",
-                    Model = vlmResult.Model,
-                    Confidence = vlmResult.Confidence
+                    new()
+                    {
+                        PageNumber = 1,
+                        Markdown = vlmResult.Markdown ?? "",
+                        Model = vlmResult.Model,
+                        Confidence = vlmResult.Confidence
+                    }
                 }
-            } : null
+                : null
         };
     }
 #endif
 
     /// <summary>
-    /// Convert an extracted table to Markdown format.
+    ///     Convert an extracted table to Markdown format.
     /// </summary>
     private static string TableToMarkdown(ExtractedTable table)
     {
@@ -885,7 +880,7 @@ public class DocumentToMarkdownService
         sb.AppendLine("| " + string.Join(" | ", headerRow.Select(_ => "---")) + " |");
 
         // Data rows
-        for (int i = 1; i < table.Rows.Count; i++)
+        for (var i = 1; i < table.Rows.Count; i++)
         {
             var row = table.Rows[i];
             sb.AppendLine("| " + string.Join(" | ", row.Select(c => c.Text ?? "")) + " |");
@@ -896,7 +891,7 @@ public class DocumentToMarkdownService
 }
 
 /// <summary>
-/// Options for document to Markdown conversion.
+///     Options for document to Markdown conversion.
 /// </summary>
 public class ConversionOptions
 {
@@ -914,7 +909,7 @@ public class ConversionOptions
 }
 
 /// <summary>
-/// Progress information during conversion.
+///     Progress information during conversion.
 /// </summary>
 public class ConversionProgress
 {
@@ -925,7 +920,7 @@ public class ConversionProgress
 }
 
 /// <summary>
-/// Result of document to Markdown conversion.
+///     Result of document to Markdown conversion.
 /// </summary>
 public class DocumentToMarkdownResult
 {
@@ -943,7 +938,7 @@ public class DocumentToMarkdownResult
 }
 
 /// <summary>
-/// Result of VLM OCR on a single image.
+///     Result of VLM OCR on a single image.
 /// </summary>
 public class VlmOcrResult
 {
@@ -955,7 +950,7 @@ public class VlmOcrResult
 }
 
 /// <summary>
-/// OCR result for a single page.
+///     OCR result for a single page.
 /// </summary>
 public class PageOcrResult
 {

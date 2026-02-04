@@ -1,203 +1,201 @@
-using System.Security.Cryptography;
-
 namespace Mostlylucid.Summarizer.Core.FileAnalysis;
 
 /// <summary>
-/// Universal file metadata extracted from any file type.
-/// This is the starting point for all pipeline processing.
+///     Universal file metadata extracted from any file type.
+///     This is the starting point for all pipeline processing.
 /// </summary>
 public sealed class FileMetadata
 {
     // ===== IDENTITY =====
 
     /// <summary>
-    /// Full absolute path to the file.
+    ///     Full absolute path to the file.
     /// </summary>
     public required string FilePath { get; init; }
 
     /// <summary>
-    /// File name with extension (e.g., "document.pdf").
+    ///     File name with extension (e.g., "document.pdf").
     /// </summary>
     public required string FileName { get; init; }
 
     /// <summary>
-    /// File name without extension (e.g., "document").
+    ///     File name without extension (e.g., "document").
     /// </summary>
     public required string FileNameWithoutExtension { get; init; }
 
     /// <summary>
-    /// File extension including the dot, lowercase (e.g., ".pdf").
-    /// Empty string if no extension.
+    ///     File extension including the dot, lowercase (e.g., ".pdf").
+    ///     Empty string if no extension.
     /// </summary>
     public required string Extension { get; init; }
 
     /// <summary>
-    /// Parent directory path.
+    ///     Parent directory path.
     /// </summary>
     public required string Directory { get; init; }
 
     /// <summary>
-    /// Parent directory name only (e.g., "Documents" from "/home/user/Documents").
+    ///     Parent directory name only (e.g., "Documents" from "/home/user/Documents").
     /// </summary>
     public required string DirectoryName { get; init; }
 
     /// <summary>
-    /// Depth in directory tree from root (e.g., "/foo/bar/file.txt" = 3).
+    ///     Depth in directory tree from root (e.g., "/foo/bar/file.txt" = 3).
     /// </summary>
     public required int DirectoryDepth { get; init; }
 
     // ===== SIZE =====
 
     /// <summary>
-    /// File size in bytes.
+    ///     File size in bytes.
     /// </summary>
     public required long SizeBytes { get; init; }
 
     /// <summary>
-    /// Human-readable file size (e.g., "1.5 MB").
+    ///     Human-readable file size (e.g., "1.5 MB").
     /// </summary>
     public string SizeFormatted => FormatBytes(SizeBytes);
 
     // ===== HASHES =====
 
     /// <summary>
-    /// XxHash64 content hash (16-character lowercase hex).
-    /// Fast hash for deduplication. Empty if file cannot be read.
+    ///     XxHash64 content hash (16-character lowercase hex).
+    ///     Fast hash for deduplication. Empty if file cannot be read.
     /// </summary>
     public required string ContentHash { get; init; }
 
     /// <summary>
-    /// SHA-256 content hash (64-character lowercase hex).
-    /// Cryptographic hash for integrity verification. Empty if not computed.
+    ///     SHA-256 content hash (64-character lowercase hex).
+    ///     Cryptographic hash for integrity verification. Empty if not computed.
     /// </summary>
     public string Sha256Hash { get; init; } = string.Empty;
 
     // ===== CONTENT ANALYSIS =====
 
     /// <summary>
-    /// Detected MIME type (e.g., "application/pdf").
-    /// "application/octet-stream" if unknown.
+    ///     Detected MIME type (e.g., "application/pdf").
+    ///     "application/octet-stream" if unknown.
     /// </summary>
     public required string MimeType { get; init; }
 
     /// <summary>
-    /// Primary MIME category (e.g., "application", "image", "text").
+    ///     Primary MIME category (e.g., "application", "image", "text").
     /// </summary>
     public string MimeCategory => MimeType.Split('/')[0];
 
     /// <summary>
-    /// First 16 bytes of file as hex string (magic bytes).
-    /// Useful for file type detection.
+    ///     First 16 bytes of file as hex string (magic bytes).
+    ///     Useful for file type detection.
     /// </summary>
     public string MagicBytesHex { get; init; } = string.Empty;
 
     /// <summary>
-    /// Shannon entropy of file content (0-8 scale).
-    /// High entropy (>7.5) suggests encrypted/compressed data.
-    /// Low entropy (&lt;4) suggests repetitive/text data.
+    ///     Shannon entropy of file content (0-8 scale).
+    ///     High entropy (>7.5) suggests encrypted/compressed data.
+    ///     Low entropy (&lt;4) suggests repetitive/text data.
     /// </summary>
     public double Entropy { get; init; }
 
     /// <summary>
-    /// Entropy classification: "random/encrypted", "compressed", "binary", "text", "empty".
+    ///     Entropy classification: "random/encrypted", "compressed", "binary", "text", "empty".
     /// </summary>
     public string EntropyClassification => ClassifyEntropy(Entropy, SizeBytes);
 
     /// <summary>
-    /// Whether the file appears to be binary (contains null bytes or high entropy).
+    ///     Whether the file appears to be binary (contains null bytes or high entropy).
     /// </summary>
     public required bool IsBinary { get; init; }
 
     /// <summary>
-    /// Whether the file appears to be text (valid UTF-8/ASCII, low entropy).
+    ///     Whether the file appears to be text (valid UTF-8/ASCII, low entropy).
     /// </summary>
     public bool IsText => !IsBinary && Exists;
 
     /// <summary>
-    /// Percentage of printable ASCII characters in first 8KB (0-100).
-    /// High percentage suggests text file.
+    ///     Percentage of printable ASCII characters in first 8KB (0-100).
+    ///     High percentage suggests text file.
     /// </summary>
     public double PrintableAsciiPercent { get; init; }
 
     /// <summary>
-    /// Whether the file contains null bytes (strong binary indicator).
+    ///     Whether the file contains null bytes (strong binary indicator).
     /// </summary>
     public bool ContainsNullBytes { get; init; }
 
     // ===== TIMESTAMPS =====
 
     /// <summary>
-    /// File creation time (UTC).
+    ///     File creation time (UTC).
     /// </summary>
     public required DateTimeOffset CreatedAtUtc { get; init; }
 
     /// <summary>
-    /// File last modified time (UTC).
+    ///     File last modified time (UTC).
     /// </summary>
     public required DateTimeOffset ModifiedAtUtc { get; init; }
 
     /// <summary>
-    /// File last accessed time (UTC).
+    ///     File last accessed time (UTC).
     /// </summary>
     public required DateTimeOffset AccessedAtUtc { get; init; }
 
     /// <summary>
-    /// Age of file since last modification.
+    ///     Age of file since last modification.
     /// </summary>
     public TimeSpan Age => DateTimeOffset.UtcNow - ModifiedAtUtc;
 
     // ===== ATTRIBUTES =====
 
     /// <summary>
-    /// Whether the file exists at the time of metadata extraction.
+    ///     Whether the file exists at the time of metadata extraction.
     /// </summary>
     public required bool Exists { get; init; }
 
     /// <summary>
-    /// Whether the file is read-only.
+    ///     Whether the file is read-only.
     /// </summary>
     public required bool IsReadOnly { get; init; }
 
     /// <summary>
-    /// Whether the file is hidden.
+    ///     Whether the file is hidden.
     /// </summary>
     public required bool IsHidden { get; init; }
 
     /// <summary>
-    /// Whether the file is a system file.
+    ///     Whether the file is a system file.
     /// </summary>
     public required bool IsSystem { get; init; }
 
     /// <summary>
-    /// Whether the file is a symbolic link.
+    ///     Whether the file is a symbolic link.
     /// </summary>
     public required bool IsSymbolicLink { get; init; }
 
     /// <summary>
-    /// Target path if this is a symbolic link. Null otherwise.
+    ///     Target path if this is a symbolic link. Null otherwise.
     /// </summary>
     public string? SymbolicLinkTarget { get; init; }
 
     /// <summary>
-    /// Raw file attributes.
+    ///     Raw file attributes.
     /// </summary>
     public required FileAttributes Attributes { get; init; }
 
     // ===== PROCESSING =====
 
     /// <summary>
-    /// Time taken to extract metadata.
+    ///     Time taken to extract metadata.
     /// </summary>
     public required TimeSpan ExtractionTime { get; init; }
 
     /// <summary>
-    /// Any errors encountered during extraction.
+    ///     Any errors encountered during extraction.
     /// </summary>
     public IReadOnlyList<string> Errors { get; init; } = [];
 
     /// <summary>
-    /// Convert to a dictionary suitable for ContentChunk.Metadata.
-    /// Uses the FileSignalKeys namespace.
+    ///     Convert to a dictionary suitable for ContentChunk.Metadata.
+    ///     Uses the FileSignalKeys namespace.
     /// </summary>
     public Dictionary<string, object?> ToDictionary()
     {
@@ -254,8 +252,8 @@ public sealed class FileMetadata
     }
 
     /// <summary>
-    /// Get a subset of metadata suitable for embedding in search results.
-    /// Compact version with essential fields only.
+    ///     Get a subset of metadata suitable for embedding in search results.
+    ///     Compact version with essential fields only.
     /// </summary>
     public Dictionary<string, object?> ToSearchMetadata()
     {
@@ -273,7 +271,7 @@ public sealed class FileMetadata
     }
 
     /// <summary>
-    /// Generate a text summary suitable for embedding.
+    ///     Generate a text summary suitable for embedding.
     /// </summary>
     public string ToSummaryText()
     {
@@ -288,7 +286,7 @@ public sealed class FileMetadata
     private static string FormatBytes(long bytes)
     {
         string[] suffixes = ["B", "KB", "MB", "GB", "TB", "PB"];
-        int suffixIndex = 0;
+        var suffixIndex = 0;
         double size = bytes;
 
         while (size >= 1024 && suffixIndex < suffixes.Length - 1)

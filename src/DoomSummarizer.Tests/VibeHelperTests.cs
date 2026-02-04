@@ -4,7 +4,7 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for vibe qualification, sentiment scoring, and custom vibe detection.
+///     Tests for vibe qualification, sentiment scoring, and custom vibe detection.
 /// </summary>
 public class VibeHelperTests
 {
@@ -134,7 +134,7 @@ public class VibeHelperTests
     [Fact]
     public void EmbeddingRoundTrip_ToAndFromBytes()
     {
-        var original = new float[] { 1.5f, -0.3f, 0.0f, 42.0f };
+        var original = new[] { 1.5f, -0.3f, 0.0f, 42.0f };
         var bytes = EmbeddingCompat.ToBytes(original);
         var restored = EmbeddingCompat.FromBytes(bytes);
 

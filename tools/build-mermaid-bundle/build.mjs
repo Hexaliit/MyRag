@@ -7,8 +7,8 @@
  */
 
 import * as esbuild from 'esbuild';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import {dirname, resolve} from 'path';
+import {fileURLToPath} from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outFile = resolve(__dirname, '../../src/CodeSummarizer.Mermaid.Jint/Resources/mermaid-parser-bundle.js');

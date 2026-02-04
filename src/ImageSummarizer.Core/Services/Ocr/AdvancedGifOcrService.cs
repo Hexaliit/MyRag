@@ -1,48 +1,43 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Config;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.FrameStabilization;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Preprocessing;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Voting;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr;
 
 /// <summary>
-/// Advanced OCR service for animated images using multi-phase processing pipeline.
-/// Dramatically improves OCR accuracy for GIFs through temporal processing.
-///
-/// Fast mode pipeline (default):
-/// 1. Frame extraction and SSIM deduplication
-/// 2. Frame stabilization (ORB feature detection)
-/// 3. Temporal median filtering (noise reduction)
-/// 4. OCR on temporal median composite
-/// 5. Temporal voting across selected frames
-/// 6. Early exit on confidence threshold
-///
-/// Expected results: 2-3s per GIF, +20-30% accuracy over baseline
+///     Advanced OCR service for animated images using multi-phase processing pipeline.
+///     Dramatically improves OCR accuracy for GIFs through temporal processing.
+///     Fast mode pipeline (default):
+///     1. Frame extraction and SSIM deduplication
+///     2. Frame stabilization (ORB feature detection)
+///     3. Temporal median filtering (noise reduction)
+///     4. OCR on temporal median composite
+///     5. Temporal voting across selected frames
+///     6. Early exit on confidence threshold
+///     Expected results: 2-3s per GIF, +20-30% accuracy over baseline
 /// </summary>
 public class AdvancedGifOcrService
 {
-    private readonly IOcrEngine _ocrEngine;
-    private readonly ILogger<AdvancedGifOcrService>? _logger;
-    private readonly OcrConfig _config;
-
     // Text quality and deduplication constants
-    private const double TextQualityImprovementThreshold = 0.2;  // 20% improvement threshold
-    private const double TextLikelinessWeight = 0.7;             // 70% weight for text presence
-    private const double SharpnessWeight = 0.3;                  // 30% weight for sharpness
-    private const int FastAnalysisDownsampleWidth = 256;         // Downsample width for fast metrics
-    private const double MaxRgbDifference = 765.0;               // Max RGB difference (255 * 3)
+    private const double TextQualityImprovementThreshold = 0.2; // 20% improvement threshold
+    private const double TextLikelinessWeight = 0.7; // 70% weight for text presence
+    private const double SharpnessWeight = 0.3; // 30% weight for sharpness
+    private const int FastAnalysisDownsampleWidth = 256; // Downsample width for fast metrics
+    private const double MaxRgbDifference = 765.0; // Max RGB difference (255 * 3)
 
     // Luma coefficients (ITU-R BT.601)
     private const double LumaRedCoefficient = 0.299;
     private const double LumaGreenCoefficient = 0.587;
     private const double LumaBlueCoefficient = 0.114;
+    private readonly OcrConfig _config;
+    private readonly ILogger<AdvancedGifOcrService>? _logger;
+    private readonly IOcrEngine _ocrEngine;
 
     public AdvancedGifOcrService(
         IOcrEngine ocrEngine,
@@ -55,7 +50,7 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Extract text from an animated image using advanced multi-phase pipeline.
+    ///     Extract text from an animated image using advanced multi-phase pipeline.
     /// </summary>
     /// <param name="imagePath">Path to the animated image (GIF/WebP)</param>
     /// <param name="captureProcessedFrames">If true, returns the processed frames for visualization/debugging</param>
@@ -88,20 +83,17 @@ public class AdvancedGifOcrService
             _logger?.LogInformation("Phase 1: Extracted {Count} frames ({Ms:F0}ms)",
                 frames.Count, metrics.FrameExtractionTime);
 
-            if (frames.Count == 0)
-            {
-                return CreateEmptyResult(metrics, startTime);
-            }
+            if (frames.Count == 0) return CreateEmptyResult(metrics, startTime);
 
             // Phase 2: Frame stabilization (if enabled)
-            List<Image<Rgba32>> processedFrames = frames;
-            double stabilizationConfidence = 1.0;
+            var processedFrames = frames;
+            var stabilizationConfidence = 1.0;
 
             if (_config.EnableStabilization && frames.Count > 1)
             {
                 phaseStart = DateTime.UtcNow;
                 var stabilizer = new FrameStabilizer(
-                    confidenceThreshold: _config.StabilizationConfidenceThreshold,
+                    _config.StabilizationConfidenceThreshold,
                     verbose: _config.EmitPerformanceMetrics,
                     logger: _logger as ILogger<FrameStabilizer>);
 
@@ -115,10 +107,7 @@ public class AdvancedGifOcrService
                     stabilizationConfidence, metrics.StabilizationTime);
 
                 // Clean up homography matrices
-                foreach (var matrix in stabilizationResult.HomographyMatrices)
-                {
-                    matrix?.Dispose();
-                }
+                foreach (var matrix in stabilizationResult.HomographyMatrices) matrix?.Dispose();
             }
             else
             {
@@ -132,8 +121,8 @@ public class AdvancedGifOcrService
             {
                 phaseStart = DateTime.UtcNow;
                 var medianFilter = new TemporalMedianFilter(
-                    verbose: _config.EmitPerformanceMetrics,
-                    logger: _logger as ILogger<TemporalMedianFilter>);
+                    _config.EmitPerformanceMetrics,
+                    _logger as ILogger<TemporalMedianFilter>);
 
                 medianComposite = medianFilter.ComputeTemporalMedian(processedFrames);
                 metrics.TemporalMedianTime = (DateTime.UtcNow - phaseStart).TotalMilliseconds;
@@ -173,9 +162,8 @@ public class AdvancedGifOcrService
                 // Clean up
                 medianComposite?.Dispose();
                 foreach (var frame in processedFrames)
-                {
-                    if (frame != medianComposite) frame.Dispose();
-                }
+                    if (frame != medianComposite)
+                        frame.Dispose();
 
                 return new AdvancedOcrResult
                 {
@@ -222,10 +210,10 @@ public class AdvancedGifOcrService
 
                 // Perform voting
                 var votingEngine = new TemporalVotingEngine(
-                    iouThreshold: _config.NmsIouThreshold,
-                    confidenceWeighting: true,
-                    verbose: _config.EmitPerformanceMetrics,
-                    logger: _logger as ILogger<TemporalVotingEngine>);
+                    _config.NmsIouThreshold,
+                    true,
+                    _config.EmitPerformanceMetrics,
+                    _logger as ILogger<TemporalVotingEngine>);
 
                 votingResult = votingEngine.PerformVoting(frameOcrResults.ToList());
                 metrics.TemporalVotingTime = (DateTime.UtcNow - phaseStart).TotalMilliseconds;
@@ -236,10 +224,7 @@ public class AdvancedGifOcrService
                     votingResult.Confidence, votingResult.AgreementScore, metrics.TemporalVotingTime);
 
                 // Clean up frames used for voting
-                foreach (var frame in framesToVote)
-                {
-                    frame.Dispose();
-                }
+                foreach (var frame in framesToVote) frame.Dispose();
             }
             else
             {
@@ -249,9 +234,8 @@ public class AdvancedGifOcrService
             // Clean up remaining resources
             medianComposite?.Dispose();
             foreach (var frame in processedFrames)
-            {
-                if (frame != medianComposite) frame.Dispose();
-            }
+                if (frame != medianComposite)
+                    frame.Dispose();
 
             // Return final result (voting result if available, otherwise primary OCR)
             var finalResult = votingResult ?? new VotingResult
@@ -264,7 +248,7 @@ public class AdvancedGifOcrService
 
             // Phase 6: Post-correction (if enabled)
             var correctedText = finalResult.ConsensusText;
-            int correctionsApplied = 0;
+            var correctionsApplied = 0;
 
             if (_config.EnablePostCorrection)
             {
@@ -273,7 +257,6 @@ public class AdvancedGifOcrService
                 // Load dictionary if specified
                 HashSet<string>? dictionary = null;
                 if (!string.IsNullOrEmpty(_config.DictionaryPath) && File.Exists(_config.DictionaryPath))
-                {
                     try
                     {
                         dictionary = await OcrPostProcessor.LoadDictionaryAsync(_config.DictionaryPath);
@@ -283,14 +266,13 @@ public class AdvancedGifOcrService
                         _logger?.LogWarning(ex, "Failed to load dictionary from {Path}, using pattern-only correction",
                             _config.DictionaryPath);
                     }
-                }
 
                 var postProcessor = new OcrPostProcessor(
-                    dictionary: dictionary,
-                    useDictionary: dictionary != null,
-                    usePatterns: true,
-                    verbose: _config.EmitPerformanceMetrics,
-                    logger: _logger as ILogger<OcrPostProcessor>);
+                    dictionary,
+                    dictionary != null,
+                    true,
+                    _config.EmitPerformanceMetrics,
+                    _logger as ILogger<OcrPostProcessor>);
 
                 (correctedText, correctionsApplied) = postProcessor.CorrectText(finalResult.ConsensusText);
                 metrics.PostCorrectionTime = (DateTime.UtcNow - phaseStart).TotalMilliseconds;
@@ -339,8 +321,8 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Extract frames from GIF/WebP with text-aware SSIM deduplication.
-    /// Prioritizes frames with more/clearer text content, even if visually similar.
+    ///     Extract frames from GIF/WebP with text-aware SSIM deduplication.
+    ///     Prioritizes frames with more/clearer text content, even if visually similar.
     /// </summary>
     private async Task<List<Image<Rgba32>>> ExtractFramesAsync(string imagePath, CancellationToken ct)
     {
@@ -357,10 +339,10 @@ public class AdvancedGifOcrService
         // Sample frames with text-aware deduplication
         Image<Rgba32>? previousFrame = null;
         double previousTextQuality = 0;
-        int skipped = 0;
-        int replaced = 0;
+        var skipped = 0;
+        var replaced = 0;
 
-        for (int i = 0; i < image.Frames.Count; i++)
+        for (var i = 0; i < image.Frames.Count; i++)
         {
             var frame = image.Frames.CloneFrame(i);
 
@@ -402,6 +384,7 @@ public class AdvancedGifOcrService
                         frame.Dispose();
                         skipped++;
                     }
+
                     continue;
                 }
             }
@@ -414,14 +397,15 @@ public class AdvancedGifOcrService
 
         previousFrame?.Dispose();
 
-        _logger?.LogDebug("Frame extraction: kept {Kept}, skipped {Skipped} duplicates, replaced {Replaced} with better text",
+        _logger?.LogDebug(
+            "Frame extraction: kept {Kept}, skipped {Skipped} duplicates, replaced {Replaced} with better text",
             frames.Count, skipped, replaced);
 
         return frames;
     }
 
     /// <summary>
-    /// Compute frame similarity (simplified SSIM).
+    ///     Compute frame similarity (simplified SSIM).
     /// </summary>
     private double ComputeFrameSimilarity(Image<Rgba32> frame1, Image<Rgba32> frame2)
     {
@@ -433,12 +417,12 @@ public class AdvancedGifOcrService
 
         frame1.ProcessPixelRows(frame2, (row1Accessor, row2Accessor) =>
         {
-            for (int y = 0; y < height; y += 4)
+            for (var y = 0; y < height; y += 4)
             {
                 var row1 = row1Accessor.GetRowSpan(y);
                 var row2 = row2Accessor.GetRowSpan(y);
 
-                for (int x = 0; x < width; x += 4)
+                for (var x = 0; x < width; x += 4)
                 {
                     var p1 = row1[x];
                     var p2 = row2[x];
@@ -459,9 +443,9 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Compute text quality score for a frame.
-    /// Combines text likeliness with sharpness to identify frames with clear, readable text.
-    /// Returns 0.0-1.0 where higher = better for OCR.
+    ///     Compute text quality score for a frame.
+    ///     Combines text likeliness with sharpness to identify frames with clear, readable text.
+    ///     Returns 0.0-1.0 where higher = better for OCR.
     /// </summary>
     private double ComputeTextQualityScore(Image<Rgba32> frame)
     {
@@ -474,35 +458,31 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Fast text likeliness estimate using edge density and contrast.
+    ///     Fast text likeliness estimate using edge density and contrast.
     /// </summary>
     private double ComputeFastTextLikeliness(Image<Rgba32> frame)
     {
         using var workImage = frame.Clone();
         if (workImage.Width > FastAnalysisDownsampleWidth)
-        {
             workImage.Mutate(x => x.Resize(FastAnalysisDownsampleWidth, 0));
-        }
 
         var edgeDensity = 0.0;
         var highContrastPixels = 0;
         var totalPixels = workImage.Width * workImage.Height;
 
-        for (int y = 1; y < workImage.Height - 1; y++)
+        for (var y = 1; y < workImage.Height - 1; y++)
+        for (var x = 1; x < workImage.Width - 1; x++)
         {
-            for (int x = 1; x < workImage.Width - 1; x++)
-            {
-                // Simple Sobel edge detection
-                var gx = Math.Abs(
-                    -1 * Luma(workImage[x - 1, y - 1]) + 1 * Luma(workImage[x + 1, y - 1]) +
-                    -2 * Luma(workImage[x - 1, y]) + 2 * Luma(workImage[x + 1, y]) +
-                    -1 * Luma(workImage[x - 1, y + 1]) + 1 * Luma(workImage[x + 1, y + 1]));
+            // Simple Sobel edge detection
+            var gx = Math.Abs(
+                -1 * Luma(workImage[x - 1, y - 1]) + 1 * Luma(workImage[x + 1, y - 1]) +
+                -2 * Luma(workImage[x - 1, y]) + 2 * Luma(workImage[x + 1, y]) +
+                -1 * Luma(workImage[x - 1, y + 1]) + 1 * Luma(workImage[x + 1, y + 1]));
 
-                if (gx > 30) edgeDensity += 1;
+            if (gx > 30) edgeDensity += 1;
 
-                var luminance = Luma(workImage[x, y]);
-                if (luminance < 64 || luminance > 192) highContrastPixels++;
-            }
+            var luminance = Luma(workImage[x, y]);
+            if (luminance < 64 || luminance > 192) highContrastPixels++;
         }
 
         edgeDensity /= totalPixels;
@@ -513,36 +493,28 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Fast sharpness estimate using local variance.
+    ///     Fast sharpness estimate using local variance.
     /// </summary>
     private double ComputeFastSharpness(Image<Rgba32> frame)
     {
         using var workImage = frame.Clone();
         if (workImage.Width > FastAnalysisDownsampleWidth)
-        {
             workImage.Mutate(x => x.Resize(FastAnalysisDownsampleWidth, 0));
-        }
 
         var variances = new List<double>();
 
         // Sample 3x3 windows
-        for (int y = 1; y < workImage.Height - 1; y += 3)
+        for (var y = 1; y < workImage.Height - 1; y += 3)
+        for (var x = 1; x < workImage.Width - 1; x += 3)
         {
-            for (int x = 1; x < workImage.Width - 1; x += 3)
-            {
-                var values = new List<double>();
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        values.Add(Luma(workImage[x + dx, y + dy]));
-                    }
-                }
+            var values = new List<double>();
+            for (var dy = -1; dy <= 1; dy++)
+            for (var dx = -1; dx <= 1; dx++)
+                values.Add(Luma(workImage[x + dx, y + dy]));
 
-                var mean = values.Average();
-                var variance = values.Sum(v => (v - mean) * (v - mean)) / values.Count;
-                variances.Add(variance);
-            }
+            var mean = values.Average();
+            var variance = values.Sum(v => (v - mean) * (v - mean)) / values.Count;
+            variances.Add(variance);
         }
 
         if (variances.Count == 0) return 0;
@@ -553,7 +525,7 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Helper to compute luminance from pixel.
+    ///     Helper to compute luminance from pixel.
     /// </summary>
     private double Luma(Rgba32 pixel)
     {
@@ -561,7 +533,7 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Perform OCR on temporal median composite.
+    ///     Perform OCR on temporal median composite.
     /// </summary>
     private async Task<FrameOcrResult> OcrTemporalMedianAsync(Image<Rgba32> composite, CancellationToken ct)
     {
@@ -582,19 +554,16 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Select frames for voting (evenly distributed).
+    ///     Select frames for voting (evenly distributed).
     /// </summary>
     private List<Image<Rgba32>> SelectFramesForVoting(List<Image<Rgba32>> frames, int maxFrames)
     {
-        if (frames.Count <= maxFrames)
-        {
-            return frames.Select(f => f.Clone()).ToList();
-        }
+        if (frames.Count <= maxFrames) return frames.Select(f => f.Clone()).ToList();
 
         var selected = new List<Image<Rgba32>>();
         var interval = frames.Count / (double)maxFrames;
 
-        for (int i = 0; i < maxFrames; i++)
+        for (var i = 0; i < maxFrames; i++)
         {
             var index = (int)(i * interval);
             selected.Add(frames[index].Clone());
@@ -604,7 +573,7 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Save frame to temporary file for OCR.
+    ///     Save frame to temporary file for OCR.
     /// </summary>
     private async Task<string> SaveFrameToTempAsync(Image<Rgba32> frame, CancellationToken ct)
     {
@@ -614,7 +583,7 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Create empty result for error cases.
+    ///     Create empty result for error cases.
     /// </summary>
     private AdvancedOcrResult CreateEmptyResult(PipelineMetrics metrics, DateTime startTime)
     {
@@ -633,22 +602,19 @@ public class AdvancedGifOcrService
     }
 
     /// <summary>
-    /// Clone frames to avoid disposal issues when frames need to be retained.
+    ///     Clone frames to avoid disposal issues when frames need to be retained.
     /// </summary>
     private List<Image<Rgba32>> CloneFrames(List<Image<Rgba32>> frames)
     {
         var clonedFrames = new List<Image<Rgba32>>();
-        foreach (var frame in frames)
-        {
-            clonedFrames.Add(frame.Clone());
-        }
+        foreach (var frame in frames) clonedFrames.Add(frame.Clone());
         return clonedFrames;
     }
 
     /// <summary>
-    /// Save processed frames as an animated GIF.
-    /// This creates a "minimum" version of the original GIF showing only the deduplicated, stabilized frames
-    /// actually used for OCR analysis.
+    ///     Save processed frames as an animated GIF.
+    ///     This creates a "minimum" version of the original GIF showing only the deduplicated, stabilized frames
+    ///     actually used for OCR analysis.
     /// </summary>
     /// <param name="frames">The processed frames to save</param>
     /// <param name="outputPath">Path where the animated GIF should be saved</param>
@@ -658,10 +624,7 @@ public class AdvancedGifOcrService
         string outputPath,
         int frameDelay = 10)
     {
-        if (frames == null || frames.Count == 0)
-        {
-            throw new ArgumentException("No frames to save", nameof(frames));
-        }
+        if (frames == null || frames.Count == 0) throw new ArgumentException("No frames to save", nameof(frames));
 
         // Clone first frame to create the output GIF
         using var gif = frames[0].Clone();
@@ -671,7 +634,7 @@ public class AdvancedGifOcrService
         metadata.FrameDelay = frameDelay;
 
         // Add remaining frames
-        for (int i = 1; i < frames.Count; i++)
+        for (var i = 1; i < frames.Count; i++)
         {
             var frame = gif.Frames.AddFrame(frames[i].Frames.RootFrame);
             var frameMetadata = frame.Metadata.GetGifMetadata();
@@ -687,7 +650,7 @@ public class AdvancedGifOcrService
 }
 
 /// <summary>
-/// Result of advanced OCR pipeline.
+///     Result of advanced OCR pipeline.
 /// </summary>
 public record AdvancedOcrResult
 {
@@ -699,14 +662,14 @@ public record AdvancedOcrResult
     public required double TotalProcessingTime { get; init; }
 
     /// <summary>
-    /// Optional: The processed frames (deduplicated, stabilized) used for OCR analysis.
-    /// Only populated if explicitly requested to avoid memory overhead.
+    ///     Optional: The processed frames (deduplicated, stabilized) used for OCR analysis.
+    ///     Only populated if explicitly requested to avoid memory overhead.
     /// </summary>
     public List<Image<Rgba32>>? ProcessedFrames { get; init; }
 }
 
 /// <summary>
-/// Performance metrics for OCR pipeline.
+///     Performance metrics for OCR pipeline.
 /// </summary>
 public record PipelineMetrics
 {

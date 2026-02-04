@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.LLamaSharp.Services;
 using Mostlylucid.DocSummarizer.Services;
@@ -22,14 +23,14 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<LLamaSharpModelDownloader>(sp =>
         {
-            var config = sp.GetService<Microsoft.Extensions.Options.IOptions<LLamaSharpConfig>>()?.Value
+            var config = sp.GetService<IOptions<LLamaSharpConfig>>()?.Value
                          ?? new LLamaSharpConfig();
             return new LLamaSharpModelDownloader(config);
         });
 
         services.AddSingleton<LLamaSharpLlmService>(sp =>
         {
-            var config = sp.GetService<Microsoft.Extensions.Options.IOptions<LLamaSharpConfig>>()?.Value
+            var config = sp.GetService<IOptions<LLamaSharpConfig>>()?.Value
                          ?? new LLamaSharpConfig();
             var downloader = sp.GetRequiredService<LLamaSharpModelDownloader>();
             return new LLamaSharpLlmService(config, downloader);

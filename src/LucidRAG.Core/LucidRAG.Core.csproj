@@ -10,51 +10,51 @@
 
     <!-- Entity Framework Core + PostgreSQL + SQLite -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
-        <PackageReference Include="Pgvector" Version="0.3.2" />
-        <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.2"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2"/>
+        <PackageReference Include="Pgvector" Version="0.3.2"/>
+        <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0"/>
     </ItemGroup>
 
     <!-- Identity (for ApplicationUser, no ASP.NET-specific) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.2"/>
     </ItemGroup>
 
     <!-- Resilience (Polly) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.2.0" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.2.0"/>
     </ItemGroup>
 
     <!-- Microsoft Extensions (logging, config, DI) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.2"/>
     </ItemGroup>
 
     <!-- Liquid templates for lens system -->
     <ItemGroup>
-        <PackageReference Include="DotLiquid" Version="2.3.197" />
-        <PackageReference Include="YamlDotNet" Version="16.3.0" />
+        <PackageReference Include="DotLiquid" Version="2.3.197"/>
+        <PackageReference Include="YamlDotNet" Version="16.3.0"/>
     </ItemGroup>
 
     <!-- Project references -->
     <ItemGroup>
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
-        <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj" />
-        <ProjectReference Include="..\VideoSummarizer.Core\VideoSummarizer.Core.csproj" />
-        <ProjectReference Include="..\DataSummarizer.Core\DataSummarizer.Core.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj" />
-        <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" />
-        <ProjectReference Include="..\Mostlylucid.RAG\Mostlylucid.RAG.csproj" />
-        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\VideoSummarizer.Core\VideoSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\DataSummarizer.Core\DataSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.RAG\Mostlylucid.RAG.csproj"/>
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj"/>
     </ItemGroup>
 
 </Project>

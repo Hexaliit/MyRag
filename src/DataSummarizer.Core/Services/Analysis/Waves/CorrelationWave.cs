@@ -4,19 +4,18 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Eighth wave: computes correlations between numeric columns.
-/// Expensive for many columns - disabled by default.
+///     Eighth wave: computes correlations between numeric columns.
+///     Expensive for many columns - disabled by default.
 /// </summary>
 public class CorrelationWave : IDataAnalysisWave
 {
-    private readonly DuckDbAnalyzer _analyzer;
-    private readonly ILogger<CorrelationWave>? _logger;
-
     // Skip correlation if more than this many numeric columns (n^2 complexity)
     private const int MaxColumnsForCorrelation = 20;
 
     // Only report correlations above this threshold
     private const double SignificantCorrelationThreshold = 0.5;
+    private readonly DuckDbAnalyzer _analyzer;
+    private readonly ILogger<CorrelationWave>? _logger;
 
     public CorrelationWave(DuckDbAnalyzer analyzer, ILogger<CorrelationWave>? logger = null)
     {
@@ -48,13 +47,9 @@ public class CorrelationWave : IDataAnalysisWave
 
         // Generate pairs
         var pairs = new List<(string col1, string col2)>();
-        for (int i = 0; i < numericColumns.Count; i++)
-        {
-            for (int j = i + 1; j < numericColumns.Count; j++)
-            {
-                pairs.Add((numericColumns[i], numericColumns[j]));
-            }
-        }
+        for (var i = 0; i < numericColumns.Count; i++)
+        for (var j = i + 1; j < numericColumns.Count; j++)
+            pairs.Add((numericColumns[i], numericColumns[j]));
 
         _logger?.LogDebug("CorrelationWave: Computing {Count} correlations", pairs.Count);
 
@@ -66,12 +61,10 @@ public class CorrelationWave : IDataAnalysisWave
                 var correlation = await _analyzer.GetCorrelationAsync(pair.col1, pair.col2, ct);
 
                 if (correlation.HasValue && Math.Abs(correlation.Value) >= SignificantCorrelationThreshold)
-                {
                     return CreateSignal(
                         DataSignalKeys.Correlation(pair.col1, pair.col2),
                         correlation.Value,
-                        confidence: Math.Abs(correlation.Value));
-                }
+                        Math.Abs(correlation.Value));
             }
             catch (Exception ex)
             {

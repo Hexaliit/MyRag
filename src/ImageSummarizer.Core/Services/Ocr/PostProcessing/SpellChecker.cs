@@ -4,15 +4,15 @@ using WeCantSpell.Hunspell;
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 
 /// <summary>
-/// Multi-language spell checker for OCR quality detection and correction
-/// Uses Hunspell dictionaries with auto-download support
+///     Multi-language spell checker for OCR quality detection and correction
+///     Uses Hunspell dictionaries with auto-download support
 /// </summary>
 public class SpellChecker : IDisposable
 {
     private readonly Dictionary<string, WordList> _dictionaries = new();
-    private readonly ILogger<SpellChecker>? _logger;
     private readonly string _dictionaryPath;
     private readonly DictionaryDownloader _downloader;
+    private readonly ILogger<SpellChecker>? _logger;
 
     public SpellChecker(string? dictionaryPath = null, ILogger<SpellChecker>? logger = null)
     {
@@ -23,9 +23,14 @@ public class SpellChecker : IDisposable
         _downloader = new DictionaryDownloader(_dictionaryPath, logger as ILogger<DictionaryDownloader>);
     }
 
+    public void Dispose()
+    {
+        _dictionaries.Clear();
+    }
+
     /// <summary>
-    /// Load a dictionary for a specific language
-    /// Auto-downloads if not available locally
+    ///     Load a dictionary for a specific language
+    ///     Auto-downloads if not available locally
     /// </summary>
     /// <param name="language">Language code (e.g., "en_US", "es_ES", "fr_FR")</param>
     public async Task<bool> LoadDictionaryAsync(string language, CancellationToken ct = default)
@@ -74,29 +79,36 @@ public class SpellChecker : IDisposable
     }
 
     /// <summary>
-    /// Analyze OCR text quality by checking spelling
-    /// Returns percentage of correctly spelled words (0.0 - 1.0)
+    ///     Analyze OCR text quality by checking spelling
+    ///     Returns percentage of correctly spelled words (0.0 - 1.0)
     /// </summary>
     public SpellCheckResult CheckTextQuality(string text, string language = "en_US")
     {
         if (string.IsNullOrWhiteSpace(text))
-            return new SpellCheckResult { CorrectWordsRatio = 0, TotalWords = 0, CorrectWords = 0, Language = language };
+            return new SpellCheckResult
+                { CorrectWordsRatio = 0, TotalWords = 0, CorrectWords = 0, Language = language };
 
         if (!_dictionaries.TryGetValue(language, out var dictionary))
         {
             _logger?.LogWarning("Dictionary not loaded for {Language}, cannot check spelling", language);
-            return new SpellCheckResult { CorrectWordsRatio = -1, TotalWords = 0, Language = language, Error = $"Dictionary not loaded: {language}" };
+            return new SpellCheckResult
+            {
+                CorrectWordsRatio = -1, TotalWords = 0, Language = language,
+                Error = $"Dictionary not loaded: {language}"
+            };
         }
 
         // Split into words (remove punctuation and special characters)
-        var words = text.Split(new[] { ' ', '\n', '\r', '\t', '.', ',', ';', ':', '!', '?', '"', '\'', '(', ')', '[', ']', '{', '}' },
+        var words = text.Split(
+            new[] { ' ', '\n', '\r', '\t', '.', ',', ';', ':', '!', '?', '"', '\'', '(', ')', '[', ']', '{', '}' },
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         if (words.Length == 0)
-            return new SpellCheckResult { CorrectWordsRatio = 0, TotalWords = 0, CorrectWords = 0, Language = language };
+            return new SpellCheckResult
+                { CorrectWordsRatio = 0, TotalWords = 0, CorrectWords = 0, Language = language };
 
-        int correctCount = 0;
-        int totalCount = 0;
+        var correctCount = 0;
+        var totalCount = 0;
         var misspelledWords = new List<string>();
         var suggestions = new Dictionary<string, List<string>>();
 
@@ -130,7 +142,8 @@ public class SpellChecker : IDisposable
                 var wordSuggestions = dictionary.Suggest(word).Take(3).ToList();
                 if (wordSuggestions.Any())
                 {
-                    _logger?.LogInformation("Suggestions for '{Word}': {Suggestions}", word, string.Join(", ", wordSuggestions));
+                    _logger?.LogInformation("Suggestions for '{Word}': {Suggestions}", word,
+                        string.Join(", ", wordSuggestions));
                     suggestions[word] = wordSuggestions;
                 }
             }
@@ -157,7 +170,8 @@ public class SpellChecker : IDisposable
                     var wordSuggestions = dictionary.Suggest(word).Take(3).ToList();
                     if (wordSuggestions.Any())
                     {
-                        _logger?.LogInformation("Suggestions for '{Word}': {Suggestions}", word, string.Join(", ", wordSuggestions));
+                        _logger?.LogInformation("Suggestions for '{Word}': {Suggestions}", word,
+                            string.Join(", ", wordSuggestions));
                         suggestions[word] = wordSuggestions;
                     }
                 }
@@ -173,19 +187,12 @@ public class SpellChecker : IDisposable
         {
             // Short text (< 5 words) with ANY errors should escalate
             if (totalCount < 5 && misspelledWords.Count > 0)
-            {
                 recommendLlmEscalation = true;
-            }
             // OR ratio between 0.5-0.8 (uncertain quality)
             else if (ratio >= 0.5 && ratio < 0.8)
-            {
                 recommendLlmEscalation = true;
-            }
             // OR high ratio but flagged OCR artifacts
-            else if (ratio >= 0.8 && misspelledWords.Any())
-            {
-                recommendLlmEscalation = true;
-            }
+            else if (ratio >= 0.8 && misspelledWords.Any()) recommendLlmEscalation = true;
         }
 
         _logger?.LogInformation(
@@ -198,9 +205,7 @@ public class SpellChecker : IDisposable
             recommendLlmEscalation);
 
         if (misspelledWords.Any())
-        {
             _logger?.LogInformation("Misspelled words: {Words}", string.Join(", ", misspelledWords));
-        }
 
         return new SpellCheckResult
         {
@@ -216,8 +221,8 @@ public class SpellChecker : IDisposable
     }
 
     /// <summary>
-    /// Attempt to correct OCR text using spell checking
-    /// Returns corrected text with high-confidence suggestions applied
+    ///     Attempt to correct OCR text using spell checking
+    ///     Returns corrected text with high-confidence suggestions applied
     /// </summary>
     public string CorrectText(string text, string language = "en_US", double confidenceThreshold = 0.8)
     {
@@ -233,19 +238,15 @@ public class SpellChecker : IDisposable
 
         // Apply corrections for words with high-confidence single suggestions
         foreach (var (misspelled, suggestions) in result.Suggestions)
-        {
             if (suggestions.Count == 1) // High confidence - only one suggestion
-            {
                 correctedText = correctedText.Replace(misspelled, suggestions[0]);
-            }
-        }
 
         return correctedText;
     }
 
     /// <summary>
-    /// Detect the language of the text based on available dictionaries
-    /// Returns the language code with the highest spelling accuracy
+    ///     Detect the language of the text based on available dictionaries
+    ///     Returns the language code with the highest spelling accuracy
     /// </summary>
     public string DetectLanguage(string text, params string[] languagesToCheck)
     {
@@ -262,9 +263,9 @@ public class SpellChecker : IDisposable
     }
 
     /// <summary>
-    /// Detect OCR-specific patterns that are likely scan artifacts
-    /// even if they're dictionary-valid.
-    /// Language-agnostic heuristics - no hardcoded word lists.
+    ///     Detect OCR-specific patterns that are likely scan artifacts
+    ///     even if they're dictionary-valid.
+    ///     Language-agnostic heuristics - no hardcoded word lists.
     /// </summary>
     private static bool IsSuspiciousOcrPattern(string word)
     {
@@ -288,19 +289,13 @@ public class SpellChecker : IDisposable
                     .ToList();
 
                 // If uppercase appears in middle/end (not just start), likely OCR error
-                if (upperIndices.Any(i => i > 0 && i < word.Length - 1))
-                {
-                    return true;
-                }
+                if (upperIndices.Any(i => i > 0 && i < word.Length - 1)) return true;
             }
         }
 
         // Pattern 2: Single character followed by punctuation artifacts
         // OCR sometimes mistakes punctuation for letters (I', l', etc.)
-        if (word.Length == 2 && !char.IsLetterOrDigit(word[1]))
-        {
-            return true;
-        }
+        if (word.Length == 2 && !char.IsLetterOrDigit(word[1])) return true;
 
         // Pattern 2b: Two-letter words with mixed case (uppercase + lowercase)
         // Most valid 2-letter words are either all-caps (US, UK, OK) or all-lower (is, of, to)
@@ -317,10 +312,7 @@ public class SpellChecker : IDisposable
                 // Common exceptions: "Dr", "Mr", "Ms", "St" (honorifics/abbreviations)
                 // These should still be in dictionary, but for safety, exclude them
                 var commonMixedCase = new[] { "Dr", "Mr", "Ms", "St", "Jr", "Sr", "Dn", "Mt" };
-                if (!commonMixedCase.Contains(word, StringComparer.OrdinalIgnoreCase))
-                {
-                    return true; // Likely OCR error
-                }
+                if (!commonMixedCase.Contains(word, StringComparer.OrdinalIgnoreCase)) return true; // Likely OCR error
             }
         }
 
@@ -329,88 +321,72 @@ public class SpellChecker : IDisposable
         if (word.Length >= 4)
         {
             var caseChanges = 0;
-            for (int i = 1; i < word.Length; i++)
-            {
-                if (char.IsLetter(word[i]) && char.IsLetter(word[i-1]))
-                {
-                    if (char.IsUpper(word[i]) != char.IsUpper(word[i-1]))
-                    {
+            for (var i = 1; i < word.Length; i++)
+                if (char.IsLetter(word[i]) && char.IsLetter(word[i - 1]))
+                    if (char.IsUpper(word[i]) != char.IsUpper(word[i - 1]))
                         caseChanges++;
-                    }
-                }
-            }
 
             // If case changes more than twice in a short word, likely OCR error
-            if (caseChanges >= 3)
-            {
-                return true;
-            }
+            if (caseChanges >= 3) return true;
         }
 
         // Pattern 4: Non-ASCII mixed with ASCII in suspicious ways
         // OCR sometimes produces encoding errors
         if (word.Any(c => c > 127 && c < 160)) // C1 control characters range
-        {
             return true; // Likely encoding error from OCR
-        }
 
         return false;
-    }
-
-    public void Dispose()
-    {
-        _dictionaries.Clear();
     }
 }
 
 /// <summary>
-/// Result of spell checking OCR text
+///     Result of spell checking OCR text
 /// </summary>
 public record SpellCheckResult
 {
     /// <summary>
-    /// Ratio of correctly spelled words (0.0 - 1.0), or -1 if dictionary not available
+    ///     Ratio of correctly spelled words (0.0 - 1.0), or -1 if dictionary not available
     /// </summary>
     public double CorrectWordsRatio { get; init; }
 
     /// <summary>
-    /// Total number of words checked
+    ///     Total number of words checked
     /// </summary>
     public int TotalWords { get; init; }
 
     /// <summary>
-    /// Number of correctly spelled words
+    ///     Number of correctly spelled words
     /// </summary>
     public int CorrectWords { get; init; }
 
     /// <summary>
-    /// List of misspelled words
+    ///     List of misspelled words
     /// </summary>
     public List<string> MisspelledWords { get; init; } = new();
 
     /// <summary>
-    /// Spelling suggestions for misspelled words
+    ///     Spelling suggestions for misspelled words
     /// </summary>
     public Dictionary<string, List<string>> Suggestions { get; init; } = new();
 
     /// <summary>
-    /// Language used for checking
+    ///     Language used for checking
     /// </summary>
     public required string Language { get; init; }
 
     /// <summary>
-    /// Indicates if text appears garbled (< 50% correct words)
+    ///     Indicates if text appears garbled (< 50% correct words)
     /// </summary>
     public bool IsGarbled { get; init; }
 
     /// <summary>
-    /// Recommends escalating to ML/LLM for context-aware correction
-    /// Triggered for short text with errors or uncertain quality (50-80% correct)
+    ///     Recommends escalating to ML/LLM for context-aware correction
+    ///     Triggered for short text with errors or uncertain quality (50-80% correct)
     /// </summary>
     public bool RecommendLlmEscalation { get; init; }
 
     /// <summary>
-    /// Error message if spell checking failed
+    ///     Error message if spell checking failed
     /// </summary>
     public string? Error { get; init; }
 }

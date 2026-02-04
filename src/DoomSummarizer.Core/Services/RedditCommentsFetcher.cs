@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
@@ -5,13 +6,13 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches and analyzes Reddit comments for a post or topic.
-/// Useful for understanding community sentiment and discussions.
+///     Fetches and analyzes Reddit comments for a post or topic.
+///     Useful for understanding community sentiment and discussions.
 /// </summary>
 public class RedditCommentsFetcher(HttpClient httpClient)
 {
     /// <summary>
-    /// Fetch top comments for a Reddit post URL.
+    ///     Fetch top comments for a Reddit post URL.
     /// </summary>
     public async Task<RedditDiscussion> FetchPostCommentsAsync(string postUrl, int commentLimit = 50)
     {
@@ -29,7 +30,8 @@ public class RedditCommentsFetcher(HttpClient httpClient)
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
-            var listings = JsonSerializer.Deserialize<RedditListing[]>(json, RedditCommentsJsonContext.Default.RedditListingArray);
+            var listings =
+                JsonSerializer.Deserialize<RedditListing[]>(json, RedditCommentsJsonContext.Default.RedditListingArray);
 
             if (listings == null || listings.Length < 2) return discussion;
 
@@ -50,31 +52,31 @@ public class RedditCommentsFetcher(HttpClient httpClient)
             {
                 // Re-serialize and deserialize as extended types
                 var commentsJson = JsonSerializer.Serialize(commentListing.Data.Children);
-                var extendedChildren = JsonSerializer.Deserialize(commentsJson, RedditCommentsJsonContext.Default.ListRedditChildExtended);
-                if (extendedChildren != null)
-                {
-                    discussion.Comments = ParseComments(extendedChildren, 0);
-                }
+                var extendedChildren = JsonSerializer.Deserialize(commentsJson,
+                    RedditCommentsJsonContext.Default.ListRedditChildExtended);
+                if (extendedChildren != null) discussion.Comments = ParseComments(extendedChildren, 0);
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch Reddit comments: {ex.Message}");
+            Debug.WriteLine($"Warning: Failed to fetch Reddit comments: {ex.Message}");
         }
 
         return discussion;
     }
 
     /// <summary>
-    /// Search for relevant posts in a subreddit and get their top comments.
+    ///     Search for relevant posts in a subreddit and get their top comments.
     /// </summary>
-    public async Task<List<RedditDiscussion>> SearchTopicAsync(string subreddit, string query, int postLimit = 5, int commentsPerPost = 10)
+    public async Task<List<RedditDiscussion>> SearchTopicAsync(string subreddit, string query, int postLimit = 5,
+        int commentsPerPost = 10)
     {
         var discussions = new List<RedditDiscussion>();
 
         try
         {
-            var searchUrl = $"https://www.reddit.com/r/{subreddit}/search.json?q={Uri.EscapeDataString(query)}&restrict_sr=on&sort=relevance&limit={postLimit}&raw_json=1";
+            var searchUrl =
+                $"https://www.reddit.com/r/{subreddit}/search.json?q={Uri.EscapeDataString(query)}&restrict_sr=on&sort=relevance&limit={postLimit}&raw_json=1";
 
             var request = new HttpRequestMessage(HttpMethod.Get, searchUrl);
             request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
@@ -94,10 +96,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
 
                 var postUrl = $"https://www.reddit.com{post.Permalink}";
                 var discussion = await FetchPostCommentsAsync(postUrl, commentsPerPost);
-                if (discussion.Comments.Count > 0)
-                {
-                    discussions.Add(discussion);
-                }
+                if (discussion.Comments.Count > 0) discussions.Add(discussion);
 
                 // Rate limit
                 await Task.Delay(500);
@@ -105,7 +104,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Failed to search r/{subreddit}: {ex.Message}");
+            Debug.WriteLine($"Warning: Failed to search r/{subreddit}: {ex.Message}");
         }
 
         return discussions;
@@ -128,22 +127,23 @@ public class RedditCommentsFetcher(HttpClient httpClient)
                 Body = data.Body ?? "",
                 Score = data.Score,
                 Depth = depth,
-                CreatedAt = DateTimeOffset.FromUnixTimeSeconds((long)(data.CreatedUtc))
+                CreatedAt = DateTimeOffset.FromUnixTimeSeconds((long)data.CreatedUtc)
             };
 
             // Parse replies if not too deep
             if (depth < maxDepth && data.Replies.HasValue && data.Replies.Value.ValueKind == JsonValueKind.Object)
-            {
                 try
                 {
-                    var repliesListing = data.Replies.Value.Deserialize<RedditCommentListing>(RedditCommentsJsonContext.Default.RedditCommentListing);
+                    var repliesListing =
+                        data.Replies.Value.Deserialize<RedditCommentListing>(RedditCommentsJsonContext.Default
+                            .RedditCommentListing);
                     if (repliesListing?.Data?.Children != null)
-                    {
                         comment.Replies = ParseComments(repliesListing.Data.Children, depth + 1, maxDepth);
-                    }
                 }
-                catch { /* Replies can be empty string or malformed */ }
-            }
+                catch
+                {
+                    /* Replies can be empty string or malformed */
+                }
 
             comments.Add(comment);
         }
@@ -152,7 +152,7 @@ public class RedditCommentsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Convert comments to ContentItems for unified processing.
+    ///     Convert comments to ContentItems for unified processing.
     /// </summary>
     public static List<ContentItem> ToContentItems(RedditDiscussion discussion)
     {
@@ -174,7 +174,6 @@ public class RedditCommentsFetcher(HttpClient httpClient)
 
         // Add top-level comments as items
         foreach (var comment in discussion.Comments.Take(10))
-        {
             items.Add(new ContentItem
             {
                 Id = $"reddit_comment_{comment.Id}",
@@ -187,7 +186,6 @@ public class RedditCommentsFetcher(HttpClient httpClient)
                 CreatedAt = comment.CreatedAt,
                 Tags = [discussion.Subreddit, "comment"]
             });
-        }
 
         return items;
     }

@@ -1,7 +1,5 @@
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
-using Mostlylucid.DocSummarizer.FullText.Sqlite;
-using Mostlylucid.DocSummarizer.Search;
 using Xunit;
 
 namespace Mostlylucid.DocSummarizer.FullText.Sqlite.Tests;
@@ -39,7 +37,8 @@ public class SqliteFts5SearchTests : IAsyncLifetime
     public async Task IndexAndSearch_FindsDocument()
     {
         // Arrange
-        await _sut.IndexDocumentAsync("doc-1", "Quantum Physics", "Introduction to quantum mechanics and wave functions");
+        await _sut.IndexDocumentAsync("doc-1", "Quantum Physics",
+            "Introduction to quantum mechanics and wave functions");
 
         // Act
         var results = await _sut.SearchAsync("quantum");

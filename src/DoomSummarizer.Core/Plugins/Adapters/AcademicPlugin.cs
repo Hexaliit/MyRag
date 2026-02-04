@@ -4,7 +4,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts <see cref="ArxivFetcher"/> and <see cref="StackOverflowFetcher"/> to the <see cref="ISourcePlugin"/> contract.
+///     Adapts <see cref="ArxivFetcher" /> and <see cref="StackOverflowFetcher" /> to the <see cref="ISourcePlugin" />
+///     contract.
 /// </summary>
 public sealed class AcademicPlugin : ISourcePlugin
 {
@@ -16,8 +17,13 @@ public sealed class AcademicPlugin : ISourcePlugin
         Keys = ["arxiv", "so"],
         DisplayName = "Academic & Q&A",
         Description = "arXiv papers and StackOverflow questions.",
-        Capabilities = SourceCapabilities.Search | SourceCapabilities.TopicBrowse | SourceCapabilities.SubSource | SourceCapabilities.NoAuth,
-        Examples = ["-s arxiv", "-s \"arxiv:machine learning\"", "-s arxiv:cat:cs.AI", "-s so", "-s so:csharp", "-s \"so:search:async await\""]
+        Capabilities = SourceCapabilities.Search | SourceCapabilities.TopicBrowse | SourceCapabilities.SubSource |
+                       SourceCapabilities.NoAuth,
+        Examples =
+        [
+            "-s arxiv", "-s \"arxiv:machine learning\"", "-s arxiv:cat:cs.AI", "-s so", "-s so:csharp",
+            "-s \"so:search:async await\""
+        ]
     };
 
     public Task InitializeAsync(SourcePluginServices services, CancellationToken ct = default)
@@ -41,10 +47,8 @@ public sealed class AcademicPlugin : ISourcePlugin
         var fetcher = new ArxivFetcher(_httpClient);
 
         if (context.SubParams.Count >= 2 && context.SubParams[0] == "cat")
-        {
             // Category browse: arxiv:cat:cs.AI
             return await fetcher.FetchCategoryAsync(context.SubParams[1], context.Limit);
-        }
 
         if (context.SubParams.Count >= 1)
         {
@@ -62,10 +66,7 @@ public sealed class AcademicPlugin : ISourcePlugin
     {
         var fetcher = new StackOverflowFetcher();
 
-        if (context.SubParams.Count == 0)
-        {
-            return await fetcher.FetchHotAsync(context.Limit);
-        }
+        if (context.SubParams.Count == 0) return await fetcher.FetchHotAsync(context.Limit);
 
         if (context.SubParams.Count >= 2 && context.SubParams[0] == "search")
         {

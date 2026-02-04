@@ -1,28 +1,51 @@
+using System.Security.Cryptography;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using OpenCvSharp;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Face detection and embedding wave for PII-respecting face recognition.
-/// Detects faces, generates anonymous embeddings (no identification).
-/// Supports:
-/// - Face detection (Haar Cascade / DNN)
-/// - Face embedding generation (512-dim vector)
-/// - Face clustering ("same person" without identifying who)
-/// - Privacy-preserving: Embeddings only, no face images stored
+///     Face detection and embedding wave for PII-respecting face recognition.
+///     Detects faces, generates anonymous embeddings (no identification).
+///     Supports:
+///     - Face detection (Haar Cascade / DNN)
+///     - Face embedding generation (512-dim vector)
+///     - Face clustering ("same person" without identifying who)
+///     - Privacy-preserving: Embeddings only, no face images stored
 /// </summary>
 public class FaceDetectionWave : IAnalysisWave
 {
+    private static readonly Lazy<CascadeClassifier?> _faceCascade = new(() =>
+    {
+        try
+        {
+            // Try to load Haar cascade from OpenCV data directory
+            var cascadePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "opencv", "haarcascade_frontalface_default.xml"
+            );
+
+            if (!File.Exists(cascadePath))
+                // Fallback: Try system OpenCV installation
+                cascadePath = "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml";
+
+            if (File.Exists(cascadePath)) return new CascadeClassifier(cascadePath);
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    });
+
     public string Name => "FaceDetectionWave";
     public int Priority => 75; // After color/identity, before OCR
     public IReadOnlyList<string> Tags => new[] { SignalTags.Visual, "faces", "objects" };
 
     /// <summary>
-    /// Check cheap preconditions before running expensive face detection.
-    /// Respects auto-routing and skips for documents, diagrams, and text-heavy images.
+    ///     Check cheap preconditions before running expensive face detection.
+    ///     Respects auto-routing and skips for documents, diagrams, and text-heavy images.
     /// </summary>
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -51,35 +74,6 @@ public class FaceDetectionWave : IAnalysisWave
         return true;
     }
 
-    private static readonly Lazy<CascadeClassifier?> _faceCascade = new(() =>
-    {
-        try
-        {
-            // Try to load Haar cascade from OpenCV data directory
-            var cascadePath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "opencv", "haarcascade_frontalface_default.xml"
-            );
-
-            if (!File.Exists(cascadePath))
-            {
-                // Fallback: Try system OpenCV installation
-                cascadePath = "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml";
-            }
-
-            if (File.Exists(cascadePath))
-            {
-                return new CascadeClassifier(cascadePath);
-            }
-
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
-    });
-
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
         AnalysisContext context,
@@ -92,10 +86,7 @@ public class FaceDetectionWave : IAnalysisWave
             // Load image with OpenCV
             using var mat = await Task.Run(() => Cv2.ImRead(imagePath), ct);
 
-            if (mat.Empty())
-            {
-                return signals;
-            }
+            if (mat.Empty()) return signals;
 
             // Detect faces
             var faces = DetectFaces(mat);
@@ -106,7 +97,7 @@ public class FaceDetectionWave : IAnalysisWave
                 signals.Add(new Signal
                 {
                     Key = "objects.faces",
-                    Value = new List<Models.Dynamic.FaceDetection>(),
+                    Value = new List<FaceDetection>(),
                     Confidence = 1.0,
                     Source = Name,
                     Tags = new List<string> { "faces", SignalTags.Visual }
@@ -115,10 +106,10 @@ public class FaceDetectionWave : IAnalysisWave
             }
 
             // Process each detected face
-            var faceDetections = new List<Models.Dynamic.FaceDetection>();
+            var faceDetections = new List<FaceDetection>();
             var faceEmbeddings = new List<FaceEmbedding>();
 
-            for (int i = 0; i < faces.Length; i++)
+            for (var i = 0; i < faces.Length; i++)
             {
                 var face = faces[i];
 
@@ -130,7 +121,7 @@ public class FaceDetectionWave : IAnalysisWave
                 var embeddingHash = HashEmbedding(embedding);
 
                 // Create face detection result
-                var faceDetection = new Models.Dynamic.FaceDetection
+                var faceDetection = new FaceDetection
                 {
                     Location = new Models.Dynamic.BoundingBox
                     {
@@ -239,7 +230,7 @@ public class FaceDetectionWave : IAnalysisWave
             signals.Add(new Signal
             {
                 Key = "objects.faces",
-                Value = new List<Models.Dynamic.FaceDetection>(),
+                Value = new List<FaceDetection>(),
                 Confidence = 0.0,
                 Source = Name,
                 Tags = new List<string> { "faces", "error" },
@@ -254,16 +245,13 @@ public class FaceDetectionWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Detect faces using Haar Cascade classifier with strict filtering.
-    /// Fallback to empty if cascade not available.
+    ///     Detect faces using Haar Cascade classifier with strict filtering.
+    ///     Fallback to empty if cascade not available.
     /// </summary>
     private static Rect[] DetectFaces(Mat image)
     {
         var cascade = _faceCascade.Value;
-        if (cascade == null)
-        {
-            return Array.Empty<Rect>();
-        }
+        if (cascade == null) return Array.Empty<Rect>();
 
         // Convert to grayscale for detection
         using var gray = new Mat();
@@ -277,10 +265,10 @@ public class FaceDetectionWave : IAnalysisWave
         // Detect faces with strict parameters to reduce false positives
         var candidates = cascade.DetectMultiScale(
             gray,
-            scaleFactor: 1.1,
-            minNeighbors: 6, // Increased from 3 - requires more confident detections
-            flags: HaarDetectionTypes.ScaleImage,
-            minSize: new Size(minFaceSize, minFaceSize)
+            1.1,
+            6, // Increased from 3 - requires more confident detections
+            HaarDetectionTypes.ScaleImage,
+            new Size(minFaceSize, minFaceSize)
         );
 
         // Post-filter candidates to remove obvious false positives
@@ -303,18 +291,15 @@ public class FaceDetectionWave : IAnalysisWave
                 continue;
 
             // Check for skin-like tones in the detected region (rough heuristic)
-            if (HasSkinLikeTones(image, face))
-            {
-                validFaces.Add(face);
-            }
+            if (HasSkinLikeTones(image, face)) validFaces.Add(face);
         }
 
         return validFaces.ToArray();
     }
 
     /// <summary>
-    /// Check if detected region has skin-like color tones.
-    /// Uses HSV color space to detect typical skin colors.
+    ///     Check if detected region has skin-like color tones.
+    ///     Uses HSV color space to detect typical skin colors.
     /// </summary>
     private static bool HasSkinLikeTones(Mat image, Rect faceRect)
     {
@@ -349,9 +334,9 @@ public class FaceDetectionWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Generate face embedding (512-dim vector).
-    /// Uses simplified eigenface-style approach with PCA-like reduction.
-    /// For production, use FaceNet/ArcFace ONNX model.
+    ///     Generate face embedding (512-dim vector).
+    ///     Uses simplified eigenface-style approach with PCA-like reduction.
+    ///     For production, use FaceNet/ArcFace ONNX model.
     /// </summary>
     private static float[] GenerateFaceEmbedding(Mat faceRoi)
     {
@@ -369,56 +354,50 @@ public class FaceDetectionWave : IAnalysisWave
         var embedding = new float[embeddingDim];
 
         // Split into blocks and compute local histograms
-        int blockSize = 12; // 8x8 blocks
-        int blockCount = 96 / blockSize; // 8 blocks per dimension
-        int featureIdx = 0;
+        var blockSize = 12; // 8x8 blocks
+        var blockCount = 96 / blockSize; // 8 blocks per dimension
+        var featureIdx = 0;
 
-        for (int by = 0; by < blockCount && featureIdx < embeddingDim; by++)
+        for (var by = 0; by < blockCount && featureIdx < embeddingDim; by++)
+        for (var bx = 0; bx < blockCount && featureIdx < embeddingDim; bx++)
         {
-            for (int bx = 0; bx < blockCount && featureIdx < embeddingDim; bx++)
+            var blockRect = new Rect(bx * blockSize, by * blockSize, blockSize, blockSize);
+            using var block = new Mat(gray, blockRect);
+
+            // Compute mean and stddev for block
+            Cv2.MeanStdDev(block, out var mean, out var stddev);
+
+            // Compute gradient magnitudes
+            using var gx = new Mat();
+            using var gy = new Mat();
+            Cv2.Sobel(block, gx, MatType.CV_32F, 1, 0);
+            Cv2.Sobel(block, gy, MatType.CV_32F, 0, 1);
+
+            using var magnitude = new Mat();
+            Cv2.Magnitude(gx, gy, magnitude);
+
+            var avgMagnitude = Cv2.Mean(magnitude);
+
+            // Store features
+            if (featureIdx < embeddingDim - 2)
             {
-                var blockRect = new Rect(bx * blockSize, by * blockSize, blockSize, blockSize);
-                using var block = new Mat(gray, blockRect);
-
-                // Compute mean and stddev for block
-                Cv2.MeanStdDev(block, out var mean, out var stddev);
-
-                // Compute gradient magnitudes
-                using var gx = new Mat();
-                using var gy = new Mat();
-                Cv2.Sobel(block, gx, MatType.CV_32F, 1, 0);
-                Cv2.Sobel(block, gy, MatType.CV_32F, 0, 1);
-
-                using var magnitude = new Mat();
-                Cv2.Magnitude(gx, gy, magnitude);
-
-                var avgMagnitude = Cv2.Mean(magnitude);
-
-                // Store features
-                if (featureIdx < embeddingDim - 2)
-                {
-                    embedding[featureIdx++] = (float)mean.Val0;
-                    embedding[featureIdx++] = (float)stddev.Val0;
-                    embedding[featureIdx++] = (float)avgMagnitude.Val0;
-                }
+                embedding[featureIdx++] = (float)mean.Val0;
+                embedding[featureIdx++] = (float)stddev.Val0;
+                embedding[featureIdx++] = (float)avgMagnitude.Val0;
             }
         }
 
         // Normalize embedding to unit length (L2 normalization)
         var norm = Math.Sqrt(embedding.Sum(x => x * x));
         if (norm > 0)
-        {
-            for (int i = 0; i < embedding.Length; i++)
-            {
+            for (var i = 0; i < embedding.Length; i++)
                 embedding[i] /= (float)norm;
-            }
-        }
 
         return embedding;
     }
 
     /// <summary>
-    /// Hash embedding to fixed-length string for quick lookup.
+    ///     Hash embedding to fixed-length string for quick lookup.
     /// </summary>
     private static string HashEmbedding(float[] embedding)
     {
@@ -430,8 +409,8 @@ public class FaceDetectionWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Cluster face embeddings to find "same person".
-    /// Returns cluster assignments (PII-respecting).
+    ///     Cluster face embeddings to find "same person".
+    ///     Returns cluster assignments (PII-respecting).
     /// </summary>
     private static List<FaceCluster> ClusterFaces(List<FaceEmbedding> embeddings)
     {
@@ -482,7 +461,7 @@ public class FaceDetectionWave : IAnalysisWave
         double normA = 0;
         double normB = 0;
 
-        for (int i = 0; i < Math.Min(a.Length, b.Length); i++)
+        for (var i = 0; i < Math.Min(a.Length, b.Length); i++)
         {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];
@@ -499,15 +478,13 @@ public class FaceDetectionWave : IAnalysisWave
     {
         // Update centroid using running average
         var count = cluster.FaceIndices.Count;
-        for (int i = 0; i < cluster.Centroid.Length && i < newEmbedding.Length; i++)
-        {
+        for (var i = 0; i < cluster.Centroid.Length && i < newEmbedding.Length; i++)
             cluster.Centroid[i] = (cluster.Centroid[i] * (count - 1) + newEmbedding[i]) / count;
-        }
     }
 }
 
 /// <summary>
-/// Face embedding with location and privacy-preserving hash.
+///     Face embedding with location and privacy-preserving hash.
 /// </summary>
 public class FaceEmbedding
 {
@@ -519,7 +496,7 @@ public class FaceEmbedding
 }
 
 /// <summary>
-/// Face cluster representing "same person" (PII-respecting).
+///     Face cluster representing "same person" (PII-respecting).
 /// </summary>
 public class FaceCluster
 {

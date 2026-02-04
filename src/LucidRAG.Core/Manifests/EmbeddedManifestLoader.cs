@@ -1,24 +1,23 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
 namespace LucidRAG.Manifests;
 
 /// <summary>
-/// Loads manifests from embedded assembly resources.
-/// Follows StyloFlow pattern for embedded resource loading.
+///     Loads manifests from embedded assembly resources.
+///     Follows StyloFlow pattern for embedded resource loading.
 /// </summary>
 public sealed class EmbeddedManifestLoader<TManifest> : IManifestLoader<TManifest>
     where TManifest : class
 {
-    private readonly ILogger _logger;
-    private readonly Assembly[] _sourceAssemblies;
-    private readonly string _manifestPattern;
-    private readonly IDeserializer _deserializer;
     private readonly ConcurrentDictionary<string, TManifest> _cache = new();
+    private readonly IDeserializer _deserializer;
+    private readonly ILogger _logger;
+    private readonly string _manifestPattern;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
+    private readonly Assembly[] _sourceAssemblies;
 
     public EmbeddedManifestLoader(
         ILogger logger,
@@ -42,10 +41,7 @@ public sealed class EmbeddedManifestLoader<TManifest> : IManifestLoader<TManifes
         {
             _cache.Clear();
 
-            foreach (var assembly in _sourceAssemblies)
-            {
-                await LoadFromAssemblyAsync(assembly, ct);
-            }
+            foreach (var assembly in _sourceAssemblies) await LoadFromAssemblyAsync(assembly, ct);
 
             _logger.LogInformation(
                 "Loaded {Count} {Type} manifest(s) from {Assemblies} assembl(ies)",
@@ -102,7 +98,6 @@ public sealed class EmbeddedManifestLoader<TManifest> : IManifestLoader<TManifes
             .ToList();
 
         foreach (var resourceName in resourceNames)
-        {
             try
             {
                 await using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -149,14 +144,14 @@ public sealed class EmbeddedManifestLoader<TManifest> : IManifestLoader<TManifes
             {
                 _logger.LogError(ex, "Error loading manifest from embedded resource {Resource}", resourceName);
             }
-        }
     }
 
-    private async Task<TManifest?> TryLoadManifestFromAssemblyAsync(Assembly assembly, string name, CancellationToken ct)
+    private async Task<TManifest?> TryLoadManifestFromAssemblyAsync(Assembly assembly, string name,
+        CancellationToken ct)
     {
         var resourceNames = assembly.GetManifestResourceNames()
             .Where(r => r.Contains(name, StringComparison.OrdinalIgnoreCase) &&
-                       r.EndsWith(_manifestPattern, StringComparison.OrdinalIgnoreCase))
+                        r.EndsWith(_manifestPattern, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (resourceNames.Count == 0)

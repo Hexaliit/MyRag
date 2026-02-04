@@ -14,17 +14,20 @@ public class LoadBalancedLlmServiceTests : IDisposable
     {
         _endpoints =
         [
-            new("http://a:11434", "a"),
-            new("http://b:11434", "b"),
+            new EndpointState("http://a:11434", "a"),
+            new EndpointState("http://b:11434", "b")
         ];
         _services = new Dictionary<string, ILlmService>
         {
             ["http://a:11434"] = new FakeLlmService("a"),
-            ["http://b:11434"] = new FakeLlmService("b"),
+            ["http://b:11434"] = new FakeLlmService("b")
         };
     }
 
-    public void Dispose() => _sut?.Dispose();
+    public void Dispose()
+    {
+        _sut?.Dispose();
+    }
 
     [Fact]
     public async Task GenerateAsync_RoutesToSelectedEndpoint()
@@ -39,7 +42,7 @@ public class LoadBalancedLlmServiceTests : IDisposable
     [Fact]
     public async Task GenerateAsync_FailsOver_OnEndpointFailure()
     {
-        _services["http://a:11434"] = new FakeLlmService("a", shouldFail: true);
+        _services["http://a:11434"] = new FakeLlmService("a", true);
         // Use a selector that always picks "a" first, so failover to "b" is guaranteed
         _sut = CreateService(new FixedOrderSelector());
 
@@ -52,7 +55,7 @@ public class LoadBalancedLlmServiceTests : IDisposable
     [Fact]
     public async Task GenerateAsync_MarksEndpointUnhealthy()
     {
-        _services["http://a:11434"] = new FakeLlmService("a", shouldFail: true);
+        _services["http://a:11434"] = new FakeLlmService("a", true);
         _sut = CreateService(new FixedOrderSelector());
 
         // Each request will fail on "a" then succeed on "b"
@@ -66,8 +69,8 @@ public class LoadBalancedLlmServiceTests : IDisposable
     [Fact]
     public async Task GenerateAsync_AllEndpointsExhausted_Throws()
     {
-        _services["http://a:11434"] = new FakeLlmService("a", shouldFail: true);
-        _services["http://b:11434"] = new FakeLlmService("b", shouldFail: true);
+        _services["http://a:11434"] = new FakeLlmService("a", true);
+        _services["http://b:11434"] = new FakeLlmService("b", true);
         _sut = CreateService(new RoundRobinSelector());
 
         var act = () => _sut.GenerateAsync("test");
@@ -79,7 +82,7 @@ public class LoadBalancedLlmServiceTests : IDisposable
     [Fact]
     public async Task GenerateJsonAsync_FailsOver()
     {
-        _services["http://a:11434"] = new FakeLlmService("a", shouldFail: true);
+        _services["http://a:11434"] = new FakeLlmService("a", true);
         _sut = CreateService(new FixedOrderSelector());
 
         var result = await _sut.GenerateJsonAsync<SimpleDto>("test");
@@ -110,6 +113,7 @@ public class LoadBalancedLlmServiceTests : IDisposable
             ep.RecordFailure();
             ep.RecordFailure();
         }
+
         _sut = CreateService(new RoundRobinSelector());
 
         var available = await _sut.IsAvailableAsync();
@@ -136,23 +140,28 @@ public class LoadBalancedLlmServiceTests : IDisposable
         _endpoints.Should().Contain(e => e.TotalRequests > 0 && e.EmaResponseTimeMs < double.MaxValue);
     }
 
-    private LoadBalancedLlmService CreateService(IEndpointSelector selector) =>
-        new("test-backend", _endpoints, _services, selector,
+    private LoadBalancedLlmService CreateService(IEndpointSelector selector)
+    {
+        return new LoadBalancedLlmService("test-backend", _endpoints, _services, selector,
             NullLogger<LoadBalancedLlmService>.Instance,
-            healthCheckIntervalSeconds: 0); // Disable health monitor in tests
+            0);
+        // Disable health monitor in tests
+    }
 
     /// <summary>
-    /// Selector that always returns the first healthy endpoint (deterministic for failover tests).
+    ///     Selector that always returns the first healthy endpoint (deterministic for failover tests).
     /// </summary>
     private class FixedOrderSelector : IEndpointSelector
     {
-        public EndpointState? Select(IReadOnlyList<EndpointState> endpoints) =>
-            endpoints.FirstOrDefault(e => e.IsHealthy);
+        public EndpointState? Select(IReadOnlyList<EndpointState> endpoints)
+        {
+            return endpoints.FirstOrDefault(e => e.IsHealthy);
+        }
     }
 
     // Simple DTO for JSON deserialization tests
     private class SimpleDto
     {
-        public string Value { get; set; } = "";
+        public string Value { get; } = "";
     }
 }

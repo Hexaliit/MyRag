@@ -2,12 +2,13 @@ using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using Size = OpenCvSharp.Size;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzes motion in animated GIFs using optical flow algorithms.
-/// Uses Farneback dense optical flow for comprehensive motion detection.
+///     Analyzes motion in animated GIFs using optical flow algorithms.
+///     Uses Farneback dense optical flow for comprehensive motion detection.
 /// </summary>
 public class MotionAnalyzer
 {
@@ -19,7 +20,7 @@ public class MotionAnalyzer
     }
 
     /// <summary>
-    /// Analyze motion in an animated GIF.
+    ///     Analyze motion in an animated GIF.
     /// </summary>
     /// <param name="imagePath">Path to the GIF file</param>
     /// <param name="maxFrames">Maximum number of frames to analyze (0 = all)</param>
@@ -63,7 +64,7 @@ public class MotionAnalyzer
             // Analyze optical flow between consecutive frames
             var flowResults = new List<FrameFlowResult>();
 
-            for (int i = 0; i < frames.Count - 1; i++)
+            for (var i = 0; i < frames.Count - 1; i++)
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -75,10 +76,7 @@ public class MotionAnalyzer
             result = AggregateResults(flowResults, result);
 
             // Clean up OpenCV mats
-            foreach (var frame in frames)
-            {
-                frame.Dispose();
-            }
+            foreach (var frame in frames) frame.Dispose();
 
             _logger?.LogInformation(
                 "Motion analysis complete: {Direction} motion, magnitude={Magnitude:F2}, activity={Activity:P0}",
@@ -98,7 +96,7 @@ public class MotionAnalyzer
         var frames = new List<Mat>();
         var step = Math.Max(1, image.Frames.Count / maxFrames);
 
-        for (int i = 0; i < image.Frames.Count && frames.Count < maxFrames; i += step)
+        for (var i = 0; i < image.Frames.Count && frames.Count < maxFrames; i += step)
         {
             var frame = image.Frames.CloneFrame(i);
             var mat = ImageSharpToMat(frame);
@@ -117,12 +115,12 @@ public class MotionAnalyzer
         {
             image.ProcessPixelRows(accessor =>
             {
-                for (int y = 0; y < accessor.Height; y++)
+                for (var y = 0; y < accessor.Height; y++)
                 {
                     var row = accessor.GetRowSpan(y);
                     var matRow = mat.Ptr(y);
 
-                    for (int x = 0; x < accessor.Width; x++)
+                    for (var x = 0; x < accessor.Width; x++)
                     {
                         var pixel = row[x];
                         // OpenCV uses BGR format
@@ -156,13 +154,13 @@ public class MotionAnalyzer
         using var flow = new Mat();
         Cv2.CalcOpticalFlowFarneback(
             gray1, gray2, flow,
-            pyrScale: 0.5,
-            levels: 3,
-            winsize: 15,
-            iterations: 3,
-            polyN: 5,
-            polySigma: 1.2,
-            flags: 0);
+            0.5,
+            3,
+            15,
+            3,
+            5,
+            1.2,
+            0);
 
         // Analyze flow vectors
         AnalyzeFlowVectors(flow, result);
@@ -178,7 +176,7 @@ public class MotionAnalyzer
 
         double sumMagnitude = 0;
         double sumAngle = 0;
-        int movingPixels = 0;
+        var movingPixels = 0;
 
         // Direction buckets (8 directions + stationary)
         var directionCounts = new int[9]; // 0-7 = directions, 8 = stationary
@@ -195,11 +193,11 @@ public class MotionAnalyzer
 
         unsafe
         {
-            for (int y = 0; y < height; y += step)
+            for (var y = 0; y < height; y += step)
             {
                 var ptr = (float*)flow.Ptr(y);
 
-                for (int x = 0; x < width; x += step)
+                for (var x = 0; x < width; x += step)
                 {
                     var dx = ptr[x * 2];
                     var dy = ptr[x * 2 + 1];
@@ -223,10 +221,7 @@ public class MotionAnalyzer
                         // Track region motion
                         var rx = x / regionSize;
                         var ry = y / regionSize;
-                        if (rx < regionsX && ry < regionsY)
-                        {
-                            regionMotion[rx, ry] += magnitude;
-                        }
+                        if (rx < regionsX && ry < regionsY) regionMotion[rx, ry] += magnitude;
                     }
                     else
                     {
@@ -236,7 +231,7 @@ public class MotionAnalyzer
             }
         }
 
-        var sampledPixels = (height / step) * (width / step);
+        var sampledPixels = height / step * (width / step);
 
         result.AverageMagnitude = movingPixels > 0 ? sumMagnitude / movingPixels : 0;
         result.MaxMagnitude = sumMagnitude > 0 ? result.AverageMagnitude * 2 : 0; // Approximate
@@ -246,36 +241,32 @@ public class MotionAnalyzer
         // Determine dominant direction
         var maxDirCount = 0;
         var dominantDirIndex = 8;
-        for (int i = 0; i < 9; i++)
-        {
+        for (var i = 0; i < 9; i++)
             if (directionCounts[i] > maxDirCount)
             {
                 maxDirCount = directionCounts[i];
                 dominantDirIndex = i;
             }
-        }
+
         result.DominantDirectionIndex = dominantDirIndex;
 
         // Find motion regions (regions with significant motion)
         var motionRegions = new List<MotionRegion>();
-        for (int ry = 0; ry < regionsY; ry++)
+        for (var ry = 0; ry < regionsY; ry++)
+        for (var rx = 0; rx < regionsX; rx++)
         {
-            for (int rx = 0; rx < regionsX; rx++)
-            {
-                var regionMag = regionMotion[rx, ry];
-                if (regionMag > magnitudeThreshold * 10)
+            var regionMag = regionMotion[rx, ry];
+            if (regionMag > magnitudeThreshold * 10)
+                motionRegions.Add(new MotionRegion
                 {
-                    motionRegions.Add(new MotionRegion
-                    {
-                        X = rx * regionSize,
-                        Y = ry * regionSize,
-                        Width = Math.Min(regionSize, width - rx * regionSize),
-                        Height = Math.Min(regionSize, height - ry * regionSize),
-                        Magnitude = regionMag
-                    });
-                }
-            }
+                    X = rx * regionSize,
+                    Y = ry * regionSize,
+                    Width = Math.Min(regionSize, width - rx * regionSize),
+                    Height = Math.Min(regionSize, height - ry * regionSize),
+                    Magnitude = regionMag
+                });
         }
+
         result.MotionRegions = motionRegions;
     }
 
@@ -295,21 +286,16 @@ public class MotionAnalyzer
 
         // Determine dominant direction across all frames
         var directionVotes = new int[9];
-        foreach (var fr in flowResults)
-        {
-            directionVotes[fr.DominantDirectionIndex]++;
-        }
+        foreach (var fr in flowResults) directionVotes[fr.DominantDirectionIndex]++;
 
         var maxVotes = 0;
         var dominantIndex = 8;
-        for (int i = 0; i < 9; i++)
-        {
+        for (var i = 0; i < 9; i++)
             if (directionVotes[i] > maxVotes)
             {
                 maxVotes = directionVotes[i];
                 dominantIndex = i;
             }
-        }
 
         result.DominantDirection = IndexToDirection(dominantIndex);
         result.DominantDirectionConfidence = flowResults.Count > 0
@@ -409,7 +395,7 @@ public class MotionAnalyzer
         var merged = new List<MotionRegion>();
         var used = new bool[regions.Count];
 
-        for (int i = 0; i < regions.Count; i++)
+        for (var i = 0; i < regions.Count; i++)
         {
             if (used[i]) continue;
 
@@ -417,7 +403,7 @@ public class MotionAnalyzer
             var totalMag = current.Magnitude;
             var count = 1;
 
-            for (int j = i + 1; j < regions.Count; j++)
+            for (var j = i + 1; j < regions.Count; j++)
             {
                 if (used[j]) continue;
 
@@ -484,8 +470,8 @@ public class MotionAnalyzer
     }
 
     /// <summary>
-    /// Detect and track multiple objects with independent motion vectors.
-    /// Uses background subtraction and contour detection to identify distinct moving objects.
+    ///     Detect and track multiple objects with independent motion vectors.
+    ///     Uses background subtraction and contour detection to identify distinct moving objects.
     /// </summary>
     public List<TrackedObject> DetectMultipleObjects(Mat frame1, Mat frame2, Mat flow)
     {
@@ -506,12 +492,13 @@ public class MotionAnalyzer
             motionMask.ConvertTo(motionMask, MatType.CV_8UC1);
 
             // Morphological cleanup
-            using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new OpenCvSharp.Size(5, 5));
+            using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(5, 5));
             Cv2.MorphologyEx(motionMask, motionMask, MorphTypes.Close, kernel);
             Cv2.MorphologyEx(motionMask, motionMask, MorphTypes.Open, kernel);
 
             // Find contours of moving regions
-            Cv2.FindContours(motionMask, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+            Cv2.FindContours(motionMask, out var contours, out _, RetrievalModes.External,
+                ContourApproximationModes.ApproxSimple);
 
             // Process each contour as a potential object
             foreach (var contour in contours)
@@ -548,10 +535,7 @@ public class MotionAnalyzer
             foreach (var ch in channels) ch.Dispose();
 
             // Detect motion relationships between objects
-            if (objects.Count >= 2)
-            {
-                DetectMotionRelationships(objects);
-            }
+            if (objects.Count >= 2) DetectMotionRelationships(objects);
         }
         catch (Exception ex)
         {
@@ -576,14 +560,14 @@ public class MotionAnalyzer
             using var roi = new Mat(flow, new Rect(x, y, w, h));
 
             double sumDx = 0, sumDy = 0;
-            int count = 0;
+            var count = 0;
 
             unsafe
             {
-                for (int py = 0; py < roi.Height; py += 2)
+                for (var py = 0; py < roi.Height; py += 2)
                 {
                     var ptr = (float*)roi.Ptr(py);
-                    for (int px = 0; px < roi.Width; px += 2)
+                    for (var px = 0; px < roi.Width; px += 2)
                     {
                         sumDx += ptr[px * 2];
                         sumDy += ptr[px * 2 + 1];
@@ -627,71 +611,69 @@ public class MotionAnalyzer
 
     private void DetectMotionRelationships(List<TrackedObject> objects)
     {
-        for (int i = 0; i < objects.Count; i++)
+        for (var i = 0; i < objects.Count; i++)
+        for (var j = i + 1; j < objects.Count; j++)
         {
-            for (int j = i + 1; j < objects.Count; j++)
+            var obj1 = objects[i];
+            var obj2 = objects[j];
+
+            // Calculate angle between objects
+            var dx = obj2.CenterX - obj1.CenterX;
+            var dy = obj2.CenterY - obj1.CenterY;
+            var lineAngle = Math.Atan2(dy, dx) * 180 / Math.PI;
+
+            // Calculate relative motion
+            var relVelX = obj2.VelocityX - obj1.VelocityX;
+            var relVelY = obj2.VelocityY - obj1.VelocityY;
+            var relAngle = Math.Atan2(relVelY, relVelX) * 180 / Math.PI;
+
+            // Determine relationship
+            var angleDiff = Math.Abs(obj1.DirectionAngle - obj2.DirectionAngle);
+            if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+            string relationship;
+            if (angleDiff < 30)
             {
-                var obj1 = objects[i];
-                var obj2 = objects[j];
-
-                // Calculate angle between objects
-                var dx = obj2.CenterX - obj1.CenterX;
-                var dy = obj2.CenterY - obj1.CenterY;
-                var lineAngle = Math.Atan2(dy, dx) * 180 / Math.PI;
-
-                // Calculate relative motion
-                var relVelX = obj2.VelocityX - obj1.VelocityX;
-                var relVelY = obj2.VelocityY - obj1.VelocityY;
-                var relAngle = Math.Atan2(relVelY, relVelX) * 180 / Math.PI;
-
-                // Determine relationship
-                var angleDiff = Math.Abs(obj1.DirectionAngle - obj2.DirectionAngle);
-                if (angleDiff > 180) angleDiff = 360 - angleDiff;
-
-                string relationship;
-                if (angleDiff < 30)
-                {
-                    relationship = "parallel_same_direction";
-                }
-                else if (angleDiff > 150)
-                {
-                    // Moving in opposite directions - check if converging or diverging
-                    var motionTowardsLine = Math.Abs(relAngle - lineAngle);
-                    if (motionTowardsLine > 180) motionTowardsLine = 360 - motionTowardsLine;
-
-                    relationship = motionTowardsLine < 90 ? "converging" : "diverging";
-                }
-                else if (angleDiff > 60 && angleDiff < 120)
-                {
-                    relationship = "perpendicular";
-                }
-                else
-                {
-                    relationship = "divergent";
-                }
-
-                obj1.Relationships.Add(new ObjectRelationship
-                {
-                    OtherObjectId = obj2.Id,
-                    RelationType = relationship,
-                    Distance = Math.Sqrt(dx * dx + dy * dy),
-                    AngleDifference = angleDiff
-                });
-
-                obj2.Relationships.Add(new ObjectRelationship
-                {
-                    OtherObjectId = obj1.Id,
-                    RelationType = relationship,
-                    Distance = Math.Sqrt(dx * dx + dy * dy),
-                    AngleDifference = angleDiff
-                });
+                relationship = "parallel_same_direction";
             }
+            else if (angleDiff > 150)
+            {
+                // Moving in opposite directions - check if converging or diverging
+                var motionTowardsLine = Math.Abs(relAngle - lineAngle);
+                if (motionTowardsLine > 180) motionTowardsLine = 360 - motionTowardsLine;
+
+                relationship = motionTowardsLine < 90 ? "converging" : "diverging";
+            }
+            else if (angleDiff > 60 && angleDiff < 120)
+            {
+                relationship = "perpendicular";
+            }
+            else
+            {
+                relationship = "divergent";
+            }
+
+            obj1.Relationships.Add(new ObjectRelationship
+            {
+                OtherObjectId = obj2.Id,
+                RelationType = relationship,
+                Distance = Math.Sqrt(dx * dx + dy * dy),
+                AngleDifference = angleDiff
+            });
+
+            obj2.Relationships.Add(new ObjectRelationship
+            {
+                OtherObjectId = obj1.Id,
+                RelationType = relationship,
+                Distance = Math.Sqrt(dx * dx + dy * dy),
+                AngleDifference = angleDiff
+            });
         }
     }
 }
 
 /// <summary>
-/// A tracked moving object with its motion vector.
+///     A tracked moving object with its motion vector.
 /// </summary>
 public class TrackedObject
 {
@@ -709,87 +691,89 @@ public class TrackedObject
 }
 
 /// <summary>
-/// Relationship between two tracked objects.
+///     Relationship between two tracked objects.
 /// </summary>
 public class ObjectRelationship
 {
     public int OtherObjectId { get; set; }
+
     /// <summary>
-    /// Type: converging, diverging, parallel_same_direction, perpendicular, divergent
+    ///     Type: converging, diverging, parallel_same_direction, perpendicular, divergent
     /// </summary>
     public string RelationType { get; set; } = "";
+
     public double Distance { get; set; }
     public double AngleDifference { get; set; }
 }
 
 /// <summary>
-/// Result of motion analysis for an animated image.
+///     Result of motion analysis for an animated image.
 /// </summary>
 public class MotionAnalysisResult
 {
     /// <summary>
-    /// Whether significant motion was detected.
+    ///     Whether significant motion was detected.
     /// </summary>
     public bool HasMotion { get; set; }
 
     /// <summary>
-    /// Number of frames in the animation.
+    ///     Number of frames in the animation.
     /// </summary>
     public int FrameCount { get; set; }
 
     /// <summary>
-    /// Average motion magnitude in pixels per frame.
+    ///     Average motion magnitude in pixels per frame.
     /// </summary>
     public double AverageMagnitude { get; set; }
 
     /// <summary>
-    /// Maximum motion magnitude detected.
+    ///     Maximum motion magnitude detected.
     /// </summary>
     public double MaxMagnitude { get; set; }
 
     /// <summary>
-    /// Fraction of image with motion (0-1).
+    ///     Fraction of image with motion (0-1).
     /// </summary>
     public double MotionActivity { get; set; }
 
     /// <summary>
-    /// Dominant direction of motion: right, down-right, down, down-left, left, up-left, up, up-right, stationary.
+    ///     Dominant direction of motion: right, down-right, down, down-left, left, up-left, up, up-right, stationary.
     /// </summary>
     public string DominantDirection { get; set; } = "stationary";
 
     /// <summary>
-    /// Confidence in the dominant direction (0-1).
+    ///     Confidence in the dominant direction (0-1).
     /// </summary>
     public double DominantDirectionConfidence { get; set; }
 
     /// <summary>
-    /// How consistent the motion direction is across frames (0-1).
+    ///     How consistent the motion direction is across frames (0-1).
     /// </summary>
     public double DirectionConsistency { get; set; }
 
     /// <summary>
-    /// How consistent the motion magnitude is over time (0-1).
+    ///     How consistent the motion magnitude is over time (0-1).
     /// </summary>
     public double TemporalConsistency { get; set; }
 
     /// <summary>
-    /// Type of motion detected: static, panning, zooming, rotating, oscillating, object_motion, general.
+    ///     Type of motion detected: static, panning, zooming, rotating, oscillating, object_motion, general.
     /// </summary>
     public string MotionType { get; set; } = "static";
 
     /// <summary>
-    /// Regions of the image with significant motion.
+    ///     Regions of the image with significant motion.
     /// </summary>
     public List<MotionRegion> MotionRegions { get; set; } = new();
 
     /// <summary>
-    /// Error message if analysis failed.
+    ///     Error message if analysis failed.
     /// </summary>
     public string? Error { get; set; }
 }
 
 /// <summary>
-/// A region of the image with detected motion.
+///     A region of the image with detected motion.
 /// </summary>
 public class MotionRegion
 {
@@ -801,7 +785,7 @@ public class MotionRegion
 }
 
 /// <summary>
-/// Optical flow result for a single frame pair.
+///     Optical flow result for a single frame pair.
 /// </summary>
 internal class FrameFlowResult
 {

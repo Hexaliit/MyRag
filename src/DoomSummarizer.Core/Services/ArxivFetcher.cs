@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
@@ -5,10 +8,10 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches papers from arXiv API — free, no auth, Atom XML.
-/// Returns paper titles and full abstracts as content for the pipeline.
-/// Great for scientific/research queries with substantive content.
-/// https://info.arxiv.org/help/api/basics.html
+///     Fetches papers from arXiv API — free, no auth, Atom XML.
+///     Returns paper titles and full abstracts as content for the pipeline.
+///     Great for scientific/research queries with substantive content.
+///     https://info.arxiv.org/help/api/basics.html
 /// </summary>
 public partial class ArxivFetcher(HttpClient httpClient)
 {
@@ -17,7 +20,28 @@ public partial class ArxivFetcher(HttpClient httpClient)
     private static readonly XNamespace ArxivNs = "http://arxiv.org/schemas/atom";
 
     /// <summary>
-    /// Search arXiv for papers matching a query. Returns full abstracts as content.
+    ///     arXiv category mappings for common topics.
+    /// </summary>
+    public static readonly Dictionary<string, string[]> TopicCategories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ai"] = ["cs.AI", "cs.LG", "cs.CL"],
+        ["machine_learning"] = ["cs.LG", "stat.ML"],
+        ["nlp"] = ["cs.CL"],
+        ["computer_vision"] = ["cs.CV"],
+        ["robotics"] = ["cs.RO"],
+        ["security"] = ["cs.CR"],
+        ["programming"] = ["cs.PL", "cs.SE"],
+        ["science"] = ["physics", "q-bio", "math"],
+        ["physics"] = ["physics"],
+        ["biology"] = ["q-bio"],
+        ["math"] = ["math"],
+        ["quantum"] = ["quant-ph"],
+        ["climate"] = ["physics.ao-ph"],
+        ["health"] = ["q-bio", "cs.AI"]
+    };
+
+    /// <summary>
+    ///     Search arXiv for papers matching a query. Returns full abstracts as content.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(string query, int maxResults = 15, string? category = null)
     {
@@ -32,7 +56,8 @@ public partial class ArxivFetcher(HttpClient httpClient)
 
             // Sort by lastUpdatedDate to get recent papers — our RRF ranking
             // handles relevance via BM25 + embedding similarity
-            var url = $"{BaseUrl}?search_query={searchQuery}&max_results={maxResults}&sortBy=lastUpdatedDate&sortOrder=descending";
+            var url =
+                $"{BaseUrl}?search_query={searchQuery}&max_results={maxResults}&sortBy=lastUpdatedDate&sortOrder=descending";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
@@ -87,26 +112,29 @@ public partial class ArxivFetcher(HttpClient httpClient)
 
                 items.Add(new ContentItem
                 {
-                    Id = $"arxiv_{(string.IsNullOrEmpty(arxivId) ? GenerateId(title) : arxivId.Replace(".", "_").Replace("/", "_"))}",
+                    Id =
+                        $"arxiv_{(string.IsNullOrEmpty(arxivId) ? GenerateId(title) : arxivId.Replace(".", "_").Replace("/", "_"))}",
                     Source = "arxiv",
                     Title = title,
                     Url = absLink,
                     Content = content,
-                    Author = authors.Count > 0 ? string.Join(", ", authors.Take(3)) + (authors.Count > 3 ? " et al." : "") : null,
+                    Author = authors.Count > 0
+                        ? string.Join(", ", authors.Take(3)) + (authors.Count > 3 ? " et al." : "")
+                        : null,
                     CreatedAt = TryParseDate(published ?? updated)
                 });
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: arXiv search failed: {ex.Message}");
+            Debug.WriteLine($"Warning: arXiv search failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch recent papers from a specific arXiv category.
+    ///     Fetch recent papers from a specific arXiv category.
     /// </summary>
     public async Task<List<ContentItem>> FetchCategoryAsync(string category, int maxResults = 10)
     {
@@ -114,7 +142,8 @@ public partial class ArxivFetcher(HttpClient httpClient)
 
         try
         {
-            var url = $"{BaseUrl}?search_query=cat:{category}&max_results={maxResults}&sortBy=submittedDate&sortOrder=descending";
+            var url =
+                $"{BaseUrl}?search_query=cat:{category}&max_results={maxResults}&sortBy=submittedDate&sortOrder=descending";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
@@ -150,44 +179,27 @@ public partial class ArxivFetcher(HttpClient httpClient)
 
                 items.Add(new ContentItem
                 {
-                    Id = $"arxiv_{(string.IsNullOrEmpty(arxivId) ? GenerateId(title) : arxivId.Replace(".", "_").Replace("/", "_"))}",
+                    Id =
+                        $"arxiv_{(string.IsNullOrEmpty(arxivId) ? GenerateId(title) : arxivId.Replace(".", "_").Replace("/", "_"))}",
                     Source = "arxiv",
                     Title = $"[arXiv:{category}] {title}",
                     Url = absLink,
-                    Content = $"Authors: {string.Join(", ", authors.Take(5))}{(authors.Count > 5 ? " et al." : "")}\n\n{summary}",
-                    Author = authors.Count > 0 ? string.Join(", ", authors.Take(3)) + (authors.Count > 3 ? " et al." : "") : null,
+                    Content =
+                        $"Authors: {string.Join(", ", authors.Take(5))}{(authors.Count > 5 ? " et al." : "")}\n\n{summary}",
+                    Author = authors.Count > 0
+                        ? string.Join(", ", authors.Take(3)) + (authors.Count > 3 ? " et al." : "")
+                        : null,
                     CreatedAt = TryParseDate(published)
                 });
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: arXiv category fetch failed: {ex.Message}");
+            Debug.WriteLine($"Warning: arXiv category fetch failed: {ex.Message}");
         }
 
         return items;
     }
-
-    /// <summary>
-    /// arXiv category mappings for common topics.
-    /// </summary>
-    public static readonly Dictionary<string, string[]> TopicCategories = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["ai"] = ["cs.AI", "cs.LG", "cs.CL"],
-        ["machine_learning"] = ["cs.LG", "stat.ML"],
-        ["nlp"] = ["cs.CL"],
-        ["computer_vision"] = ["cs.CV"],
-        ["robotics"] = ["cs.RO"],
-        ["security"] = ["cs.CR"],
-        ["programming"] = ["cs.PL", "cs.SE"],
-        ["science"] = ["physics", "q-bio", "math"],
-        ["physics"] = ["physics"],
-        ["biology"] = ["q-bio"],
-        ["math"] = ["math"],
-        ["quantum"] = ["quant-ph"],
-        ["climate"] = ["physics.ao-ph"],
-        ["health"] = ["q-bio", "cs.AI"],
-    };
 
     private static string ExtractArxivId(string url)
     {
@@ -212,7 +224,7 @@ public partial class ArxivFetcher(HttpClient httpClient)
 
     private static string GenerateId(string input)
     {
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
     }
 }

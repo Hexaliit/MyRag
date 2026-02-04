@@ -1,20 +1,17 @@
-using DoomSummarizer.Models;
-
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Cross-cutting prompt cache that maps prompt embeddings to their resolved
-/// salient segment sets. When a new prompt is similar to a previous one
-/// (cosine > threshold), the cached salient set is reused directly — saving
-/// N cosine similarity computations against every cached segment.
-///
-/// Uses LRU eviction to bound memory. Each entry stores the prompt embedding,
-/// the resolved segment IDs, and the turn it was recorded at.
+///     Cross-cutting prompt cache that maps prompt embeddings to their resolved
+///     salient segment sets. When a new prompt is similar to a previous one
+///     (cosine > threshold), the cached salient set is reused directly — saving
+///     N cosine similarity computations against every cached segment.
+///     Uses LRU eviction to bound memory. Each entry stores the prompt embedding,
+///     the resolved segment IDs, and the turn it was recorded at.
 /// </summary>
 public sealed class PromptSalienceIndex
 {
-    private readonly LinkedList<PromptEntry> _entries = new();
     private readonly int _capacity;
+    private readonly LinkedList<PromptEntry> _entries = new();
     private readonly float _hitThreshold;
     private int _hits;
     private int _misses;
@@ -26,21 +23,23 @@ public sealed class PromptSalienceIndex
     }
 
     /// <summary>
-    /// A cached mapping from a prompt embedding to its resolved salient segments.
+    ///     Cache hit/miss statistics.
     /// </summary>
-    private sealed class PromptEntry
+    public (int entries, int hits, int misses, double hitRate) Stats
     {
-        public required float[] PromptEmbedding { get; init; }
-        public required List<string> SalientSegmentIds { get; init; }
-        public required int Turn { get; init; }
+        get
+        {
+            var total = _hits + _misses;
+            var rate = total > 0 ? (double)_hits / total : 0;
+            return (_entries.Count, _hits, _misses, rate);
+        }
     }
 
     /// <summary>
-    /// Try to find a cached salient set for a query embedding.
-    /// Returns the segment IDs if a close-enough previous prompt exists,
-    /// or null on cache miss.
-    ///
-    /// On hit, the matching entry is promoted to the front (LRU).
+    ///     Try to find a cached salient set for a query embedding.
+    ///     Returns the segment IDs if a close-enough previous prompt exists,
+    ///     or null on cache miss.
+    ///     On hit, the matching entry is promoted to the front (LRU).
     /// </summary>
     public List<string>? TryGetSalient(float[] queryEmbedding)
     {
@@ -56,6 +55,7 @@ public sealed class PromptSalienceIndex
                 bestSim = sim;
                 bestNode = node;
             }
+
             node = node.Next;
         }
 
@@ -73,8 +73,8 @@ public sealed class PromptSalienceIndex
     }
 
     /// <summary>
-    /// Record a prompt → salient segment mapping for future lookups.
-    /// Called after SalientSegmentCache.GetSalient() computes the full result.
+    ///     Record a prompt → salient segment mapping for future lookups.
+    ///     Called after SalientSegmentCache.GetSalient() computes the full result.
     /// </summary>
     public void Record(float[] promptEmbedding, List<string> salientSegmentIds, int turn)
     {
@@ -98,6 +98,7 @@ public sealed class PromptSalienceIndex
                 }));
                 return;
             }
+
             node = node.Next;
         }
 
@@ -115,8 +116,8 @@ public sealed class PromptSalienceIndex
     }
 
     /// <summary>
-    /// Invalidate entries that reference segments no longer in the cache.
-    /// Call after SalientSegmentCache.Evict() to keep the index consistent.
+    ///     Invalidate entries that reference segments no longer in the cache.
+    ///     Call after SalientSegmentCache.Evict() to keep the index consistent.
     /// </summary>
     public void Prune(IReadOnlyList<string> validSegmentIds)
     {
@@ -134,25 +135,22 @@ public sealed class PromptSalienceIndex
     }
 
     /// <summary>
-    /// Cache hit/miss statistics.
-    /// </summary>
-    public (int entries, int hits, int misses, double hitRate) Stats
-    {
-        get
-        {
-            var total = _hits + _misses;
-            var rate = total > 0 ? (double)_hits / total : 0;
-            return (_entries.Count, _hits, _misses, rate);
-        }
-    }
-
-    /// <summary>
-    /// Clear all entries (e.g., when conversation is cleared).
+    ///     Clear all entries (e.g., when conversation is cleared).
     /// </summary>
     public void Clear()
     {
         _entries.Clear();
         _hits = 0;
         _misses = 0;
+    }
+
+    /// <summary>
+    ///     A cached mapping from a prompt embedding to its resolved salient segments.
+    /// </summary>
+    private sealed class PromptEntry
+    {
+        public required float[] PromptEmbedding { get; init; }
+        public required List<string> SalientSegmentIds { get; init; }
+        public required int Turn { get; init; }
     }
 }

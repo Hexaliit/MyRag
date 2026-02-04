@@ -1,19 +1,18 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Mostlylucid.DocSummarizer.Search;
+using System.Diagnostics;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Mostlylucid.DocSummarizer.Search;
 
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Adapts IFullTextSearch (Lucene.NET / SQLite FTS5) into IBm25SearchService.
-/// This is the core/default FTS implementation. Plugins like PostgreSQL can override it.
+///     Adapts IFullTextSearch (Lucene.NET / SQLite FTS5) into IBm25SearchService.
+///     This is the core/default FTS implementation. Plugins like PostgreSQL can override it.
 /// </summary>
 public class LuceneBm25SearchService : IBm25SearchService
 {
-    private readonly IFullTextSearch _fts;
     private readonly RagDocumentsDbContext _db;
+    private readonly IFullTextSearch _fts;
     private readonly ILogger<LuceneBm25SearchService> _logger;
 
     public LuceneBm25SearchService(
@@ -35,7 +34,7 @@ public class LuceneBm25SearchService : IBm25SearchService
         if (string.IsNullOrWhiteSpace(query))
             return [];
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         try
         {

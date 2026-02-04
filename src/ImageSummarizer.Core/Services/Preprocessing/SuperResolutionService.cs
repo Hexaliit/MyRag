@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -6,34 +7,34 @@ using OpenCvSharp;
 namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
-/// ML-based super-resolution using Real-ESRGAN for OCR enhancement.
-/// Upscales low-resolution images by 4x while preserving text clarity.
+///     ML-based super-resolution using Real-ESRGAN for OCR enhancement.
+///     Upscales low-resolution images by 4x while preserving text clarity.
 /// </summary>
 public class SuperResolutionService : IDisposable
 {
-    private readonly ILogger<SuperResolutionService>? _logger;
-    private readonly string _modelPath;
-    private InferenceSession? _session;
-    private readonly object _sessionLock = new();
-    private bool _modelLoadAttempted;
-    private bool _modelAvailable;
-
     /// <summary>
-    /// Minimum DPI below which super-resolution is recommended.
-    /// Standard document scanning is 300 DPI; below 150 DPI text becomes blurry.
+    ///     Minimum DPI below which super-resolution is recommended.
+    ///     Standard document scanning is 300 DPI; below 150 DPI text becomes blurry.
     /// </summary>
     public const int MinRecommendedDpi = 150;
 
     /// <summary>
-    /// Maximum input dimension (width or height) for the model.
-    /// Larger images are processed in tiles.
+    ///     Maximum input dimension (width or height) for the model.
+    ///     Larger images are processed in tiles.
     /// </summary>
     public const int MaxInputDimension = 512;
 
     /// <summary>
-    /// Upscale factor (Real-ESRGAN x4 model).
+    ///     Upscale factor (Real-ESRGAN x4 model).
     /// </summary>
     public const int UpscaleFactor = 4;
+
+    private readonly ILogger<SuperResolutionService>? _logger;
+    private readonly string _modelPath;
+    private readonly object _sessionLock = new();
+    private bool _modelAvailable;
+    private bool _modelLoadAttempted;
+    private InferenceSession? _session;
 
     public SuperResolutionService(string modelPath, ILogger<SuperResolutionService>? logger = null)
     {
@@ -41,8 +42,14 @@ public class SuperResolutionService : IDisposable
         _logger = logger;
     }
 
+    public void Dispose()
+    {
+        _session?.Dispose();
+        _session = null;
+    }
+
     /// <summary>
-    /// Check if super-resolution is recommended based on image dimensions and estimated DPI.
+    ///     Check if super-resolution is recommended based on image dimensions and estimated DPI.
     /// </summary>
     public bool ShouldUpscale(Mat image, int? estimatedDpi = null)
     {
@@ -66,8 +73,8 @@ public class SuperResolutionService : IDisposable
     }
 
     /// <summary>
-    /// Upscale image using Real-ESRGAN model.
-    /// Returns the upscaled image or the original if upscaling fails/unavailable.
+    ///     Upscale image using Real-ESRGAN model.
+    ///     Returns the upscaled image or the original if upscaling fails/unavailable.
     /// </summary>
     public Mat Upscale(Mat image)
     {
@@ -80,10 +87,7 @@ public class SuperResolutionService : IDisposable
         try
         {
             // For large images, process in tiles
-            if (image.Width > MaxInputDimension || image.Height > MaxInputDimension)
-            {
-                return UpscaleTiled(image);
-            }
+            if (image.Width > MaxInputDimension || image.Height > MaxInputDimension) return UpscaleTiled(image);
 
             return UpscaleSingle(image);
         }
@@ -95,11 +99,11 @@ public class SuperResolutionService : IDisposable
     }
 
     /// <summary>
-    /// Upscale a single image (fits within model input size).
+    ///     Upscale a single image (fits within model input size).
     /// </summary>
     private Mat UpscaleSingle(Mat image)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         // Convert to RGB if needed
         using var rgb = image.Channels() == 3
@@ -120,14 +124,12 @@ public class SuperResolutionService : IDisposable
         {
             var ptr = (float*)floatImage.Data;
             for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
             {
-                for (var x = 0; x < width; x++)
-                {
-                    var idx = (y * width + x) * 3;
-                    inputTensor[0, 2, y, x] = ptr[idx + 0]; // B -> R channel
-                    inputTensor[0, 1, y, x] = ptr[idx + 1]; // G -> G channel
-                    inputTensor[0, 0, y, x] = ptr[idx + 2]; // R -> B channel
-                }
+                var idx = (y * width + x) * 3;
+                inputTensor[0, 2, y, x] = ptr[idx + 0]; // B -> R channel
+                inputTensor[0, 1, y, x] = ptr[idx + 1]; // G -> G channel
+                inputTensor[0, 0, y, x] = ptr[idx + 2]; // R -> B channel
             }
         }
 
@@ -152,14 +154,12 @@ public class SuperResolutionService : IDisposable
         {
             var ptr = (float*)output.Data;
             for (var y = 0; y < outHeight; y++)
+            for (var x = 0; x < outWidth; x++)
             {
-                for (var x = 0; x < outWidth; x++)
-                {
-                    var idx = (y * outWidth + x) * 3;
-                    ptr[idx + 0] = Math.Clamp(outputTensor[0, 2, y, x], 0f, 1f); // R -> B
-                    ptr[idx + 1] = Math.Clamp(outputTensor[0, 1, y, x], 0f, 1f); // G -> G
-                    ptr[idx + 2] = Math.Clamp(outputTensor[0, 0, y, x], 0f, 1f); // B -> R
-                }
+                var idx = (y * outWidth + x) * 3;
+                ptr[idx + 0] = Math.Clamp(outputTensor[0, 2, y, x], 0f, 1f); // R -> B
+                ptr[idx + 1] = Math.Clamp(outputTensor[0, 1, y, x], 0f, 1f); // G -> G
+                ptr[idx + 2] = Math.Clamp(outputTensor[0, 0, y, x], 0f, 1f); // B -> R
             }
         }
 
@@ -177,7 +177,7 @@ public class SuperResolutionService : IDisposable
     }
 
     /// <summary>
-    /// Upscale large images by processing in overlapping tiles.
+    ///     Upscale large images by processing in overlapping tiles.
     /// </summary>
     private Mat UpscaleTiled(Mat image)
     {
@@ -199,40 +199,38 @@ public class SuperResolutionService : IDisposable
 
         // Process tiles
         for (var y = 0; y < image.Height; y += tileSize - overlap)
+        for (var x = 0; x < image.Width; x += tileSize - overlap)
         {
-            for (var x = 0; x < image.Width; x += tileSize - overlap)
-            {
-                // Calculate tile bounds
-                var tileX = Math.Min(x, image.Width - tileSize);
-                var tileY = Math.Min(y, image.Height - tileSize);
-                var tileW = Math.Min(tileSize, image.Width - tileX);
-                var tileH = Math.Min(tileSize, image.Height - tileY);
+            // Calculate tile bounds
+            var tileX = Math.Min(x, image.Width - tileSize);
+            var tileY = Math.Min(y, image.Height - tileSize);
+            var tileW = Math.Min(tileSize, image.Width - tileX);
+            var tileH = Math.Min(tileSize, image.Height - tileY);
 
-                if (tileW <= 0 || tileH <= 0) continue;
+            if (tileW <= 0 || tileH <= 0) continue;
 
-                // Extract tile
-                using var tile = new Mat(image, new Rect(tileX, tileY, tileW, tileH));
+            // Extract tile
+            using var tile = new Mat(image, new Rect(tileX, tileY, tileW, tileH));
 
-                // Upscale tile
-                using var upscaledTile = UpscaleSingle(tile);
+            // Upscale tile
+            using var upscaledTile = UpscaleSingle(tile);
 
-                // Calculate output position
-                var outX = tileX * UpscaleFactor;
-                var outY = tileY * UpscaleFactor;
-                var outTileW = tileW * UpscaleFactor;
-                var outTileH = tileH * UpscaleFactor;
+            // Calculate output position
+            var outX = tileX * UpscaleFactor;
+            var outY = tileY * UpscaleFactor;
+            var outTileW = tileW * UpscaleFactor;
+            var outTileH = tileH * UpscaleFactor;
 
-                // Blend into output (simple overwrite for now)
-                var roi = new Rect(outX, outY, outTileW, outTileH);
-                upscaledTile.CopyTo(new Mat(output, roi));
-            }
+            // Blend into output (simple overwrite for now)
+            var roi = new Rect(outX, outY, outTileW, outTileH);
+            upscaledTile.CopyTo(new Mat(output, roi));
         }
 
         return output;
     }
 
     /// <summary>
-    /// Ensure the ONNX model is loaded.
+    ///     Ensure the ONNX model is loaded.
     /// </summary>
     private bool EnsureModelLoaded()
     {
@@ -286,11 +284,5 @@ public class SuperResolutionService : IDisposable
                 return false;
             }
         }
-    }
-
-    public void Dispose()
-    {
-        _session?.Dispose();
-        _session = null;
     }
 }

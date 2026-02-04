@@ -1,8 +1,10 @@
+using System.Text;
+
 namespace VideoSummarizer.Core.Models;
 
 /// <summary>
-/// Represents a physical artifact file generated during video processing.
-/// Artifacts include scene frames, text exports, audio tracks, and clips.
+///     Represents a physical artifact file generated during video processing.
+///     Artifacts include scene frames, text exports, audio tracks, and clips.
 /// </summary>
 public record VideoArtifact
 {
@@ -53,69 +55,87 @@ public record VideoArtifact
 }
 
 /// <summary>
-/// Types of artifacts generated during video processing.
+///     Types of artifacts generated during video processing.
 /// </summary>
 public enum VideoArtifactType
 {
     // Image artifacts
     /// <summary>Low-res scene frame thumbnail</summary>
     SceneFrame,
+
     /// <summary>Keyframe from shot boundary</summary>
     Keyframe,
+
     /// <summary>Filmstrip/contact sheet of multiple frames</summary>
     Filmstrip,
+
     /// <summary>Face thumbnail crop</summary>
     FaceThumbnail,
+
     /// <summary>Motion heatmap overlay</summary>
     MotionHeatmap,
 
     // Audio artifacts
     /// <summary>Extracted audio track (original)</summary>
     AudioTrackOriginal,
+
     /// <summary>Normalized/processed audio track</summary>
     AudioTrackProcessed,
+
     /// <summary>Speech segment audio (for transcription)</summary>
     SpeechSegment,
 
     // Text artifacts
     /// <summary>Subtitle file (SRT)</summary>
     SubtitleSrt,
+
     /// <summary>Subtitle file (VTT)</summary>
     SubtitleVtt,
+
     /// <summary>Plain text transcript</summary>
     TranscriptTxt,
+
     /// <summary>Transcript with timestamps (JSON)</summary>
     TranscriptJson,
+
     /// <summary>OCR extracted text</summary>
     OcrText,
+
     /// <summary>Chapter markers</summary>
     ChaptersTxt,
+
     /// <summary>Markdown document (for DocSummarizer)</summary>
     MarkdownDocument,
 
     // Video artifacts
     /// <summary>Short video clip</summary>
     VideoClip,
+
     /// <summary>Scene preview clip</summary>
     ScenePreview,
+
     /// <summary>Highlight reel (auto-generated)</summary>
     HighlightReel,
 
     // Analysis artifacts
     /// <summary>Waveform visualization</summary>
     AudioWaveform,
+
     /// <summary>FFprobe/mediainfo output</summary>
     MediaInfoJson,
+
     /// <summary>Shot boundary data</summary>
     ShotBoundaryJson,
+
     /// <summary>Face embeddings store</summary>
     FaceEmbeddingsJson,
+
     /// <summary>Speaker diarization result</summary>
     DiarizationJson
 }
 
 /// <summary>
-/// Resolution info for image artifacts.
+///     Resolution info for image artifacts.
 /// </summary>
 public record ArtifactResolution(int Width, int Height)
 {
@@ -127,22 +147,25 @@ public record ArtifactResolution(int Width, int Height)
 }
 
 /// <summary>
-/// Quality level for artifact generation.
+///     Quality level for artifact generation.
 /// </summary>
 public enum ArtifactQuality
 {
     /// <summary>Lowest quality, smallest file size</summary>
     Minimal,
+
     /// <summary>Standard quality for storage</summary>
     Standard,
+
     /// <summary>High quality for viewing</summary>
     High,
+
     /// <summary>Original quality (no compression)</summary>
     Original
 }
 
 /// <summary>
-/// Collection of artifacts for a video, organized by type.
+///     Collection of artifacts for a video, organized by type.
 /// </summary>
 public class VideoArtifactCollection
 {
@@ -150,17 +173,25 @@ public class VideoArtifactCollection
     public string BasePath { get; init; } = "";
     public List<VideoArtifact> Artifacts { get; init; } = [];
 
+    /// <summary>Total storage used by all artifacts</summary>
+    public long TotalSize => Artifacts.Sum(a => a.FileSize);
+
     /// <summary>Get all artifacts of a specific type</summary>
-    public IEnumerable<VideoArtifact> OfType(VideoArtifactType type) =>
-        Artifacts.Where(a => a.Type == type);
+    public IEnumerable<VideoArtifact> OfType(VideoArtifactType type)
+    {
+        return Artifacts.Where(a => a.Type == type);
+    }
 
     /// <summary>Get the primary artifact of a type (e.g., main transcript)</summary>
-    public VideoArtifact? GetPrimary(VideoArtifactType type) =>
-        Artifacts.FirstOrDefault(a => a.Type == type);
+    public VideoArtifact? GetPrimary(VideoArtifactType type)
+    {
+        return Artifacts.FirstOrDefault(a => a.Type == type);
+    }
 
     /// <summary>Get all text-based artifacts for DocSummarizer</summary>
-    public IEnumerable<VideoArtifact> GetTextArtifacts() =>
-        Artifacts.Where(a => a.Type is
+    public IEnumerable<VideoArtifact> GetTextArtifacts()
+    {
+        return Artifacts.Where(a => a.Type is
             VideoArtifactType.SubtitleSrt or
             VideoArtifactType.SubtitleVtt or
             VideoArtifactType.TranscriptTxt or
@@ -168,32 +199,37 @@ public class VideoArtifactCollection
             VideoArtifactType.OcrText or
             VideoArtifactType.MarkdownDocument or
             VideoArtifactType.ChaptersTxt);
+    }
 
     /// <summary>Get all image artifacts for display/analysis</summary>
-    public IEnumerable<VideoArtifact> GetImageArtifacts() =>
-        Artifacts.Where(a => a.Type is
+    public IEnumerable<VideoArtifact> GetImageArtifacts()
+    {
+        return Artifacts.Where(a => a.Type is
             VideoArtifactType.SceneFrame or
             VideoArtifactType.Keyframe or
             VideoArtifactType.Filmstrip or
             VideoArtifactType.FaceThumbnail or
             VideoArtifactType.MotionHeatmap);
+    }
 
     /// <summary>Get all audio artifacts for AudioSummarizer</summary>
-    public IEnumerable<VideoArtifact> GetAudioArtifacts() =>
-        Artifacts.Where(a => a.Type is
+    public IEnumerable<VideoArtifact> GetAudioArtifacts()
+    {
+        return Artifacts.Where(a => a.Type is
             VideoArtifactType.AudioTrackOriginal or
             VideoArtifactType.AudioTrackProcessed or
             VideoArtifactType.SpeechSegment);
+    }
 
     /// <summary>Add a new artifact</summary>
-    public void Add(VideoArtifact artifact) => Artifacts.Add(artifact);
-
-    /// <summary>Total storage used by all artifacts</summary>
-    public long TotalSize => Artifacts.Sum(a => a.FileSize);
+    public void Add(VideoArtifact artifact)
+    {
+        Artifacts.Add(artifact);
+    }
 }
 
 /// <summary>
-/// Options for artifact generation.
+///     Options for artifact generation.
 /// </summary>
 public record ArtifactGenerationOptions
 {
@@ -250,8 +286,8 @@ public record ArtifactGenerationOptions
 }
 
 /// <summary>
-/// Markdown document template for DocSummarizer integration.
-/// Combines all video evidence into a structured document.
+///     Markdown document template for DocSummarizer integration.
+///     Combines all video evidence into a structured document.
 /// </summary>
 public record VideoMarkdownDocument
 {
@@ -275,7 +311,7 @@ public record VideoMarkdownDocument
     /// <summary>Generate markdown content</summary>
     public string ToMarkdown()
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         sb.AppendLine($"# {Title}");
         sb.AppendLine();

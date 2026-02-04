@@ -5,23 +5,24 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Books.Tests;
 
 public class GutenbergReaderTests
 {
-    private readonly GutenbergReader _reader = new(NullLogger<GutenbergReader>.Instance);
     private static readonly string SampleDataDir = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Mostlylucid.DocSummarizer", "sampledata"));
+
+    private readonly GutenbergReader _reader = new(NullLogger<GutenbergReader>.Instance);
 
     [Fact]
     public void IsGutenbergText_WithGutenbergHeader_ReturnsTrue()
     {
         var text = """
-            The Project Gutenberg eBook of Frankenstein
+                   The Project Gutenberg eBook of Frankenstein
 
-            Title: Frankenstein; Or, The Modern Prometheus
-            Author: Mary Wollstonecraft Shelley
+                   Title: Frankenstein; Or, The Modern Prometheus
+                   Author: Mary Wollstonecraft Shelley
 
-            *** START OF THE PROJECT GUTENBERG EBOOK FRANKENSTEIN ***
+                   *** START OF THE PROJECT GUTENBERG EBOOK FRANKENSTEIN ***
 
-            Letter 1
-            """;
+                   Letter 1
+                   """;
 
         GutenbergReader.IsGutenbergText(text).Should().BeTrue();
     }
@@ -37,17 +38,17 @@ public class GutenbergReaderTests
     public void ExtractMetadata_ParsesTitleAndAuthor()
     {
         var text = """
-            The Project Gutenberg eBook
+                   The Project Gutenberg eBook
 
-            Title: Pride and Prejudice
-            Author: Jane Austen
-            Release Date: June 1, 1998 [eBook #1342]
-            Language: English
+                   Title: Pride and Prejudice
+                   Author: Jane Austen
+                   Release Date: June 1, 1998 [eBook #1342]
+                   Language: English
 
-            *** START OF THE PROJECT GUTENBERG EBOOK ***
+                   *** START OF THE PROJECT GUTENBERG EBOOK ***
 
-            Content here.
-            """;
+                   Content here.
+                   """;
 
         var metadata = GutenbergReader.ExtractMetadata(text);
 
@@ -65,21 +66,21 @@ public class GutenbergReaderTests
     public void StripBoilerplate_RemovesHeaderAndFooter()
     {
         var text = """
-            The Project Gutenberg eBook of Something
+                   The Project Gutenberg eBook of Something
 
-            Title: Something
-            Author: Someone
+                   Title: Something
+                   Author: Someone
 
-            *** START OF THE PROJECT GUTENBERG EBOOK SOMETHING ***
+                   *** START OF THE PROJECT GUTENBERG EBOOK SOMETHING ***
 
-            This is the actual content of the book.
+                   This is the actual content of the book.
 
-            THE END
+                   THE END
 
-            *** END OF THE PROJECT GUTENBERG EBOOK SOMETHING ***
+                   *** END OF THE PROJECT GUTENBERG EBOOK SOMETHING ***
 
-            Project Gutenberg footer stuff here.
-            """;
+                   Project Gutenberg footer stuff here.
+                   """;
 
         var stripped = GutenbergReader.StripBoilerplate(text);
 
@@ -123,7 +124,7 @@ public class GutenbergReaderTests
 
         result.Markdown.Should().NotBeNullOrWhiteSpace();
         result.WordCount.Should().BeGreaterThan(50_000,
-            because: "Frankenstein is a substantial novel");
+            "Frankenstein is a substantial novel");
         result.Metadata.Should().ContainKey("title");
     }
 }

@@ -1,6 +1,7 @@
 # Automation (JSON + file outputs + scheduling)
 
 DoomSummarizer is console-first, but it’s designed to be automatable via:
+
 - JSON output (`--json` / `-t json`)
 - File exports (`-o/--output` + `-t/--template`)
 - External schedulers (cron / Windows Task Scheduler)
@@ -25,6 +26,7 @@ doomsummarizer scroll "security updates" -t newsletter -o newsletter.html
 ```
 
 If the output path ends in:
+
 - `.md` / `.txt`: written as text/markdown
 - `.html`: written as HTML (use `email`/`newsletter` templates for ready-to-send markup)
 - `.json`: written as JSON (use `--json` or `-t json`)
@@ -52,6 +54,7 @@ Then have your email/send step run separately (PowerShell, SMTP tool, Outlook au
 ## Roadmap (future)
 
 The direction is:
+
 - First-class scheduled runs (built-in cron-like schedules)
 - Templated email delivery (SMTP/SendGrid/etc.)
 - Templated Slack/Teams posting

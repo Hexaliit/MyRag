@@ -1,14 +1,14 @@
 using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Layout;
 
 /// <summary>
-/// Extracts detected layout regions from images for further processing.
-/// Crops Table, Figure, and Text regions for routing to appropriate processors.
+///     Extracts detected layout regions from images for further processing.
+///     Crops Table, Figure, and Text regions for routing to appropriate processors.
 /// </summary>
 public class LayoutRegionExtractor
 {
@@ -23,7 +23,7 @@ public class LayoutRegionExtractor
     }
 
     /// <summary>
-    /// Extract all regions of specified types from an image.
+    ///     Extract all regions of specified types from an image.
     /// </summary>
     /// <param name="imagePath">Source image path</param>
     /// <param name="detections">Layout detections from LayoutDetectionWave</param>
@@ -42,7 +42,7 @@ public class LayoutRegionExtractor
         var relevantDetections = detections
             .Where(d => targetTypes.Contains(d.ClassName))
             .OrderBy(d => d.Y) // Top to bottom
-            .ThenBy(d => d.X)  // Left to right
+            .ThenBy(d => d.X) // Left to right
             .ToList();
 
         if (relevantDetections.Count == 0)
@@ -58,16 +58,13 @@ public class LayoutRegionExtractor
         using var image = await Image.LoadAsync<Rgba32>(imagePath, ct);
         var baseName = Path.GetFileNameWithoutExtension(imagePath);
 
-        for (int i = 0; i < relevantDetections.Count; i++)
+        for (var i = 0; i < relevantDetections.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
 
             var detection = relevantDetections[i];
             var extracted = await ExtractRegionAsync(image, detection, baseName, i, ct);
-            if (extracted != null)
-            {
-                results.Add(extracted);
-            }
+            if (extracted != null) results.Add(extracted);
         }
 
         _logger?.LogInformation("Successfully extracted {Count} regions", results.Count);
@@ -75,7 +72,7 @@ public class LayoutRegionExtractor
     }
 
     /// <summary>
-    /// Extract a single region from the image.
+    ///     Extract a single region from the image.
     /// </summary>
     private async Task<ExtractedRegion?> ExtractRegionAsync(
         Image<Rgba32> sourceImage,
@@ -147,29 +144,24 @@ public class LayoutRegionExtractor
     }
 
     /// <summary>
-    /// Clean up extracted region files.
+    ///     Clean up extracted region files.
     /// </summary>
     public void CleanupRegions(IEnumerable<ExtractedRegion> regions)
     {
         foreach (var region in regions)
-        {
             try
             {
-                if (File.Exists(region.ExtractedImagePath))
-                {
-                    File.Delete(region.ExtractedImagePath);
-                }
+                if (File.Exists(region.ExtractedImagePath)) File.Delete(region.ExtractedImagePath);
             }
             catch (Exception ex)
             {
                 _logger?.LogDebug(ex, "Failed to cleanup region file: {Path}", region.ExtractedImagePath);
             }
-        }
     }
 }
 
 /// <summary>
-/// Represents an extracted layout region.
+///     Represents an extracted layout region.
 /// </summary>
 public record ExtractedRegion
 {
@@ -193,7 +185,7 @@ public record ExtractedRegion
 }
 
 /// <summary>
-/// Bounding box coordinates.
+///     Bounding box coordinates.
 /// </summary>
 public record RegionBounds
 {

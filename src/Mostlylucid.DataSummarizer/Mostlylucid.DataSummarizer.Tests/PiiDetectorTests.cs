@@ -4,7 +4,7 @@ using Mostlylucid.DataSummarizer.Services;
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for PII (Personally Identifiable Information) detection
+///     Tests for PII (Personally Identifiable Information) detection
 /// </summary>
 public class PiiDetectorTests
 {
@@ -139,8 +139,8 @@ public class PiiDetectorTests
     [Fact]
     public void ScanColumn_DetectsUUID()
     {
-        var samples = new object?[] 
-        { 
+        var samples = new object?[]
+        {
             "550e8400-e29b-41d4-a716-446655440000",
             "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
         };

@@ -1,20 +1,18 @@
+using System.Numerics;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using System.Numerics;
 
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Fast perceptual hash-based keyframe deduplication.
-/// Computes difference hashes (dHash) to identify visually similar frames
-/// before expensive ML analysis.
+///     Fast perceptual hash-based keyframe deduplication.
+///     Computes difference hashes (dHash) to identify visually similar frames
+///     before expensive ML analysis.
 /// </summary>
 public class KeyframeDeduplicationService
 {
-    private readonly ILogger<KeyframeDeduplicationService> _logger;
-
     // dHash parameters: 9x8 grayscale = 64 bits
     private const int HashWidth = 9;
     private const int HashHeight = 8;
@@ -22,6 +20,7 @@ public class KeyframeDeduplicationService
     // Hamming distance threshold - frames within this distance are considered duplicates
     // Lower = stricter (fewer duplicates), Higher = looser (more duplicates)
     private const int DefaultHammingThreshold = 10;
+    private readonly ILogger<KeyframeDeduplicationService> _logger;
 
     public KeyframeDeduplicationService(ILogger<KeyframeDeduplicationService> logger)
     {
@@ -29,8 +28,8 @@ public class KeyframeDeduplicationService
     }
 
     /// <summary>
-    /// Filter out visually similar frames from the candidate list.
-    /// Returns only unique frames that should receive full analysis.
+    ///     Filter out visually similar frames from the candidate list.
+    ///     Returns only unique frames that should receive full analysis.
     /// </summary>
     /// <param name="framePaths">Dictionary of timestamp -> frame path</param>
     /// <param name="hammingThreshold">Max Hamming distance to consider as duplicate (default 10)</param>
@@ -84,7 +83,8 @@ public class KeyframeDeduplicationService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to compute hash for frame at {Timestamp:F2}s, including anyway", timestamp);
+                _logger.LogWarning(ex, "Failed to compute hash for frame at {Timestamp:F2}s, including anyway",
+                    timestamp);
                 // Include frame if hashing fails
                 candidates.Add(new KeyframeCandidate
                 {
@@ -96,7 +96,7 @@ public class KeyframeDeduplicationService
         }
 
         var skipped = sortedFrames.Count - candidates.Count;
-        var skipPercent = sortedFrames.Count > 0 ? (100.0 * skipped / sortedFrames.Count) : 0;
+        var skipPercent = sortedFrames.Count > 0 ? 100.0 * skipped / sortedFrames.Count : 0;
 
         _logger.LogInformation(
             "Deduplication complete: {Original} -> {Unique} frames ({Skipped} duplicates, {Percent:F1}% reduction)",
@@ -106,9 +106,9 @@ public class KeyframeDeduplicationService
     }
 
     /// <summary>
-    /// Compute difference hash (dHash) for an image.
-    /// Uses 9x8 grayscale comparison producing 64-bit hash.
-    /// Very fast and effective for near-duplicate detection.
+    ///     Compute difference hash (dHash) for an image.
+    ///     Uses 9x8 grayscale comparison producing 64-bit hash.
+    ///     Very fast and effective for near-duplicate detection.
     /// </summary>
     public async Task<ulong> ComputeDHashAsync(string imagePath, CancellationToken ct = default)
     {
@@ -122,23 +122,18 @@ public class KeyframeDeduplicationService
                 .Grayscale());
 
             ulong hash = 0;
-            int bit = 0;
+            var bit = 0;
 
             // Compare adjacent pixels horizontally
-            for (int y = 0; y < HashHeight; y++)
+            for (var y = 0; y < HashHeight; y++)
+            for (var x = 0; x < HashWidth - 1; x++)
             {
-                for (int x = 0; x < HashWidth - 1; x++)
-                {
-                    var left = image[x, y].R;
-                    var right = image[x + 1, y].R;
+                var left = image[x, y].R;
+                var right = image[x + 1, y].R;
 
-                    // Set bit if left pixel is brighter than right
-                    if (left > right)
-                    {
-                        hash |= (1UL << bit);
-                    }
-                    bit++;
-                }
+                // Set bit if left pixel is brighter than right
+                if (left > right) hash |= 1UL << bit;
+                bit++;
             }
 
             return hash;
@@ -146,8 +141,8 @@ public class KeyframeDeduplicationService
     }
 
     /// <summary>
-    /// Calculate Hamming distance between two hashes.
-    /// Returns the number of differing bits.
+    ///     Calculate Hamming distance between two hashes.
+    ///     Returns the number of differing bits.
     /// </summary>
     public static int HammingDistance(ulong a, ulong b)
     {
@@ -155,17 +150,17 @@ public class KeyframeDeduplicationService
     }
 
     /// <summary>
-    /// Calculate similarity percentage between two hashes.
+    ///     Calculate similarity percentage between two hashes.
     /// </summary>
     public static double HashSimilarity(ulong a, ulong b)
     {
         var distance = HammingDistance(a, b);
-        return 1.0 - (distance / 64.0);
+        return 1.0 - distance / 64.0;
     }
 }
 
 /// <summary>
-/// Candidate keyframe after deduplication filtering.
+///     Candidate keyframe after deduplication filtering.
 /// </summary>
 public record KeyframeCandidate
 {

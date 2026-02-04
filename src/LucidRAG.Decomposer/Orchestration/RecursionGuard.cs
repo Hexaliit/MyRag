@@ -5,30 +5,33 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.Decomposer.Orchestration;
 
 /// <summary>
-/// Prevents infinite decomposition loops.
-/// - Max depth: 3 levels
-/// - Cycle detection: embedding similarity >= 0.90 to any ancestor
-/// - Budget: max 8 total leaf nodes
-/// - Timeout: per-node timeout inherited from caller
+///     Prevents infinite decomposition loops.
+///     - Max depth: 3 levels
+///     - Cycle detection: embedding similarity >= 0.90 to any ancestor
+///     - Budget: max 8 total leaf nodes
+///     - Timeout: per-node timeout inherited from caller
 /// </summary>
 public class RecursionGuard
 {
-    private readonly ILogger<RecursionGuard>? _logger;
-    private int _leafCount;
-
-    public int MaxDepth { get; init; } = 3;
-    public int MaxLeaves { get; init; } = 8;
-
     /// <summary>Cosine threshold for cycle detection (ancestor similarity).</summary>
     private const float CycleThreshold = 0.90f;
+
+    private readonly ILogger<RecursionGuard>? _logger;
+    private int _leafCount;
 
     public RecursionGuard(ILogger<RecursionGuard>? logger = null)
     {
         _logger = logger;
     }
 
+    public int MaxDepth { get; init; } = 3;
+    public int MaxLeaves { get; init; } = 8;
+
+    /// <summary>Current leaf count.</summary>
+    public int CurrentLeafCount => _leafCount;
+
     /// <summary>
-    /// Check if a node can be further decomposed.
+    ///     Check if a node can be further decomposed.
     /// </summary>
     public bool CanDecompose(QueryNode node, IReadOnlyList<QueryNode>? ancestors = null)
     {
@@ -50,7 +53,6 @@ public class RecursionGuard
 
         // Cycle detection (embedding similarity to ancestors)
         if (node.Embedding != null && ancestors != null)
-        {
             foreach (var ancestor in ancestors)
             {
                 if (ancestor.Embedding == null) continue;
@@ -63,16 +65,15 @@ public class RecursionGuard
                     return false;
                 }
             }
-        }
 
         return true;
     }
 
     /// <summary>
-    /// Register a leaf node (counts toward budget).
+    ///     Register a leaf node (counts toward budget).
     /// </summary>
-    public void RegisterLeaf() => Interlocked.Increment(ref _leafCount);
-
-    /// <summary>Current leaf count.</summary>
-    public int CurrentLeafCount => _leafCount;
+    public void RegisterLeaf()
+    {
+        Interlocked.Increment(ref _leafCount);
+    }
 }

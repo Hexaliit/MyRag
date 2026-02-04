@@ -1,133 +1,132 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Config;
 
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Configuration for the synthesis cache
+///     Configuration for the synthesis cache
 /// </summary>
 public class SynthesisCacheConfig
 {
     /// <summary>
-    /// Maximum number of entries in the cache
+    ///     Maximum number of entries in the cache
     /// </summary>
     public int MaxEntries { get; set; } = 1000;
 
     /// <summary>
-    /// Absolute maximum age for cache entries (hard expiration)
+    ///     Absolute maximum age for cache entries (hard expiration)
     /// </summary>
     public TimeSpan MaxAge { get; set; } = TimeSpan.FromHours(24);
 
     /// <summary>
-    /// Sliding expiration - entry expires if not accessed within this duration
+    ///     Sliding expiration - entry expires if not accessed within this duration
     /// </summary>
     public TimeSpan SlidingExpiration { get; set; } = TimeSpan.FromHours(4);
 
     /// <summary>
-    /// Whether the cache is enabled
+    ///     Whether the cache is enabled
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// If true, cache entries are invalidated when the LLM model changes
+    ///     If true, cache entries are invalidated when the LLM model changes
     /// </summary>
     public bool InvalidateOnModelChange { get; set; } = true;
 
     /// <summary>
-    /// If true, store evidence separately so we can re-synthesize without re-fetching
+    ///     If true, store evidence separately so we can re-synthesize without re-fetching
     /// </summary>
     public bool StoreEvidenceSeparately { get; set; } = true;
 }
 
 /// <summary>
-/// Cached synthesis entry with metadata for smart invalidation
+///     Cached synthesis entry with metadata for smart invalidation
 /// </summary>
 public class SynthesisCacheEntry
 {
     /// <summary>
-    /// The synthesized response
+    ///     The synthesized response
     /// </summary>
     public required string Response { get; init; }
 
     /// <summary>
-    /// Hash of the evidence/context used for this synthesis
+    ///     Hash of the evidence/context used for this synthesis
     /// </summary>
     public required string EvidenceHash { get; init; }
 
     /// <summary>
-    /// Document IDs that contributed evidence to this synthesis
+    ///     Document IDs that contributed evidence to this synthesis
     /// </summary>
     public required Guid[] SourceDocumentIds { get; init; }
 
     /// <summary>
-    /// LLM model used for synthesis
+    ///     LLM model used for synthesis
     /// </summary>
     public required string LlmModel { get; init; }
 
     /// <summary>
-    /// When this entry was created
+    ///     When this entry was created
     /// </summary>
     public DateTimeOffset CreatedAt { get; init; }
 
     /// <summary>
-    /// Last time this entry was accessed
+    ///     Last time this entry was accessed
     /// </summary>
     public DateTimeOffset LastAccessedAt { get; set; }
 
     /// <summary>
-    /// Number of times this entry was accessed (for LFU eviction)
+    ///     Number of times this entry was accessed (for LFU eviction)
     /// </summary>
     public int AccessCount { get; set; }
 }
 
 /// <summary>
-/// Cached evidence entry for re-synthesis without re-fetching
+///     Cached evidence entry for re-synthesis without re-fetching
 /// </summary>
 public class EvidenceCacheEntry
 {
     /// <summary>
-    /// The query this evidence is for
+    ///     The query this evidence is for
     /// </summary>
     public required string Query { get; init; }
 
     /// <summary>
-    /// The evidence/context string
+    ///     The evidence/context string
     /// </summary>
     public required string Evidence { get; init; }
 
     /// <summary>
-    /// Hash of the evidence for quick comparison
+    ///     Hash of the evidence for quick comparison
     /// </summary>
     public required string EvidenceHash { get; init; }
 
     /// <summary>
-    /// Document IDs that contributed to this evidence
+    ///     Document IDs that contributed to this evidence
     /// </summary>
     public required Guid[] SourceDocumentIds { get; init; }
 
     /// <summary>
-    /// When this evidence was fetched
+    ///     When this evidence was fetched
     /// </summary>
     public DateTimeOffset CreatedAt { get; init; }
 }
 
 /// <summary>
-/// LFU-cached service for synthesis results with smart invalidation.
-/// Supports re-synthesis when model changes without re-fetching evidence.
+///     LFU-cached service for synthesis results with smart invalidation.
+///     Supports re-synthesis when model changes without re-fetching evidence.
 /// </summary>
 public class SynthesisCacheService
 {
-    private readonly ILogger<SynthesisCacheService> _logger;
     private readonly SynthesisCacheConfig _config;
     private readonly string _currentModel;
+    private readonly object _evictionLock = new();
+    private readonly ConcurrentDictionary<string, EvidenceCacheEntry> _evidenceCache = new();
+    private readonly ILogger<SynthesisCacheService> _logger;
 
     private readonly ConcurrentDictionary<string, SynthesisCacheEntry> _synthesisCache = new();
-    private readonly ConcurrentDictionary<string, EvidenceCacheEntry> _evidenceCache = new();
-    private readonly object _evictionLock = new();
 
     private int _cacheHits;
     private int _cacheMisses;
@@ -144,7 +143,7 @@ public class SynthesisCacheService
     }
 
     /// <summary>
-    /// Try to get a cached synthesis response
+    ///     Try to get a cached synthesis response
     /// </summary>
     /// <param name="query">The query</param>
     /// <param name="evidenceHash">Hash of the evidence/context</param>
@@ -209,7 +208,7 @@ public class SynthesisCacheService
     }
 
     /// <summary>
-    /// Try to get cached evidence for a query (for re-synthesis without re-fetching)
+    ///     Try to get cached evidence for a query (for re-synthesis without re-fetching)
     /// </summary>
     public bool TryGetEvidence(string query, out EvidenceCacheEntry? evidence)
     {
@@ -241,7 +240,7 @@ public class SynthesisCacheService
     }
 
     /// <summary>
-    /// Store a synthesis result in the cache
+    ///     Store a synthesis result in the cache
     /// </summary>
     public void SetSynthesis(
         string query,
@@ -282,17 +281,14 @@ public class SynthesisCacheService
         }
 
         // Evict if over capacity
-        if (_synthesisCache.Count > _config.MaxEntries)
-        {
-            EvictLeastFrequentlyUsed();
-        }
+        if (_synthesisCache.Count > _config.MaxEntries) EvictLeastFrequentlyUsed();
 
         _logger.LogDebug("Synthesis cached (key: {Key}, model: {Model}, docs: {DocCount})",
             cacheKey[..12], _currentModel, sourceDocumentIds.Length);
     }
 
     /// <summary>
-    /// Invalidate cache entries for a specific document
+    ///     Invalidate cache entries for a specific document
     /// </summary>
     public int InvalidateForDocument(Guid documentId)
     {
@@ -305,10 +301,8 @@ public class SynthesisCacheService
             .ToList();
 
         foreach (var key in keysToRemove)
-        {
             if (_synthesisCache.TryRemove(key, out _))
                 invalidated++;
-        }
 
         // Remove evidence entries that used this document
         var evidenceKeysToRemove = _evidenceCache
@@ -316,22 +310,17 @@ public class SynthesisCacheService
             .Select(kv => kv.Key)
             .ToList();
 
-        foreach (var key in evidenceKeysToRemove)
-        {
-            _evidenceCache.TryRemove(key, out _);
-        }
+        foreach (var key in evidenceKeysToRemove) _evidenceCache.TryRemove(key, out _);
 
         if (invalidated > 0)
-        {
             _logger.LogInformation("Invalidated {Count} cache entries for document {DocumentId}",
                 invalidated, documentId);
-        }
 
         return invalidated;
     }
 
     /// <summary>
-    /// Mark that a re-synthesis occurred (for stats)
+    ///     Mark that a re-synthesis occurred (for stats)
     /// </summary>
     public void RecordReSynthesis()
     {
@@ -339,7 +328,7 @@ public class SynthesisCacheService
     }
 
     /// <summary>
-    /// Get cache statistics
+    ///     Get cache statistics
     /// </summary>
     public SynthesisCacheStats GetStats()
     {
@@ -347,19 +336,19 @@ public class SynthesisCacheService
         var hitRate = total > 0 ? (double)_cacheHits / total * 100 : 0;
 
         return new SynthesisCacheStats(
-            Hits: _cacheHits,
-            Misses: _cacheMisses,
-            EvidenceHits: _evidenceHits,
-            ReSynthesisCount: _reSynthesisCount,
-            SynthesisCacheSize: _synthesisCache.Count,
-            EvidenceCacheSize: _evidenceCache.Count,
-            HitRatePercent: hitRate,
-            CurrentModel: _currentModel,
-            Config: _config);
+            _cacheHits,
+            _cacheMisses,
+            _evidenceHits,
+            _reSynthesisCount,
+            _synthesisCache.Count,
+            _evidenceCache.Count,
+            hitRate,
+            _currentModel,
+            _config);
     }
 
     /// <summary>
-    /// Clear the cache
+    ///     Clear the cache
     /// </summary>
     public void Clear()
     {
@@ -373,7 +362,7 @@ public class SynthesisCacheService
     }
 
     /// <summary>
-    /// Compute hash for evidence/context
+    ///     Compute hash for evidence/context
     /// </summary>
     public static string ComputeHash(string content)
     {
@@ -411,10 +400,7 @@ public class SynthesisCacheService
                 .Select(kv => kv.Key)
                 .ToList();
 
-            foreach (var key in toRemove)
-            {
-                _synthesisCache.TryRemove(key, out _);
-            }
+            foreach (var key in toRemove) _synthesisCache.TryRemove(key, out _);
 
             _logger.LogDebug("Evicted {Count} LFU synthesis cache entries", toRemove.Count);
         }

@@ -1,8 +1,11 @@
 # Cloud LLM Providers (OpenAI & Anthropic)
 
-> **Cloud providers are optional and disabled by default.** DoomSummarizer runs fully on local Ollama models (`gemma3:4b` + `qwen3:0.6b`). Cloud LLMs are only used when explicitly enabled in config with a valid API key.
+> **Cloud providers are optional and disabled by default.** DoomSummarizer runs fully on local Ollama models (
+`gemma3:4b` + `qwen3:0.6b`). Cloud LLMs are only used when explicitly enabled in config with a valid API key.
 
-Cloud LLM providers can deliver improved results for complex queries. They offer larger context windows, stronger reasoning, and higher-quality synthesis. When enabled, they serve as **fallback** providers — Ollama remains the primary LLM.
+Cloud LLM providers can deliver improved results for complex queries. They offer larger context windows, stronger
+reasoning, and higher-quality synthesis. When enabled, they serve as **fallback** providers — Ollama remains the primary
+LLM.
 
 ## Quick Setup
 
@@ -27,6 +30,7 @@ export DOOM_ANTHROPIC_MODELS="claude-sonnet-4-5-20251124|claude-haiku-4-5-202511
 ```
 
 Then enable the provider in your config (`~/.doomsummarizer/config.json`):
+
 ```json
 { "name": "anthropic", "apiKey": "sk-ant-...", "enabled": true }
 ```
@@ -37,22 +41,24 @@ Cloud providers must be explicitly enabled. Setting an API key alone is not suff
 
 DoomSummarizer uses **two model roles**:
 
-| Role | Purpose | Choose |
-|------|---------|--------|
-| **Main** | Synthesis, summaries, article generation | Larger model with strong reasoning |
-| **Sentinel** | Query classification, intent detection, Lucene query generation | Cheaper/faster model |
+| Role         | Purpose                                                         | Choose                             |
+|--------------|-----------------------------------------------------------------|------------------------------------|
+| **Main**     | Synthesis, summaries, article generation                        | Larger model with strong reasoning |
+| **Sentinel** | Query classification, intent detection, Lucene query generation | Cheaper/faster model               |
 
 Format: `DOOM_*_MODELS="main_model|sentinel_model"`
 
 ### Choosing the Right Models
 
 **For Main role (synthesis):**
+
 - Choose the most capable model within your budget
 - Larger models produce more coherent summaries, better temporal understanding, and higher-quality articles
 - Look for models with large context windows (128K+) to reason over more evidence
 - Frontier/flagship models excel at long-form article generation
 
 **For Sentinel role (classification):**
+
 - Smaller, faster models work well here
 - The sentinel classifies query intent and generates Lucene queries — it doesn't need frontier-level reasoning
 - Prioritize speed and cost over raw capability
@@ -60,15 +66,16 @@ Format: `DOOM_*_MODELS="main_model|sentinel_model"`
 
 ### OpenAI Model Tiers
 
-| Tier | Examples | Best For |
-|------|----------|----------|
-| **Flagship** | GPT-5, GPT-4o | Main role: synthesis, complex reasoning |
-| **Balanced** | GPT-4.1, GPT-4-turbo | Main role with budget constraints |
-| **Fast/Mini** | GPT-4o-mini, GPT-4.1-mini | Sentinel role, classification |
+| Tier          | Examples                  | Best For                                |
+|---------------|---------------------------|-----------------------------------------|
+| **Flagship**  | GPT-5, GPT-4o             | Main role: synthesis, complex reasoning |
+| **Balanced**  | GPT-4.1, GPT-4-turbo      | Main role with budget constraints       |
+| **Fast/Mini** | GPT-4o-mini, GPT-4.1-mini | Sentinel role, classification           |
 
 Check [OpenAI's model docs](https://platform.openai.com/docs/models) for current models and pricing.
 
 **Example setups:**
+
 ```bash
 # Quality + budget balance (recommended)
 export DOOM_OPENAI_MODELS="gpt-4o|gpt-4o-mini"
@@ -82,15 +89,16 @@ export DOOM_OPENAI_MODELS="gpt-4o-mini|gpt-4o-mini"
 
 ### Anthropic Model Tiers
 
-| Tier | Examples | Best For |
-|------|----------|----------|
-| **Opus** | claude-opus-* | Main role: highest quality, research, agent chains |
-| **Sonnet** | claude-sonnet-* | Main role: best balance of quality and cost |
-| **Haiku** | claude-haiku-* | Sentinel role: fast, cheap, classification |
+| Tier       | Examples        | Best For                                           |
+|------------|-----------------|----------------------------------------------------|
+| **Opus**   | claude-opus-*   | Main role: highest quality, research, agent chains |
+| **Sonnet** | claude-sonnet-* | Main role: best balance of quality and cost        |
+| **Haiku**  | claude-haiku-*  | Sentinel role: fast, cheap, classification         |
 
 Check [Anthropic's model docs](https://docs.anthropic.com/en/docs/about-claude/models) for current models and pricing.
 
 **Example setups:**
+
 ```bash
 # Best balance (recommended)
 export DOOM_ANTHROPIC_MODELS="claude-sonnet-4-5-20251124|claude-haiku-4-5-20251124"
@@ -105,10 +113,12 @@ export DOOM_ANTHROPIC_MODELS="claude-haiku-4-5-20251124|claude-haiku-4-5-2025112
 ### Model Naming Conventions
 
 **OpenAI:** `gpt-{version}` or `gpt-{version}-mini`
+
 - Version numbers increase over time (4, 4o, 4.1, 5, 5.2, etc.)
 - `-mini` suffix indicates smaller, faster, cheaper variant
 
 **Anthropic:** `claude-{tier}-{version}-{date}`
+
 - Tiers: `opus` (best), `sonnet` (balanced), `haiku` (fast)
 - Date format: YYYYMMDD (e.g., 20251124)
 - Use `-latest` suffix for auto-updating to newest version of a tier
@@ -148,7 +158,8 @@ DoomSummarizer routes LLM calls with intelligent fallback:
 2. **Anthropic** — If configured and budget allows
 3. **OpenAI** — If configured and budget allows
 
-If Ollama fails or is unavailable, cloud providers are tried in order. Budget limits are checked before each cloud API call.
+If Ollama fails or is unavailable, cloud providers are tried in order. Budget limits are checked before each cloud API
+call.
 
 ## Budget Control
 
@@ -229,6 +240,7 @@ doomsummarizer config --show
 ### "anthropic: budget exceeded — trying next"
 
 Budget limits reached. Either:
+
 - Wait until the next day (daily limits reset)
 - Increase `dailyLimit` in config
 - Fall back to Ollama (automatic)
@@ -242,6 +254,7 @@ Budget limits reached. Either:
 ### Slow responses
 
 Cloud providers have network latency. For faster iteration:
+
 - Use `--no-llm` flag for ranking-only mode (no synthesis)
 - Use smaller models for sentinel role
 - Ensure Ollama is running for hybrid mode
@@ -257,6 +270,7 @@ Cloud LLMs provide:
 5. **Entity awareness** — better at identifying people, organizations, topics
 
 Combined with DoomSummarizer's local ONNX embeddings, BM25 ranking, and knowledge graph:
+
 - Embeddings and retrieval are **free** (local ONNX)
 - Ranking and scoring are **free** (deterministic algorithms)
 - Only synthesis uses cloud LLMs (controllable cost)

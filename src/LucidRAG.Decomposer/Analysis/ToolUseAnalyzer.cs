@@ -6,24 +6,19 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Detects tool-use patterns in queries. "Sources are tools"  -  the decomposer
-/// routes sub-queries to specific tools based on query intent:
-///
-///   FileSystem → "go to C:/test, find markdown files"
-///   Index      → "index those files, build a KB called 'myfiles'"
-///   KbQuery    → "search the knowledge base for..."
-///   Crawl      → "crawl https://example.com"
-///   Analyze    → "tell me how long they are"
-///   Transform  → "export as CSV", "convert to markdown"
-///
-/// Uses embedding archetype matching (not regex word lists) for intent detection,
-/// with regex only for parameter extraction (paths, collection names, patterns).
+///     Detects tool-use patterns in queries. "Sources are tools"  -  the decomposer
+///     routes sub-queries to specific tools based on query intent:
+///     FileSystem → "go to C:/test, find markdown files"
+///     Index      → "index those files, build a KB called 'myfiles'"
+///     KbQuery    → "search the knowledge base for..."
+///     Crawl      → "crawl https://example.com"
+///     Analyze    → "tell me how long they are"
+///     Transform  → "export as CSV", "convert to markdown"
+///     Uses embedding archetype matching (not regex word lists) for intent detection,
+///     with regex only for parameter extraction (paths, collection names, patterns).
 /// </summary>
 public partial class ToolUseAnalyzer : IQueryAnalyzer
 {
-    private readonly IEmbeddingService? _embedding;
-    private readonly ILogger<ToolUseAnalyzer>? _logger;
-
     private const float ToolMatchThreshold = 0.50f;
 
     // Archetype texts per tool kind (embedded lazily at first use)
@@ -79,6 +74,9 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
         ]
     };
 
+    private readonly IEmbeddingService? _embedding;
+    private readonly ILogger<ToolUseAnalyzer>? _logger;
+
     // Cached archetype embeddings (computed once at first use)
     private Dictionary<ToolKind, float[][]>? _archetypeEmbeddings;
 
@@ -129,10 +127,8 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
         }
 
         if (tools.Count > existing.DetectedTools.Count)
-        {
             _logger?.LogDebug("Detected {Count} tool actions in query: {Query}",
                 tools.Count - existing.DetectedTools.Count, query);
-        }
 
         // If we detected tool actions, upgrade complexity
         var complexity = existing.Complexity;
@@ -150,8 +146,8 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
     }
 
     /// <summary>
-    /// Deterministic tool extraction  -  handles clear structural signals
-    /// like file paths, collection names, and crawl URLs without embeddings.
+    ///     Deterministic tool extraction  -  handles clear structural signals
+    ///     like file paths, collection names, and crawl URLs without embeddings.
     /// </summary>
     private static ToolAction? ExtractDeterministic(string clause)
     {
@@ -196,7 +192,6 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
         {
             var urls = ReferenceExtractor.ExtractUrls(clause);
             if (urls.Count > 0)
-            {
                 return new ToolAction
                 {
                     Tool = ToolKind.Crawl,
@@ -207,15 +202,14 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
                         ["depth"] = "2"
                     }
                 };
-            }
         }
 
         return null;
     }
 
     /// <summary>
-    /// Match clause against tool archetype embeddings.
-    /// Returns the best matching tool if score >= threshold, null otherwise.
+    ///     Match clause against tool archetype embeddings.
+    ///     Returns the best matching tool if score >= threshold, null otherwise.
     /// </summary>
     private async Task<ToolAction?> MatchToolArchetypeAsync(
         string clause,
@@ -235,32 +229,28 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
         var bestScore = 0f;
 
         foreach (var (tool, archetypeEmbeddings) in _archetypeEmbeddings!)
+        foreach (var archetype in archetypeEmbeddings)
         {
-            foreach (var archetype in archetypeEmbeddings)
+            var sim = ComplexityClassifier.CosineSimilarity(clauseEmbedding, archetype);
+            if (sim > bestScore)
             {
-                var sim = ComplexityClassifier.CosineSimilarity(clauseEmbedding, archetype);
-                if (sim > bestScore)
-                {
-                    bestScore = sim;
-                    bestTool = tool;
-                }
+                bestScore = sim;
+                bestTool = tool;
             }
         }
 
         if (bestTool != null && bestScore >= ToolMatchThreshold)
-        {
             return new ToolAction
             {
                 Tool = bestTool.Value,
-                Intent = clause,
+                Intent = clause
             };
-        }
 
         return null;
     }
 
     /// <summary>
-    /// Enrich a tool action detected via archetypes with extracted parameters.
+    ///     Enrich a tool action detected via archetypes with extracted parameters.
     /// </summary>
     private static ToolAction EnrichWithParameters(string clause, ToolAction action)
     {
@@ -341,14 +331,12 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
 
         _archetypeEmbeddings = new Dictionary<ToolKind, float[][]>();
         foreach (var (tool, offset, count) in slices)
-        {
             _archetypeEmbeddings[tool] = allEmbeddings[offset..(offset + count)];
-        }
     }
 
     /// <summary>
-    /// Split query into clauses on sentence boundaries and common verb-phrase boundaries.
-    /// Tool-use queries often chain actions: "go to X, index Y, then tell me Z"
+    ///     Split query into clauses on sentence boundaries and common verb-phrase boundaries.
+    ///     Tool-use queries often chain actions: "go to X, index Y, then tell me Z"
     /// </summary>
     private static List<string> SplitIntoClauses(string query)
     {
@@ -366,16 +354,22 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
         return clauses.Count == 0 ? [query] : clauses;
     }
 
-    private static bool HasFileVerb(string lower) =>
-        lower.Contains("go to") || lower.Contains("find") || lower.Contains("list") ||
-        lower.Contains("read") || lower.Contains("open") || lower.Contains("show") ||
-        lower.Contains("get") || lower.Contains("look in") || lower.Contains("folder") ||
-        lower.Contains("directory");
+    private static bool HasFileVerb(string lower)
+    {
+        return lower.Contains("go to") || lower.Contains("find") || lower.Contains("list") ||
+               lower.Contains("read") || lower.Contains("open") || lower.Contains("show") ||
+               lower.Contains("get") || lower.Contains("look in") || lower.Contains("folder") ||
+               lower.Contains("directory");
+    }
 
-    private static bool HasIndexVerb(string lower) =>
-        lower.Contains("index") || lower.Contains("ingest") || lower.Contains("import") ||
-        (lower.Contains("build") && (lower.Contains("knowledge") || lower.Contains("kb") || lower.Contains("collection"))) ||
-        (lower.Contains("create") && (lower.Contains("knowledge") || lower.Contains("kb") || lower.Contains("collection")));
+    private static bool HasIndexVerb(string lower)
+    {
+        return lower.Contains("index") || lower.Contains("ingest") || lower.Contains("import") ||
+               (lower.Contains("build") &&
+                (lower.Contains("knowledge") || lower.Contains("kb") || lower.Contains("collection"))) ||
+               (lower.Contains("create") &&
+                (lower.Contains("knowledge") || lower.Contains("kb") || lower.Contains("collection")));
+    }
 
     private static string? ExtractFilePattern(string lower)
     {
@@ -411,10 +405,13 @@ public partial class ToolUseAnalyzer : IQueryAnalyzer
     }
 
     // File path in clause: Windows (C:\...) or Unix (/home/..., ~/...)
-    [GeneratedRegex(@"(?:[A-Za-z]:[/\\][^\s,;""']+|/(?:home|usr|var|tmp|etc|opt)/[^\s,;""']+|~/[^\s,;""']+)", RegexOptions.None)]
+    [GeneratedRegex(@"(?:[A-Za-z]:[/\\][^\s,;""']+|/(?:home|usr|var|tmp|etc|opt)/[^\s,;""']+|~/[^\s,;""']+)",
+        RegexOptions.None)]
     private static partial Regex FilePathInClause();
 
     // Clause splitter: split on period, semicolon, "then", "and then", comma + verb
-    [GeneratedRegex(@"[.;]\s+|(?:,?\s*(?:and\s+)?then\s+)|,\s+(?=(?:go|find|index|build|create|tell|show|list|read|crawl|search|query|import|analyze|export|convert|open|get))", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"[.;]\s+|(?:,?\s*(?:and\s+)?then\s+)|,\s+(?=(?:go|find|index|build|create|tell|show|list|read|crawl|search|query|import|analyze|export|convert|open|get))",
+        RegexOptions.IgnoreCase)]
     private static partial Regex ClauseSplitter();
 }

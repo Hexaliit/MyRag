@@ -6,20 +6,27 @@ $failed = 0
 
 Write-Host "Starting upload of $total markdown files..."
 
-foreach ($file in $files) {
+foreach ($file in $files)
+{
     $count++
-    try {
+    try
+    {
         # Use curl.exe (built into Windows) for multipart form upload
-        $result = & curl.exe -k -s -X POST "https://localhost:5020/api/documents/upload" -F "file=@$($file.FullName)"
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "[$count/$total] Uploaded: $($file.Name)"
+        $result = & curl.exe -k -s -X POST "https://localhost:5020/api/documents/upload" -F "file=@$( $file.FullName )"
+        if ($LASTEXITCODE -eq 0)
+        {
+            Write-Host "[$count/$total] Uploaded: $( $file.Name )"
             $success++
-        } else {
-            Write-Host "[$count/$total] FAILED: $($file.Name) - curl exit code $LASTEXITCODE"
+        }
+        else
+        {
+            Write-Host "[$count/$total] FAILED: $( $file.Name ) - curl exit code $LASTEXITCODE"
             $failed++
         }
-    } catch {
-        Write-Host "[$count/$total] FAILED: $($file.Name) - $($_.Exception.Message)"
+    }
+    catch
+    {
+        Write-Host "[$count/$total] FAILED: $( $file.Name ) - $( $_.Exception.Message )"
         $failed++
     }
 }

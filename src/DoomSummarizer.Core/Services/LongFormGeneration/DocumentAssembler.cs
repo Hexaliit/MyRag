@@ -1,17 +1,16 @@
-using DoomSummarizer.Models;
 using DoomSummarizer.Models.LongFormGeneration;
 
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Phase 6: Assembly (Deterministic).
-/// Converts a validated DocumentPlan into a BlogArticleResult for compatibility
-/// with existing template rendering and output pipeline.
+///     Phase 6: Assembly (Deterministic).
+///     Converts a validated DocumentPlan into a BlogArticleResult for compatibility
+///     with existing template rendering and output pipeline.
 /// </summary>
 public static class DocumentAssembler
 {
     /// <summary>
-    /// Assemble the final BlogArticleResult from a validated plan.
+    ///     Assemble the final BlogArticleResult from a validated plan.
     /// </summary>
     public static BlogArticleResult Assemble(
         DocumentPlan plan,

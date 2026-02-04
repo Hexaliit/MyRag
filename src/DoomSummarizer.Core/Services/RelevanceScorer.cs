@@ -6,88 +6,74 @@ using Mostlylucid.DocSummarizer.Services.Utilities;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Two-phase relevance scorer using Reciprocal Rank Fusion (RRF) across multiple signals.
-///
-/// SCORING PIPELINE OVERVIEW
-/// ========================
-///
-/// Phase 1 — ScoreFast (early discard):
-///   Signals: Freshness + Authority [+ QuerySimilarity + Quality if embeddings available]
-///   Purpose: Discard obviously irrelevant items before expensive embedding computation.
-///   Each signal produces an independent ranking; RRF fuses them.
-///
-/// Phase 2 — ScoreFull (precise ranking):
-///   Signals: Freshness + Authority + QuerySimilarity + VibeSimilarity + Quality
-///   Purpose: Final ranking with all signals including embedding-based semantic matching.
-///
-/// NOTE: BM25 keyword matching is handled exclusively by Lucene at the retrieval layer.
-/// The scorer does NOT run BM25 — QuerySimilarity (semantic embedding) is the primary
-/// relevance signal. BM25 static methods are retained as internal utilities.
-///
-/// HOW RRF WORKS
-/// =============
-/// Each signal ranks all items independently (best=rank 0, worst=rank N).
-/// The fusion score for item d is: Σ weight_i × 1/(k + rank_i(d) + 1)
-/// where k=60 (standard from literature, prevents top-ranked items from dominating).
-///
-/// Weight controls how much INFLUENCE a signal's ranking has in the fused score.
-/// A weight of 1.0 means the signal's rank contribution is at full strength.
-/// A weight of 0.5 means the signal's rank contribution is halved.
-/// Weight 0 disables the signal entirely.
-///
-/// THE FIVE SIGNALS
-/// ================
-///
-/// 1. Freshness (recency) — weight default: 0.5
-///    Exponential decay from the item's publication time (CreatedAt if available,
-///    otherwise FetchedAt). Half-life: 48 hours.
-///    Formula: exp(-age_hours × ln(2) / 48)
-///    At 0h → 1.0, at 48h → 0.5, at 96h → 0.25, at 7d → 0.06
-///    Measures: How recent is this item? Newer = higher score.
-///
-/// 2. Authority (source quality) — weight default: 0.3
-///    For items with native scores (HN points, Reddit upvotes): normalized within
-///    same-source batch to 0-1 range.
-///    For items without scores: hard-coded baseline by source reputation:
-///    BBC/Guardian/Reuters=0.5, Google News=0.4, other=0.3.
-///    Measures: How trustworthy/popular is this item within its source?
-///
-/// 3. QuerySimilarity (semantic relevance) — weight default: 1.5
-///    Cosine similarity between item embedding and query embedding.
-///    Uses all-MiniLM-L6-v2 (384-dim ONNX). Range: -1 to 1, typically 0.1-0.7.
-///    Bridges vocabulary gap: "pharmaceutical" matches "drug pricing" without synonyms.
-///    Primary relevance signal now that BM25 is handled at retrieval by Lucene.
-///    Measures: Is this item semantically about the query topic?
-///
-/// 4. VibeSimilarity (tone alignment) — weight default: 0.4
-///    Cosine similarity between item embedding and vibe prompt embedding.
-///    Promotes items matching the requested tone (doom, hopeful, snarky, etc.)
-///    Only available in Phase 2.
-///    Measures: Does this item match the desired editorial tone?
-///
-/// 5. Quality (content substance) — weight default: 0.2
-///    Cosine-similarity difference between item embedding and quality anchor embeddings.
-///    High-quality anchor = "detailed analysis, well-researched, expert opinion..."
-///    Low-quality anchor = "clickbait, shocking, sensational, you won't believe..."
-///    Formula: (sim(item, high) - sim(item, low) + 1) / 2 → [0, 1]
-///    Only active when WithQualityAnchors() has been called with pre-computed anchors.
-///    Measures: Is this substantive journalism or clickbait?
-///
-/// POST-RRF GATES
-/// ==============
-/// After RRF fusion, a hard gate removes items with cosine similarity &lt; threshold.
-/// Phase 1 gate: embedding similarity &gt;= 0.25 (items without embeddings are exempt).
-/// Phase 2 gate: embedding similarity &gt;= 0.20 using the ORIGINAL query embedding
-/// (not PRF-refined) to prevent centroid drift from shifting acceptance toward off-topic content.
-///
-/// QUERY-TYPE ADAPTATION
-/// =====================
-/// ForQueryType() returns a scorer with weights tuned per query type:
-///   Roundup:    freshness↑(0.8) authority↓(0.2) querySim(1.0) quality↓(0.15) — recency first
-///   Timeline:   freshness↑↑(1.0) authority↓(0.2) querySim(1.0) quality↓(0.1) — time is paramount
-///   Explainer:  freshness↓(0.3) authority↑(0.5) querySim↑(1.5) quality↑(0.4) — quality &amp; precision
-///   Comparison: freshness↓(0.3) authority(0.4) querySim↑(1.5) quality(0.3) — precise matching
-///   General:    default weights (querySim: 1.5, quality: 0.2) — balanced for mixed-intent queries
+///     Two-phase relevance scorer using Reciprocal Rank Fusion (RRF) across multiple signals.
+///     SCORING PIPELINE OVERVIEW
+///     ========================
+///     Phase 1 — ScoreFast (early discard):
+///     Signals: Freshness + Authority [+ QuerySimilarity + Quality if embeddings available]
+///     Purpose: Discard obviously irrelevant items before expensive embedding computation.
+///     Each signal produces an independent ranking; RRF fuses them.
+///     Phase 2 — ScoreFull (precise ranking):
+///     Signals: Freshness + Authority + QuerySimilarity + VibeSimilarity + Quality
+///     Purpose: Final ranking with all signals including embedding-based semantic matching.
+///     NOTE: BM25 keyword matching is handled exclusively by Lucene at the retrieval layer.
+///     The scorer does NOT run BM25 — QuerySimilarity (semantic embedding) is the primary
+///     relevance signal. BM25 static methods are retained as internal utilities.
+///     HOW RRF WORKS
+///     =============
+///     Each signal ranks all items independently (best=rank 0, worst=rank N).
+///     The fusion score for item d is: Σ weight_i × 1/(k + rank_i(d) + 1)
+///     where k=60 (standard from literature, prevents top-ranked items from dominating).
+///     Weight controls how much INFLUENCE a signal's ranking has in the fused score.
+///     A weight of 1.0 means the signal's rank contribution is at full strength.
+///     A weight of 0.5 means the signal's rank contribution is halved.
+///     Weight 0 disables the signal entirely.
+///     THE FIVE SIGNALS
+///     ================
+///     1. Freshness (recency) — weight default: 0.5
+///     Exponential decay from the item's publication time (CreatedAt if available,
+///     otherwise FetchedAt). Half-life: 48 hours.
+///     Formula: exp(-age_hours × ln(2) / 48)
+///     At 0h → 1.0, at 48h → 0.5, at 96h → 0.25, at 7d → 0.06
+///     Measures: How recent is this item? Newer = higher score.
+///     2. Authority (source quality) — weight default: 0.3
+///     For items with native scores (HN points, Reddit upvotes): normalized within
+///     same-source batch to 0-1 range.
+///     For items without scores: hard-coded baseline by source reputation:
+///     BBC/Guardian/Reuters=0.5, Google News=0.4, other=0.3.
+///     Measures: How trustworthy/popular is this item within its source?
+///     3. QuerySimilarity (semantic relevance) — weight default: 1.5
+///     Cosine similarity between item embedding and query embedding.
+///     Uses all-MiniLM-L6-v2 (384-dim ONNX). Range: -1 to 1, typically 0.1-0.7.
+///     Bridges vocabulary gap: "pharmaceutical" matches "drug pricing" without synonyms.
+///     Primary relevance signal now that BM25 is handled at retrieval by Lucene.
+///     Measures: Is this item semantically about the query topic?
+///     4. VibeSimilarity (tone alignment) — weight default: 0.4
+///     Cosine similarity between item embedding and vibe prompt embedding.
+///     Promotes items matching the requested tone (doom, hopeful, snarky, etc.)
+///     Only available in Phase 2.
+///     Measures: Does this item match the desired editorial tone?
+///     5. Quality (content substance) — weight default: 0.2
+///     Cosine-similarity difference between item embedding and quality anchor embeddings.
+///     High-quality anchor = "detailed analysis, well-researched, expert opinion..."
+///     Low-quality anchor = "clickbait, shocking, sensational, you won't believe..."
+///     Formula: (sim(item, high) - sim(item, low) + 1) / 2 → [0, 1]
+///     Only active when WithQualityAnchors() has been called with pre-computed anchors.
+///     Measures: Is this substantive journalism or clickbait?
+///     POST-RRF GATES
+///     ==============
+///     After RRF fusion, a hard gate removes items with cosine similarity &lt; threshold.
+///     Phase 1 gate: embedding similarity &gt;= 0.25 (items without embeddings are exempt).
+///     Phase 2 gate: embedding similarity &gt;= 0.20 using the ORIGINAL query embedding
+///     (not PRF-refined) to prevent centroid drift from shifting acceptance toward off-topic content.
+///     QUERY-TYPE ADAPTATION
+///     =====================
+///     ForQueryType() returns a scorer with weights tuned per query type:
+///     Roundup:    freshness↑(0.8) authority↓(0.2) querySim(1.0) quality↓(0.15) — recency first
+///     Timeline:   freshness↑↑(1.0) authority↓(0.2) querySim(1.0) quality↓(0.1) — time is paramount
+///     Explainer:  freshness↓(0.3) authority↑(0.5) querySim↑(1.5) quality↑(0.4) — quality &amp; precision
+///     Comparison: freshness↓(0.3) authority(0.4) querySim↑(1.5) quality(0.3) — precise matching
+///     General:    default weights (querySim: 1.5, quality: 0.2) — balanced for mixed-intent queries
 /// </summary>
 public partial class RelevanceScorer
 {
@@ -95,34 +81,35 @@ public partial class RelevanceScorer
     // See StopwordLists.cs for the full list including honorifics, code keywords, etc.
 
     /// <summary>
-    /// RRF constant k=60 (Cormack et al., 2009). Higher values produce more uniform blending
-    /// of ranks; lower values amplify differences between top-ranked and lower-ranked items.
-    /// k=60 is the standard value used across most RRF literature and search systems.
+    ///     RRF constant k=60 (Cormack et al., 2009). Higher values produce more uniform blending
+    ///     of ranks; lower values amplify differences between top-ranked and lower-ranked items.
+    ///     k=60 is the standard value used across most RRF literature and search systems.
     /// </summary>
     private const int RrfK = 60;
 
     /// <summary>
-    /// Weight for pre-computed text relevance scores (e.g., Lucene FTS) in RRF fusion.
-    /// When Lucene FTS scores are passed through, they provide keyword precision that
-    /// complements the embedding-based QuerySimilarity signal.
+    ///     Weight for pre-computed text relevance scores (e.g., Lucene FTS) in RRF fusion.
+    ///     When Lucene FTS scores are passed through, they provide keyword precision that
+    ///     complements the embedding-based QuerySimilarity signal.
     /// </summary>
     private const double TextRelevanceWeight = 1.0;
 
     /// <summary>
-    /// Default freshness half-life in hours. At 48h, an item's freshness score is 0.5.
-    /// Query-type-specific half-lives: Roundup=24h, Timeline=24h, Explainer=168h, General=48h.
+    ///     Default freshness half-life in hours. At 48h, an item's freshness score is 0.5.
+    ///     Query-type-specific half-lives: Roundup=24h, Timeline=24h, Explainer=168h, General=48h.
     /// </summary>
     private const double DefaultFreshnessHalfLifeHours = 48.0;
+
+    private readonly double _authorityWeight;
 
     /// <summary>Instance half-life — set via ForQueryType() to vary decay by query type.</summary>
     private readonly double _freshnessHalfLifeHours;
 
     // Signal weights for RRF fusion — see class summary for what each weight controls
     private readonly double _freshnessWeight;
-    private readonly double _authorityWeight;
+    private readonly double _qualityWeight;
     private readonly double _querySimWeight;
     private readonly double _vibeWeight;
-    private readonly double _qualityWeight;
 
     // Optional quality anchor embeddings — set via WithQualityAnchors()
     private float[]? _highQualityAnchor;
@@ -145,9 +132,9 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Set quality anchor embeddings for content quality scoring.
-    /// Quality score = cosine_sim(item, highQuality) - cosine_sim(item, lowQuality),
-    /// normalized to [0, 1]. This penalizes clickbait/low-quality content in RRF.
+    ///     Set quality anchor embeddings for content quality scoring.
+    ///     Quality score = cosine_sim(item, highQuality) - cosine_sim(item, lowQuality),
+    ///     normalized to [0, 1]. This penalizes clickbait/low-quality content in RRF.
     /// </summary>
     public RelevanceScorer WithQualityAnchors(float[] highQualityAnchor, float[] lowQualityAnchor)
     {
@@ -157,70 +144,78 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Create a scorer with weights tuned for the detected query type.
-    /// Different query types benefit from different signal emphasis:
-    /// - Roundup/Timeline: freshness matters most (news recency)
-    /// - Explainer: authority and query precision matter most (quality sources)
-    /// - Comparison: query similarity matters most (precise matching)
+    ///     Create a scorer with weights tuned for the detected query type.
+    ///     Different query types benefit from different signal emphasis:
+    ///     - Roundup/Timeline: freshness matters most (news recency)
+    ///     - Explainer: authority and query precision matter most (quality sources)
+    ///     - Comparison: query similarity matters most (precise matching)
     /// </summary>
-    public static RelevanceScorer ForQueryType(QueryType queryType) => queryType switch
+    public static RelevanceScorer ForQueryType(QueryType queryType)
     {
-        // Roundup: aggressive freshness decay (24h half-life) — stale news is noise
-        QueryType.Roundup => new RelevanceScorer(
-            freshnessWeight: 0.8, authorityWeight: 0.2,
-            querySimWeight: 1.0, vibeWeight: 0.4, qualityWeight: 0.15,
-            freshnessHalfLifeHours: 24.0),
+        return queryType switch
+        {
+            // Roundup: aggressive freshness decay (24h half-life) — stale news is noise
+            QueryType.Roundup => new RelevanceScorer(
+                0.8, 0.2,
+                1.0, 0.4, 0.15,
+                24.0),
 
-        // Timeline: aggressive freshness decay (24h) — recency is paramount
-        QueryType.Timeline => new RelevanceScorer(
-            freshnessWeight: 1.0, authorityWeight: 0.2,
-            querySimWeight: 1.0, vibeWeight: 0.3, qualityWeight: 0.1,
-            freshnessHalfLifeHours: 24.0),
+            // Timeline: aggressive freshness decay (24h) — recency is paramount
+            QueryType.Timeline => new RelevanceScorer(
+                1.0, 0.2,
+                1.0, 0.3, 0.1,
+                24.0),
 
-        // Explainer: relaxed freshness (168h / 7 days) — older quality content is fine
-        QueryType.Explainer => new RelevanceScorer(
-            freshnessWeight: 0.3, authorityWeight: 0.5,
-            querySimWeight: 1.5, vibeWeight: 0.3, qualityWeight: 0.4,
-            freshnessHalfLifeHours: 168.0),
+            // Explainer: relaxed freshness (168h / 7 days) — older quality content is fine
+            QueryType.Explainer => new RelevanceScorer(
+                0.3, 0.5,
+                1.5, 0.3, 0.4,
+                168.0),
 
-        // Comparison: relaxed freshness (168h) — precision over recency
-        QueryType.Comparison => new RelevanceScorer(
-            freshnessWeight: 0.3, authorityWeight: 0.4,
-            querySimWeight: 1.5, vibeWeight: 0.3, qualityWeight: 0.3,
-            freshnessHalfLifeHours: 168.0),
+            // Comparison: relaxed freshness (168h) — precision over recency
+            QueryType.Comparison => new RelevanceScorer(
+                0.3, 0.4,
+                1.5, 0.3, 0.3,
+                168.0),
 
-        _ => new RelevanceScorer() // General: default weights + 48h half-life
-    };
+            _ => new RelevanceScorer() // General: default weights + 48h half-life
+        };
+    }
 
     /// <summary>
-    /// Create a scorer tuned for knowledge base queries where Authority and Freshness
-    /// provide zero discrimination (all items have Score=0 and similar crawl dates).
-    /// Zeroes out noise signals and boosts QuerySimilarity for precision.
-    /// Keyword matching is handled by Lucene at the retrieval layer.
+    ///     Create a scorer tuned for knowledge base queries where Authority and Freshness
+    ///     provide zero discrimination (all items have Score=0 and similar crawl dates).
+    ///     Zeroes out noise signals and boosts QuerySimilarity for precision.
+    ///     Keyword matching is handled by Lucene at the retrieval layer.
     /// </summary>
-    public static RelevanceScorer ForKnowledgeBase(QueryType queryType) => queryType switch
+    public static RelevanceScorer ForKnowledgeBase(QueryType queryType)
     {
-        QueryType.Roundup => new RelevanceScorer(
-            freshnessWeight: 0.2, authorityWeight: 0.0,
-            querySimWeight: 1.0, vibeWeight: 0.2, qualityWeight: 0.15),
+        return queryType switch
+        {
+            QueryType.Roundup => new RelevanceScorer(
+                0.2, 0.0,
+                1.0, 0.2, 0.15),
 
-        _ => new RelevanceScorer(
-            freshnessWeight: 0.0, authorityWeight: 0.0,
-            querySimWeight: 1.5, vibeWeight: 0.2, qualityWeight: 0.3)
-    };
+            _ => new RelevanceScorer(
+                0.0, 0.0,
+                1.5, 0.2, 0.3)
+        };
+    }
 
     /// <summary>
-    /// Phase 1: Fast scoring with optional embedding boost.
-    /// When embeddings and query embedding are provided, query similarity is included
-    /// in the fast scoring pass — this provides semantic matching (e.g. "pharmaceutical" matches
-    /// "drug pricing") without needing synonym dictionaries.
+    ///     Phase 1: Fast scoring with optional embedding boost.
+    ///     When embeddings and query embedding are provided, query similarity is included
+    ///     in the fast scoring pass — this provides semantic matching (e.g. "pharmaceutical" matches
+    ///     "drug pricing") without needing synonym dictionaries.
     /// </summary>
     /// <param name="items">Items to score.</param>
     /// <param name="query">User's search query.</param>
     /// <param name="discardRatio">Fraction of items to discard (0.0-1.0). 0 = keep all.</param>
     /// <param name="queryEmbedding">Pre-computed query embedding for semantic matching (null = text-only).</param>
-    /// <param name="textRelevanceScores">Pre-computed text relevance scores (e.g., from Lucene FTS).
-    /// When provided, included as an RRF signal for keyword precision.</param>
+    /// <param name="textRelevanceScores">
+    ///     Pre-computed text relevance scores (e.g., from Lucene FTS).
+    ///     When provided, included as an RRF signal for keyword precision.
+    /// </param>
     /// <param name="querySimOut">Output dictionary for query similarity scores (used by PRF centroid filtering).</param>
     /// <param name="gateThreshold">Minimum cosine similarity threshold for the hard gate.</param>
     /// <returns>Scored items in descending relevance order, with bottom tier discarded.</returns>
@@ -267,16 +262,14 @@ public partial class RelevanceScorer
         if (queryEmbedding != null)
         {
             querySimScores = items.Select(i => (item: i, score: i.Embedding != null
-                ? (double)VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
+                ? VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
                 : 0.0)).ToList();
             signals.Add((querySimScores, _querySimWeight));
 
             // Export query-sim scores for reuse by PRF centroid filtering
             if (querySimOut != null)
-            {
                 foreach (var (item, score) in querySimScores)
                     querySimOut[item.Id] = score;
-            }
         }
 
         // Content quality signal: penalizes clickbait/low-quality content
@@ -319,19 +312,23 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Phase 2: Full scoring with embedding signals added.
-    /// Call after embeddings are computed for remaining items.
+    ///     Phase 2: Full scoring with embedding signals added.
+    ///     Call after embeddings are computed for remaining items.
     /// </summary>
     /// <param name="items">Items with embeddings set.</param>
     /// <param name="query">User's search query.</param>
     /// <param name="queryEmbedding">Pre-computed query embedding (may be PRF-refined for ranking).</param>
     /// <param name="vibeEmbedding">Pre-computed vibe embedding (null = skip vibe signal).</param>
-    /// <param name="gateEmbedding">Original (non-PRF) query embedding for the hard gate.
-    /// When null, falls back to queryEmbedding. Separate from queryEmbedding to prevent
-    /// PRF centroid drift from shifting the topical relevance gate.</param>
-    /// <param name="textRelevanceScores">Pre-computed text relevance scores (e.g., from Lucene FTS).
-    /// When provided, included as an RRF signal for keyword precision. Items not in the
-    /// dictionary receive score 0 (worst rank in RRF).</param>
+    /// <param name="gateEmbedding">
+    ///     Original (non-PRF) query embedding for the hard gate.
+    ///     When null, falls back to queryEmbedding. Separate from queryEmbedding to prevent
+    ///     PRF centroid drift from shifting the topical relevance gate.
+    /// </param>
+    /// <param name="textRelevanceScores">
+    ///     Pre-computed text relevance scores (e.g., from Lucene FTS).
+    ///     When provided, included as an RRF signal for keyword precision. Items not in the
+    ///     dictionary receive score 0 (worst rank in RRF).
+    /// </param>
     /// <param name="gateThreshold">Minimum cosine similarity threshold for the hard gate.</param>
     /// <returns>Items re-ranked with full RRF scores.</returns>
     public List<ContentItem> ScoreFull(
@@ -350,7 +347,7 @@ public partial class RelevanceScorer
 
         // Embedding-based signals
         var querySim = items.Select(i => (item: i, score: i.Embedding != null
-            ? (double)VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
+            ? VectorMath.CosineSimilarity(i.Embedding, queryEmbedding)
             : 0.0)).ToList();
 
         var signals = new List<(List<(ContentItem item, double score)> scores, double weight)>
@@ -372,7 +369,7 @@ public partial class RelevanceScorer
         if (vibeEmbedding != null)
         {
             var vibeSim = items.Select(i => (item: i, score: i.Embedding != null
-                ? (double)VectorMath.CosineSimilarity(i.Embedding, vibeEmbedding)
+                ? VectorMath.CosineSimilarity(i.Embedding, vibeEmbedding)
                 : 0.0)).ToList();
             signals.Add((vibeSim, _vibeWeight));
         }
@@ -413,11 +410,9 @@ public partial class RelevanceScorer
         {
             gateSim = new Dictionary<string, double>(items.Count);
             foreach (var item in items)
-            {
                 gateSim[item.Id] = item.Embedding != null
-                    ? (double)VectorMath.CosineSimilarity(item.Embedding, effectiveGateEmbedding)
+                    ? VectorMath.CosineSimilarity(item.Embedding, effectiveGateEmbedding)
                     : 0.0;
-            }
         }
 
         var gated = rrfScores
@@ -430,9 +425,9 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Reciprocal Rank Fusion across multiple ranking signals.
-    /// Delegates to the shared generic RrfFusion implementation.
-    /// RRF(d) = Σ weight_i * 1/(k + rank_i(d))
+    ///     Reciprocal Rank Fusion across multiple ranking signals.
+    ///     Delegates to the shared generic RrfFusion implementation.
+    ///     RRF(d) = Σ weight_i * 1/(k + rank_i(d))
     /// </summary>
     internal static List<(ContentItem item, double score)> FuseRRF(
         List<ContentItem> items,
@@ -443,17 +438,20 @@ public partial class RelevanceScorer
                 s.scores.OrderByDescending(x => x.score).Select(x => x.item).ToList(),
                 s.weight));
 
-        var fused = RrfFusion.Fuse(rankedSignals, item => item.Id, RrfK, normalize: true);
+        var fused = RrfFusion.Fuse(rankedSignals, item => item.Id, RrfK, true);
         var scoreMap = fused.ToDictionary(f => f.Item.Id, f => f.Score);
         return items.Select(i => (i, scoreMap.GetValueOrDefault(i.Id, 0.0))).ToList();
     }
 
+    [GeneratedRegex(@"\b\w+\b")]
+    private static partial Regex TokenPattern();
+
     #region Signal Computations
 
     /// <summary>
-    /// BM25F scoring: field-weighted BM25 that boosts title matches over content matches.
-    /// Title matches are worth TitleBoost× more than content matches.
-    /// Falls back to standard BM25 when called with plain text (no field separation).
+    ///     BM25F scoring: field-weighted BM25 that boosts title matches over content matches.
+    ///     Title matches are worth TitleBoost× more than content matches.
+    ///     Falls back to standard BM25 when called with plain text (no field separation).
     /// </summary>
     internal static double BM25Score(
         string docText,
@@ -481,14 +479,13 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// BM25F: field-weighted variant that scores title, keywords, and content separately.
-    /// Title matches get 2.0× boost, keywords get 2.5× boost, content is 1.0× baseline.
-    /// Keywords field captures document-level topic profile (structurally weighted terms),
-    /// providing a stronger relevance signal than body text alone.
-    ///
-    /// Enhanced with:
-    /// - Fuzzy matching: partial credit for Levenshtein distance ≤ 2
-    /// - Phrase proximity: bonus for consecutive query terms in document
+    ///     BM25F: field-weighted variant that scores title, keywords, and content separately.
+    ///     Title matches get 2.0× boost, keywords get 2.5× boost, content is 1.0× baseline.
+    ///     Keywords field captures document-level topic profile (structurally weighted terms),
+    ///     providing a stronger relevance signal than body text alone.
+    ///     Enhanced with:
+    ///     - Fuzzy matching: partial credit for Levenshtein distance ≤ 2
+    ///     - Phrase proximity: bonus for consecutive query terms in document
     /// </summary>
     internal static double BM25FScore(
         ContentItem item,
@@ -500,8 +497,8 @@ public partial class RelevanceScorer
         const double k1 = 1.5, b = 0.75;
         const double titleBoost = 2.0;
         const double keywordsBoost = 2.5;
-        const double fuzzyDiscount = 0.6;  // Fuzzy matches worth 60% of exact
-        const double phraseBonus = 0.3;    // 30% bonus for phrase matches
+        const double fuzzyDiscount = 0.6; // Fuzzy matches worth 60% of exact
+        const double phraseBonus = 0.3; // 30% bonus for phrase matches
 
         List<string> titleTokens, keywordTokens, contentTokens, allTokens;
         if (tokenCache != null && tokenCache.TryGetValue(item.Id, out var pt))
@@ -544,7 +541,7 @@ public partial class RelevanceScorer
             var matchMultiplier = 1.0;
             if (weightedFreq < 0.001 && term.Length >= 4)
             {
-                var fuzzyMatch = FindFuzzyMatch(term, allTokenSet, maxDistance: 2);
+                var fuzzyMatch = FindFuzzyMatch(term, allTokenSet, 2);
                 if (fuzzyMatch != null)
                 {
                     // Found a fuzzy match — use its frequency with discount
@@ -575,8 +572,8 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Find a fuzzy match for a query term in the document token set.
-    /// Returns the best matching token if Levenshtein distance ≤ maxDistance, else null.
+    ///     Find a fuzzy match for a query term in the document token set.
+    ///     Returns the best matching token if Levenshtein distance ≤ maxDistance, else null.
     /// </summary>
     private static string? FindFuzzyMatch(string queryTerm, HashSet<string> docTokens, int maxDistance)
     {
@@ -602,8 +599,8 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Compute Levenshtein edit distance between two strings.
-    /// Optimized with early termination when distance exceeds threshold.
+    ///     Compute Levenshtein edit distance between two strings.
+    ///     Optimized with early termination when distance exceeds threshold.
     /// </summary>
     private static int LevenshteinDistance(string s1, string s2)
     {
@@ -637,8 +634,8 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Count how many times consecutive query tokens appear consecutively in the document.
-    /// Returns the number of phrase matches (bigrams that appear in order).
+    ///     Count how many times consecutive query tokens appear consecutively in the document.
+    ///     Returns the number of phrase matches (bigrams that appear in order).
     /// </summary>
     private static int CountPhraseMatches(List<string> queryTokens, List<string> docTokens)
     {
@@ -652,26 +649,26 @@ public partial class RelevanceScorer
 
             // Check if this bigram appears in the document
             for (var di = 0; di < docTokens.Count - 1; di++)
-            {
                 if (string.Equals(docTokens[di], q1, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(docTokens[di + 1], q2, StringComparison.OrdinalIgnoreCase))
                 {
                     matches++;
                     break; // Found this bigram, move to next query bigram
                 }
-            }
         }
 
         return matches;
     }
 
     /// <summary>
-    /// Freshness score: exponential decay from publish/fetch time. Range 0-1.
-    /// Falls back to heuristic year detection when CreatedAt is missing/unreliable.
-    /// Uses the default 48h half-life; call the overload for query-type-specific decay.
+    ///     Freshness score: exponential decay from publish/fetch time. Range 0-1.
+    ///     Falls back to heuristic year detection when CreatedAt is missing/unreliable.
+    ///     Uses the default 48h half-life; call the overload for query-type-specific decay.
     /// </summary>
-    internal static double ComputeFreshness(ContentItem item) =>
-        ComputeFreshness(item, DefaultFreshnessHalfLifeHours);
+    internal static double ComputeFreshness(ContentItem item)
+    {
+        return ComputeFreshness(item, DefaultFreshnessHalfLifeHours);
+    }
 
     /// <summary>Freshness score with configurable half-life for query-type-specific decay.</summary>
     internal static double ComputeFreshness(ContentItem item, double halfLifeHours)
@@ -686,10 +683,8 @@ public partial class RelevanceScorer
         {
             var extractedYear = ExtractYearFromText(item.Title, item.Content);
             if (extractedYear != null)
-            {
                 // Create a date midway through the detected year
                 timestamp = new DateTimeOffset(extractedYear.Value, 6, 15, 0, 0, 0, TimeSpan.Zero);
-            }
         }
 
         var ageHours = Math.Max(0, (DateTimeOffset.UtcNow - timestamp).TotalHours);
@@ -697,12 +692,14 @@ public partial class RelevanceScorer
     }
 
     /// <summary>Instance method: uses the scorer's query-type-specific half-life.</summary>
-    internal double ComputeFreshnessForQueryType(ContentItem item) =>
-        ComputeFreshness(item, _freshnessHalfLifeHours);
+    internal double ComputeFreshnessForQueryType(ContentItem item)
+    {
+        return ComputeFreshness(item, _freshnessHalfLifeHours);
+    }
 
     /// <summary>
-    /// Extract a year from article title or content using patterns like "in 2020", "2018 review".
-    /// Returns null if no clear year found or if the year is current/future.
+    ///     Extract a year from article title or content using patterns like "in 2020", "2018 review".
+    ///     Returns null if no clear year found or if the year is current/future.
     /// </summary>
     private static int? ExtractYearFromText(string? title, string? content)
     {
@@ -715,14 +712,11 @@ public partial class RelevanceScorer
         var matches = yearPattern.Matches(text);
 
         foreach (Match m in matches)
-        {
             if (int.TryParse(m.Groups[1].Value, out var year))
-            {
                 // Only consider past years (not current/future)
                 if (year >= 2010 && year < currentYear)
                     return year;
-            }
-        }
+
         return null;
     }
 
@@ -730,9 +724,9 @@ public partial class RelevanceScorer
     private static partial Regex YearInTextPattern();
 
     /// <summary>
-    /// Compute authority scores for all items in a batch. Precomputes max scores per source
-    /// to avoid O(N²) repeated LINQ queries.
-    /// Returns list of (item, authorityScore) pairs.
+    ///     Compute authority scores for all items in a batch. Precomputes max scores per source
+    ///     to avoid O(N²) repeated LINQ queries.
+    ///     Returns list of (item, authorityScore) pairs.
     /// </summary>
     internal static List<(ContentItem item, double score)> ComputeAuthorityScores(List<ContentItem> items)
     {
@@ -749,8 +743,8 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Normalize source authority (platform score) to 0-1 range using precomputed max scores.
-    /// Items without native scores (RSS) get a baseline of 0.3.
+    ///     Normalize source authority (platform score) to 0-1 range using precomputed max scores.
+    ///     Items without native scores (RSS) get a baseline of 0.3.
     /// </summary>
     internal static double NormalizeAuthority(ContentItem item, Dictionary<string, double> maxScoreBySource)
     {
@@ -759,8 +753,14 @@ public partial class RelevanceScorer
         {
             // Check URL domain for more granular authority
             var domain = "";
-            try { domain = !string.IsNullOrEmpty(item.Url) ? new Uri(item.Url).Host.ToLowerInvariant() : ""; }
-            catch { /* ignore malformed URLs */ }
+            try
+            {
+                domain = !string.IsNullOrEmpty(item.Url) ? new Uri(item.Url).Host.ToLowerInvariant() : "";
+            }
+            catch
+            {
+                /* ignore malformed URLs */
+            }
 
             // Tier 1: Wire services and premium journalism (0.6)
             if (item.Source is "bbc" or "reuters" ||
@@ -799,10 +799,10 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Build IDF statistics from the current batch, or from a global keyword corpus.
-    /// When a global corpus is provided, IDF values are computed against the full corpus size
-    /// rather than just the current batch, making term weights reliable across queries.
-    /// Average document length is always computed from the current batch (items being scored).
+    ///     Build IDF statistics from the current batch, or from a global keyword corpus.
+    ///     When a global corpus is provided, IDF values are computed against the full corpus size
+    ///     rather than just the current batch, making term weights reliable across queries.
+    ///     Average document length is always computed from the current batch (items being scored).
     /// </summary>
     internal static (Dictionary<string, double> idf, double avgDocLen) BuildCorpusStats(
         List<ContentItem> items,
@@ -861,8 +861,8 @@ public partial class RelevanceScorer
     #region Embedding-Based Signals
 
     /// <summary>
-    /// Compute sentiment from embedding similarity to positive/negative anchor texts.
-    /// Returns value in [-1, 1] range. Positive = hopeful, negative = concerning.
+    ///     Compute sentiment from embedding similarity to positive/negative anchor texts.
+    ///     Returns value in [-1, 1] range. Positive = hopeful, negative = concerning.
     /// </summary>
     public static float ComputeEmbeddingSentiment(float[] itemEmbedding, float[] positiveAnchor, float[] negativeAnchor)
     {
@@ -872,10 +872,11 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Infer topic from embedding similarity to pre-computed topic anchor embeddings.
-    /// Returns best-matching topic name, or "general" if no strong match.
+    ///     Infer topic from embedding similarity to pre-computed topic anchor embeddings.
+    ///     Returns best-matching topic name, or "general" if no strong match.
     /// </summary>
-    public static string InferTopic(float[] itemEmbedding, Dictionary<string, float[]> topicAnchors, float threshold = 0.25f)
+    public static string InferTopic(float[] itemEmbedding, Dictionary<string, float[]> topicAnchors,
+        float threshold = 0.25f)
     {
         var bestTopic = "general";
         var bestSim = float.MinValue;
@@ -888,11 +889,12 @@ public partial class RelevanceScorer
                 bestTopic = topic;
             }
         }
+
         return bestSim > threshold ? bestTopic : "general";
     }
 
     /// <summary>
-    /// Topic anchor texts for embedding-based topic inference.
+    ///     Topic anchor texts for embedding-based topic inference.
     /// </summary>
     public static readonly Dictionary<string, string> TopicAnchorTexts = new()
     {
@@ -905,27 +907,33 @@ public partial class RelevanceScorer
         ["entertainment"] = "entertainment movie music celebrity show film television streaming",
         ["sports"] = "sports game team player championship competition tournament match",
         ["security"] = "cybersecurity vulnerability breach hacking malware threat attack exploit",
-        ["climate"] = "climate change environment sustainability emissions carbon renewable energy",
+        ["climate"] = "climate change environment sustainability emissions carbon renewable energy"
     };
 
     /// <summary>
-    /// Sentiment anchor texts for embedding-based sentiment scoring.
+    ///     Sentiment anchor texts for embedding-based sentiment scoring.
     /// </summary>
-    public const string PositiveAnchorText = "positive success innovation breakthrough opportunity progress achievement growth improvement launch exciting";
-    public const string NegativeAnchorText = "negative crisis failure risk threat problem decline loss concern warning vulnerability layoff";
+    public const string PositiveAnchorText =
+        "positive success innovation breakthrough opportunity progress achievement growth improvement launch exciting";
+
+    public const string NegativeAnchorText =
+        "negative crisis failure risk threat problem decline loss concern warning vulnerability layoff";
 
     /// <summary>
-    /// Quality anchor texts for embedding-based content quality scoring.
-    /// High-quality anchor represents well-researched, substantive journalism.
-    /// Low-quality anchor represents clickbait, sensationalism, and thin content.
+    ///     Quality anchor texts for embedding-based content quality scoring.
+    ///     High-quality anchor represents well-researched, substantive journalism.
+    ///     Low-quality anchor represents clickbait, sensationalism, and thin content.
     /// </summary>
-    public const string HighQualityAnchorText = "detailed analysis well-researched investigation expert opinion data-driven report comprehensive review in-depth reporting original research verified sources thorough examination";
-    public const string LowQualityAnchorText = "you won't believe shocking revelation this one trick click here sensational breaking exclusive top 10 list clickbait outrage viral celebrity gossip rumor unverified";
+    public const string HighQualityAnchorText =
+        "detailed analysis well-researched investigation expert opinion data-driven report comprehensive review in-depth reporting original research verified sources thorough examination";
+
+    public const string LowQualityAnchorText =
+        "you won't believe shocking revelation this one trick click here sensational breaking exclusive top 10 list clickbait outrage viral celebrity gossip rumor unverified";
 
     /// <summary>
-    /// Compute content quality score from embedding similarity to quality anchors.
-    /// Returns value in [0, 1] range. Higher = more substantive/well-researched content.
-    /// Uses the same cosine-similarity-difference pattern as sentiment scoring.
+    ///     Compute content quality score from embedding similarity to quality anchors.
+    ///     Returns value in [0, 1] range. Higher = more substantive/well-researched content.
+    ///     Uses the same cosine-similarity-difference pattern as sentiment scoring.
     /// </summary>
     public static double ComputeQualityScore(float[] itemEmbedding, float[] highQualityAnchor, float[] lowQualityAnchor)
     {
@@ -936,10 +944,10 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Compute a pseudo-relevance feedback (PRF) centroid from the top-K items.
-    /// Averages the embeddings of the best-scored items to create a refined query vector
-    /// that captures the "semantic neighborhood" of relevant results.
-    /// Blend with the original query embedding: refined = α × original + (1-α) × centroid
+    ///     Compute a pseudo-relevance feedback (PRF) centroid from the top-K items.
+    ///     Averages the embeddings of the best-scored items to create a refined query vector
+    ///     that captures the "semantic neighborhood" of relevant results.
+    ///     Blend with the original query embedding: refined = α × original + (1-α) × centroid
     /// </summary>
     /// <param name="items">Items sorted by relevance (best first), with embeddings set.</param>
     /// <param name="originalQueryEmbedding">The original query embedding to blend with.</param>
@@ -985,12 +993,11 @@ public partial class RelevanceScorer
     #region Outlier Detection
 
     /// <summary>
-    /// Detect off-topic outliers using embedding similarity.
-    /// Items with low semantic similarity to the query are penalized.
-    /// This catches cases where string matching fails (e.g., "Google Auth" for "authentication").
-    ///
-    /// Returns penalty multipliers: 1.0 = no penalty, &lt;1.0 = penalized.
-    /// Should be skipped for Roundup queries (diverse topics expected).
+    ///     Detect off-topic outliers using embedding similarity.
+    ///     Items with low semantic similarity to the query are penalized.
+    ///     This catches cases where string matching fails (e.g., "Google Auth" for "authentication").
+    ///     Returns penalty multipliers: 1.0 = no penalty, &lt;1.0 = penalized.
+    ///     Should be skipped for Roundup queries (diverse topics expected).
     /// </summary>
     public static Dictionary<string, double> ComputeQueryTermCoverage(
         List<ContentItem> items,
@@ -1018,6 +1025,7 @@ public partial class RelevanceScorer
                 var penalty = Math.Max(0.3, similarity * 2.0 + 0.3);
                 penalties[item.Id] = penalty;
             }
+
             return penalties;
         }
 
@@ -1060,8 +1068,8 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Apply query-term coverage penalties to item relevance scores.
-    /// Returns the number of items penalized.
+    ///     Apply query-term coverage penalties to item relevance scores.
+    ///     Returns the number of items penalized.
     /// </summary>
     public static int ApplyOutlierPenalties(
         List<ContentItem> items,
@@ -1071,13 +1079,11 @@ public partial class RelevanceScorer
 
         var penalized = 0;
         foreach (var item in items)
-        {
             if (penalties.TryGetValue(item.Id, out var penalty))
             {
                 item.RelevanceScore *= penalty;
                 penalized++;
             }
-        }
 
         return penalized;
     }
@@ -1087,13 +1093,15 @@ public partial class RelevanceScorer
     #region Text Processing
 
     /// <summary>
-    /// Extract searchable text from a ContentItem (title + keywords + content).
+    ///     Extract searchable text from a ContentItem (title + keywords + content).
     /// </summary>
-    internal static string ItemText(ContentItem item) =>
-        $"{item.Title} {item.Keywords ?? ""} {item.Content ?? ""}".Trim();
+    internal static string ItemText(ContentItem item)
+    {
+        return $"{item.Title} {item.Keywords ?? ""} {item.Content ?? ""}".Trim();
+    }
 
     /// <summary>
-    /// Tokenize text into lowercase words, filtering stop words.
+    ///     Tokenize text into lowercase words, filtering stop words.
     /// </summary>
     internal static List<string> Tokenize(string text)
     {
@@ -1104,8 +1112,8 @@ public partial class RelevanceScorer
     }
 
     /// <summary>
-    /// Pre-tokenized fields for a ContentItem, avoiding redundant tokenization
-    /// across BuildCorpusStats and BM25FScore calls.
+    ///     Pre-tokenized fields for a ContentItem, avoiding redundant tokenization
+    ///     across BuildCorpusStats and BM25FScore calls.
     /// </summary>
     internal record PreTokenized(
         List<string> TitleTokens,
@@ -1114,8 +1122,8 @@ public partial class RelevanceScorer
         List<string> AllTokens);
 
     /// <summary>
-    /// Pre-tokenize all items once. Returns a lookup by item ID.
-    /// Used to avoid re-tokenizing title/keywords/content across BuildCorpusStats and BM25FScore.
+    ///     Pre-tokenize all items once. Returns a lookup by item ID.
+    ///     Used to avoid re-tokenizing title/keywords/content across BuildCorpusStats and BM25FScore.
     /// </summary>
     internal static Dictionary<string, PreTokenized> PreTokenizeItems(List<ContentItem> items)
     {
@@ -1131,11 +1139,9 @@ public partial class RelevanceScorer
             allTokens.AddRange(contentTokens);
             result[item.Id] = new PreTokenized(titleTokens, keywordTokens, contentTokens, allTokens);
         }
+
         return result;
     }
 
     #endregion
-
-    [GeneratedRegex(@"\b\w+\b")]
-    private static partial Regex TokenPattern();
 }

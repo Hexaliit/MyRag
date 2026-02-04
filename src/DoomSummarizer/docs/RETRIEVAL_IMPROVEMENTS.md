@@ -3,6 +3,7 @@
 ## Current State
 
 The pipeline uses RRF (Reciprocal Rank Fusion) to combine signals:
+
 - **BM25F** - keyword matching with field boosting (title 3x, keywords 2.5x, content 1x)
 - **Embedding similarity** - semantic matching via all-MiniLM-L6-v2 (384-dim)
 - **Freshness** - exponential decay with 48h half-life
@@ -24,12 +25,15 @@ Each signal provides evidence of salience; none is the final arbiter.
 - [x] **Composite query decomposition** - Multi-part questions decomposed into subqueries (see below)
 - [x] **Multi-query embedding** - Each subquery gets its own embedding, items scored against best match
 - [x] **SQLite thread safety** - Semaphore-protected database operations in ApiBudgetService
+
 ---
 
 ## Entity-Based Semantic Retrieval (NEW)
 
 ### What
+
 Each document gets a 384-dim **entity profile embedding** that encodes its "entity fingerprint":
+
 - Which entities appear (via their text embeddings)
 - How distinctive each entity is (Entity IDF - rare entities matter more)
 - How frequently each entity appears (saturating TF to prevent boilerplate dominance)
@@ -37,11 +41,14 @@ Each document gets a 384-dim **entity profile embedding** that encodes its "enti
 - Entity type weighting (ORG 1.2×, PER 1.1×, LOC 1.0×, MISC 0.9×)
 
 ### Why
+
 Previous approach counted shared entities: `shared_count >= 2`. This fails when:
+
 - "Apple Inc" + "California" matches BOTH tech articles AND fruit farming articles
 - O(N²) SQL joins for every graph enrichment query
 
 New approach uses HNSW on entity profiles:
+
 - O(log N) retrieval via cosine similarity
 - Tech articles cluster together (similar entity embeddings)
 - Semantic entity matching: "OpenAI" and "Anthropic" are close in embedding space
@@ -59,6 +66,7 @@ doc_entity_profile = L2_normalize(Σ entity_embedding(e) × weight)
 ```
 
 ### Files Changed
+
 - `Services/EntityProfileService.cs` - NEW: Compute TF×IDF×confidence weighted entity profiles
 - `Services/DuckDbVectorStore.cs` - Added entity_profile column + HNSW index
 - `Services/KnowledgeGraphService.cs` - Computes & stores entity profiles during ingestion
@@ -66,7 +74,9 @@ doc_entity_profile = L2_normalize(Σ entity_embedding(e) × weight)
 - `Services/RelevanceScorer.cs` - Passes query embedding to outlier detection
 
 ### Debug Output
+
 With `--debug` flag, users see entity profile HNSW results:
+
 ```
 [grey]Entity profile HNSW: 3 candidates from 2 query entities[/]
   ⤷ Microsoft's Role in AI Governance: 0.852
@@ -75,18 +85,21 @@ With `--debug` flag, users see entity profile HNSW results:
 ```
 
 ### Backfill Command
+
 For existing KB items with entity mentions but no entity profiles:
+
 ```bash
 doomsummarizer scroll --backfill-entity-profiles
 ```
 
 ### How It Works
+
 1. **Ingestion**: When `--graph` is used with `--entities`, entity profiles are computed and stored
 2. **Query**: Sentinel extracts query entities (e.g., "OpenAI", "regulation")
 3. **Search**: Three candidate sources are fused:
-   - Lucene (keyword matching with boosting)
-   - Embedding (semantic similarity)
-   - Entity Profile HNSW (entity-to-entity semantic matching)
+    - Lucene (keyword matching with boosting)
+    - Embedding (semantic similarity)
+    - Entity Profile HNSW (entity-to-entity semantic matching)
 4. **RRF**: Candidates are scored and ranked using existing 6-signal RRF
 
 ---
@@ -94,10 +107,14 @@ doomsummarizer scroll --backfill-entity-profiles
 ## Composite Query Decomposition (NEW in v0.6.9)
 
 ### What
-Multi-part questions joined by "and", "also", or implicit conjunctions are decomposed into independent subqueries. Each subquery is handled separately in retrieval, then results are fused.
+
+Multi-part questions joined by "and", "also", or implicit conjunctions are decomposed into independent subqueries. Each
+subquery is handled separately in retrieval, then results are fused.
 
 ### Why
+
 Previous behavior averaged embeddings across the entire query, which dilutes relevance:
+
 - Query: "What's new in AI safety and what are the latest regulations?"
 - Old: Single embedding captures "AI safety regulations" → misses pure safety OR pure regulation articles
 - New: Two subqueries, each gets its own embedding → matches articles about either topic
@@ -106,6 +123,7 @@ Previous behavior averaged embeddings across the entire query, which dilutes rel
 
 **1. Sentinel Detection**
 The sentinel LLM identifies composite queries and extracts subqueries:
+
 ```json
 {
   "is_composite": true,
@@ -118,6 +136,7 @@ The sentinel LLM identifies composite queries and extracts subqueries:
 
 **2. Multi-Query Embedding**
 Each subquery gets its own 384-dim embedding vector:
+
 ```csharp
 if (interpreted?.SentinelIntent?.HasSubqueries == true)
 {
@@ -129,6 +148,7 @@ if (interpreted?.SentinelIntent?.HasSubqueries == true)
 
 **3. Max Similarity Scoring**
 Items are scored against ALL subqueries, using the BEST match:
+
 ```csharp
 internal static float ComputeMaxQuerySimilarity(
     float[]? itemEmbedding,
@@ -147,6 +167,7 @@ internal static float ComputeMaxQuerySimilarity(
 
 **4. Structured Responses**
 The LLM prompt explicitly instructs structured responses:
+
 ```
 IMPORTANT: This is a composite question. Please answer EACH of these sub-questions:
   1. What's new in AI safety?
@@ -156,6 +177,7 @@ Structure your response to clearly address each question.
 ```
 
 ### Files Changed
+
 - `Services/PromptInterpreter.cs` - Simplified sentinel prompt for composite detection
 - `Services/SentinelSourceMapper.cs` - Added `Subqueries`, `IsComposite`, `HasSubqueries` properties
 - `Services/OllamaService.cs` - Added `List<string>` to JSON serialization context
@@ -163,7 +185,9 @@ Structure your response to clearly address each question.
 - `Commands/ScrollCommand.Helpers.cs` - `ComputeMaxQuerySimilarity` helper
 
 ### Debug Output
+
 With `--debug` flag:
+
 ```
 [cyan]Composite query detected: 2 subqueries[/]
 [grey]  1. What's new in AI safety?[/]
@@ -181,14 +205,17 @@ Searching...
 
 **What**: A second-pass neural model that scores query-document pairs together (vs bi-encoder which embeds separately).
 
-**Why**: Cross-encoders are 10-20% more accurate than bi-encoders for relevance scoring. They catch semantic nuances that embedding similarity misses.
+**Why**: Cross-encoders are 10-20% more accurate than bi-encoders for relevance scoring. They catch semantic nuances
+that embedding similarity misses.
 
 **Implementation**:
+
 1. Add `ms-marco-MiniLM-L-6-v2` cross-encoder model (~80MB ONNX)
 2. After RRF produces top-50, rerank to top-10 with cross-encoder
 3. Cache cross-encoder scores by (query_hash, doc_id) for repeated queries
 
 **Files**:
+
 - `Services/CrossEncoderService.cs` - NEW: ONNX cross-encoder inference
 - `Services/RelevanceScorer.cs` - Add `RerankedTop` method after `ScoreFull`
 
@@ -200,14 +227,17 @@ Searching...
 
 **What**: Automatically add synonyms and related terms to improve recall.
 
-**Why**: User query "ML frameworks" should also find docs mentioning "machine learning libraries", "PyTorch", "TensorFlow".
+**Why**: User query "ML frameworks" should also find docs mentioning "machine learning libraries", "PyTorch", "
+TensorFlow".
 
 **Implementation**:
+
 1. Use embedding similarity to find related terms from indexed vocabulary
 2. Expand acronyms (ML → "machine learning", LLM → "large language model")
 3. Add top-3 synonym terms to Lucene query with lower boost (0.5x)
 
 **Files**:
+
 - `Services/QueryExpansionService.cs` - NEW: synonym lookup, acronym expansion
 - `Services/SentinelSourceMapper.cs` - Add `expanded_terms` field to SentinelIntent
 
@@ -222,12 +252,14 @@ Searching...
 **Why**: "Apple" in a tech context → Apple Inc. "Apple" in food context → fruit. Linking provides context.
 
 **Implementation**:
+
 1. Use existing NER entities from QueryPreprocessor
 2. Query Wikidata API for entity disambiguation
 3. Add entity metadata (description, type, aliases) to search context
 4. Use linked entities for graph enrichment queries
 
 **Files**:
+
 - `Services/EntityLinkingService.cs` - NEW: Wikidata API integration
 - `Services/NerService.cs` - Add `LinkedEntity` record with Wikidata ID
 
@@ -239,14 +271,17 @@ Searching...
 
 **What**: Different chunk sizes for different content types.
 
-**Why**: Code needs smaller chunks (function-level). Prose needs larger chunks (paragraph-level). Current fixed 512-token chunks are suboptimal.
+**Why**: Code needs smaller chunks (function-level). Prose needs larger chunks (paragraph-level). Current fixed
+512-token chunks are suboptimal.
 
 **Implementation**:
+
 1. Detect content type (code, prose, list, table)
 2. Apply type-specific chunking: code=256, prose=512, list=128
 3. Overlap chunks by 10% for context continuity
 
 **Files**:
+
 - `Services/ArticleProcessor.cs` - Add content-type detection and adaptive chunking
 - `Models/ContentSegment.cs` - Add `ChunkType` enum
 
@@ -258,14 +293,17 @@ Searching...
 
 **What**: Token-level matching instead of single embedding per document.
 
-**Why**: Captures fine-grained matches that single-vector embeddings miss. "Python web framework" matches "Flask is a Python microframework for web" better.
+**Why**: Captures fine-grained matches that single-vector embeddings miss. "Python web framework" matches "Flask is a
+Python microframework for web" better.
 
 **Implementation**:
+
 1. Store per-token embeddings (first 64 tokens per doc)
 2. MaxSim scoring: for each query token, find max similarity across doc tokens
 3. Sum MaxSim scores for final relevance
 
 **Files**:
+
 - `Services/ColBertService.cs` - NEW: token-level embedding and MaxSim
 - `Services/DuckDbVectorStore.cs` - Add token embedding table
 
@@ -280,11 +318,13 @@ Searching...
 **Why**: Current weights (BM25=1.0, freshness=0.6, etc.) are guesses. Learn from click-through data.
 
 **Implementation**:
+
 1. Log (query, clicked_item, shown_items) tuples
 2. Train logistic regression on signal values → click probability
 3. Use learned coefficients as RRF weights
 
 **Files**:
+
 - `Services/FeedbackService.cs` - NEW: log user interactions
 - `Services/RelevanceScorer.cs` - Load weights from config/model
 

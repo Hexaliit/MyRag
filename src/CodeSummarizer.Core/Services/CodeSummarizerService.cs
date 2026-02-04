@@ -14,19 +14,19 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
     private readonly IMermaidParser _mermaidParser;
     private readonly TreeSitterParser _treeSitterParser;
 
+    public CodeSummarizerService(ILogger<CodeSummarizerService> logger, IMermaidParser? mermaidParser = null)
+    {
+        _logger = logger;
+        _mermaidParser = mermaidParser ?? new RegexMermaidParser();
+        _treeSitterParser = new TreeSitterParser();
+    }
+
     /// <summary>
     ///     Optional delegate for LLM sentinel calls.
     ///     Matches the signature of OllamaService.SentinelGenerateAsync.
     ///     When null, only structural summaries are produced.
     /// </summary>
     public Func<string, string, CancellationToken, Task<string?>>? SentinelGenerate { get; set; }
-
-    public CodeSummarizerService(ILogger<CodeSummarizerService> logger, IMermaidParser? mermaidParser = null)
-    {
-        _logger = logger;
-        _mermaidParser = mermaidParser ?? new RegexMermaidParser();
-        _treeSitterParser = new TreeSitterParser(null);
-    }
 
     /// <summary>
     ///     Summarize a code block using tree-sitter AST parsing + optional LLM.
@@ -47,14 +47,12 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
 
         // 3. Try LLM for semantic description if available
         if (SentinelGenerate != null)
-        {
             try
             {
                 var prompt = CodePromptBuilder.BuildCodePrompt(code, normalizedLang, structure);
                 var llmDesc = await SentinelGenerate("Describe this code in one sentence.", prompt, ct);
 
                 if (!string.IsNullOrWhiteSpace(llmDesc))
-                {
                     return new CodeSummary
                     {
                         Description = llmDesc.Trim(),
@@ -65,13 +63,11 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
                         Source = "llm",
                         OriginalCode = code
                     };
-                }
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "LLM summarization failed, using structural fallback");
             }
-        }
 
         // 4. Structural-only summary (tree-sitter or heuristic)
         var source = structure.Parsed ? "tree-sitter" : "heuristic";
@@ -107,26 +103,22 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
 
         // 2. Try LLM for semantic description if available
         if (SentinelGenerate != null)
-        {
             try
             {
                 var prompt = CodePromptBuilder.BuildMermaidPrompt(mermaidCode, parsed);
                 var llmDesc = await SentinelGenerate("Describe this diagram in one sentence.", prompt, ct);
 
                 if (!string.IsNullOrWhiteSpace(llmDesc))
-                {
                     return parsed with
                     {
                         Description = llmDesc.Trim(),
                         Source = "llm"
                     };
-                }
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "LLM diagram summarization failed, using parser fallback");
             }
-        }
 
         return parsed;
     }
@@ -134,8 +126,15 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
     /// <summary>
     ///     Check if a language is supported for AST parsing.
     /// </summary>
-    public bool IsLanguageSupported(string language) =>
-        LanguageRegistry.IsSupported(language);
+    public bool IsLanguageSupported(string language)
+    {
+        return LanguageRegistry.IsSupported(language);
+    }
+
+    public void Dispose()
+    {
+        _treeSitterParser.Dispose();
+    }
 
     /// <summary>
     ///     Synchronous code summary (for contexts where async isn't possible).
@@ -163,16 +162,14 @@ public sealed class CodeSummarizerService : ICodeSummarizer, IDisposable
         };
     }
 
-    private static CodeSummary EmptyCodeSummary(string language, string code) => new()
+    private static CodeSummary EmptyCodeSummary(string language, string code)
     {
-        Description = $"Empty {language} code block",
-        Language = language,
-        Source = "heuristic",
-        OriginalCode = code ?? ""
-    };
-
-    public void Dispose()
-    {
-        _treeSitterParser.Dispose();
+        return new CodeSummary
+        {
+            Description = $"Empty {language} code block",
+            Language = language,
+            Source = "heuristic",
+            OriginalCode = code ?? ""
+        };
     }
 }

@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Mostlylucid.DocSummarizer.Images.Orchestration;
 
 /// <summary>
@@ -412,7 +414,7 @@ public sealed class WaveSignalContract
 
     public string ToDescription()
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine($"## {WaveName} ({Kind})");
         sb.AppendLine();
         sb.AppendLine("**Emits:**");

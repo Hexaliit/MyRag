@@ -3,7 +3,7 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for UrlFixerService - Google News and aggregator URL resolution.
+///     Tests for UrlFixerService - Google News and aggregator URL resolution.
 /// </summary>
 public class UrlFixerServiceTests
 {

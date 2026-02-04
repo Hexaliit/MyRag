@@ -4,12 +4,12 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Probes hardware capabilities to resolve the "dynamic" profile.
+///     Probes hardware capabilities to resolve the "dynamic" profile.
 /// </summary>
 public static class HardwareDetector
 {
     /// <summary>
-    /// Detect hardware capabilities: RAM, CPU, GPU, Ollama availability, cloud keys.
+    ///     Detect hardware capabilities: RAM, CPU, GPU, Ollama availability, cloud keys.
     /// </summary>
     public static async Task<HardwareCapabilities> DetectAsync(CancellationToken ct = default)
     {
@@ -19,7 +19,7 @@ public static class HardwareDetector
         var hasGpu = DetectGpu();
         var ollamaAvailable = await CheckOllamaAsync(ct);
         var hasCloudKeys = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY"))
-                        || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"));
+                           || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"));
 
         return new HardwareCapabilities
         {
@@ -33,7 +33,7 @@ public static class HardwareDetector
     }
 
     /// <summary>
-    /// Resolve a profile name from hardware capabilities.
+    ///     Resolve a profile name from hardware capabilities.
     /// </summary>
     public static async Task<string> ResolveProfileAsync(CancellationToken ct = default)
     {
@@ -42,18 +42,18 @@ public static class HardwareDetector
     }
 
     /// <summary>
-    /// Resolve a profile name from known hardware capabilities.
-    /// GPU presence selects "desktop" (enables GPU offload for LLamaSharp).
-    /// Decision table:
-    ///   RAM ≤ 4GB                      → pi        (CPU-only, tiny models)
-    ///   RAM ≤ 16GB + GPU               → desktop   (GPU-accelerated local LLM)
-    ///   RAM ≤ 16GB                     → laptop    (CPU-only local LLM)
-    ///   RAM ≤ 64GB + GPU               → desktop   (GPU-accelerated local LLM)
-    ///   RAM ≤ 64GB + Ollama (no GPU)   → server    (Ollama-primary, no local LLM)
-    ///   RAM ≤ 64GB                     → laptop    (CPU-only local LLM)
-    ///   RAM > 64GB + Ollama + cloud    → enterprise
-    ///   RAM > 64GB + Ollama            → server
-    ///   RAM > 64GB                     → server
+    ///     Resolve a profile name from known hardware capabilities.
+    ///     GPU presence selects "desktop" (enables GPU offload for LLamaSharp).
+    ///     Decision table:
+    ///     RAM ≤ 4GB                      → pi        (CPU-only, tiny models)
+    ///     RAM ≤ 16GB + GPU               → desktop   (GPU-accelerated local LLM)
+    ///     RAM ≤ 16GB                     → laptop    (CPU-only local LLM)
+    ///     RAM ≤ 64GB + GPU               → desktop   (GPU-accelerated local LLM)
+    ///     RAM ≤ 64GB + Ollama (no GPU)   → server    (Ollama-primary, no local LLM)
+    ///     RAM ≤ 64GB                     → laptop    (CPU-only local LLM)
+    ///     RAM > 64GB + Ollama + cloud    → enterprise
+    ///     RAM > 64GB + Ollama            → server
+    ///     RAM > 64GB                     → server
     /// </summary>
     public static string ResolveProfile(HardwareCapabilities hw)
     {
@@ -94,19 +94,17 @@ public static class HardwareDetector
         // macOS: Metal is always available on Apple Silicon
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
             && RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-        {
             return true;
-        }
 
         return false;
     }
 
     /// <summary>
-    /// Windows GPU detection via driver DLLs in System32.
-    /// NVIDIA drivers always install nvcuda.dll (CUDA runtime), even without the full CUDA Toolkit.
-    /// AMD discrete GPUs install amdxc64.dll (DirectX compiler) and amdvlk64.dll (Vulkan ICD).
-    /// Intel Arc discrete GPUs install ze_loader.dll (Level Zero compute API).
-    /// Falls back to CUDA_PATH/CUDA_HOME env vars as last resort.
+    ///     Windows GPU detection via driver DLLs in System32.
+    ///     NVIDIA drivers always install nvcuda.dll (CUDA runtime), even without the full CUDA Toolkit.
+    ///     AMD discrete GPUs install amdxc64.dll (DirectX compiler) and amdvlk64.dll (Vulkan ICD).
+    ///     Intel Arc discrete GPUs install ze_loader.dll (Level Zero compute API).
+    ///     Falls back to CUDA_PATH/CUDA_HOME env vars as last resort.
     /// </summary>
     private static bool DetectGpuWindows()
     {
@@ -137,10 +135,10 @@ public static class HardwareDetector
     }
 
     /// <summary>
-    /// Linux GPU detection via device nodes and driver paths.
-    /// NVIDIA: /dev/nvidia0 device node (created by nvidia kernel module).
-    /// AMD ROCm: /dev/kfd device (Kernel Fusion Driver for AMD compute GPUs).
-    /// Falls back to CUDA_PATH env var.
+    ///     Linux GPU detection via device nodes and driver paths.
+    ///     NVIDIA: /dev/nvidia0 device node (created by nvidia kernel module).
+    ///     AMD ROCm: /dev/kfd device (Kernel Fusion Driver for AMD compute GPUs).
+    ///     Falls back to CUDA_PATH env var.
     /// </summary>
     private static bool DetectGpuLinux()
     {

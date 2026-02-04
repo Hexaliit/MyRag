@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Models;
 using AudioSummarizer.Core.Services.Voice;
@@ -5,18 +6,15 @@ using AudioSummarizer.Core.Services.Voice;
 namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
-/// Extracts voice embeddings for anonymous speaker similarity
-/// Uses ECAPA-TDNN ONNX model (no PII, no speaker identification)
-/// Priority 30: After transcription, before diarization
+///     Extracts voice embeddings for anonymous speaker similarity
+///     Uses ECAPA-TDNN ONNX model (no PII, no speaker identification)
+///     Priority 30: After transcription, before diarization
 /// </summary>
 public class VoiceEmbeddingWave : IAudioWave
 {
-    private readonly ILogger<VoiceEmbeddingWave> _logger;
-    private readonly VoiceEmbeddingService _embeddingService;
     private readonly AudioConfig _config;
-
-    public int Priority => 30;
-    public string Name => "VoiceEmbeddingWave";
+    private readonly VoiceEmbeddingService _embeddingService;
+    private readonly ILogger<VoiceEmbeddingWave> _logger;
 
     public VoiceEmbeddingWave(
         ILogger<VoiceEmbeddingWave> logger,
@@ -27,6 +25,9 @@ public class VoiceEmbeddingWave : IAudioWave
         _embeddingService = embeddingService;
         _config = config.Value;
     }
+
+    public int Priority => 30;
+    public string Name => "VoiceEmbeddingWave";
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {
@@ -44,7 +45,6 @@ public class VoiceEmbeddingWave : IAudioWave
 
         // Check minimum duration
         if (context.Signals.TryGetValue("audio.duration_seconds", out var durationSignal))
-        {
             if (durationSignal.Value is double duration &&
                 duration < _config.VoiceEmbedding.MinDurationSeconds)
             {
@@ -52,7 +52,6 @@ public class VoiceEmbeddingWave : IAudioWave
                     duration, _config.VoiceEmbedding.MinDurationSeconds);
                 return false;
             }
-        }
 
         return true;
     }
@@ -62,7 +61,7 @@ public class VoiceEmbeddingWave : IAudioWave
         AnalysisContext context,
         CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var signals = new List<Signal>();
 
         try

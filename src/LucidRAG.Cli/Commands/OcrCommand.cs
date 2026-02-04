@@ -75,9 +75,8 @@ public static class OcrCommand
             AnsiConsole.Write(new FigletText("OCR Pipeline").Color(Color.Cyan1));
             AnsiConsole.MarkupLine("[dim]Advanced multi-frame OCR with temporal processing[/]");
             if (benchmarkEnabled)
-            {
-                AnsiConsole.MarkupLine($"[yellow]Benchmark mode enabled - results will be saved to {config.OcrBenchmarkOutputPath}[/]");
-            }
+                AnsiConsole.MarkupLine(
+                    $"[yellow]Benchmark mode enabled - results will be saved to {config.OcrBenchmarkOutputPath}[/]");
             AnsiConsole.WriteLine();
 
             await using var services = CliServiceRegistration.BuildServiceProvider(config, verbose);

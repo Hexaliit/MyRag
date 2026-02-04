@@ -11,10 +11,10 @@ namespace AudioSummarizer.Tests.Waves;
 
 public class SpeakerDiarizationWaveTests
 {
-    private readonly SpeakerDiarizationWave _wave;
     private readonly Mock<SpeakerDiarizationService> _mockDiarizationService;
     private readonly Mock<AudioSegmentExtractor> _mockSegmentExtractor;
     private readonly string _testAudioPath;
+    private readonly SpeakerDiarizationWave _wave;
 
     public SpeakerDiarizationWaveTests()
     {
@@ -354,4 +354,3 @@ public class SpeakerDiarizationWaveTests
         methodSignal!.Value.Should().Be("agglomerative_clustering");
     }
 }
-

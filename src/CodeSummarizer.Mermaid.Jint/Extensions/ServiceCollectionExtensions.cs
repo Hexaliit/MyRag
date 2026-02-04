@@ -5,15 +5,15 @@ namespace CodeSummarizer.Mermaid.Jint.Extensions;
 
 /// <summary>
 ///     DI registration for the Jint-based mermaid parser.
-///     Call <see cref="AddMermaidJintParser"/> after <c>AddCodeSummarizer()</c>
+///     Call <see cref="AddMermaidJintParser" /> after <c>AddCodeSummarizer()</c>
 ///     to override the default regex parser with the Jint-based one.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
     ///     Register the Jint-based mermaid parser, overriding the default regex parser.
-    ///     Last-registration-wins: this replaces <see cref="RegexMermaidParser"/> with
-    ///     <see cref="JintMermaidParser"/> which falls back to regex on any failure.
+    ///     Last-registration-wins: this replaces <see cref="RegexMermaidParser" /> with
+    ///     <see cref="JintMermaidParser" /> which falls back to regex on any failure.
     /// </summary>
     /// <remarks>
     ///     Usage:

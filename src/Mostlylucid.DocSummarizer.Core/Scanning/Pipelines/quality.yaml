@@ -21,7 +21,7 @@ waves:
   required:
     - NativeExtractionWave   # Always try native first
     - VlmOcrWave             # Always run VLM as verification
-  conditional: []
+  conditional: [ ]
 
 output:
   format: markdown

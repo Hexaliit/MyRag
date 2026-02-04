@@ -3,15 +3,14 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Phase 3: Evidence Assignment (Deterministic — No LLM).
-/// Assigns evidence segments to planned sections using embedding similarity,
-/// salience scores, and article relevance. Greedy selection with MMR diversity
-/// and deduplication.
-///
-/// Quality-aware constraints:
-/// - Minimum salience threshold filters low-quality segments upfront
-/// - Per-section evidence quality adjusts target word count
-/// - Top-K per document limits reduces LLM context noise
+///     Phase 3: Evidence Assignment (Deterministic — No LLM).
+///     Assigns evidence segments to planned sections using embedding similarity,
+///     salience scores, and article relevance. Greedy selection with MMR diversity
+///     and deduplication.
+///     Quality-aware constraints:
+///     - Minimum salience threshold filters low-quality segments upfront
+///     - Per-section evidence quality adjusts target word count
+///     - Top-K per document limits reduces LLM context noise
 /// </summary>
 public static class EvidenceAssigner
 {
@@ -25,17 +24,22 @@ public static class EvidenceAssigner
     private const float OrphanSalienceThreshold = 0.7f;
 
     // Quality-aware thresholds
-    private const float MinSalienceThreshold = 0.35f;      // Skip low-salience segments entirely
-    private const int MaxSegmentsPerSection = 12;          // Cap segments to reduce LLM load
-    private const float StrongEvidenceThreshold = 0.6f;    // Salience above this = strong
-    private const float WeakEvidenceThreshold = 0.45f;     // Salience below this = weak
-    private const float MinThemeSimilarity = 0.45f;        // Minimum theme similarity to include evidence (raised for tighter focus)
+    private const float MinSalienceThreshold = 0.35f; // Skip low-salience segments entirely
+    private const int MaxSegmentsPerSection = 12; // Cap segments to reduce LLM load
+    private const float StrongEvidenceThreshold = 0.6f; // Salience above this = strong
+    private const float WeakEvidenceThreshold = 0.45f; // Salience below this = weak
+
+    private const float
+        MinThemeSimilarity = 0.45f; // Minimum theme similarity to include evidence (raised for tighter focus)
 
     // Cross-section flow control
     private const float CrossSectionDedupThreshold = 0.80f; // Higher than within-section to allow related content
-    private const float IntroDepthPenalty = 0.3f;           // Penalize deep/technical content in intro sections
-    private const float LaterSectionBonus = 0.15f;          // Bonus for detailed content in later sections
-    private const float BioSegmentPenalty = 0.5f;           // Penalty for segments containing bio content
+    private const float IntroDepthPenalty = 0.3f; // Penalize deep/technical content in intro sections
+    private const float LaterSectionBonus = 0.15f; // Bonus for detailed content in later sections
+    private const float BioSegmentPenalty = 0.5f; // Penalty for segments containing bio content
+
+    // Topic cohesion: evidence must relate to both section AND query
+    private const float MinQueryCohesion = 0.30f; // Minimum similarity to query embedding
 
     // Segment-level bio indicators (person-focused content)
     private static readonly string[] SegmentBioIndicators =
@@ -47,17 +51,15 @@ public static class EvidenceAssigner
         "my career", "i joined", "i left", "i started"
     ];
 
-    // Topic cohesion: evidence must relate to both section AND query
-    private const float MinQueryCohesion = 0.30f;  // Minimum similarity to query embedding
-
     /// <summary>
-    /// Assign evidence segments to sections based on embedding similarity + salience + relevance.
-    /// Each section gets its own curated slice of the corpus.
-    /// Quality-aware: filters low-salience, caps per-section, adjusts target words.
-    /// Flow-aware: tracks cross-section content to avoid repetition and ensure progression.
-    /// Cohesion-aware: filters evidence that doesn't relate to overall query topic.
+    ///     Assign evidence segments to sections based on embedding similarity + salience + relevance.
+    ///     Each section gets its own curated slice of the corpus.
+    ///     Quality-aware: filters low-salience, caps per-section, adjusts target words.
+    ///     Flow-aware: tracks cross-section content to avoid repetition and ensure progression.
+    ///     Cohesion-aware: filters evidence that doesn't relate to overall query topic.
     /// </summary>
-    public static void AssignEvidence(DocumentPlan plan, EvidenceCorpus corpus, int contextTokenBudget = 5700, float[]? queryEmbedding = null)
+    public static void AssignEvidence(DocumentPlan plan, EvidenceCorpus corpus, int contextTokenBudget = 5700,
+        float[]? queryEmbedding = null)
     {
         // Evidence budget per section in chars
         var budgetChars = (int)(contextTokenBudget * 3.5);
@@ -104,8 +106,8 @@ public static class EvidenceAssigner
                     s.Segment,
                     // Apply flow-based score adjustments
                     Score = s.BaseScore
-                        + (isIntroSection && s.IsDeepContent ? -IntroDepthPenalty : 0)
-                        + (isLaterSection && s.IsDeepContent ? LaterSectionBonus : 0),
+                            + (isIntroSection && s.IsDeepContent ? -IntroDepthPenalty : 0)
+                            + (isLaterSection && s.IsDeepContent ? LaterSectionBonus : 0),
                     s.ThemeSim
                 })
                 .OrderByDescending(s => s.Score)
@@ -136,7 +138,7 @@ public static class EvidenceAssigner
                     continue;
 
                 // Dedup within section: skip if too similar to any already-selected segment
-                if (IsDuplicateOf(seg, selected, DedupThreshold))
+                if (IsDuplicateOf(seg, selected))
                     continue;
 
                 // Cross-section dedup: skip if too similar to content in previous sections
@@ -167,29 +169,29 @@ public static class EvidenceAssigner
     }
 
     /// <summary>
-    /// Detect if content is detailed/technical (code, specific implementations, etc.)
-    /// vs. overview/conceptual content better suited for introductions.
+    ///     Detect if content is detailed/technical (code, specific implementations, etc.)
+    ///     vs. overview/conceptual content better suited for introductions.
     /// </summary>
     private static bool IsDetailedContent(string text)
     {
         // Indicators of detailed/technical content
         var detailIndicators = new[]
         {
-            "```",           // Code blocks
-            "=>",            // Lambda/arrow syntax
-            "class ",        // Class definitions
-            "function ",     // Function definitions
-            "async ",        // Async patterns
-            "await ",        // Await patterns
-            "var ",          // Variable declarations
-            "const ",        // Const declarations
-            "import ",       // Import statements
-            "using ",        // Using statements
-            "version ",      // Version numbers
-            " v1.", " v2.",  // Version patterns
-            "npm install",   // Package commands
-            "dotnet add",    // Package commands
-            "Step 1", "Step 2", // Numbered steps
+            "```", // Code blocks
+            "=>", // Lambda/arrow syntax
+            "class ", // Class definitions
+            "function ", // Function definitions
+            "async ", // Async patterns
+            "await ", // Await patterns
+            "var ", // Variable declarations
+            "const ", // Const declarations
+            "import ", // Import statements
+            "using ", // Using statements
+            "version ", // Version numbers
+            " v1.", " v2.", // Version patterns
+            "npm install", // Package commands
+            "dotnet add", // Package commands
+            "Step 1", "Step 2" // Numbered steps
         };
 
         var lowerText = text.ToLowerInvariant();
@@ -209,8 +211,8 @@ public static class EvidenceAssigner
     }
 
     /// <summary>
-    /// Adjust section's target word count based on evidence quality.
-    /// Strong evidence → full word count. Weak evidence → reduced (prevent hallucination).
+    ///     Adjust section's target word count based on evidence quality.
+    ///     Strong evidence → full word count. Weak evidence → reduced (prevent hallucination).
     /// </summary>
     private static void AdjustTargetWordsForQuality(PlannedSection section)
     {
@@ -227,20 +229,14 @@ public static class EvidenceAssigner
         // Quality multiplier: 0.5 to 1.0 based on evidence strength
         double qualityMultiplier;
         if (avgSalience >= StrongEvidenceThreshold && sourceCount >= 2 && segmentCount >= 4)
-        {
             // Strong evidence: full word count
             qualityMultiplier = 1.0;
-        }
         else if (avgSalience >= WeakEvidenceThreshold && segmentCount >= 2)
-        {
             // Medium evidence: slight reduction
             qualityMultiplier = 0.8;
-        }
         else
-        {
             // Weak evidence: significant reduction to prevent hallucination
             qualityMultiplier = 0.6;
-        }
 
         var originalTarget = section.TargetWords;
         section.AdjustedTargetWords = Math.Max(100, (int)(originalTarget * qualityMultiplier));
@@ -254,8 +250,8 @@ public static class EvidenceAssigner
 
         // Base score from theme similarity, salience, and relevance
         var baseScore = ThemeSimilarityWeight * themeSim
-                      + SalienceWeight * salience
-                      + ArticleRelevanceWeight * relevance;
+                        + SalienceWeight * salience
+                        + ArticleRelevanceWeight * relevance;
 
         // Apply content type penalty from article-level classification
         // ContentTypeWeight is 1.0 for tech docs, 0.2 for bio content
@@ -270,8 +266,8 @@ public static class EvidenceAssigner
     }
 
     /// <summary>
-    /// Detect if a segment contains biographical/personal content.
-    /// This catches bio references even in technical articles.
+    ///     Detect if a segment contains biographical/personal content.
+    ///     This catches bio references even in technical articles.
     /// </summary>
     private static bool ContainsBioContent(string text)
     {
@@ -280,7 +276,8 @@ public static class EvidenceAssigner
         return matches >= 2; // Need at least 2 indicators to avoid false positives
     }
 
-    private static bool IsDuplicateOf(EvidenceSegment candidate, List<EvidenceSegment> selected, float threshold = DedupThreshold)
+    private static bool IsDuplicateOf(EvidenceSegment candidate, List<EvidenceSegment> selected,
+        float threshold = DedupThreshold)
     {
         if (candidate.Segment.Embedding == null) return false;
 
@@ -291,13 +288,15 @@ public static class EvidenceAssigner
             if (sim > threshold)
                 return true;
         }
+
         return false;
     }
 
     private static void RescueOrphans(DocumentPlan plan, EvidenceCorpus corpus)
     {
         var orphans = corpus.Segments
-            .Where(s => !s.IsAssigned && s.Segment.SalienceScore > OrphanSalienceThreshold && s.Segment.Embedding != null)
+            .Where(s => !s.IsAssigned && s.Segment.SalienceScore > OrphanSalienceThreshold &&
+                        s.Segment.Embedding != null)
             .ToList();
 
         foreach (var orphan in orphans)

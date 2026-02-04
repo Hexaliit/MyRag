@@ -5,8 +5,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Sources.Reference;
 
 /// <summary>
-/// Standalone reference source plugin for DoomSummarizer.
-/// Fetches Wikipedia current events and fact-checking content.
+///     Standalone reference source plugin for DoomSummarizer.
+///     Fetches Wikipedia current events and fact-checking content.
 /// </summary>
 public sealed class ReferenceSourcePlugin : ISourcePlugin
 {
@@ -49,7 +49,7 @@ public sealed class ReferenceSourcePlugin : ISourcePlugin
         var isSectionName = firstParam is "news" or "history" or "featured";
 
         if (isSectionName)
-            return await fetcher.FetchAsync(context.Limit, section: firstParam);
+            return await fetcher.FetchAsync(context.Limit, firstParam);
 
         // Use sub-param as query, or fall back to the main query
         var query = !isSectionName && firstParam != null ? firstParam : context.Query;

@@ -1,15 +1,14 @@
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Services.Waves;
 
 /// <summary>
-/// Background service that initializes the wave registry on startup.
+///     Background service that initializes the wave registry on startup.
 /// </summary>
 public sealed class WaveRegistryInitializer : IHostedService
 {
-    private readonly IWaveRegistry _registry;
     private readonly ILogger<WaveRegistryInitializer> _logger;
+    private readonly IWaveRegistry _registry;
 
     public WaveRegistryInitializer(
         IWaveRegistry registry,
@@ -26,5 +25,8 @@ public sealed class WaveRegistryInitializer : IHostedService
         _logger.LogInformation("Wave registry ready with {Count} wave(s)", _registry.AvailableWaves.Count);
     }
 
-    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct)
+    {
+        return Task.CompletedTask;
+    }
 }

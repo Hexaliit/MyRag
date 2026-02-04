@@ -1,23 +1,17 @@
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 
 /// <summary>
-/// Auto-downloads ONNX models for OCR enhancement on first use.
-/// Provides graceful fallback if download fails.
-///
-/// Supported models:
-/// - EAST: Scene text detection (frozen_east_text_detection.onnx, ~100MB)
-/// - CRAFT: Character Region Awareness for Text detection (craft_mlt_25k.onnx, ~150MB)
-/// - Real-ESRGAN: Super-resolution upscaling (realesrgan-x4.onnx, ~60MB)
+///     Auto-downloads ONNX models for OCR enhancement on first use.
+///     Provides graceful fallback if download fails.
+///     Supported models:
+///     - EAST: Scene text detection (frozen_east_text_detection.onnx, ~100MB)
+///     - CRAFT: Character Region Awareness for Text detection (craft_mlt_25k.onnx, ~150MB)
+///     - Real-ESRGAN: Super-resolution upscaling (realesrgan-x4.onnx, ~60MB)
 /// </summary>
 public class ModelDownloader
 {
-    private readonly ILogger<ModelDownloader>? _logger;
-    private readonly string _modelsDirectory;
-    private readonly bool _autoDownload;
-
     // Model URLs and checksums
     private static readonly Dictionary<ModelType, ModelInfo> ModelRegistry = new()
     {
@@ -72,12 +66,17 @@ public class ModelDownloader
         [ModelType.YoloDocLayNet] = new ModelInfo
         {
             FileName = "yolov10m-doclaynet.onnx",
-            Url = "https://huggingface.co/Oblix/yolov10m-doclaynet_ONNX_document-layout-analysis/resolve/main/onnx/model.onnx",
+            Url =
+                "https://huggingface.co/Oblix/yolov10m-doclaynet_ONNX_document-layout-analysis/resolve/main/onnx/model.onnx",
             RequiresConversion = false,
             ApproximateSize = 62 * 1024 * 1024, // ~62MB
             Description = "YOLOv10-DocLayNet document layout detector (Text, Title, Table, Figure, List, etc.)"
         }
     };
+
+    private readonly bool _autoDownload;
+    private readonly ILogger<ModelDownloader>? _logger;
+    private readonly string _modelsDirectory;
 
     public ModelDownloader(
         string modelsDirectory,
@@ -93,8 +92,8 @@ public class ModelDownloader
     }
 
     /// <summary>
-    /// Get path to a model, downloading if necessary.
-    /// Returns null if model unavailable and download fails/disabled.
+    ///     Get path to a model, downloading if necessary.
+    ///     Returns null if model unavailable and download fails/disabled.
     /// </summary>
     public async Task<string?> GetModelPathAsync(
         ModelType modelType,
@@ -141,21 +140,18 @@ public class ModelDownloader
     }
 
     /// <summary>
-    /// Check if a model is available (exists locally).
+    ///     Check if a model is available (exists locally).
     /// </summary>
     public bool IsModelAvailable(ModelType modelType)
     {
-        if (!ModelRegistry.TryGetValue(modelType, out var modelInfo))
-        {
-            return false;
-        }
+        if (!ModelRegistry.TryGetValue(modelType, out var modelInfo)) return false;
 
         var modelPath = Path.Combine(_modelsDirectory, modelInfo.FileName);
         return File.Exists(modelPath);
     }
 
     /// <summary>
-    /// Download a model with progress reporting.
+    ///     Download a model with progress reporting.
     /// </summary>
     private async Task DownloadModelAsync(
         ModelType modelType,
@@ -170,10 +166,7 @@ public class ModelDownloader
 
         // Ensure parent directory exists (for nested paths like tessdata/eng.traineddata)
         var parentDir = Path.GetDirectoryName(destinationPath);
-        if (!string.IsNullOrEmpty(parentDir))
-        {
-            Directory.CreateDirectory(parentDir);
-        }
+        if (!string.IsNullOrEmpty(parentDir)) Directory.CreateDirectory(parentDir);
 
         var tempPath = destinationPath + ".download";
 
@@ -192,11 +185,12 @@ public class ModelDownloader
             response.EnsureSuccessStatusCode();
 
             await using (var contentStream = await response.Content.ReadAsStreamAsync(ct))
-            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+            await using (var fileStream =
+                         new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
             {
                 var buffer = new byte[8192];
                 long totalRead = 0;
-                int lastReportedPercent = -1;
+                var lastReportedPercent = -1;
 
                 while (true)
                 {
@@ -207,7 +201,7 @@ public class ModelDownloader
                     totalRead += bytesRead;
 
                     // Report progress every 5%
-                    var percent = (int)((totalRead * 100) / totalBytes);
+                    var percent = (int)(totalRead * 100 / totalBytes);
                     if (percent >= lastReportedPercent + 5)
                     {
                         lastReportedPercent = percent;
@@ -238,7 +232,7 @@ public class ModelDownloader
             }
 
             // Move temp file to final location
-            File.Move(tempPath, destinationPath, overwrite: true);
+            File.Move(tempPath, destinationPath, true);
 
             _logger?.LogInformation(
                 "Model {ModelType} successfully downloaded to {Path}",
@@ -248,16 +242,20 @@ public class ModelDownloader
         {
             // Clean up temp file on error
             if (File.Exists(tempPath))
-            {
-                try { File.Delete(tempPath); } catch { }
-            }
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch
+                {
+                }
 
             throw new IOException($"Failed to download model {modelType}: {ex.Message}", ex);
         }
     }
 
     /// <summary>
-    /// Get information about all registered models.
+    ///     Get information about all registered models.
     /// </summary>
     public Dictionary<ModelType, (ModelInfo Info, bool Available)> GetModelStatus()
     {
@@ -267,8 +265,8 @@ public class ModelDownloader
     }
 
     /// <summary>
-    /// Get the tessdata directory path, ensuring it exists and contains required files.
-    /// Downloads tessdata if not present.
+    ///     Get the tessdata directory path, ensuring it exists and contains required files.
+    ///     Downloads tessdata if not present.
     /// </summary>
     /// <returns>Path to tessdata directory for use with Tesseract</returns>
     public async Task<string> GetTessdataDirectoryAsync(CancellationToken ct = default)
@@ -278,16 +276,14 @@ public class ModelDownloader
         // Ensure eng.traineddata exists
         var engPath = await GetModelPathAsync(ModelType.TesseractEng, ct);
         if (engPath == null)
-        {
             throw new InvalidOperationException(
                 "Failed to download Tesseract language data. Check network connection.");
-        }
 
         return tessdataPath;
     }
 
     /// <summary>
-    /// Synchronously get the tessdata directory path, downloading if necessary.
+    ///     Synchronously get the tessdata directory path, downloading if necessary.
     /// </summary>
     public string GetTessdataDirectory()
     {
@@ -296,79 +292,79 @@ public class ModelDownloader
 }
 
 /// <summary>
-/// Type of downloadable model.
+///     Type of downloadable model.
 /// </summary>
 public enum ModelType
 {
     /// <summary>
-    /// EAST: Efficient and Accurate Scene Text detector
+    ///     EAST: Efficient and Accurate Scene Text detector
     /// </summary>
     EAST,
 
     /// <summary>
-    /// CRAFT: Character Region Awareness For Text detection
+    ///     CRAFT: Character Region Awareness For Text detection
     /// </summary>
     CRAFT,
 
     /// <summary>
-    /// Real-ESRGAN: Real-world super-resolution
+    ///     Real-ESRGAN: Real-world super-resolution
     /// </summary>
     RealESRGAN,
 
     /// <summary>
-    /// Tesseract English language data (fast variant)
+    ///     Tesseract English language data (fast variant)
     /// </summary>
     TesseractEng,
 
     /// <summary>
-    /// CLIP ViT-B/32 visual encoder for image embeddings
+    ///     CLIP ViT-B/32 visual encoder for image embeddings
     /// </summary>
     ClipVisual,
 
     /// <summary>
-    /// CLIP ViT-B/32 text encoder for text embeddings
+    ///     CLIP ViT-B/32 text encoder for text embeddings
     /// </summary>
     ClipTextual,
 
     /// <summary>
-    /// YOLOv10-DocLayNet document layout detection model
-    /// Detects: Text, Title, Table, Figure, List, Caption, Footnote, Header, Footer
+    ///     YOLOv10-DocLayNet document layout detection model
+    ///     Detects: Text, Title, Table, Figure, List, Caption, Footnote, Header, Footer
     /// </summary>
     YoloDocLayNet
 }
 
 /// <summary>
-/// Information about a downloadable model.
+///     Information about a downloadable model.
 /// </summary>
 public record ModelInfo
 {
     /// <summary>
-    /// Model file name (e.g., "frozen_east_text_detection.onnx")
+    ///     Model file name (e.g., "frozen_east_text_detection.onnx")
     /// </summary>
     public required string FileName { get; init; }
 
     /// <summary>
-    /// Download URL
+    ///     Download URL
     /// </summary>
     public required string Url { get; init; }
 
     /// <summary>
-    /// Whether the model requires format conversion (e.g., PB to ONNX)
+    ///     Whether the model requires format conversion (e.g., PB to ONNX)
     /// </summary>
     public required bool RequiresConversion { get; init; }
 
     /// <summary>
-    /// Approximate file size in bytes
+    ///     Approximate file size in bytes
     /// </summary>
     public required long ApproximateSize { get; init; }
 
     /// <summary>
-    /// Human-readable description
+    ///     Human-readable description
     /// </summary>
     public required string Description { get; init; }
 
     /// <summary>
-    /// Optional SHA256 checksum for verification
+    ///     Optional SHA256 checksum for verification
     /// </summary>
     public string? Sha256 { get; init; }
 }

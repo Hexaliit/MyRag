@@ -1,16 +1,18 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Resilience;
 using Polly;
 using Polly.Retry;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Centralized resilience for API calls: per-service rate limiting, retry with
-/// backoff, and circuit breaker. All search services route through this.
-/// Keyed by service name — each service gets its own pipeline.
-/// Config is read from ApiKeyEntry fields (rateLimitMs, maxRetries, etc.).
+///     Centralized resilience for API calls: per-service rate limiting, retry with
+///     backoff, and circuit breaker. All search services route through this.
+///     Keyed by service name — each service gets its own pipeline.
+///     Config is read from ApiKeyEntry fields (rateLimitMs, maxRetries, etc.).
 /// </summary>
 public static class ApiRateLimiter
 {
@@ -29,19 +31,19 @@ public static class ApiRateLimiter
         ["duckduckgo"] = 2000,
         ["currents"] = 200,
         // Free APIs -- respect their rate limits / etiquette
-        ["arxiv"] = 3000,       // arXiv asks for max 1 request per 3 seconds
+        ["arxiv"] = 3000, // arXiv asks for max 1 request per 3 seconds
         ["stackoverflow"] = 1000, // 30 req/sec without key, but be polite
-        ["hackernews"] = 200,   // Firebase API, generous but throttle per-item fetches
-        ["wikipedia"] = 200,    // Wikimedia is generous, 200 req/sec, but be polite
-        ["spaceflight"] = 500,  // Small community API
-        ["reddit"] = 1000,      // Reddit requires 1 req/sec without OAuth
-        ["usgs"] = 500,         // Government API, no hard limit
+        ["hackernews"] = 200, // Firebase API, generous but throttle per-item fetches
+        ["wikipedia"] = 200, // Wikimedia is generous, 200 req/sec, but be polite
+        ["spaceflight"] = 500, // Small community API
+        ["reddit"] = 1000, // Reddit requires 1 req/sec without OAuth
+        ["usgs"] = 500, // Government API, no hard limit
         ["google_search"] = 200,
         ["google_places"] = 200,
         // UK Government APIs -- all free, no hard limits, but be polite
-        ["parliament"] = 500,   // Hansard API, no documented limits
-        ["ukpolice"] = 500,     // data.police.uk, no documented limits
-        ["ukflood"] = 500,      // Environment Agency, no documented limits
+        ["parliament"] = 500, // Hansard API, no documented limits
+        ["ukpolice"] = 500, // data.police.uk, no documented limits
+        ["ukflood"] = 500 // Environment Agency, no documented limits
     };
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Semaphores = new();
@@ -52,26 +54,26 @@ public static class ApiRateLimiter
     private static ICircuitBreaker? _circuitBreaker;
 
     /// <summary>
-    /// Set the persistent circuit breaker. Call once during startup after initializing CircuitBreakerService.
+    ///     Set the persistent circuit breaker. Call once during startup after initializing CircuitBreakerService.
     /// </summary>
     public static void SetCircuitBreaker(ICircuitBreaker circuitBreaker)
-        => _circuitBreaker = circuitBreaker;
+    {
+        _circuitBreaker = circuitBreaker;
+    }
 
     /// <summary>
-    /// Register service configuration. Call during setup to load per-service resilience settings.
+    ///     Register service configuration. Call during setup to load per-service resilience settings.
     /// </summary>
     public static void Configure(ApiKeyService keys)
     {
         foreach (var svc in keys.GetConfiguredServices())
-        {
             if (!string.IsNullOrEmpty(svc.Name))
                 ServiceConfigs[svc.Name] = svc;
-        }
     }
 
     /// <summary>
-    /// Acquire a rate-limited slot for the given service.
-    /// Returns a disposable that releases the slot when done.
+    ///     Acquire a rate-limited slot for the given service.
+    ///     Returns a disposable that releases the slot when done.
     /// </summary>
     public static async Task<IDisposable> AcquireAsync(string service, CancellationToken ct = default)
     {
@@ -90,8 +92,8 @@ public static class ApiRateLimiter
     }
 
     /// <summary>
-    /// Execute an HTTP request through the full resilience pipeline:
-    /// rate limit → retry (429/5xx) → circuit breaker.
+    ///     Execute an HTTP request through the full resilience pipeline:
+    ///     rate limit → retry (429/5xx) → circuit breaker.
     /// </summary>
     public static async Task<HttpResponseMessage> ExecuteAsync(
         string service, Func<CancellationToken, Task<HttpResponseMessage>> action,
@@ -99,7 +101,7 @@ public static class ApiRateLimiter
     {
         if (IsCircuitOpen(service))
         {
-            System.Diagnostics.Debug.WriteLine($"{service}: circuit open -- skipping");
+            Debug.WriteLine($"{service}: circuit open -- skipping");
             return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
         }
 
@@ -128,11 +130,9 @@ public static class ApiRateLimiter
         else if (result.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             if (_circuitBreaker != null)
-            {
                 _ = _circuitBreaker.ReportFailureAsync(service,
                     CircuitFailureType.AuthError,
                     $"HTTP {(int)result.StatusCode}");
-            }
         }
 
         return result;
@@ -162,23 +162,34 @@ public static class ApiRateLimiter
         return true;
     }
 
-    public static void ResetCircuit(string service) => ConsecutiveFailures[service] = 0;
+    public static void ResetCircuit(string service)
+    {
+        ConsecutiveFailures[service] = 0;
+    }
 
-    private static int GetDelay(string service) =>
-        ServiceConfigs.TryGetValue(service, out var cfg) && cfg.RateLimitMs > 0
+    private static int GetDelay(string service)
+    {
+        return ServiceConfigs.TryGetValue(service, out var cfg) && cfg.RateLimitMs > 0
             ? cfg.RateLimitMs
             : DefaultDelayMs.GetValueOrDefault(service, 200);
+    }
 
-    private static int GetMaxRetries(string service) =>
-        ServiceConfigs.TryGetValue(service, out var cfg) ? cfg.MaxRetries : 2;
+    private static int GetMaxRetries(string service)
+    {
+        return ServiceConfigs.TryGetValue(service, out var cfg) ? cfg.MaxRetries : 2;
+    }
 
-    private static int GetCircuitThreshold(string service) =>
-        ServiceConfigs.TryGetValue(service, out var cfg) ? cfg.CircuitBreakerThreshold : 3;
+    private static int GetCircuitThreshold(string service)
+    {
+        return ServiceConfigs.TryGetValue(service, out var cfg) ? cfg.CircuitBreakerThreshold : 3;
+    }
 
-    private static int GetCircuitResetSeconds(string service) =>
-        ServiceConfigs.TryGetValue(service, out var cfg) && cfg.CircuitBreakerResetSeconds > 0
+    private static int GetCircuitResetSeconds(string service)
+    {
+        return ServiceConfigs.TryGetValue(service, out var cfg) && cfg.CircuitBreakerResetSeconds > 0
             ? cfg.CircuitBreakerResetSeconds
             : 60;
+    }
 
     private static ResiliencePipeline<HttpResponseMessage> BuildPipeline(string service)
     {
@@ -197,7 +208,7 @@ public static class ApiRateLimiter
                     .HandleResult(r => (int)r.StatusCode >= 500),
                 OnRetry = args =>
                 {
-                    System.Diagnostics.Debug.WriteLine(
+                    Debug.WriteLine(
                         $"{service}: {(int)(args.Outcome.Result?.StatusCode ?? 0)} -- retry {args.AttemptNumber + 1}");
                     return default;
                 }

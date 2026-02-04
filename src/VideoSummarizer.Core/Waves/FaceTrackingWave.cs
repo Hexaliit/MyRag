@@ -5,17 +5,13 @@ using VideoSummarizer.Core.Services;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Wave that tracks faces across video frames and links them to the persistent face database.
-/// Integrates with ImageSummarizer's face detection to build face tracks.
+///     Wave that tracks faces across video frames and links them to the persistent face database.
+///     Integrates with ImageSummarizer's face detection to build face tracks.
 /// </summary>
 public class FaceTrackingWave : IVideoWave
 {
     private readonly FaceTrackingService _faceTracking;
     private readonly ILogger<FaceTrackingWave> _logger;
-
-    public string Name => "FaceTracking";
-    public int Priority => 650; // After keyframe extraction, before transcription
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, "faces"];
 
     public FaceTrackingWave(
         FaceTrackingService faceTracking,
@@ -24,6 +20,10 @@ public class FaceTrackingWave : IVideoWave
         _faceTracking = faceTracking;
         _logger = logger;
     }
+
+    public string Name => "FaceTracking";
+    public int Priority => 650; // After keyframe extraction, before transcription
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, "faces"];
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -91,10 +91,7 @@ public class FaceTrackingWave : IVideoWave
                     Confidence = face.Confidence
                 };
 
-                if (!faceAppearances.ContainsKey(identityId))
-                {
-                    faceAppearances[identityId] = [];
-                }
+                if (!faceAppearances.ContainsKey(identityId)) faceAppearances[identityId] = [];
                 faceAppearances[identityId].Add(appearance);
             }
 
@@ -114,10 +111,7 @@ public class FaceTrackingWave : IVideoWave
         }
 
         // Try to match identities to cast members
-        if (castMembers != null && castMembers.Count > 0)
-        {
-            await TryMatchCastMembersAsync(faceTracks, castMembers, ct);
-        }
+        if (castMembers != null && castMembers.Count > 0) await TryMatchCastMembersAsync(faceTracks, castMembers, ct);
 
         // Store results
         context.SetCached("face_tracks", faceTracks);
@@ -137,10 +131,7 @@ public class FaceTrackingWave : IVideoWave
     {
         // Try to get from frame timestamps cache
         var timestamps = context.GetCached<Dictionary<int, double>>("frame_timestamps");
-        if (timestamps != null && timestamps.TryGetValue(frameIndex, out var ts))
-        {
-            return ts;
-        }
+        if (timestamps != null && timestamps.TryGetValue(frameIndex, out var ts)) return ts;
 
         // Estimate from FPS
         var fps = context.Metadata?.Fps ?? 30.0;
@@ -164,7 +155,7 @@ public class FaceTrackingWave : IVideoWave
         const double maxGap = 5.0;
         var currentTrack = new List<FaceAppearance> { sorted[0] };
 
-        for (int i = 1; i < sorted.Count; i++)
+        for (var i = 1; i < sorted.Count; i++)
         {
             var gap = sorted[i].Timestamp - sorted[i - 1].Timestamp;
 
@@ -179,10 +170,7 @@ public class FaceTrackingWave : IVideoWave
         }
 
         // Close final track
-        if (currentTrack.Count > 0)
-        {
-            tracks.Add(CreateTrack(currentTrack, videoId, identityId));
-        }
+        if (currentTrack.Count > 0) tracks.Add(CreateTrack(currentTrack, videoId, identityId));
 
         return tracks;
     }
@@ -230,7 +218,7 @@ public class FaceTrackingWave : IVideoWave
         // Normalize size (assume 100x100 is a good face size)
         var sizeScore = Math.Min(avgSize / 10000.0, 1.0);
 
-        return (avgConfidence * 0.4 + sizeScore * 0.3 + countBonus * 0.3);
+        return avgConfidence * 0.4 + sizeScore * 0.3 + countBonus * 0.3;
     }
 
     private async Task TryMatchCastMembersAsync(
@@ -249,12 +237,10 @@ public class FaceTrackingWave : IVideoWave
 
             // Get name suggestions from cast
             foreach (var cast in castMembers.Take(10))
-            {
                 // In a real implementation, we'd compare face embeddings
                 // For now, just log that cast matching is available
                 _logger.LogDebug("Cast member available for matching: {Name} as {Character}",
                     cast.Name, cast.Character);
-            }
         }
 
         await Task.CompletedTask;
@@ -262,7 +248,7 @@ public class FaceTrackingWave : IVideoWave
 }
 
 /// <summary>
-/// Face embedding data from ImageSummarizer's face detection.
+///     Face embedding data from ImageSummarizer's face detection.
 /// </summary>
 public record FaceEmbeddingData
 {

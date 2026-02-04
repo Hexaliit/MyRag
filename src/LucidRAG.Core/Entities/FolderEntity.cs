@@ -1,8 +1,8 @@
 namespace LucidRAG.Entities;
 
 /// <summary>
-/// Represents a virtual folder within a collection for organizing documents.
-/// Folders can be nested to create a hierarchy.
+///     Represents a virtual folder within a collection for organizing documents.
+///     Folders can be nested to create a hierarchy.
 /// </summary>
 public class FolderEntity
 {
@@ -10,7 +10,7 @@ public class FolderEntity
     public Guid CollectionId { get; set; }
 
     /// <summary>
-    /// Parent folder ID. Null means this folder is at the root of the collection.
+    ///     Parent folder ID. Null means this folder is at the root of the collection.
     /// </summary>
     public Guid? ParentFolderId { get; set; }
 
@@ -18,7 +18,7 @@ public class FolderEntity
     public string? Description { get; set; }
 
     /// <summary>
-    /// Sort order within the parent folder. Lower values appear first.
+    ///     Sort order within the parent folder. Lower values appear first.
     /// </summary>
     public int SortOrder { get; set; } = 0;
 

@@ -1,8 +1,8 @@
 namespace LucidRAG.Entities;
 
 /// <summary>
-/// Standard content types for retrieval entities.
-/// Each type has specific summarization and embedding strategies.
+///     Standard content types for retrieval entities.
+///     Each type has specific summarization and embedding strategies.
 /// </summary>
 public static class ContentTypes
 {
@@ -28,7 +28,7 @@ public static class ContentTypes
     public const string Code = "code";
 
     /// <summary>
-    /// Get content type from MIME type.
+    ///     Get content type from MIME type.
     /// </summary>
     public static string FromMimeType(string mimeType)
     {
@@ -64,7 +64,7 @@ public static class ContentTypes
             lower.Contains("spreadsheet") ||
             lower.Contains("parquet") ||
             lower == "application/json" ||
-            lower.Contains("json") && lower.Contains("table"))
+            (lower.Contains("json") && lower.Contains("table")))
             return Data;
 
         // Code types
@@ -86,7 +86,7 @@ public static class ContentTypes
     }
 
     /// <summary>
-    /// Get content type from file extension.
+    ///     Get content type from file extension.
     /// </summary>
     public static string FromExtension(string extension)
     {
@@ -128,33 +128,41 @@ public static class ContentTypes
     }
 
     /// <summary>
-    /// Check if content type supports OCR processing.
+    ///     Check if content type supports OCR processing.
     /// </summary>
-    public static bool SupportsOcr(string contentType) =>
-        contentType is Document or Image;
+    public static bool SupportsOcr(string contentType)
+    {
+        return contentType is Document or Image;
+    }
 
     /// <summary>
-    /// Check if content type supports table extraction.
+    ///     Check if content type supports table extraction.
     /// </summary>
-    public static bool SupportsTableExtraction(string contentType) =>
-        contentType is Document or Data;
+    public static bool SupportsTableExtraction(string contentType)
+    {
+        return contentType is Document or Data;
+    }
 
     /// <summary>
-    /// Check if content type supports transcription.
+    ///     Check if content type supports transcription.
     /// </summary>
-    public static bool SupportsTranscription(string contentType) =>
-        contentType is Audio or Video;
+    public static bool SupportsTranscription(string contentType)
+    {
+        return contentType is Audio or Video;
+    }
 
     /// <summary>
-    /// Check if content type is tabular/structured.
+    ///     Check if content type is tabular/structured.
     /// </summary>
-    public static bool IsTabular(string contentType) =>
-        contentType is Data;
+    public static bool IsTabular(string contentType)
+    {
+        return contentType is Data;
+    }
 }
 
 /// <summary>
-/// Standard modality names for multi-modal entities.
-/// An entity can have multiple modalities (e.g., a PDF with images and tables).
+///     Standard modality names for multi-modal entities.
+///     An entity can have multiple modalities (e.g., a PDF with images and tables).
 /// </summary>
 public static class Modalities
 {
@@ -175,8 +183,8 @@ public static class Modalities
 }
 
 /// <summary>
-/// Standard signal types emitted by the pipeline.
-/// Signals drive lazy activation of processing molecules.
+///     Standard signal types emitted by the pipeline.
+///     Signals drive lazy activation of processing molecules.
 /// </summary>
 public static class SignalTypes
 {

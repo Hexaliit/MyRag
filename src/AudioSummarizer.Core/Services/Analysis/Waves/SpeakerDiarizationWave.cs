@@ -2,28 +2,24 @@ using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Models;
 using AudioSummarizer.Core.Services.Audio;
 using AudioSummarizer.Core.Services.Voice;
-using System.Text.Json;
 
 namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
-/// Speaker Diarization Wave - Identifies who spoke when using pure .NET clustering.
-/// Priority: 50 (runs after transcription, before voice embeddings)
-/// Signals:
-/// - speaker.count: Number of unique speakers detected
-/// - speaker.turns: JSON array of speaker turns with timestamps
-/// - speaker.diarization_confidence: Overall confidence score
-/// - speaker.method: Diarization method used (clustering)
+///     Speaker Diarization Wave - Identifies who spoke when using pure .NET clustering.
+///     Priority: 50 (runs after transcription, before voice embeddings)
+///     Signals:
+///     - speaker.count: Number of unique speakers detected
+///     - speaker.turns: JSON array of speaker turns with timestamps
+///     - speaker.diarization_confidence: Overall confidence score
+///     - speaker.method: Diarization method used (clustering)
 /// </summary>
 public sealed class SpeakerDiarizationWave : IAudioWave
 {
-    private readonly SpeakerDiarizationService _diarizationService;
-    private readonly AudioSegmentExtractor _segmentExtractor;
     private readonly AudioConfig _config;
+    private readonly SpeakerDiarizationService _diarizationService;
     private readonly ILogger<SpeakerDiarizationWave> _logger;
-
-    public string Name => "SpeakerDiarizationWave";
-    public int Priority => 50;
+    private readonly AudioSegmentExtractor _segmentExtractor;
 
     public SpeakerDiarizationWave(
         SpeakerDiarizationService diarizationService,
@@ -36,6 +32,9 @@ public sealed class SpeakerDiarizationWave : IAudioWave
         _config = config.Value;
         _logger = logger;
     }
+
+    public string Name => "SpeakerDiarizationWave";
+    public int Priority => 50;
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {
@@ -59,13 +58,11 @@ public sealed class SpeakerDiarizationWave : IAudioWave
 
         // Check minimum duration
         if (context.Signals.TryGetValue("audio.duration_seconds", out var durationSignal))
-        {
             if (durationSignal.Value is double duration && duration < _config.VoiceEmbedding.MinDurationSeconds)
             {
                 _logger.LogDebug("Audio too short for diarization: {Duration}s", duration);
                 return false;
             }
-        }
 
         return true;
     }
@@ -202,7 +199,7 @@ public sealed class SpeakerDiarizationWave : IAudioWave
                         .GroupBy(t => t.SpeakerId)
                         .ToDictionary(
                             g => g.Key,
-                            g => Math.Round((g.Sum(t => t.Duration) / totalDuration) * 100, 2)
+                            g => Math.Round(g.Sum(t => t.Duration) / totalDuration * 100, 2)
                         );
 
                     signals.Add(new Signal
@@ -226,7 +223,7 @@ public sealed class SpeakerDiarizationWave : IAudioWave
                 var speakerSamples = await _segmentExtractor.ExtractSpeakerSamplesAsync(
                     audioPath,
                     result.Turns,
-                    sampleDurationSeconds: 2.0,
+                    2.0,
                     cancellationToken);
 
                 // Emit speaker samples as signals (Base64-encoded WAV)
@@ -246,7 +243,6 @@ public sealed class SpeakerDiarizationWave : IAudioWave
                 }
 
                 if (speakerSamples.Count > 0)
-                {
                     signals.Add(new Signal
                     {
                         Name = "speaker.samples_extracted",
@@ -254,7 +250,6 @@ public sealed class SpeakerDiarizationWave : IAudioWave
                         Type = SignalType.Metadata,
                         Source = Name
                     });
-                }
             }
             catch (Exception ex)
             {

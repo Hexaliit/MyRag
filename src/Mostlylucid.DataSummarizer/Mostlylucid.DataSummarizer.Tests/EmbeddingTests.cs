@@ -1,15 +1,34 @@
 using Mostlylucid.DataSummarizer.Configuration;
 using Mostlylucid.DataSummarizer.Services;
 using Mostlylucid.DataSummarizer.Services.Onnx;
-using Xunit;
 
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for embedding services (Hash and ONNX)
+///     Tests for embedding services (Hash and ONNX)
 /// </summary>
 public class EmbeddingTests
 {
+    #region Helper Methods
+
+    private static float CosineSimilarity(float[] a, float[] b)
+    {
+        if (a.Length != b.Length) return 0;
+
+        float dot = 0, na = 0, nb = 0;
+        for (var i = 0; i < a.Length; i++)
+        {
+            dot += a[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
+        }
+
+        if (na == 0 || nb == 0) return 0;
+        return dot / (MathF.Sqrt(na) * MathF.Sqrt(nb));
+    }
+
+    #endregion
+
     #region HashEmbeddingService Tests
 
     [Fact]
@@ -119,7 +138,7 @@ public class EmbeddingTests
     {
         EmbeddingServiceFactory.Reset();
 
-        var service = await EmbeddingServiceFactory.GetOrCreateAsync(config: null);
+        var service = await EmbeddingServiceFactory.GetOrCreateAsync();
 
         Assert.IsType<HashEmbeddingService>(service);
         Assert.Equal(128, service.EmbeddingDimension);
@@ -145,8 +164,8 @@ public class EmbeddingTests
     {
         EmbeddingServiceFactory.Reset();
 
-        var service1 = await EmbeddingServiceFactory.GetOrCreateAsync(config: null);
-        var service2 = await EmbeddingServiceFactory.GetOrCreateAsync(config: null);
+        var service1 = await EmbeddingServiceFactory.GetOrCreateAsync();
+        var service2 = await EmbeddingServiceFactory.GetOrCreateAsync();
 
         Assert.Same(service1, service2);
 
@@ -177,7 +196,7 @@ public class EmbeddingTests
     [Fact]
     public void Registry_AllMiniLm_ReturnsCorrectInfo()
     {
-        var info = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, quantized: true);
+        var info = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2);
 
         Assert.Equal("all-MiniLM-L6-v2", info.Name);
         Assert.Equal(384, info.EmbeddingDimension);
@@ -199,7 +218,7 @@ public class EmbeddingTests
     [Fact]
     public void Registry_AllModels_HaveValidInfo()
     {
-        foreach (OnnxEmbeddingModel model in Enum.GetValues<OnnxEmbeddingModel>())
+        foreach (var model in Enum.GetValues<OnnxEmbeddingModel>())
         {
             var info = OnnxModelRegistry.GetEmbeddingModel(model);
 
@@ -216,8 +235,8 @@ public class EmbeddingTests
     [Fact]
     public void Registry_QuantizedVsNonQuantized_DifferentSizes()
     {
-        var quantized = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, quantized: true);
-        var nonQuantized = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, quantized: false);
+        var quantized = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2);
+        var nonQuantized = OnnxModelRegistry.GetEmbeddingModel(OnnxEmbeddingModel.AllMiniLmL6V2, false);
 
         Assert.True(quantized.SizeBytes < nonQuantized.SizeBytes, "Quantized should be smaller");
     }
@@ -273,26 +292,6 @@ public class EmbeddingTests
 
         Assert.NotEmpty(config.ModelDirectory);
         Assert.Contains("models", config.ModelDirectory);
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private static float CosineSimilarity(float[] a, float[] b)
-    {
-        if (a.Length != b.Length) return 0;
-
-        float dot = 0, na = 0, nb = 0;
-        for (int i = 0; i < a.Length; i++)
-        {
-            dot += a[i] * b[i];
-            na += a[i] * a[i];
-            nb += b[i] * b[i];
-        }
-
-        if (na == 0 || nb == 0) return 0;
-        return dot / (MathF.Sqrt(na) * MathF.Sqrt(nb));
     }
 
     #endregion

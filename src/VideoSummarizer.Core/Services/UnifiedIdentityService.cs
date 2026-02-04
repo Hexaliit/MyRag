@@ -4,21 +4,21 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Service for managing unified identities across modalities.
-/// Links faces (video/images), speakers (audio), and named entities (documents).
-/// Enables cross-modal identity resolution: "John Smith mentioned in document X is the same person
-/// seen in video Y and heard speaking in audio Z."
+///     Service for managing unified identities across modalities.
+///     Links faces (video/images), speakers (audio), and named entities (documents).
+///     Enables cross-modal identity resolution: "John Smith mentioned in document X is the same person
+///     seen in video Y and heard speaking in audio Z."
 /// </summary>
 public class UnifiedIdentityService
 {
+    private readonly List<IdentityAppearance> _appearances = [];
     private readonly FaceTrackingService _faceTracking;
-    private readonly ILogger<UnifiedIdentityService> _logger;
-    private readonly object _lock = new();
 
     // In-memory storage (should be persisted to DB in production)
     private readonly List<UnifiedIdentity> _identities = [];
-    private readonly List<IdentityAppearance> _appearances = [];
     private readonly Dictionary<Guid, List<IdentityLink>> _links = [];
+    private readonly object _lock = new();
+    private readonly ILogger<UnifiedIdentityService> _logger;
 
     public UnifiedIdentityService(
         FaceTrackingService faceTracking,
@@ -29,7 +29,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Create a new unified identity from a name.
+    ///     Create a new unified identity from a name.
     /// </summary>
     public UnifiedIdentity CreateIdentity(string name, NameSource source = NameSource.UserInput)
     {
@@ -52,7 +52,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Get or create a unified identity for a named entity from a document.
+    ///     Get or create a unified identity for a named entity from a document.
     /// </summary>
     public UnifiedIdentity GetOrCreateFromDocumentEntity(
         Guid documentId,
@@ -103,12 +103,10 @@ public class UnifiedIdentityService
             };
 
             if (!identity.DocumentMentions.Any(m =>
-                m.DocumentId == documentId &&
-                m.StartOffset == startOffset &&
-                m.EndOffset == endOffset))
-            {
+                    m.DocumentId == documentId &&
+                    m.StartOffset == startOffset &&
+                    m.EndOffset == endOffset))
                 identity.DocumentMentions.Add(mention);
-            }
 
             // Track appearance
             _appearances.Add(new IdentityAppearance
@@ -128,7 +126,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Link a face identity to a unified identity.
+    ///     Link a face identity to a unified identity.
     /// </summary>
     public void LinkFaceIdentity(Guid unifiedIdentityId, Guid faceIdentityId, double confidence = 1.0)
     {
@@ -165,7 +163,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Link a speaker ID to a unified identity.
+    ///     Link a speaker ID to a unified identity.
     /// </summary>
     public void LinkSpeaker(Guid unifiedIdentityId, string speakerId, double confidence = 1.0)
     {
@@ -198,7 +196,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Find identity by name (case-insensitive, including aliases).
+    ///     Find identity by name (case-insensitive, including aliases).
     /// </summary>
     public UnifiedIdentity? FindByName(string name)
     {
@@ -211,7 +209,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Find identity by face identity ID.
+    ///     Find identity by face identity ID.
     /// </summary>
     public UnifiedIdentity? FindByFaceIdentity(Guid faceIdentityId)
     {
@@ -222,7 +220,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Find identity by speaker ID.
+    ///     Find identity by speaker ID.
     /// </summary>
     public UnifiedIdentity? FindBySpeaker(string speakerId)
     {
@@ -233,7 +231,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Get all unified identities.
+    ///     Get all unified identities.
     /// </summary>
     public List<UnifiedIdentity> GetAllIdentities()
     {
@@ -244,7 +242,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Get identity by ID.
+    ///     Get identity by ID.
     /// </summary>
     public UnifiedIdentity? GetById(Guid id)
     {
@@ -255,7 +253,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Search identities by partial name match.
+    ///     Search identities by partial name match.
     /// </summary>
     public List<UnifiedIdentity> SearchByName(string query, int maxResults = 10)
     {
@@ -264,7 +262,7 @@ public class UnifiedIdentityService
             var lowerQuery = query.ToLowerInvariant();
             return _identities
                 .Where(i =>
-                    (i.DisplayName?.ToLowerInvariant().Contains(lowerQuery) == true) ||
+                    i.DisplayName?.ToLowerInvariant().Contains(lowerQuery) == true ||
                     i.Aliases.Any(a => a.ToLowerInvariant().Contains(lowerQuery)))
                 .Take(maxResults)
                 .ToList();
@@ -272,7 +270,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Add an alias to an identity.
+    ///     Add an alias to an identity.
     /// </summary>
     public void AddAlias(Guid identityId, string alias)
     {
@@ -291,7 +289,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Merge two unified identities.
+    ///     Merge two unified identities.
     /// </summary>
     public UnifiedIdentity? MergeIdentities(Guid primaryId, Guid secondaryId)
     {
@@ -308,48 +306,30 @@ public class UnifiedIdentityService
 
             // Merge aliases
             foreach (var alias in secondary.Aliases)
-            {
                 if (!primary.Aliases.Contains(alias, StringComparer.OrdinalIgnoreCase))
-                {
                     primary.Aliases.Add(alias);
-                }
-            }
 
             // Add secondary display name as alias if different
             if (!string.IsNullOrEmpty(secondary.DisplayName) &&
                 !string.Equals(primary.DisplayName, secondary.DisplayName, StringComparison.OrdinalIgnoreCase))
-            {
                 primary.Aliases.Add(secondary.DisplayName);
-            }
 
             // Merge face identities
             foreach (var faceId in secondary.FaceIdentityIds)
-            {
                 if (!primary.FaceIdentityIds.Contains(faceId))
-                {
                     primary.FaceIdentityIds.Add(faceId);
-                }
-            }
 
             // Merge speaker IDs
             foreach (var speakerId in secondary.SpeakerIds)
-            {
                 if (!primary.SpeakerIds.Contains(speakerId))
-                {
                     primary.SpeakerIds.Add(speakerId);
-                }
-            }
 
             // Merge document mentions
             foreach (var mention in secondary.DocumentMentions)
-            {
                 if (!primary.DocumentMentions.Any(m =>
-                    m.DocumentId == mention.DocumentId &&
-                    m.StartOffset == mention.StartOffset))
-                {
+                        m.DocumentId == mention.DocumentId &&
+                        m.StartOffset == mention.StartOffset))
                     primary.DocumentMentions.Add(mention);
-                }
-            }
 
             // Update appearances to point to primary
             foreach (var appearance in _appearances.Where(a => a.UnifiedIdentityId == secondaryId))
@@ -370,7 +350,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Get all appearances for an identity.
+    ///     Get all appearances for an identity.
     /// </summary>
     public List<IdentityAppearance> GetAppearances(Guid identityId)
     {
@@ -381,7 +361,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Suggest potential identity matches based on name similarity.
+    ///     Suggest potential identity matches based on name similarity.
     /// </summary>
     public List<IdentityMatchSuggestion> SuggestMatches(string name, double minConfidence = 0.5)
     {
@@ -392,21 +372,20 @@ public class UnifiedIdentityService
 
             foreach (var identity in _identities)
             {
-                var displaySimilarity = ComputeNameSimilarity(normalizedName, NormalizeName(identity.DisplayName ?? ""));
+                var displaySimilarity =
+                    ComputeNameSimilarity(normalizedName, NormalizeName(identity.DisplayName ?? ""));
                 var aliasSimilarity = identity.Aliases.Count > 0
                     ? identity.Aliases.Max(a => ComputeNameSimilarity(normalizedName, NormalizeName(a)))
                     : 0.0;
                 var bestSimilarity = Math.Max(displaySimilarity, aliasSimilarity);
 
                 if (bestSimilarity >= minConfidence)
-                {
                     suggestions.Add(new IdentityMatchSuggestion
                     {
                         Identity = identity,
                         Confidence = bestSimilarity,
                         MatchedOn = displaySimilarity >= aliasSimilarity ? identity.DisplayName : "alias"
                     });
-                }
             }
 
             return suggestions.OrderByDescending(s => s.Confidence).ToList();
@@ -414,7 +393,7 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Get statistics for identity tracking.
+    ///     Get statistics for identity tracking.
     /// </summary>
     public IdentityTrackingStats GetStats()
     {
@@ -439,12 +418,12 @@ public class UnifiedIdentityService
     }
 
     /// <summary>
-    /// Auto-link identities based on name matching.
-    /// Finds face identities with known names that match unified identity names.
+    ///     Auto-link identities based on name matching.
+    ///     Finds face identities with known names that match unified identity names.
     /// </summary>
     public int AutoLinkByName()
     {
-        int linkedCount = 0;
+        var linkedCount = 0;
 
         lock (_lock)
         {
@@ -471,10 +450,7 @@ public class UnifiedIdentityService
 
     private void AddLink(Guid identityId, IdentityLink link)
     {
-        if (!_links.ContainsKey(identityId))
-        {
-            _links[identityId] = [];
-        }
+        if (!_links.ContainsKey(identityId)) _links[identityId] = [];
         _links[identityId].Add(link);
     }
 
@@ -517,14 +493,12 @@ public class UnifiedIdentityService
         for (var j = 0; j <= m; j++) d[0, j] = j;
 
         for (var i = 1; i <= n; i++)
+        for (var j = 1; j <= m; j++)
         {
-            for (var j = 1; j <= m; j++)
-            {
-                var cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
-                d[i, j] = Math.Min(
-                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + cost);
-            }
+            var cost = t[j - 1] == s[i - 1] ? 0 : 1;
+            d[i, j] = Math.Min(
+                Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                d[i - 1, j - 1] + cost);
         }
 
         return d[n, m];
@@ -532,7 +506,7 @@ public class UnifiedIdentityService
 }
 
 /// <summary>
-/// Internal link tracking between identity and targets.
+///     Internal link tracking between identity and targets.
 /// </summary>
 public record IdentityLink
 {
@@ -551,7 +525,7 @@ public enum LinkType
 }
 
 /// <summary>
-/// Suggestion for matching an identity.
+///     Suggestion for matching an identity.
 /// </summary>
 public record IdentityMatchSuggestion
 {

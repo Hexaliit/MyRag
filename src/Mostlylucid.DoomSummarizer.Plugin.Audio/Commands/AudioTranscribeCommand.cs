@@ -6,17 +6,6 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Audio.Commands;
 
 public sealed class AudioTranscribeCommand : AsyncCommand<AudioTranscribeCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [Description("Path to the audio file")]
-        [CommandArgument(0, "<file>")]
-        public string FilePath { get; set; } = "";
-
-        [Description("Output file for transcript")]
-        [CommandOption("-o|--output")]
-        public string? Output { get; set; }
-    }
-
     public override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
         if (!File.Exists(settings.FilePath))
@@ -26,7 +15,19 @@ public sealed class AudioTranscribeCommand : AsyncCommand<AudioTranscribeCommand
         }
 
         AnsiConsole.MarkupLine($"[cyan]Transcribing:[/] {Markup.Escape(Path.GetFileName(settings.FilePath))}");
-        AnsiConsole.MarkupLine("[yellow]Audio transcription not yet implemented. Install AudioSummarizer.Core for full functionality.[/]");
+        AnsiConsole.MarkupLine(
+            "[yellow]Audio transcription not yet implemented. Install AudioSummarizer.Core for full functionality.[/]");
         return Task.FromResult(0);
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [Description("Path to the audio file")]
+        [CommandArgument(0, "<file>")]
+        public string FilePath { get; set; } = "";
+
+        [Description("Output file for transcript")]
+        [CommandOption("-o|--output")]
+        public string? Output { get; set; }
     }
 }

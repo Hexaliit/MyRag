@@ -8,22 +8,21 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace LucidRAG.Decomposer.Orchestration;
 
 /// <summary>
-/// Main entry point for query decomposition.
-/// Orchestrates: Classify → Analyze → Refine → Plan.
-///
-/// Fast path: simple queries skip decomposition entirely.
-/// The decomposer produces an enriched DecompositionResult that feeds
-/// back into the sentinel LLM call and retrieval pipeline with
-/// pre-computed embeddings, entity splits, and KB probe results.
+///     Main entry point for query decomposition.
+///     Orchestrates: Classify → Analyze → Refine → Plan.
+///     Fast path: simple queries skip decomposition entirely.
+///     The decomposer produces an enriched DecompositionResult that feeds
+///     back into the sentinel LLM call and retrieval pipeline with
+///     pre-computed embeddings, entity splits, and KB probe results.
 /// </summary>
 public class DecompositionPipeline
 {
+    private readonly IReadOnlyList<IQueryAnalyzer> _analyzers;
     private readonly ComplexityClassifier _complexityClassifier;
     private readonly ConceptClassifier _conceptClassifier;
-    private readonly IReadOnlyList<IQueryAnalyzer> _analyzers;
-    private readonly IDecompositionRefiner _refiner;
     private readonly IEmbeddingService? _embedding;
     private readonly ILogger<DecompositionPipeline>? _logger;
+    private readonly IDecompositionRefiner _refiner;
 
     public DecompositionPipeline(
         ComplexityClassifier complexityClassifier,
@@ -42,7 +41,7 @@ public class DecompositionPipeline
     }
 
     /// <summary>
-    /// Decompose a query. This is the main entry point.
+    ///     Decompose a query. This is the main entry point.
     /// </summary>
     /// <param name="query">Raw user query.</param>
     /// <param name="entities">NER entities (from QueryPreprocessor).</param>
@@ -77,13 +76,11 @@ public class DecompositionPipeline
         // Pre-embed the query for downstream use
         float[]? queryEmbedding = null;
         if (_embedding != null)
-        {
             if (!embeddingCache.TryGetValue(query, out queryEmbedding))
             {
                 queryEmbedding = await _embedding.EmbedAsync(query, ct);
                 embeddingCache[query] = queryEmbedding;
             }
-        }
 
         // ─── FAST PATH: Simple queries skip decomposition ───
         if (complexity == QueryComplexity.Simple)
@@ -124,12 +121,10 @@ public class DecompositionPipeline
         var phase2 = new List<IQueryAnalyzer>();
 
         foreach (var analyzer in _analyzers)
-        {
             if (analyzer is SemanticClusterAnalyzer or ToolUseAnalyzer)
                 phase2.Add(analyzer);
             else
                 phase1.Add(analyzer);
-        }
 
         // Phase 1: run independent analyzers in parallel
         if (phase1.Count > 0)
@@ -160,8 +155,8 @@ public class DecompositionPipeline
     }
 
     /// <summary>
-    /// Merge signals from parallel analyzer results back into a single QuerySignals.
-    /// Unions ProposedNodes, References, DetectedTools, and EmbeddingCache from all results.
+    ///     Merge signals from parallel analyzer results back into a single QuerySignals.
+    ///     Unions ProposedNodes, References, DetectedTools, and EmbeddingCache from all results.
     /// </summary>
     private static QuerySignals MergeSignals(QuerySignals baseline, QuerySignals[] results)
     {
@@ -176,17 +171,13 @@ public class DecompositionPipeline
         {
             // Union new nodes (skip duplicates already in baseline)
             foreach (var node in result.ProposedNodes)
-            {
                 if (!mergedNodes.Any(n => n.Id == node.Id))
                     mergedNodes.Add(node);
-            }
 
             // Union references
             foreach (var r in result.References)
-            {
                 if (!mergedRefs.Any(existing => existing.Uri == r.Uri))
                     mergedRefs.Add(r);
-            }
 
             // Union tools
             mergedTools.AddRange(result.DetectedTools.Where(t =>
@@ -198,10 +189,8 @@ public class DecompositionPipeline
 
             // Merge archetype scores (take max)
             foreach (var (key, value) in result.ArchetypeScores)
-            {
                 if (!mergedScores.TryGetValue(key, out var existing) || value > existing)
                     mergedScores[key] = value;
-            }
 
             // Take highest complexity
             if (result.Complexity > mergedComplexity)

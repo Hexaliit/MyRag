@@ -8,15 +8,15 @@ using CircuitBreakerService = Mostlylucid.DocSummarizer.Rdbms.Sqlite.SqliteCircu
 namespace DoomSummarizer.Sources.Google;
 
 /// <summary>
-/// Standalone Google News and Places source plugin for DoomSummarizer.
-/// Handles "gnews", "gnews_topic:TOPIC", "gsearch", and "gplaces" patterns.
+///     Standalone Google News and Places source plugin for DoomSummarizer.
+///     Handles "gnews", "gnews_topic:TOPIC", "gsearch", and "gplaces" patterns.
 /// </summary>
 public sealed class GoogleSourcePlugin : ISourcePlugin
 {
-    private HttpClient _httpClient = null!;
-    private ApiKeyService _apiKeys = null!;
     private IApiBudget _apiBudget = null!;
+    private ApiKeyService _apiKeys = null!;
     private ICircuitBreaker _circuitBreaker = null!;
+    private HttpClient _httpClient = null!;
 
     public SourcePluginMetadata Metadata { get; } = new()
     {
@@ -24,10 +24,14 @@ public sealed class GoogleSourcePlugin : ISourcePlugin
         Keys = ["gnews", "gnews_topic", "gsearch", "gplaces"],
         DisplayName = "Google News & Places",
         Description = "Google News RSS search, topic feeds, Google Search, and Google Places.",
-        Capabilities = SourceCapabilities.Search | SourceCapabilities.TopicBrowse | SourceCapabilities.RequiresAuth | SourceCapabilities.NoAuth | SourceCapabilities.NewsOnly,
+        Capabilities = SourceCapabilities.Search | SourceCapabilities.TopicBrowse | SourceCapabilities.RequiresAuth |
+                       SourceCapabilities.NoAuth | SourceCapabilities.NewsOnly,
         PackageId = "Mostlylucid.DoomSummarizer.Source.Google",
         RequiredApiKeys = ["google_search"],
-        Examples = ["-s \"gnews:AI safety\"", "-s gnews_topic:HEALTH", "-s \"gsearch:query\"", "-s \"gplaces:restaurant\""]
+        Examples =
+        [
+            "-s \"gnews:AI safety\"", "-s gnews_topic:HEALTH", "-s \"gsearch:query\"", "-s \"gplaces:restaurant\""
+        ]
     };
 
     public Task InitializeAsync(SourcePluginServices services, CancellationToken ct = default)
@@ -64,7 +68,7 @@ public sealed class GoogleSourcePlugin : ISourcePlugin
         var query = context.SubParams.Count > 0
             ? string.Join(":", context.SubParams)
             : context.RawPrompt ?? "";
-        return await gnews.SearchAsync(query, context.Limit, daysBack: 7);
+        return await gnews.SearchAsync(query, context.Limit, 7);
     }
 
     private async Task<List<ContentItem>> FetchGoogleSearchAsync(SourceFetchContext context, CancellationToken ct)
@@ -72,7 +76,8 @@ public sealed class GoogleSourcePlugin : ISourcePlugin
         var query = context.SubParams.Count > 0
             ? string.Join(":", context.SubParams)
             : context.RawPrompt ?? context.Query ?? "";
-        return await new GoogleSearchService(_httpClient, _apiKeys, (ApiBudgetService)_apiBudget, (CircuitBreakerService)_circuitBreaker)
+        return await new GoogleSearchService(_httpClient, _apiKeys, (ApiBudgetService)_apiBudget,
+                (CircuitBreakerService)_circuitBreaker)
             .SearchAsync(query, context.Limit * 2, context.Progress, ct);
     }
 
@@ -81,7 +86,8 @@ public sealed class GoogleSourcePlugin : ISourcePlugin
         var query = context.SubParams.Count > 0
             ? string.Join(":", context.SubParams)
             : context.RawPrompt ?? context.Query ?? "";
-        return await new GooglePlacesService(_httpClient, _apiKeys, (ApiBudgetService)_apiBudget, (CircuitBreakerService)_circuitBreaker)
+        return await new GooglePlacesService(_httpClient, _apiKeys, (ApiBudgetService)_apiBudget,
+                (CircuitBreakerService)_circuitBreaker)
             .SearchAsync(query, context.Limit, context.Progress, ct);
     }
 }

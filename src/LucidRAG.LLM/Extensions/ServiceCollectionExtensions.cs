@@ -12,12 +12,12 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace LucidRAG.LLM.Extensions;
 
 /// <summary>
-/// Extension methods for registering LucidRAG.LLM services.
+///     Extension methods for registering LucidRAG.LLM services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add unified LLM provider infrastructure with YAML configuration.
+    ///     Add unified LLM provider infrastructure with YAML configuration.
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="configDirectory">Directory containing llm-providers.yaml and prompts.yaml</param>
@@ -49,7 +49,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add unified LLM provider infrastructure with IConfiguration binding.
+    ///     Add unified LLM provider infrastructure with IConfiguration binding.
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="configuration">Configuration root</param>
@@ -69,7 +69,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add unified LLM provider infrastructure with YAML configuration from specific paths.
+    ///     Add unified LLM provider infrastructure with YAML configuration from specific paths.
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="providersYamlPath">Path to llm-providers.yaml</param>
@@ -139,12 +139,8 @@ public static class ServiceCollectionExtensions
         };
 
         foreach (var path in paths)
-        {
             if (File.Exists(path))
-            {
                 return LoadYamlConfigFromPath<T>(path, logger);
-            }
-        }
 
         logger.LogWarning("YAML config file '{Filename}' not found in any search path", filename);
         return null;

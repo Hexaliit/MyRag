@@ -4,8 +4,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts <see cref="GoogleNewsFetcher"/> to the <see cref="ISourcePlugin"/> contract.
-/// Handles "gnews", "gnews:query", and "gnews_topic:TOPIC" patterns.
+///     Adapts <see cref="GoogleNewsFetcher" /> to the <see cref="ISourcePlugin" /> contract.
+///     Handles "gnews", "gnews:query", and "gnews_topic:TOPIC" patterns.
 /// </summary>
 public sealed class GoogleNewsPlugin : ISourcePlugin
 {
@@ -17,7 +17,8 @@ public sealed class GoogleNewsPlugin : ISourcePlugin
         Keys = ["gnews", "gnews_topic"],
         DisplayName = "Google News",
         Description = "Google News RSS search and topic feeds.",
-        Capabilities = SourceCapabilities.Search | SourceCapabilities.TopicBrowse | SourceCapabilities.NoAuth | SourceCapabilities.NewsOnly,
+        Capabilities = SourceCapabilities.Search | SourceCapabilities.TopicBrowse | SourceCapabilities.NoAuth |
+                       SourceCapabilities.NewsOnly,
         Examples = ["-s \"gnews:AI safety\"", "-s gnews_topic:HEALTH"]
     };
 
@@ -42,6 +43,6 @@ public sealed class GoogleNewsPlugin : ISourcePlugin
         var query = context.SubParams.Count > 0
             ? string.Join(":", context.SubParams)
             : context.RawPrompt ?? "";
-        return await gnews.SearchAsync(query, context.Limit, daysBack: 7);
+        return await gnews.SearchAsync(query, context.Limit, 7);
     }
 }

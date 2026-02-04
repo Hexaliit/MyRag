@@ -1,37 +1,21 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using VideoSummarizer.Core.Coordination;
-using VideoSummarizer.Core.Models;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Runs ImageSummarizer analysis on keyframes for OCR, vision, and captions.
-/// Chains to ImageSummarizer's wave orchestrator for full image analysis.
-/// CLIP embedding is already done by ClipEmbeddingWave, so this focuses on OCR/vision.
-/// Emits: keyframes.analyzed, ocr.extracted, captions.generated
+///     Runs ImageSummarizer analysis on keyframes for OCR, vision, and captions.
+///     Chains to ImageSummarizer's wave orchestrator for full image analysis.
+///     CLIP embedding is already done by ClipEmbeddingWave, so this focuses on OCR/vision.
+///     Emits: keyframes.analyzed, ocr.extracted, captions.generated
 /// </summary>
 public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
 {
+    private const int MaxParallelAnalysis = 2; // GPU contention limits
     private readonly WaveOrchestrator? _imageOrchestrator;
     private readonly ILogger<ImageAnalysisWave> _logger;
-
-    private const int MaxParallelAnalysis = 2; // GPU contention limits
-
-    public string Name => "image_analysis";
-    public int Priority => 790; // After CLIP embedding
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Ocr];
-
-    // Signal contracts
-    public IReadOnlyList<string> RequiredSignals => [VideoSignals.KeyframesExtracted];
-    public IReadOnlyList<string> OptionalSignals => [VideoSignals.ClipEmbeddingsReady];
-    public IReadOnlyList<string> EmittedSignals => [
-        VideoSignals.KeyframesAnalyzed,
-        VideoSignals.OcrExtracted,
-        VideoSignals.CaptionsGenerated
-    ];
-    public IReadOnlyList<string> CacheEmits => [];
-    public IReadOnlyList<string> CacheUses => ["extracted_frames"];
 
     public ImageAnalysisWave(
         ILogger<ImageAnalysisWave> logger,
@@ -41,13 +25,33 @@ public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        _imageOrchestrator != null &&
-        context.Keyframes.Count > 0;
+    // Signal contracts
+    public IReadOnlyList<string> RequiredSignals => [VideoSignals.KeyframesExtracted];
+    public IReadOnlyList<string> OptionalSignals => [VideoSignals.ClipEmbeddingsReady];
+
+    public IReadOnlyList<string> EmittedSignals =>
+    [
+        VideoSignals.KeyframesAnalyzed,
+        VideoSignals.OcrExtracted,
+        VideoSignals.CaptionsGenerated
+    ];
+
+    public IReadOnlyList<string> CacheEmits => [];
+    public IReadOnlyList<string> CacheUses => ["extracted_frames"];
+
+    public string Name => "image_analysis";
+    public int Priority => 790; // After CLIP embedding
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Ocr];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return _imageOrchestrator != null &&
+               context.Keyframes.Count > 0;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         context.ReportProgress("Analyzing keyframes (OCR, vision)", 0);
 
         // Emit wave started signal
@@ -87,18 +91,12 @@ public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
                     if (!context.KeyframeEmbeddings.ContainsKey(frameIndex))
                     {
                         var embedding = profile.GetValue<float[]>("vision.clip.embedding");
-                        if (embedding != null)
-                        {
-                            context.KeyframeEmbeddings[frameIndex] = embedding;
-                        }
+                        if (embedding != null) context.KeyframeEmbeddings[frameIndex] = embedding;
                     }
 
                     // Extract perceptual hash
                     var phash = profile.GetValue<string>("identity.phash");
-                    if (!string.IsNullOrEmpty(phash))
-                    {
-                        context.PerceptualHashes[frameIndex] = phash;
-                    }
+                    if (!string.IsNullOrEmpty(phash)) context.PerceptualHashes[frameIndex] = phash;
 
                     // Add OCR text to context
                     var ocrText = profile.GetValue<string>("ocr.text");
@@ -126,7 +124,8 @@ public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
                     // Store full profile for later use
                     context.SetCached($"image_profile.{frameIndex}", profile);
 
-                    _logger.LogDebug("Analyzed keyframe {FrameIndex} at {Timestamp:F2}s: ocr={HasOcr}, caption={HasCaption}",
+                    _logger.LogDebug(
+                        "Analyzed keyframe {FrameIndex} at {Timestamp:F2}s: ocr={HasOcr}, caption={HasCaption}",
                         frameIndex, timestamp, !string.IsNullOrEmpty(ocrText), !string.IsNullOrEmpty(caption));
                 }
                 catch (Exception ex)
@@ -147,7 +146,8 @@ public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
 
         await Task.WhenAll(tasks);
 
-        _logger.LogInformation("ImageSummarizer analysis complete: {Total} frames, {OCR} with OCR, {Captions} with captions",
+        _logger.LogInformation(
+            "ImageSummarizer analysis complete: {Total} frames, {OCR} with OCR, {Captions} with captions",
             total, ocrCount, captionCount);
 
         // Emit signals
@@ -223,11 +223,9 @@ public class ImageAnalysisWave : IVideoWave, ISignalAwareVideoWave
         foreach (var frameIndex in context.Keyframes.Keys)
         {
             var ocr = context.GetCached<KeyframeOcrResult>($"ocr.{frameIndex}");
-            if (ocr != null)
-            {
-                confidences.Add(ocr.Confidence);
-            }
+            if (ocr != null) confidences.Add(ocr.Confidence);
         }
+
         return confidences.Count > 0 ? confidences.Average() : 0;
     }
 }

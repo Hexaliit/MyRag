@@ -1,35 +1,35 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Coordination;
+using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using Mostlylucid.DocSummarizer.Images.Pipeline;
 using Mostlylucid.DocSummarizer.Images.Services;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
+using Mostlylucid.DocSummarizer.Images.Services.Layout;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Detection;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
-using Mostlylucid.DocSummarizer.Images.Services.Vision;
-using Mostlylucid.DocSummarizer.Images.Services.Layout;
-using Mostlylucid.DocSummarizer.Images.Services.Storage;
-using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
-using Mostlylucid.DocSummarizer.Images.Pipeline;
-using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
+using Mostlylucid.DocSummarizer.Images.Services.Storage;
+using Mostlylucid.DocSummarizer.Images.Services.Vision;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Images.Extensions;
 
 /// <summary>
-/// Extension methods for registering DocSummarizer.Images services
+///     Extension methods for registering DocSummarizer.Images services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds image analysis services to the service collection with default configuration.
+    ///     Adds image analysis services to the service collection with default configuration.
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <returns>The service collection for chaining</returns>
@@ -39,7 +39,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds image analysis services with custom configuration.
+    ///     Adds image analysis services with custom configuration.
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Action to configure image options</param>
@@ -54,7 +54,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds image analysis services bound to a configuration section.
+    ///     Adds image analysis services bound to a configuration section.
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configurationSection">Configuration section containing image settings</param>
@@ -74,7 +74,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<OnnxSessionFactory>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OnnxSessionFactory>>();
+            var logger = sp.GetService<ILogger<OnnxSessionFactory>>();
             return new OnnxSessionFactory(imageConfig, logger);
         });
 
@@ -92,9 +92,9 @@ public static class ServiceCollectionExtensions
         {
             var config = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
             return new ModelDownloader(
-                modelsDirectory: config.ModelsDirectory,
-                autoDownload: true,
-                logger: sp.GetService<Microsoft.Extensions.Logging.ILogger<ModelDownloader>>());
+                config.ModelsDirectory,
+                true,
+                sp.GetService<ILogger<ModelDownloader>>());
         });
 
         // OCR services - TesseractOcrEngine with auto-download support
@@ -102,19 +102,19 @@ public static class ServiceCollectionExtensions
         {
             var config = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
             var modelDownloader = sp.GetRequiredService<ModelDownloader>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TesseractOcrEngine>>();
+            var logger = sp.GetService<ILogger<TesseractOcrEngine>>();
             return new TesseractOcrEngine(
-                modelDownloader: modelDownloader,
-                tesseractDataPath: config.TesseractDataPath,
-                language: config.TesseractLanguage,
-                logger: logger);
+                modelDownloader,
+                config.TesseractDataPath,
+                config.TesseractLanguage,
+                logger);
         });
         services.TryAddSingleton<GifTextExtractor>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
             var ocrEngine = sp.GetRequiredService<IOcrEngine>();
             var advancedOcr = sp.GetService<AdvancedGifOcrService>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<GifTextExtractor>>();
+            var logger = sp.GetService<ILogger<GifTextExtractor>>();
             return new GifTextExtractor(ocrEngine, config, advancedOcr, logger);
         });
 
@@ -122,7 +122,7 @@ public static class ServiceCollectionExtensions
         {
             var config = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
             var ocrEngine = sp.GetRequiredService<IOcrEngine>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<AdvancedGifOcrService>>();
+            var logger = sp.GetService<ILogger<AdvancedGifOcrService>>();
 
             // Apply quality mode presets on first access
             config.Ocr.ApplyQualityModePresets();
@@ -140,7 +140,7 @@ public static class ServiceCollectionExtensions
         // SceneDetectionService - Histogram-based scene boundary detection
         services.TryAddSingleton<SceneDetectionService>(sp =>
         {
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<SceneDetectionService>>();
+            var logger = sp.GetService<ILogger<SceneDetectionService>>();
             return new SceneDetectionService(logger);
         });
 
@@ -149,7 +149,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var sceneService = sp.GetRequiredService<SceneDetectionService>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<SceneDetectionWave>>();
+            var logger = sp.GetService<ILogger<SceneDetectionWave>>();
             return new SceneDetectionWave(sceneService, logger);
         });
 
@@ -166,7 +166,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var signalDb = sp.GetService<ISignalDatabase>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<AutoRoutingWave>>();
+            var logger = sp.GetService<ILogger<AutoRoutingWave>>();
             return new AutoRoutingWave(signalDb, logger);
         });
 
@@ -177,7 +177,7 @@ public static class ServiceCollectionExtensions
             var modelDownloader = sp.GetRequiredService<ModelDownloader>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var sessionFactory = sp.GetRequiredService<OnnxSessionFactory>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TextDetectionService>>();
+            var logger = sp.GetService<ILogger<TextDetectionService>>();
             return new TextDetectionService(modelDownloader, imageConfig.Value.Ocr, sessionFactory, logger);
         });
 
@@ -187,7 +187,7 @@ public static class ServiceCollectionExtensions
         {
             var detectionService = sp.GetService<TextDetectionService>();
             var imageConfig = sp.GetService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TextDetectionWave>>();
+            var logger = sp.GetService<ILogger<TextDetectionWave>>();
             return new TextDetectionWave(detectionService, imageConfig, logger);
         });
 
@@ -208,7 +208,7 @@ public static class ServiceCollectionExtensions
             {
                 config.EnableSuperResolution = true;
                 config.SuperResolutionModelPath = imageConfig.Ocr.SuperResolutionModelPath
-                    ?? Path.Combine(imageConfig.ModelsDirectory, "realesrgan-x4.onnx");
+                                                  ?? Path.Combine(imageConfig.ModelsDirectory, "realesrgan-x4.onnx");
             }
 
             return config;
@@ -221,7 +221,7 @@ public static class ServiceCollectionExtensions
         {
             var config = sp.GetRequiredService<OcrPreprocessorConfig>();
             var modelDownloader = sp.GetService<ModelDownloader>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrPreprocessingWave>>();
+            var logger = sp.GetService<ILogger<OcrPreprocessingWave>>();
             return new OcrPreprocessingWave(config, modelDownloader, logger);
         });
 
@@ -232,7 +232,7 @@ public static class ServiceCollectionExtensions
         {
             var florence2 = sp.GetService<Florence2CaptionService>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<MlOcrWave>>();
+            var logger = sp.GetService<ILogger<MlOcrWave>>();
             return new MlOcrWave(florence2, imageConfig, logger);
         });
 
@@ -241,16 +241,16 @@ public static class ServiceCollectionExtensions
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var modelDownloader = sp.GetRequiredService<ModelDownloader>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrWave>>();
+            var logger = sp.GetService<ILogger<OcrWave>>();
             // Use threshold=0 to always run OCR, or configured threshold
             var threshold = imageConfig.Value.Ocr.TextDetectionConfidenceThreshold;
             return new OcrWave(
-                modelDownloader: modelDownloader,
-                tesseractDataPath: imageConfig.Value.TesseractDataPath,
-                language: imageConfig.Value.TesseractLanguage,
-                enabled: imageConfig.Value.EnableOcr,
-                textLikelinessThreshold: threshold,
-                logger: logger);
+                modelDownloader,
+                imageConfig.Value.TesseractDataPath,
+                imageConfig.Value.TesseractLanguage,
+                imageConfig.Value.EnableOcr,
+                threshold,
+                logger);
         });
 
         // AdvancedOcrWave requires IOcrEngine and IOptions<ImageConfig>
@@ -258,21 +258,21 @@ public static class ServiceCollectionExtensions
         {
             var ocrEngine = sp.GetRequiredService<IOcrEngine>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<AdvancedOcrWave>>();
+            var logger = sp.GetService<ILogger<AdvancedOcrWave>>();
             return new AdvancedOcrWave(ocrEngine, imageConfig, logger);
         });
 
         // OCR Post-Processing services (Tier 2 & 3)
         services.TryAddSingleton<MlContextChecker>(sp =>
         {
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<MlContextChecker>>();
+            var logger = sp.GetService<ILogger<MlContextChecker>>();
             return new MlContextChecker(logger);
         });
 
         services.TryAddSingleton<SentinelLlmCorrector>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<SentinelLlmCorrector>>();
+            var logger = sp.GetService<ILogger<SentinelLlmCorrector>>();
             return new SentinelLlmCorrector(imageConfig, logger);
         });
 
@@ -280,7 +280,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrQualityWave>>();
+            var logger = sp.GetService<ILogger<OcrQualityWave>>();
             var mlContextChecker = sp.GetService<MlContextChecker>();
             var sentinelLlmCorrector = sp.GetService<SentinelLlmCorrector>();
             return new OcrQualityWave(imageConfig, logger, mlContextChecker, sentinelLlmCorrector);
@@ -291,7 +291,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<DeepseekOcrWave>>();
+            var logger = sp.GetService<ILogger<DeepseekOcrWave>>();
             return new DeepseekOcrWave(imageConfig, logger);
         });
 
@@ -300,14 +300,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrBenchmarkWave>>();
+            var logger = sp.GetService<ILogger<OcrBenchmarkWave>>();
             // Create SpellChecker with models directory from config
             var dictionaryPath = !string.IsNullOrEmpty(imageConfig.Value.Ocr.DictionaryPath)
                 ? imageConfig.Value.Ocr.DictionaryPath
                 : imageConfig.Value.ModelsDirectory != null
                     ? Path.Combine(imageConfig.Value.ModelsDirectory, "dictionaries")
                     : null;
-            var spellChecker = new SpellChecker(dictionaryPath, sp.GetService<Microsoft.Extensions.Logging.ILogger<SpellChecker>>());
+            var spellChecker = new SpellChecker(dictionaryPath, sp.GetService<ILogger<SpellChecker>>());
             return new OcrBenchmarkWave(imageConfig, spellChecker, logger);
         });
 
@@ -324,7 +324,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<VisionLlmWave>>();
+            var logger = sp.GetService<ILogger<VisionLlmWave>>();
             return new VisionLlmWave(imageConfig, logger);
         });
 
@@ -335,7 +335,7 @@ public static class ServiceCollectionExtensions
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var modelDownloader = sp.GetRequiredService<ModelDownloader>();
             var sessionFactory = sp.GetRequiredService<OnnxSessionFactory>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ClipEmbeddingWave>>();
+            var logger = sp.GetService<ILogger<ClipEmbeddingWave>>();
             return new ClipEmbeddingWave(imageConfig, modelDownloader, sessionFactory, logger);
         });
 
@@ -346,14 +346,14 @@ public static class ServiceCollectionExtensions
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var modelDownloader = sp.GetRequiredService<ModelDownloader>();
             var sessionFactory = sp.GetRequiredService<OnnxSessionFactory>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<LayoutDetectionWave>>();
+            var logger = sp.GetService<ILogger<LayoutDetectionWave>>();
             return new LayoutDetectionWave(imageConfig, modelDownloader, sessionFactory, logger);
         });
 
         // LayoutRegionExtractor - Crops detected regions for downstream processing
         services.TryAddSingleton<LayoutRegionExtractor>(sp =>
         {
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<LayoutRegionExtractor>>();
+            var logger = sp.GetService<ILogger<LayoutRegionExtractor>>();
             return new LayoutRegionExtractor(logger);
         });
 
@@ -363,7 +363,7 @@ public static class ServiceCollectionExtensions
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var extractor = sp.GetRequiredService<LayoutRegionExtractor>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<LayoutRoutingWave>>();
+            var logger = sp.GetService<ILogger<LayoutRoutingWave>>();
             return new LayoutRoutingWave(imageConfig, extractor, logger);
         });
 
@@ -372,7 +372,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var visionService = sp.GetRequiredService<VisionLlmService>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TableExtractionWave>>();
+            var logger = sp.GetService<ILogger<TableExtractionWave>>();
             return new TableExtractionWave(visionService, logger);
         });
 
@@ -383,7 +383,7 @@ public static class ServiceCollectionExtensions
         {
             // DataSummarizer services are scoped - cannot resolve from singleton context
             // Pass null to let the wave skip data profiling (it handles null gracefully)
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<TableProfilingWave>>();
+            var logger = sp.GetService<ILogger<TableProfilingWave>>();
             return new TableProfilingWave(null, null, logger);
         });
 
@@ -395,7 +395,7 @@ public static class ServiceCollectionExtensions
         {
             // Don't resolve waves here - causes circular dependency!
             // RecursiveImageWave handles null gracefully with fallback mode
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<RecursiveImageWave>>();
+            var logger = sp.GetService<ILogger<RecursiveImageWave>>();
             return new RecursiveImageWave(null, logger);
         });
 
@@ -403,7 +403,7 @@ public static class ServiceCollectionExtensions
         // Priority 55: Runs after OCR waves (60), compares OCR coverage with detected text areas
         services.AddSingleton<IAnalysisWave>(sp =>
         {
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OcrLayoutValidationWave>>();
+            var logger = sp.GetService<ILogger<OcrLayoutValidationWave>>();
             return new OcrLayoutValidationWave(logger);
         });
 
@@ -414,7 +414,7 @@ public static class ServiceCollectionExtensions
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var modelDownloader = sp.GetService<ModelDownloader>();
             var sessionFactory = sp.GetService<OnnxSessionFactory>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ClipZeroShotService>>();
+            var logger = sp.GetService<ILogger<ClipZeroShotService>>();
             return new ClipZeroShotService(imageConfig, modelDownloader, sessionFactory, logger);
         });
 
@@ -424,7 +424,7 @@ public static class ServiceCollectionExtensions
         {
             var clipService = sp.GetRequiredService<ClipZeroShotService>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ClipClassificationWave>>();
+            var logger = sp.GetService<ILogger<ClipClassificationWave>>();
             return new ClipClassificationWave(clipService, imageConfig, logger);
         });
 
@@ -434,7 +434,7 @@ public static class ServiceCollectionExtensions
         {
             var clipService = sp.GetRequiredService<ClipZeroShotService>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ChartDetectionWave>>();
+            var logger = sp.GetService<ILogger<ChartDetectionWave>>();
             return new ChartDetectionWave(clipService, imageConfig, logger);
         });
 
@@ -443,14 +443,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ChartExtractionWave>>();
+            var logger = sp.GetService<ILogger<ChartExtractionWave>>();
             return new ChartExtractionWave(imageConfig, logger);
         });
 
         // MotionAnalyzer - Optical flow analysis for animated GIFs
         services.TryAddSingleton<MotionAnalyzer>(sp =>
         {
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<MotionAnalyzer>>();
+            var logger = sp.GetService<ILogger<MotionAnalyzer>>();
             return new MotionAnalyzer(logger);
         });
 
@@ -460,7 +460,7 @@ public static class ServiceCollectionExtensions
             var motionAnalyzer = sp.GetRequiredService<MotionAnalyzer>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
             var httpClient = sp.GetService<HttpClient>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<MotionWave>>();
+            var logger = sp.GetService<ILogger<MotionWave>>();
             return new MotionWave(motionAnalyzer, imageConfig, httpClient, logger);
         });
 
@@ -468,7 +468,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ContradictionDetector>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ContradictionDetector>>();
+            var logger = sp.GetService<ILogger<ContradictionDetector>>();
 
             // Convert custom rules from config to ContradictionRule objects
             var customRules = imageConfig.Contradiction.CustomRules?
@@ -479,12 +479,15 @@ public static class ServiceCollectionExtensions
                     SignalKeyA = r.SignalKeyA,
                     SignalKeyB = r.SignalKeyB,
                     Type = Enum.TryParse<ContradictionType>(r.Type, true, out var t)
-                        ? t : ContradictionType.ValueConflict,
+                        ? t
+                        : ContradictionType.ValueConflict,
                     Threshold = r.Threshold,
                     Severity = Enum.TryParse<ContradictionSeverity>(r.Severity, true, out var s)
-                        ? s : ContradictionSeverity.Warning,
+                        ? s
+                        : ContradictionSeverity.Warning,
                     Resolution = Enum.TryParse<ResolutionStrategy>(r.Resolution, true, out var rs)
-                        ? rs : ResolutionStrategy.PreferHigherConfidence,
+                        ? rs
+                        : ResolutionStrategy.PreferHigherConfidence,
                     Enabled = r.Enabled,
                     MinConfidenceThreshold = imageConfig.Contradiction.MinConfidenceThreshold
                 })
@@ -498,7 +501,7 @@ public static class ServiceCollectionExtensions
         {
             var detector = sp.GetRequiredService<ContradictionDetector>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ContradictionWave>>();
+            var logger = sp.GetService<ILogger<ContradictionWave>>();
             return new ContradictionWave(detector, imageConfig, logger);
         });
 
@@ -518,15 +521,12 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ProfiledWaveCoordinator>(sp =>
         {
             var manifestLoader = sp.GetRequiredService<WaveManifestLoader>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ProfiledWaveCoordinator>>();
+            var logger = sp.GetService<ILogger<ProfiledWaveCoordinator>>();
             var coordinator = new ProfiledWaveCoordinator(manifestLoader, logger);
 
             // Register all waves with the coordinator
             var waves = sp.GetServices<IAnalysisWave>();
-            foreach (var wave in waves)
-            {
-                coordinator.RegisterWave(wave);
-            }
+            foreach (var wave in waves) coordinator.RegisterWave(wave);
 
             return coordinator;
         });
@@ -535,15 +535,12 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<WaveSignalCoordinator>(sp =>
         {
             var manifestLoader = sp.GetRequiredService<WaveManifestLoader>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<WaveSignalCoordinator>>();
+            var logger = sp.GetService<ILogger<WaveSignalCoordinator>>();
             var coordinator = new WaveSignalCoordinator(manifestLoader, logger);
 
             // Register all waves
             var waves = sp.GetServices<IAnalysisWave>();
-            foreach (var wave in waves)
-            {
-                coordinator.RegisterWave(wave);
-            }
+            foreach (var wave in waves) coordinator.RegisterWave(wave);
 
             return coordinator;
         });
@@ -556,7 +553,7 @@ public static class ServiceCollectionExtensions
         {
             var config = sp.GetService<IConfiguration>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
-            var loggerFactory = sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
 
             // Create in-memory config if IConfiguration not available
             if (config == null)
@@ -570,6 +567,7 @@ public static class ServiceCollectionExtensions
                     .AddInMemoryCollection(configData)
                     .Build();
             }
+
             return new UnifiedVisionService(config, loggerFactory);
         });
 
@@ -577,7 +575,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<FastCaptionService>(sp =>
         {
             var unifiedVision = sp.GetRequiredService<UnifiedVisionService>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<FastCaptionService>>();
+            var logger = sp.GetService<ILogger<FastCaptionService>>();
             return new FastCaptionService(unifiedVision, logger);
         });
 
@@ -587,7 +585,7 @@ public static class ServiceCollectionExtensions
             var config = sp.GetRequiredService<IOptions<ImageConfig>>();
             var colorAnalyzer = sp.GetRequiredService<ColorAnalyzer>();
             var sceneService = sp.GetRequiredService<SceneDetectionService>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<Florence2CaptionService>>();
+            var logger = sp.GetService<ILogger<Florence2CaptionService>>();
             return new Florence2CaptionService(config, colorAnalyzer, sceneService, logger);
         });
 
@@ -596,7 +594,7 @@ public static class ServiceCollectionExtensions
         {
             var florence2Service = sp.GetRequiredService<Florence2CaptionService>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<Florence2Wave>>();
+            var logger = sp.GetService<ILogger<Florence2Wave>>();
             return new Florence2Wave(florence2Service, imageConfig, logger);
         });
 
@@ -604,7 +602,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<NanonetsOcrWave>>();
+            var logger = sp.GetService<ILogger<NanonetsOcrWave>>();
             return new NanonetsOcrWave(imageConfig, logger);
         });
 
@@ -612,7 +610,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalysisWave>(sp =>
         {
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>();
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<OlmOcr2Wave>>();
+            var logger = sp.GetService<ILogger<OlmOcr2Wave>>();
             return new OlmOcr2Wave(imageConfig, logger);
         });
 
@@ -622,7 +620,7 @@ public static class ServiceCollectionExtensions
             // VisionLlmService expects IConfiguration, so get it if available or use default config
             var config = sp.GetService<IConfiguration>();
             var imageConfig = sp.GetRequiredService<IOptions<ImageConfig>>().Value;
-            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<VisionLlmService>>();
+            var logger = sp.GetService<ILogger<VisionLlmService>>();
 
             // If IConfiguration is available, use it; otherwise create an in-memory config
             if (config == null)
@@ -636,6 +634,7 @@ public static class ServiceCollectionExtensions
                     .AddInMemoryCollection(configData)
                     .Build();
             }
+
             return new VisionLlmService(config, logger!);
         });
 
@@ -644,7 +643,7 @@ public static class ServiceCollectionExtensions
         {
             var imageAnalyzer = sp.GetRequiredService<IImageAnalyzer>();
             var visionLlmService = sp.GetRequiredService<VisionLlmService>();
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<EscalationService>>();
+            var logger = sp.GetRequiredService<ILogger<EscalationService>>();
             return new EscalationService(imageAnalyzer, visionLlmService, logger);
         });
 

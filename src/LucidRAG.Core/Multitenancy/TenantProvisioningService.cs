@@ -1,17 +1,16 @@
-using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
-/// Service for provisioning and deprovisioning tenant resources.
-/// Creates PostgreSQL schemas, runs migrations, and sets up Qdrant collections.
+///     Service for provisioning and deprovisioning tenant resources.
+///     Creates PostgreSQL schemas, runs migrations, and sets up Qdrant collections.
 /// </summary>
 public interface ITenantProvisioningService
 {
     /// <summary>
-    /// Provision a new tenant.
-    /// Creates schema, runs migrations, creates Qdrant collection.
+    ///     Provision a new tenant.
+    ///     Creates schema, runs migrations, creates Qdrant collection.
     /// </summary>
     Task<TenantContext> ProvisionAsync(
         string tenantId,
@@ -21,43 +20,43 @@ public interface ITenantProvisioningService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Deprovision a tenant.
-    /// Drops schema, deletes Qdrant collection, removes tenant record.
+    ///     Deprovision a tenant.
+    ///     Drops schema, deletes Qdrant collection, removes tenant record.
     /// </summary>
     Task DeprovisionAsync(string tenantId, CancellationToken ct = default);
 
     /// <summary>
-    /// Check if a tenant exists.
+    ///     Check if a tenant exists.
     /// </summary>
     Task<bool> ExistsAsync(string tenantId, CancellationToken ct = default);
 
     /// <summary>
-    /// Get tenant information.
+    ///     Get tenant information.
     /// </summary>
     Task<TenantEntity?> GetTenantAsync(string tenantId, CancellationToken ct = default);
 
     /// <summary>
-    /// List all tenants.
+    ///     List all tenants.
     /// </summary>
     Task<IReadOnlyList<TenantEntity>> ListTenantsAsync(bool? isActive = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Update tenant status.
+    ///     Update tenant status.
     /// </summary>
     Task UpdateStatusAsync(string tenantId, bool isActive, CancellationToken ct = default);
 
     /// <summary>
-    /// Run migrations for a specific tenant.
+    ///     Run migrations for a specific tenant.
     /// </summary>
     Task MigrateTenantAsync(string tenantId, CancellationToken ct = default);
 }
 
 public class TenantProvisioningService : ITenantProvisioningService
 {
-    private readonly TenantDbContext _tenantDb;
-    private readonly ITenantDbContextFactory _dbFactory;
     private readonly IConfiguration _configuration;
+    private readonly ITenantDbContextFactory _dbFactory;
     private readonly ILogger<TenantProvisioningService> _logger;
+    private readonly TenantDbContext _tenantDb;
 
     public TenantProvisioningService(
         TenantDbContext tenantDb,
@@ -155,10 +154,7 @@ public class TenantProvisioningService : ITenantProvisioningService
         var tenant = await _tenantDb.Tenants
             .FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
 
-        if (tenant == null)
-        {
-            throw new InvalidOperationException($"Tenant '{tenantId}' not found");
-        }
+        if (tenant == null) throw new InvalidOperationException($"Tenant '{tenantId}' not found");
 
         try
         {
@@ -195,14 +191,12 @@ public class TenantProvisioningService : ITenantProvisioningService
             .FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
     }
 
-    public async Task<IReadOnlyList<TenantEntity>> ListTenantsAsync(bool? isActive = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TenantEntity>> ListTenantsAsync(bool? isActive = null,
+        CancellationToken ct = default)
     {
         var query = _tenantDb.Tenants.AsNoTracking();
 
-        if (isActive.HasValue)
-        {
-            query = query.Where(t => t.IsActive == isActive.Value);
-        }
+        if (isActive.HasValue) query = query.Where(t => t.IsActive == isActive.Value);
 
         return await query
             .OrderBy(t => t.TenantId)
@@ -212,10 +206,7 @@ public class TenantProvisioningService : ITenantProvisioningService
     public async Task UpdateStatusAsync(string tenantId, bool isActive, CancellationToken ct = default)
     {
         var tenant = await _tenantDb.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
-        if (tenant == null)
-        {
-            throw new InvalidOperationException($"Tenant '{tenantId}' not found");
-        }
+        if (tenant == null) throw new InvalidOperationException($"Tenant '{tenantId}' not found");
 
         tenant.IsActive = isActive;
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
@@ -227,10 +218,7 @@ public class TenantProvisioningService : ITenantProvisioningService
     public async Task MigrateTenantAsync(string tenantId, CancellationToken ct = default)
     {
         var tenant = await _tenantDb.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
-        if (tenant == null)
-        {
-            throw new InvalidOperationException($"Tenant '{tenantId}' not found");
-        }
+        if (tenant == null) throw new InvalidOperationException($"Tenant '{tenantId}' not found");
 
         await MigrateTenantSchemaAsync(tenant.SchemaName, ct);
         _logger.LogInformation("Migrated tenant schema: {TenantId}", tenantId);
@@ -281,7 +269,7 @@ public class TenantProvisioningService : ITenantProvisioningService
         var qdrantConfig = _configuration.GetSection("DocSummarizer:Qdrant");
         var host = qdrantConfig["Host"];
         var port = qdrantConfig["Port"];
-        var vectorSize = qdrantConfig.GetValue<int>("VectorSize", 384);
+        var vectorSize = qdrantConfig.GetValue("VectorSize", 384);
 
         if (string.IsNullOrEmpty(host))
         {

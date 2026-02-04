@@ -1,3 +1,4 @@
+using System.Numerics;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using VideoSummarizer.Core.Models;
@@ -5,30 +6,32 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 1: Shot boundary detection using deterministic signals.
-/// Detects hard cuts, fades, and other transitions without LLM involvement.
+///     Stage 1: Shot boundary detection using deterministic signals.
+///     Detects hard cuts, fades, and other transitions without LLM involvement.
 /// </summary>
 public class ShotDetectionWave : IVideoWave
 {
-    private readonly ILogger<ShotDetectionWave> _logger;
-
     // Detection thresholds
     private const double HistogramThreshold = 0.4; // Histogram difference for hard cut
     private const double HashThreshold = 0.3; // Perceptual hash difference threshold
     private const double FadeThreshold = 0.15; // Threshold for fade detection
     private const int MinShotFrames = 5; // Minimum frames in a shot
     private const double SampleFps = 3.0; // Sample rate for analysis
-
-    public string Name => "shot_detection";
-    public int Priority => 900;
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Shot, VideoSignalTags.Visual];
+    private readonly ILogger<ShotDetectionWave> _logger;
 
     public ShotDetectionWave(ILogger<ShotDetectionWave> logger)
     {
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) => context.Metadata != null;
+    public string Name => "shot_detection";
+    public int Priority => 900;
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Shot, VideoSignalTags.Visual];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -41,7 +44,7 @@ public class ShotDetectionWave : IVideoWave
         if (!capture.IsOpened())
             throw new InvalidOperationException($"Could not open video: {videoPath}");
 
-        var totalFrames = (int)capture.FrameCount;
+        var totalFrames = capture.FrameCount;
         var fps = capture.Fps;
         var sampleInterval = Math.Max(1, (int)(fps / SampleFps));
 
@@ -104,8 +107,13 @@ public class ShotDetectionWave : IVideoWave
 
         // Add summary signals
         context.AddSignals([
-            new VideoSignal { Key = "shots.count", Value = context.Shots.Count, Source = Name, Tags = [VideoSignalTags.Shot] },
-            new VideoSignal { Key = "shots.avg_duration", Value = context.Shots.Average(s => s.EndTime - s.StartTime), Source = Name, Tags = [VideoSignalTags.Shot] },
+            new VideoSignal
+                { Key = "shots.count", Value = context.Shots.Count, Source = Name, Tags = [VideoSignalTags.Shot] },
+            new VideoSignal
+            {
+                Key = "shots.avg_duration", Value = context.Shots.Average(s => s.EndTime - s.StartTime), Source = Name,
+                Tags = [VideoSignalTags.Shot]
+            }
         ]);
 
         context.ReportProgress("Shot detection complete", 100);
@@ -123,8 +131,8 @@ public class ShotDetectionWave : IVideoWave
         using var hsv = new Mat();
         Cv2.CvtColor(frame, hsv, ColorConversionCodes.BGR2HSV);
 
-        var hChannels = new int[] { 0, 1 };
-        var hHistSize = new int[] { 50, 60 };
+        var hChannels = new[] { 0, 1 };
+        var hHistSize = new[] { 50, 60 };
         var hRanges = new Rangef[] { new(0, 180), new(0, 256) };
 
         using var histogram = new Mat();
@@ -180,18 +188,16 @@ public class ShotDetectionWave : IVideoWave
         var hash = 0UL;
         var bit = 0;
 
-        for (int y = 0; y < 8; y++)
+        for (var y = 0; y < 8; y++)
+        for (var x = 0; x < 8; x++)
         {
-            for (int x = 0; x < 8; x++)
-            {
-                var left = resized.At<byte>(y, x);
-                var right = resized.At<byte>(y, x + 1);
+            var left = resized.At<byte>(y, x);
+            var right = resized.At<byte>(y, x + 1);
 
-                if (left > right)
-                    hash |= 1UL << bit;
+            if (left > right)
+                hash |= 1UL << bit;
 
-                bit++;
-            }
+            bit++;
         }
 
         return hash.ToString("x16");
@@ -205,14 +211,14 @@ public class ShotDetectionWave : IVideoWave
         var h2 = Convert.ToUInt64(hash2, 16);
         var xor = h1 ^ h2;
 
-        return System.Numerics.BitOperations.PopCount(xor);
+        return BitOperations.PopCount(xor);
     }
 
     private List<ShotBoundary> DetectBoundaries(List<FrameAnalysis> frames)
     {
         var boundaries = new List<ShotBoundary>();
 
-        for (int i = 1; i < frames.Count; i++)
+        for (var i = 1; i < frames.Count; i++)
         {
             var prev = frames[i - 1];
             var curr = frames[i];
@@ -253,10 +259,7 @@ public class ShotDetectionWave : IVideoWave
             if (cutType == CutType.Unknown && i >= 3)
             {
                 var lumChanges = new List<double>();
-                for (int j = i - 3; j < i; j++)
-                {
-                    lumChanges.Add(frames[j + 1].Luminance - frames[j].Luminance);
-                }
+                for (var j = i - 3; j < i; j++) lumChanges.Add(frames[j + 1].Luminance - frames[j].Luminance);
 
                 var avgChange = lumChanges.Average();
                 var isMonotonic = lumChanges.All(c => c * avgChange > 0);
@@ -269,7 +272,6 @@ public class ShotDetectionWave : IVideoWave
             }
 
             if (cutType != CutType.Unknown && confidence > 0.5)
-            {
                 boundaries.Add(new ShotBoundary
                 {
                     FrameIndex = curr.FrameIndex,
@@ -277,7 +279,6 @@ public class ShotDetectionWave : IVideoWave
                     CutType = cutType,
                     Confidence = confidence
                 });
-            }
         }
 
         // Filter boundaries that are too close together
@@ -285,7 +286,6 @@ public class ShotDetectionWave : IVideoWave
         ShotBoundary? lastBoundary = null;
 
         foreach (var boundary in boundaries.OrderBy(b => b.FrameIndex))
-        {
             if (lastBoundary == null ||
                 boundary.FrameIndex - lastBoundary.FrameIndex >= MinShotFrames)
             {
@@ -298,7 +298,6 @@ public class ShotDetectionWave : IVideoWave
                 filtered[^1] = boundary;
                 lastBoundary = boundary;
             }
-        }
 
         return filtered;
     }
@@ -313,7 +312,7 @@ public class ShotDetectionWave : IVideoWave
         var videoId = context.Metadata!.Id;
         var lastBoundaryTime = 0.0;
 
-        for (int i = 0; i <= boundaries.Count; i++)
+        for (var i = 0; i <= boundaries.Count; i++)
         {
             var startTime = lastBoundaryTime;
             var endTime = i < boundaries.Count ? boundaries[i].Timestamp : context.Metadata.Duration;
@@ -344,10 +343,7 @@ public class ShotDetectionWave : IVideoWave
             context.Shots.Add(shot);
 
             // Store frame timestamp mapping
-            if (keyframe != null)
-            {
-                context.FrameTimestamps[keyframe.FrameIndex] = keyframe.Timestamp;
-            }
+            if (keyframe != null) context.FrameTimestamps[keyframe.FrameIndex] = keyframe.Timestamp;
 
             lastBoundaryTime = endTime;
         }

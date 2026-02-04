@@ -16,7 +16,7 @@ signals:
 waves:
   required:
     - NativeExtractionWave
-  conditional: []  # No conditional waves
+  conditional: [ ]  # No conditional waves
 
 output:
   format: markdown

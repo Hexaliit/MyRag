@@ -5,19 +5,17 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.Preprocessing;
 
 /// <summary>
-/// Creates a noise-free composite image by computing pixel-wise median across multiple aligned frames.
-/// This is one of the most effective techniques for GIF OCR - it removes noise while preserving text edges.
-///
-/// Algorithm:
-/// 1. Stack all aligned frames
-/// 2. For each pixel position, collect values across all frames
-/// 3. Compute median value (middle value when sorted)
-/// 4. Result: "best possible text plate" with noise removed
-///
-/// Benefits:
-/// - Removes temporal noise (compression artifacts, camera noise)
-/// - Preserves edges better than mean/blur
-/// - Works well even with partial misalignment
+///     Creates a noise-free composite image by computing pixel-wise median across multiple aligned frames.
+///     This is one of the most effective techniques for GIF OCR - it removes noise while preserving text edges.
+///     Algorithm:
+///     1. Stack all aligned frames
+///     2. For each pixel position, collect values across all frames
+///     3. Compute median value (middle value when sorted)
+///     4. Result: "best possible text plate" with noise removed
+///     Benefits:
+///     - Removes temporal noise (compression artifacts, camera noise)
+///     - Preserves edges better than mean/blur
+///     - Works well even with partial misalignment
 /// </summary>
 public class TemporalMedianFilter
 {
@@ -33,15 +31,12 @@ public class TemporalMedianFilter
     }
 
     /// <summary>
-    /// Compute temporal median composite from a sequence of aligned frames.
-    /// Returns a single "best possible" frame with noise removed.
+    ///     Compute temporal median composite from a sequence of aligned frames.
+    ///     Returns a single "best possible" frame with noise removed.
     /// </summary>
     public Image<Rgba32> ComputeTemporalMedian(List<Image<Rgba32>> frames)
     {
-        if (frames.Count == 0)
-        {
-            throw new ArgumentException("No frames provided", nameof(frames));
-        }
+        if (frames.Count == 0) throw new ArgumentException("No frames provided", nameof(frames));
 
         if (frames.Count == 1)
         {
@@ -56,9 +51,7 @@ public class TemporalMedianFilter
 
         // Verify all frames have same dimensions
         if (frames.Any(f => f.Width != width || f.Height != height))
-        {
             throw new ArgumentException("All frames must have the same dimensions");
-        }
 
         // Create result image
         var result = new Image<Rgba32>(width, height);
@@ -72,15 +65,14 @@ public class TemporalMedianFilter
         // Process each pixel
         result.ProcessPixelRows(resultAccessor =>
         {
-            for (int y = 0; y < height; y++)
+            for (var y = 0; y < height; y++)
             {
                 var resultRow = resultAccessor.GetRowSpan(y);
 
-                for (int x = 0; x < width; x++)
+                for (var x = 0; x < width; x++)
                 {
                     // Collect pixel values from all frames at position (x, y)
-                    for (int i = 0; i < frames.Count; i++)
-                    {
+                    for (var i = 0; i < frames.Count; i++)
                         frames[i].ProcessPixelRows(frameAccessor =>
                         {
                             var frameRow = frameAccessor.GetRowSpan(y);
@@ -91,7 +83,6 @@ public class TemporalMedianFilter
                             bValues[i] = pixel.B;
                             aValues[i] = pixel.A;
                         });
-                    }
 
                     // Compute median for each channel
                     var medianR = ComputeMedian(rValues);
@@ -110,33 +101,25 @@ public class TemporalMedianFilter
             }
         });
 
-        _logger?.LogInformation("Temporal median complete: created noise-free composite from {Count} frames", frames.Count);
+        _logger?.LogInformation("Temporal median complete: created noise-free composite from {Count} frames",
+            frames.Count);
 
         return result;
     }
 
     /// <summary>
-    /// Compute temporal median composite with optional foreground masking.
-    /// Only pixels marked as foreground in masks are considered for median calculation.
+    ///     Compute temporal median composite with optional foreground masking.
+    ///     Only pixels marked as foreground in masks are considered for median calculation.
     /// </summary>
     public Image<Rgba32> ComputeTemporalMedianWithMasks(
         List<Image<Rgba32>> frames,
         List<Image<L8>> foregroundMasks)
     {
-        if (frames.Count != foregroundMasks.Count)
-        {
-            throw new ArgumentException("Frame count must match mask count");
-        }
+        if (frames.Count != foregroundMasks.Count) throw new ArgumentException("Frame count must match mask count");
 
-        if (frames.Count == 0)
-        {
-            throw new ArgumentException("No frames provided", nameof(frames));
-        }
+        if (frames.Count == 0) throw new ArgumentException("No frames provided", nameof(frames));
 
-        if (frames.Count == 1)
-        {
-            return frames[0].Clone();
-        }
+        if (frames.Count == 1) return frames[0].Clone();
 
         _logger?.LogInformation("Computing masked temporal median from {Count} frames", frames.Count);
 
@@ -152,21 +135,21 @@ public class TemporalMedianFilter
 
         result.ProcessPixelRows(resultAccessor =>
         {
-            for (int y = 0; y < height; y++)
+            for (var y = 0; y < height; y++)
             {
                 var resultRow = resultAccessor.GetRowSpan(y);
 
-                for (int x = 0; x < width; x++)
+                for (var x = 0; x < width; x++)
                 {
                     rValues.Clear();
                     gValues.Clear();
                     bValues.Clear();
 
                     // Collect pixel values only from frames where mask indicates foreground
-                    for (int i = 0; i < frames.Count; i++)
+                    for (var i = 0; i < frames.Count; i++)
                     {
                         // Check if this pixel is foreground in the mask
-                        bool isForeground = false;
+                        var isForeground = false;
                         foregroundMasks[i].ProcessPixelRows(maskAccessor =>
                         {
                             var maskRow = maskAccessor.GetRowSpan(y);
@@ -174,7 +157,6 @@ public class TemporalMedianFilter
                         });
 
                         if (isForeground)
-                        {
                             frames[i].ProcessPixelRows(frameAccessor =>
                             {
                                 var frameRow = frameAccessor.GetRowSpan(y);
@@ -184,7 +166,6 @@ public class TemporalMedianFilter
                                 gValues.Add(pixel.G);
                                 bValues.Add(pixel.B);
                             });
-                        }
                     }
 
                     // If no foreground pixels, use first frame value (fallback)
@@ -217,8 +198,8 @@ public class TemporalMedianFilter
     }
 
     /// <summary>
-    /// Compute median value from an array of bytes.
-    /// Uses partial sort for efficiency (only need middle element).
+    ///     Compute median value from an array of bytes.
+    ///     Uses partial sort for efficiency (only need middle element).
     /// </summary>
     private byte ComputeMedian(byte[] values)
     {
@@ -230,17 +211,13 @@ public class TemporalMedianFilter
         Array.Sort(values);
 
         // Return middle value
-        int middleIndex = values.Length / 2;
+        var middleIndex = values.Length / 2;
 
         if (values.Length % 2 == 0)
-        {
             // Even number of values - average the two middle values
             return (byte)((values[middleIndex - 1] + values[middleIndex]) / 2);
-        }
-        else
-        {
-            // Odd number of values - return middle value
-            return values[middleIndex];
-        }
+
+        // Odd number of values - return middle value
+        return values[middleIndex];
     }
 }

@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -6,11 +10,11 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches content from Wikipedia using the proper MediaWiki Action API for search
-/// and the REST API for article summaries and featured content.
-/// No API key required. Follows Wikimedia User-Agent policy.
-/// https://www.mediawiki.org/wiki/API:Main_page
-/// https://en.wikipedia.org/api/rest_v1/
+///     Fetches content from Wikipedia using the proper MediaWiki Action API for search
+///     and the REST API for article summaries and featured content.
+///     No API key required. Follows Wikimedia User-Agent policy.
+///     https://www.mediawiki.org/wiki/API:Main_page
+///     https://en.wikipedia.org/api/rest_v1/
 /// </summary>
 public partial class WikipediaFetcher(HttpClient httpClient)
 {
@@ -25,8 +29,8 @@ public partial class WikipediaFetcher(HttpClient httpClient)
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     /// <summary>
-    /// Search Wikipedia articles matching a query using the MediaWiki Action API.
-    /// For each result, fetches a clean summary via the REST page/summary endpoint.
+    ///     Search Wikipedia articles matching a query using the MediaWiki Action API.
+    ///     For each result, fetches a clean summary via the REST page/summary endpoint.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(string query, int limit = 10)
     {
@@ -62,35 +66,36 @@ public partial class WikipediaFetcher(HttpClient httpClient)
 
                     items.Add(new ContentItem
                     {
-                        Id = $"wiki_{(summary.PageId.HasValue ? summary.PageId.Value.ToString() : GenerateId(result.Title))}",
+                        Id =
+                            $"wiki_{(summary.PageId.HasValue ? summary.PageId.Value.ToString() : GenerateId(result.Title))}",
                         Source = "wikipedia",
                         Title = summary.DisplayTitle ?? summary.Title ?? result.Title,
                         Url = summary.ContentUrls?.Desktop?.Page
-                              ?? $"https://en.wikipedia.org/wiki/{Uri.EscapeDataString(result.Title.Replace(' ', '_'))}",
+                              ??
+                              $"https://en.wikipedia.org/wiki/{Uri.EscapeDataString(result.Title.Replace(' ', '_'))}",
                         Content = summary.Extract ?? StripHtml(result.Snippet ?? ""),
                         Author = "Wikipedia",
                         CreatedAt = TryParseDate(summary.Timestamp),
                         Tags = summary.Description != null ? [summary.Description] : []
                     });
                 }
-                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
                 {
                     // Article doesn't exist in REST API (rare for search results)
-                    continue;
                 }
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Wikipedia search failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Wikipedia search failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Get a clean article summary via the REST API page/summary endpoint.
-    /// Returns structured data: title, extract (plain text), thumbnail, description.
+    ///     Get a clean article summary via the REST API page/summary endpoint.
+    ///     Returns structured data: title, extract (plain text), thumbnail, description.
     /// </summary>
     public async Task<WikiSummary?> GetArticleSummaryAsync(string title)
     {
@@ -101,8 +106,8 @@ public partial class WikipediaFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Fetch today's featured content (includes "In the news" items).
-    /// Retained for browsing mode when no search query is provided.
+    ///     Fetch today's featured content (includes "In the news" items).
+    ///     Retained for browsing mode when no search query is provided.
     /// </summary>
     public async Task<List<ContentItem>> FetchFeaturedAsync(int limit = 20, string? section = null)
     {
@@ -117,8 +122,7 @@ public partial class WikipediaFetcher(HttpClient httpClient)
             if (featured == null) return items;
 
             // "In the news" items -- current events
-            if ((section is null or "news") && featured.News != null)
-            {
+            if (section is null or "news" && featured.News != null)
                 foreach (var news in featured.News.Take(limit))
                 {
                     var story = news.Story;
@@ -142,11 +146,9 @@ public partial class WikipediaFetcher(HttpClient httpClient)
                         CreatedAt = DateTimeOffset.UtcNow
                     });
                 }
-            }
 
             // "On this day" -- historical events
-            if ((section is null or "history") && featured.OnThisDay != null)
-            {
+            if (section is null or "history" && featured.OnThisDay != null)
                 foreach (var otd in featured.OnThisDay.Take(Math.Max(3, limit - items.Count)))
                 {
                     if (string.IsNullOrEmpty(otd.Text)) continue;
@@ -159,17 +161,17 @@ public partial class WikipediaFetcher(HttpClient httpClient)
                     {
                         Id = $"wiki_otd_{GenerateId(otd.Text)}",
                         Source = "wikipedia",
-                        Title = $"[On this day, {otd.Year}] {(otd.Text.Length > 150 ? otd.Text[..147] + "..." : otd.Text)}",
+                        Title =
+                            $"[On this day, {otd.Year}] {(otd.Text.Length > 150 ? otd.Text[..147] + "..." : otd.Text)}",
                         Url = articleUrl ?? "https://en.wikipedia.org/wiki/Wikipedia:On_this_day",
                         Content = otd.Text,
                         Author = "Wikipedia",
                         CreatedAt = DateTimeOffset.UtcNow
                     });
                 }
-            }
 
             // Featured article of the day
-            if ((section is null or "featured") && featured.Tfa != null)
+            if (section is null or "featured" && featured.Tfa != null)
             {
                 var tfa = featured.Tfa;
                 var articleUrl = tfa.ContentUrls?.Desktop?.Page;
@@ -187,14 +189,14 @@ public partial class WikipediaFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Wikipedia featured API failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Wikipedia featured API failed: {ex.Message}");
         }
 
         return items.Take(limit).ToList();
     }
 
     /// <summary>
-    /// Original FetchAsync: routes to search if a query is embedded, otherwise featured content.
+    ///     Original FetchAsync: routes to search if a query is embedded, otherwise featured content.
     /// </summary>
     public async Task<List<ContentItem>> FetchAsync(int limit = 20, string? section = null, string? query = null)
     {
@@ -222,18 +224,22 @@ public partial class WikipediaFetcher(HttpClient httpClient)
     private static string StripHtml(string html)
     {
         var text = HtmlTagRegex().Replace(html, " ");
-        text = System.Net.WebUtility.HtmlDecode(text);
+        text = WebUtility.HtmlDecode(text);
         text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
 
-    private static string GenerateId(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string GenerateId(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static DateTimeOffset TryParseDate(string? dateStr) =>
-        string.IsNullOrEmpty(dateStr) ? DateTimeOffset.UtcNow
+    private static DateTimeOffset TryParseDate(string? dateStr)
+    {
+        return string.IsNullOrEmpty(dateStr) ? DateTimeOffset.UtcNow
             : DateTimeOffset.TryParse(dateStr, out var r) ? r : DateTimeOffset.UtcNow;
+    }
 
     [GeneratedRegex(@"<[^>]+>")]
     private static partial Regex HtmlTagRegex();
@@ -252,19 +258,22 @@ public partial class WikipediaFetcher(HttpClient httpClient)
         string? Title,
         [property: JsonPropertyName("pageid")] long? PageId,
         string? Snippet,
-        [property: JsonPropertyName("wordcount")] int? WordCount);
+        [property: JsonPropertyName("wordcount")]
+        int? WordCount);
 
     // ── REST API page/summary model ───────────────────────────────────
 
     /// <summary>REST API /page/summary response.</summary>
     public record WikiSummary(
         string? Title,
-        [property: JsonPropertyName("displaytitle")] string? DisplayTitle,
+        [property: JsonPropertyName("displaytitle")]
+        string? DisplayTitle,
         [property: JsonPropertyName("pageid")] long? PageId,
         string? Extract,
         string? Description,
         string? Timestamp,
-        [property: JsonPropertyName("content_urls")] WikiContentUrls? ContentUrls,
+        [property: JsonPropertyName("content_urls")]
+        WikiContentUrls? ContentUrls,
         WikiThumbnail? Thumbnail);
 
     public record WikiThumbnail(string? Source, int? Width, int? Height);
@@ -274,17 +283,22 @@ public partial class WikipediaFetcher(HttpClient httpClient)
     private record WikiFeatured(
         WikiArticle? Tfa,
         List<WikiNewsItem>? News,
-        [property: JsonPropertyName("onthisday")] List<WikiOnThisDay>? OnThisDay);
+        [property: JsonPropertyName("onthisday")]
+        List<WikiOnThisDay>? OnThisDay);
 
     private record WikiNewsItem(string? Story, List<WikiArticle>? Links);
+
     private record WikiOnThisDay(string? Text, int? Year, List<WikiArticle>? Pages);
 
     private record WikiArticle(
         string? Title,
-        [property: JsonPropertyName("normalizedtitle")] string? NormalizedTitle,
+        [property: JsonPropertyName("normalizedtitle")]
+        string? NormalizedTitle,
         string? Extract,
-        [property: JsonPropertyName("content_urls")] WikiContentUrls? ContentUrls);
+        [property: JsonPropertyName("content_urls")]
+        WikiContentUrls? ContentUrls);
 
     public record WikiContentUrls(WikiPlatformUrls? Desktop, WikiPlatformUrls? Mobile);
+
     public record WikiPlatformUrls(string? Page);
 }

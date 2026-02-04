@@ -4,13 +4,13 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for StorageService query feedback, LFU tracking, and item retrieval.
-/// Uses a temp SQLite database per test.
+///     Tests for StorageService query feedback, LFU tracking, and item retrieval.
+///     Uses a temp SQLite database per test.
 /// </summary>
 public class StorageServiceTests : IAsyncLifetime
 {
-    private StorageService _storage = null!;
     private string _dbPath = null!;
+    private StorageService _storage = null!;
 
     public async Task InitializeAsync()
     {
@@ -22,7 +22,14 @@ public class StorageServiceTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _storage.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { /* cleanup best-effort */ }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+            /* cleanup best-effort */
+        }
     }
 
     private ContentItem MakeItem(string id, string title = "Test", string source = "test",
@@ -91,10 +98,10 @@ public class StorageServiceTests : IAsyncLifetime
 
         await _storage.LogQueryAsync("test query", embedding, "neutral", ["item1", "item2"]);
 
-        var match = await _storage.FindSimilarQueryAsync(embedding, threshold: 0.9);
+        var match = await _storage.FindSimilarQueryAsync(embedding, 0.9);
         match.Should().NotBeNull();
         match!.QueryText.Should().Be("test query");
-        match.ItemIds.Should().BeEquivalentTo(["item1", "item2"]);
+        match.ItemIds.Should().BeEquivalentTo("item1", "item2");
         match.Similarity.Should().BeApproximately(1.0f, 0.01f);
     }
 
@@ -111,7 +118,7 @@ public class StorageServiceTests : IAsyncLifetime
 
         await _storage.LogQueryAsync("query A", embedding1, "neutral", ["item1"]);
 
-        var match = await _storage.FindSimilarQueryAsync(embedding2, threshold: 0.95);
+        var match = await _storage.FindSimilarQueryAsync(embedding2, 0.95);
         // Should not match since embeddings point in very different directions
         // (though they're not orthogonal, so a very low threshold might match)
         match.Should().BeNull();
@@ -145,7 +152,7 @@ public class StorageServiceTests : IAsyncLifetime
 
         var items = await _storage.GetItemsByIdsAsync(["a", "c"]);
         items.Should().HaveCount(2);
-        items.Select(i => i.Id).Should().BeEquivalentTo(["a", "c"]);
+        items.Select(i => i.Id).Should().BeEquivalentTo("a", "c");
     }
 
     [Fact]

@@ -1,15 +1,14 @@
 using LucidRAG.Services;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace LucidRAG.Core.Extensions;
 
 /// <summary>
-/// Extension methods for registering core LucidRAG services.
+///     Extension methods for registering core LucidRAG services.
 /// </summary>
 public static class CoreServiceExtensions
 {
     /// <summary>
-    /// Adds core LucidRAG services including date extraction, feature services, etc.
+    ///     Adds core LucidRAG services including date extraction, feature services, etc.
     /// </summary>
     public static IServiceCollection AddLucidRagCoreServices(this IServiceCollection services)
     {

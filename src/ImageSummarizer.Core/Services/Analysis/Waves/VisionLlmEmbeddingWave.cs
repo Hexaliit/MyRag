@@ -6,29 +6,23 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Vision LLM embedding wave using Ollama for direct image embeddings.
-/// Uses MiniCPM-V or LLaVA for generating semantic image embeddings.
-///
-/// Superior to CLIP for:
-/// - Semantic understanding (understands context, actions, relationships)
-/// - Multilingual support
-/// - Direct integration with vision-language models
-///
-/// References:
-/// - MiniCPM-V: https://ollama.com/library/minicpm-v
-/// - LLaVA: https://ollama.com/library/llava
-/// - Vision LLM design: https://huggingface.co/blog/gigant/vlm-design
+///     Vision LLM embedding wave using Ollama for direct image embeddings.
+///     Uses MiniCPM-V or LLaVA for generating semantic image embeddings.
+///     Superior to CLIP for:
+///     - Semantic understanding (understands context, actions, relationships)
+///     - Multilingual support
+///     - Direct integration with vision-language models
+///     References:
+///     - MiniCPM-V: https://ollama.com/library/minicpm-v
+///     - LLaVA: https://ollama.com/library/llava
+///     - Vision LLM design: https://huggingface.co/blog/gigant/vlm-design
 /// </summary>
 public class VisionLlmEmbeddingWave : IAnalysisWave
 {
+    private readonly bool _enabled;
     private readonly HttpClient _httpClient;
     private readonly ILogger<VisionLlmEmbeddingWave>? _logger;
     private readonly string _model;
-    private readonly bool _enabled;
-
-    public string Name => "VisionLlmEmbeddingWave";
-    public int Priority => 50; // Medium priority - expensive operation
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "embedding" };
 
     public VisionLlmEmbeddingWave(
         string ollamaBaseUrl = "http://localhost:11434",
@@ -45,6 +39,10 @@ public class VisionLlmEmbeddingWave : IAnalysisWave
         _enabled = enabled;
         _logger = logger;
     }
+
+    public string Name => "VisionLlmEmbeddingWave";
+    public int Priority => 50; // Medium priority - expensive operation
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "embedding" };
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
@@ -122,7 +120,6 @@ public class VisionLlmEmbeddingWave : IAnalysisWave
             var description = await GenerateDescriptionAsync(base64Image, ct);
 
             if (!string.IsNullOrWhiteSpace(description))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.vision_llm_description",
@@ -136,7 +133,6 @@ public class VisionLlmEmbeddingWave : IAnalysisWave
                         ["length"] = description.Length
                     }
                 });
-            }
         }
         catch (Exception ex)
         {
@@ -204,17 +200,15 @@ public class VisionLlmEmbeddingWave : IAnalysisWave
             var request = new
             {
                 model = _model,
-                prompt = "Describe this image in detail for search indexing. Include: objects, people, setting, actions, mood, colors, text visible.",
+                prompt =
+                    "Describe this image in detail for search indexing. Include: objects, people, setting, actions, mood, colors, text visible.",
                 images = new[] { base64Image },
                 stream = false
             };
 
             var response = await _httpClient.PostAsJsonAsync("/api/generate", request, ct);
 
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
+            if (!response.IsSuccessStatusCode) return null;
 
             var result = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(ct);
             return result?.Response;
@@ -227,9 +221,11 @@ public class VisionLlmEmbeddingWave : IAnalysisWave
     }
 
     private record OllamaEmbeddingResponse(
-        [property: JsonPropertyName("embedding")] float[] Embedding);
+        [property: JsonPropertyName("embedding")]
+        float[] Embedding);
 
     private record OllamaGenerateResponse(
-        [property: JsonPropertyName("response")] string Response,
+        [property: JsonPropertyName("response")]
+        string Response,
         [property: JsonPropertyName("done")] bool Done);
 }

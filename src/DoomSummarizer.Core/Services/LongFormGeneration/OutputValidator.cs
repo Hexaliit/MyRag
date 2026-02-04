@@ -4,10 +4,10 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Phase 5: Output Validation (Deterministic — No LLM).
-/// Validates every URL, entity, and factual claim in the generated text
-/// against the evidence corpus. Detects hallucinated URLs, fabricated sources,
-/// and ungrounded facts using embedding similarity.
+///     Phase 5: Output Validation (Deterministic — No LLM).
+///     Validates every URL, entity, and factual claim in the generated text
+///     against the evidence corpus. Detects hallucinated URLs, fabricated sources,
+///     and ungrounded facts using embedding similarity.
 /// </summary>
 public static partial class OutputValidator
 {
@@ -16,7 +16,8 @@ public static partial class OutputValidator
     private static partial Regex UrlRegex();
 
     // Match source references: "according to [Title]", "reported by [Title]"
-    [GeneratedRegex(@"(?:according to|reported by|says|notes|per|from)\s+\[?([A-Z][^,.\[\]]{3,60})\]?", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?:according to|reported by|says|notes|per|from)\s+\[?([A-Z][^,.\[\]]{3,60})\]?",
+        RegexOptions.IgnoreCase)]
     private static partial Regex TitleRefRegex();
 
     // Google News redirect pattern
@@ -24,7 +25,9 @@ public static partial class OutputValidator
     private static partial Regex GoogleRedirectRegex();
 
     // Transitional/structural sentence patterns (exempt from grounding)
-    [GeneratedRegex(@"^(In this section|As we|Moving on|Let's|Now,|Here,|Below|Above|First|Second|Finally|In conclusion|To summarize|Overall|In summary)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"^(In this section|As we|Moving on|Let's|Now,|Here,|Below|Above|First|Second|Finally|In conclusion|To summarize|Overall|In summary)",
+        RegexOptions.IgnoreCase)]
     private static partial Regex TransitionalRegex();
 
     // Extract capitalized multi-word phrases from generated text
@@ -36,7 +39,7 @@ public static partial class OutputValidator
     private static partial Regex SentenceSplitRegex();
 
     /// <summary>
-    /// Run all validation checks on the generated document.
+    ///     Run all validation checks on the generated document.
     /// </summary>
     public static ValidationResult Validate(
         DocumentPlan plan,
@@ -60,7 +63,7 @@ public static partial class OutputValidator
             : 1.0;
 
         var passesValidation = groundingScore >= 0.7
-            && urlResult.HallucinatedUrls.Count == 0;
+                               && urlResult.HallucinatedUrls.Count == 0;
 
         return new ValidationResult
         {
@@ -76,7 +79,7 @@ public static partial class OutputValidator
     }
 
     /// <summary>
-    /// Apply auto-fix strategies to the generated sections.
+    ///     Apply auto-fix strategies to the generated sections.
     /// </summary>
     public static void AutoFix(DocumentPlan plan, ValidationResult validation, EvidenceCorpus corpus)
     {
@@ -89,21 +92,15 @@ public static partial class OutputValidator
             {
                 var markdownLink = $"[{issue.Context}]({issue.Url})";
                 if (text.Contains(markdownLink))
-                {
                     text = text.Replace(markdownLink, issue.Context);
-                }
                 else
-                {
                     // Bare URL removal
                     text = text.Replace(issue.Url, "");
-                }
             }
 
             // Replace fabricated titles with closest real match
             foreach (var issue in validation.FabricatedTitles.Where(t => t.ClosestRealTitle != null))
-            {
                 text = text.Replace(issue.ClaimedTitle, issue.ClosestRealTitle!);
-            }
 
             section.GeneratedContent = text;
         }
@@ -119,7 +116,7 @@ public static partial class OutputValidator
         {
             var linkText = match.Groups[1].Success ? match.Groups[1].Value : "";
             var url = match.Groups[2].Success ? match.Groups[2].Value
-                    : match.Groups[3].Success ? match.Groups[3].Value : "";
+                : match.Groups[3].Success ? match.Groups[3].Value : "";
 
             if (string.IsNullOrEmpty(url)) continue;
 
@@ -144,7 +141,7 @@ public static partial class OutputValidator
                 // Check if it's a prefix/variant match (trailing slashes, query params)
                 var isKnown = corpus.UrlFetchDates.Keys
                     .Any(k => url.StartsWith(k, StringComparison.OrdinalIgnoreCase)
-                           || k.StartsWith(url, StringComparison.OrdinalIgnoreCase));
+                              || k.StartsWith(url, StringComparison.OrdinalIgnoreCase));
 
                 if (isKnown)
                     verifiedCount++;
@@ -189,11 +186,8 @@ public static partial class OutputValidator
                     .FirstOrDefault();
 
                 if (closest.Name != null)
-                {
                     groundedCount++;
-                }
                 else
-                {
                     ungrounded.Add(new EntityIssue
                     {
                         EntityName = entity,
@@ -201,7 +195,6 @@ public static partial class OutputValidator
                         ClosestMatchScore = 0,
                         ClosestMatch = null
                     });
-                }
             }
         }
 
@@ -233,11 +226,8 @@ public static partial class OutputValidator
                 .FirstOrDefault();
 
             if (closest.Score > 0.6)
-            {
                 verifiedCount++;
-            }
             else
-            {
                 fabricated.Add(new TitleIssue
                 {
                     ClaimedTitle = title,
@@ -245,7 +235,6 @@ public static partial class OutputValidator
                     ClosestRealTitle = closest.Title,
                     MatchScore = closest.Score
                 });
-            }
         }
 
         return (fabricated, verifiedCount);
@@ -342,15 +331,14 @@ public static partial class OutputValidator
         for (var j = 0; j <= n; j++) d[0, j] = j;
 
         for (var i = 1; i <= m; i++)
+        for (var j = 1; j <= n; j++)
         {
-            for (var j = 1; j <= n; j++)
-            {
-                var cost = s[i - 1] == t[j - 1] ? 0 : 1;
-                d[i, j] = Math.Min(
-                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + cost);
-            }
+            var cost = s[i - 1] == t[j - 1] ? 0 : 1;
+            d[i, j] = Math.Min(
+                Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                d[i - 1, j - 1] + cost);
         }
+
         return d[m, n];
     }
 

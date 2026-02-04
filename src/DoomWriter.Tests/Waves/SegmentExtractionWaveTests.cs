@@ -1,6 +1,6 @@
-using Mostlylucid.Summarizer.Core.Analysis;
 using DoomWriter.Models;
 using DoomWriter.Waves;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace DoomWriter.Tests.Waves;
 
@@ -49,7 +49,8 @@ public class SegmentExtractionWaveTests
     [Fact]
     public async Task SegmentSalienceReflectsVocabularyRichness()
     {
-        var markdown = "# Title\n\nThe the the the the the the.\n\nDiverse varied rich complex nuanced articulate expressive prose writing content.";
+        var markdown =
+            "# Title\n\nThe the the the the the the.\n\nDiverse varied rich complex nuanced articulate expressive prose writing content.";
         var ctx = new AnalysisContext();
         var signals = (await _wave.AnalyzeAsync(markdown, ctx)).ToList();
 

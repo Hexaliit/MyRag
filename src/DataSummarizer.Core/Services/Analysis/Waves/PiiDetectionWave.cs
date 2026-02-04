@@ -5,8 +5,8 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Ninth wave: detects Personally Identifiable Information (PII) in columns.
-/// Uses regex patterns to identify emails, phones, SSNs, etc.
+///     Ninth wave: detects Personally Identifiable Information (PII) in columns.
+///     Uses regex patterns to identify emails, phones, SSNs, etc.
 /// </summary>
 public partial class PiiDetectionWave : IDataAnalysisWave
 {
@@ -39,10 +39,7 @@ public partial class PiiDetectionWave : IDataAnalysisWave
         var signals = new List<DataSignal>();
         var samples = context.GetCached<List<Dictionary<string, object?>>>("sample.rows");
 
-        if (samples == null || samples.Count == 0)
-        {
-            return Task.FromResult<IEnumerable<DataSignal>>(signals);
-        }
+        if (samples == null || samples.Count == 0) return Task.FromResult<IEnumerable<DataSignal>>(signals);
 
         // Check text and categorical columns
         var candidateColumns = context.GetColumnsOfType("text")
@@ -51,7 +48,8 @@ public partial class PiiDetectionWave : IDataAnalysisWave
 
         // Also check columns based on name heuristics
         var allColumns = context.GetColumnNames();
-        var piiNamePatterns = new[] { "email", "phone", "ssn", "social", "address", "name", "first", "last", "dob", "birth" };
+        var piiNamePatterns = new[]
+            { "email", "phone", "ssn", "social", "address", "name", "first", "last", "dob", "birth" };
         var nameMatches = allColumns.Where(c =>
             piiNamePatterns.Any(p => c.ToLowerInvariant().Contains(p)));
 
@@ -81,7 +79,6 @@ public partial class PiiDetectionWave : IDataAnalysisWave
             });
 
             if (detected && piiType != null)
-            {
                 signals.Add(new DataSignal
                 {
                     Key = DataSignalKeys.PiiType(column),
@@ -90,7 +87,6 @@ public partial class PiiDetectionWave : IDataAnalysisWave
                     Confidence = confidence,
                     Tags = [DataSignalTags.Pii]
                 });
-            }
         }
 
         _logger?.LogDebug("PiiDetectionWave: Checked {Count} columns for PII", candidateColumns.Count);

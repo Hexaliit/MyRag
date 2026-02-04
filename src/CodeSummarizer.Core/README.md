@@ -1,6 +1,7 @@
 # Mostlylucid.LucidRAG.CodeSummarizer
 
-Code block + Mermaid diagram summarization for RAG pipelines (Tree-sitter for AST parsing, plus Mermaid structure extraction).
+Code block + Mermaid diagram summarization for RAG pipelines (Tree-sitter for AST parsing, plus Mermaid structure
+extraction).
 
 ## Install
 

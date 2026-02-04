@@ -5,7 +5,7 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services.Providers;
 
 /// <summary>
-/// Named provider wrapper for Anthropic LLM service.
+///     Named provider wrapper for Anthropic LLM service.
 /// </summary>
 public class AnthropicProvider : BaseLlmProvider
 {

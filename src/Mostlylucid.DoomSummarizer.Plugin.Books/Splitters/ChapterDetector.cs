@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace Mostlylucid.DoomSummarizer.Plugin.Books.Splitters;
 
 /// <summary>
-/// A detected boundary in the document text.
+///     A detected boundary in the document text.
 /// </summary>
 public record DetectedBoundary
 {
@@ -24,13 +24,19 @@ public record DetectedBoundary
 }
 
 /// <summary>
-/// Detects chapter, act, section, and other structural boundaries in text
-/// using regex patterns from structural pattern YAML files.
+///     Detects chapter, act, section, and other structural boundaries in text
+///     using regex patterns from structural pattern YAML files.
 /// </summary>
 public static class ChapterDetector
 {
+    private static readonly Dictionary<char, int> RomanNumerals = new()
+    {
+        ['I'] = 1, ['V'] = 5, ['X'] = 10,
+        ['L'] = 50, ['C'] = 100, ['D'] = 500, ['M'] = 1000
+    };
+
     /// <summary>
-    /// Find all boundaries for a given level using the specified pattern.
+    ///     Find all boundaries for a given level using the specified pattern.
     /// </summary>
     public static List<DetectedBoundary> DetectBoundaries(
         string text,
@@ -72,24 +78,21 @@ public static class ChapterDetector
     }
 
     /// <summary>
-    /// Detect all boundaries at all levels for a given pattern.
-    /// Returns boundaries sorted by character offset.
+    ///     Detect all boundaries at all levels for a given pattern.
+    ///     Returns boundaries sorted by character offset.
     /// </summary>
     public static List<DetectedBoundary> DetectAllBoundaries(string text, StructuralPattern pattern)
     {
         var all = new List<DetectedBoundary>();
 
-        foreach (var level in pattern.MarkersByLevel.Keys)
-        {
-            all.AddRange(DetectBoundaries(text, pattern, level));
-        }
+        foreach (var level in pattern.MarkersByLevel.Keys) all.AddRange(DetectBoundaries(text, pattern, level));
 
         return all.OrderBy(b => b.CharOffset).ToList();
     }
 
     /// <summary>
-    /// Try to extract a sequence number from a regex match.
-    /// Handles: Arabic (1, 2, 3), Roman (I, II, III), English (One, Two, Three).
+    ///     Try to extract a sequence number from a regex match.
+    ///     Handles: Arabic (1, 2, 3), Roman (I, II, III), English (One, Two, Three).
     /// </summary>
     private static int ExtractSequenceNumber(Match match)
     {
@@ -114,12 +117,6 @@ public static class ChapterDetector
 
         return -1;
     }
-
-    private static readonly Dictionary<char, int> RomanNumerals = new()
-    {
-        ['I'] = 1, ['V'] = 5, ['X'] = 10,
-        ['L'] = 50, ['C'] = 100, ['D'] = 500, ['M'] = 1000
-    };
 
     private static int TryParseRoman(string text)
     {

@@ -1,5 +1,5 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
+using Xunit;
 using AggregationStrategy = Mostlylucid.Summarizer.Core.Analysis.AggregationStrategy;
 
 namespace Mostlylucid.DocSummarizer.Images.Tests.Models.Dynamic;
@@ -12,9 +12,9 @@ public class SignalAggregatorTests
         // Arrange
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "low", Confidence = 0.5, Source = "A" },
-            new Signal { Key = "test", Value = "high", Confidence = 0.9, Source = "B" },
-            new Signal { Key = "test", Value = "medium", Confidence = 0.7, Source = "C" }
+            new() { Key = "test", Value = "low", Confidence = 0.5, Source = "A" },
+            new() { Key = "test", Value = "high", Confidence = 0.9, Source = "B" },
+            new() { Key = "test", Value = "medium", Confidence = 0.7, Source = "C" }
         };
 
         // Act
@@ -31,9 +31,12 @@ public class SignalAggregatorTests
         var baseTime = DateTime.UtcNow;
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "old", Confidence = 1.0, Source = "A", Timestamp = baseTime.AddMinutes(-2) },
-            new Signal { Key = "test", Value = "new", Confidence = 1.0, Source = "B", Timestamp = baseTime },
-            new Signal { Key = "test", Value = "middle", Confidence = 1.0, Source = "C", Timestamp = baseTime.AddMinutes(-1) }
+            new() { Key = "test", Value = "old", Confidence = 1.0, Source = "A", Timestamp = baseTime.AddMinutes(-2) },
+            new() { Key = "test", Value = "new", Confidence = 1.0, Source = "B", Timestamp = baseTime },
+            new()
+            {
+                Key = "test", Value = "middle", Confidence = 1.0, Source = "C", Timestamp = baseTime.AddMinutes(-1)
+            }
         };
 
         // Act
@@ -49,9 +52,9 @@ public class SignalAggregatorTests
         // Arrange
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = 10.0, Confidence = 0.8, Source = "A" },
-            new Signal { Key = "test", Value = 20.0, Confidence = 0.6, Source = "B" },
-            new Signal { Key = "test", Value = 30.0, Confidence = 0.4, Source = "C" }
+            new() { Key = "test", Value = 10.0, Confidence = 0.8, Source = "A" },
+            new() { Key = "test", Value = 20.0, Confidence = 0.6, Source = "B" },
+            new() { Key = "test", Value = 30.0, Confidence = 0.4, Source = "C" }
         };
 
         // Act
@@ -71,8 +74,8 @@ public class SignalAggregatorTests
         // Arrange
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "text1", Confidence = 0.5, Source = "A" },
-            new Signal { Key = "test", Value = "text2", Confidence = 0.9, Source = "B" }
+            new() { Key = "test", Value = "text1", Confidence = 0.5, Source = "A" },
+            new() { Key = "test", Value = "text2", Confidence = 0.9, Source = "B" }
         };
 
         // Act
@@ -88,9 +91,9 @@ public class SignalAggregatorTests
         // Arrange
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "A", Confidence = 1.0, Source = "S1" },
-            new Signal { Key = "test", Value = "A", Confidence = 1.0, Source = "S2" },
-            new Signal { Key = "test", Value = "B", Confidence = 1.0, Source = "S3" }
+            new() { Key = "test", Value = "A", Confidence = 1.0, Source = "S1" },
+            new() { Key = "test", Value = "A", Confidence = 1.0, Source = "S2" },
+            new() { Key = "test", Value = "B", Confidence = 1.0, Source = "S3" }
         };
 
         // Act
@@ -106,9 +109,9 @@ public class SignalAggregatorTests
         // Arrange
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "A", Confidence = 1.0, Source = "S1" },
-            new Signal { Key = "test", Value = "B", Confidence = 1.0, Source = "S2" },
-            new Signal { Key = "test", Value = "C", Confidence = 1.0, Source = "S3" }
+            new() { Key = "test", Value = "A", Confidence = 1.0, Source = "S1" },
+            new() { Key = "test", Value = "B", Confidence = 1.0, Source = "S2" },
+            new() { Key = "test", Value = "C", Confidence = 1.0, Source = "S3" }
         };
 
         // Act
@@ -142,12 +145,12 @@ public class SignalAggregatorTests
         // Arrange
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "low", Confidence = 0.3, Source = "A" },
-            new Signal { Key = "test", Value = "high", Confidence = 0.9, Source = "B" }
+            new() { Key = "test", Value = "low", Confidence = 0.3, Source = "A" },
+            new() { Key = "test", Value = "high", Confidence = 0.9, Source = "B" }
         };
 
         // Act
-        var result = SignalAggregator.MergeSignals(signals, "merged.test", "MergeTest", AggregationStrategy.HighestConfidence);
+        var result = SignalAggregator.MergeSignals(signals, "merged.test", "MergeTest");
 
         // Assert
         Assert.NotNull(result);
@@ -162,8 +165,8 @@ public class SignalAggregatorTests
         var baseTime = DateTime.UtcNow;
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "old", Confidence = 1.0, Source = "A", Timestamp = baseTime.AddMinutes(-1) },
-            new Signal { Key = "test", Value = "new", Confidence = 1.0, Source = "B", Timestamp = baseTime }
+            new() { Key = "test", Value = "old", Confidence = 1.0, Source = "A", Timestamp = baseTime.AddMinutes(-1) },
+            new() { Key = "test", Value = "new", Confidence = 1.0, Source = "B", Timestamp = baseTime }
         };
 
         // Act
@@ -180,8 +183,8 @@ public class SignalAggregatorTests
         // Arrange
         var signals = new List<Signal>
         {
-            new Signal { Key = "test", Value = "A", Confidence = 0.8, Source = "S1" },
-            new Signal { Key = "test", Value = "B", Confidence = 0.7, Source = "S2" }
+            new() { Key = "test", Value = "A", Confidence = 0.8, Source = "S1" },
+            new() { Key = "test", Value = "B", Confidence = 0.7, Source = "S2" }
         };
 
         // Act

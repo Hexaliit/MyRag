@@ -2,7 +2,11 @@
   "sources": {
     "hackerNews": {
       "enabled": true,
-      "sections": ["top", "best", "new"],
+      "sections": [
+        "top",
+        "best",
+        "new"
+      ],
       "maxStories": 30,
       "minScore": 50
     },
@@ -72,14 +76,35 @@
     "maxContentLength": 2000,
     "timeoutSeconds": 10,
     "blockedDomains": [
-      "facebook.com", "twitter.com", "x.com", "instagram.com",
-      "linkedin.com", "youtube.com", "tiktok.com",
-      "accounts.google.com", "play.google.com", "apps.apple.com"
+      "facebook.com",
+      "twitter.com",
+      "x.com",
+      "instagram.com",
+      "linkedin.com",
+      "youtube.com",
+      "tiktok.com",
+      "accounts.google.com",
+      "play.google.com",
+      "apps.apple.com"
     ],
     "blockedExtensions": [
-      ".pdf", ".zip", ".tar", ".gz", ".exe", ".dmg",
-      ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp",
-      ".mp3", ".mp4", ".mov", ".avi", ".mkv"
+      ".pdf",
+      ".zip",
+      ".tar",
+      ".gz",
+      ".exe",
+      ".dmg",
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".svg",
+      ".webp",
+      ".mp3",
+      ".mp4",
+      ".mov",
+      ".avi",
+      ".mkv"
     ]
   },
   "email": {

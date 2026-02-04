@@ -2,25 +2,23 @@ using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.FrameStabilization;
 
 /// <summary>
-/// Stabilizes frames in an animated image sequence using feature detection and homography.
-/// Compensates for camera shake and jitter by aligning frames to a common reference.
-///
-/// Algorithm:
-/// 1. Detect ORB features in reference frame (first frame)
-/// 2. Detect ORB features in each target frame
-/// 3. Match features using BFMatcher
-/// 4. Compute homography matrix from matches
-/// 5. Warp target frame to align with reference
+///     Stabilizes frames in an animated image sequence using feature detection and homography.
+///     Compensates for camera shake and jitter by aligning frames to a common reference.
+///     Algorithm:
+///     1. Detect ORB features in reference frame (first frame)
+///     2. Detect ORB features in each target frame
+///     3. Match features using BFMatcher
+///     4. Compute homography matrix from matches
+///     5. Warp target frame to align with reference
 /// </summary>
 public class FrameStabilizer
 {
-    private readonly ILogger<FrameStabilizer>? _logger;
     private readonly double _confidenceThreshold;
+    private readonly ILogger<FrameStabilizer>? _logger;
     private readonly int _maxFeatures;
     private readonly bool _verbose;
 
@@ -37,18 +35,14 @@ public class FrameStabilizer
     }
 
     /// <summary>
-    /// Stabilize a sequence of frames by aligning them to the first frame.
-    /// Returns stabilized frames and confidence scores.
+    ///     Stabilize a sequence of frames by aligning them to the first frame.
+    ///     Returns stabilized frames and confidence scores.
     /// </summary>
     public StabilizationResult StabilizeFrames(List<Image<Rgba32>> frames)
     {
-        if (frames.Count == 0)
-        {
-            throw new ArgumentException("No frames provided", nameof(frames));
-        }
+        if (frames.Count == 0) throw new ArgumentException("No frames provided", nameof(frames));
 
         if (frames.Count == 1)
-        {
             // Single frame - no stabilization needed
             return new StabilizationResult
             {
@@ -57,7 +51,6 @@ public class FrameStabilizer
                 ConfidenceScores = new List<double> { 1.0 },
                 FailedFrameIndices = new List<int>()
             };
-        }
 
         _logger?.LogInformation("Stabilizing {Count} frames using ORB feature detection", frames.Count);
 
@@ -72,7 +65,7 @@ public class FrameStabilizer
         Cv2.CvtColor(referenceFrame, referenceGray, ColorConversionCodes.BGR2GRAY);
 
         // Detect features in reference frame
-        using var orb = ORB.Create(nFeatures: _maxFeatures);
+        using var orb = ORB.Create(_maxFeatures);
         using var referenceKeypoints = new Mat();
         using var referenceDescriptors = new Mat();
 
@@ -100,10 +93,7 @@ public class FrameStabilizer
             };
         }
 
-        if (_verbose)
-        {
-            _logger?.LogDebug("Reference frame: detected {Count} ORB features", refKeyPoints.Length);
-        }
+        if (_verbose) _logger?.LogDebug("Reference frame: detected {Count} ORB features", refKeyPoints.Length);
 
         // First frame is the reference - no transformation needed
         stabilizedFrames.Add(frames[0].Clone());
@@ -111,11 +101,10 @@ public class FrameStabilizer
         confidences.Add(1.0);
 
         // Create matcher for feature matching
-        using var matcher = new BFMatcher(NormTypes.Hamming, crossCheck: true);
+        using var matcher = new BFMatcher(NormTypes.Hamming, true);
 
         // Process each frame
-        for (int i = 1; i < frames.Count; i++)
-        {
+        for (var i = 1; i < frames.Count; i++)
             try
             {
                 // Convert frame to OpenCV format
@@ -171,8 +160,7 @@ public class FrameStabilizer
                 using var homography = Cv2.FindHomography(
                     InputArray.Create(curPoints),
                     InputArray.Create(refPoints),
-                    HomographyMethods.Ransac,
-                    ransacReprojThreshold: 3.0);
+                    HomographyMethods.Ransac);
 
                 if (homography.Empty())
                 {
@@ -211,9 +199,7 @@ public class FrameStabilizer
                     currentFrame,
                     stabilized,
                     homography,
-                    currentFrame.Size(),
-                    InterpolationFlags.Linear,
-                    BorderTypes.Constant);
+                    currentFrame.Size());
 
                 // Convert back to ImageSharp
                 var stabilizedImageSharp = ConvertFromOpenCv(stabilized);
@@ -222,11 +208,9 @@ public class FrameStabilizer
                 confidences.Add(confidence);
 
                 if (_verbose)
-                {
                     _logger?.LogDebug(
                         "Frame {Index}: stabilized with {Matches} matches, confidence={Confidence:F3}",
                         i, goodMatches.Length, confidence);
-                }
 
                 currentDescriptors?.Dispose();
             }
@@ -239,7 +223,6 @@ public class FrameStabilizer
                 confidences.Add(0.0);
                 failedIndices.Add(i);
             }
-        }
 
         _logger?.LogInformation(
             "Stabilization complete: {Success}/{Total} frames stabilized, {Failed} failed",
@@ -255,29 +238,26 @@ public class FrameStabilizer
     }
 
     /// <summary>
-    /// Calculate confidence score for homography based on reprojection error.
+    ///     Calculate confidence score for homography based on reprojection error.
     /// </summary>
     private double CalculateHomographyConfidence(Mat homography, Point2f[] sourcePoints, Point2f[] targetPoints)
     {
         if (sourcePoints.Length == 0) return 0.0;
 
-        double totalError = 0.0;
-        int inliers = 0;
+        var totalError = 0.0;
+        var inliers = 0;
         const double inlierThreshold = 3.0; // pixels
 
-        for (int i = 0; i < sourcePoints.Length; i++)
+        for (var i = 0; i < sourcePoints.Length; i++)
         {
             // Apply homography to source point
-            var src = new double[] { sourcePoints[i].X, sourcePoints[i].Y, 1.0 };
+            var src = new[] { sourcePoints[i].X, sourcePoints[i].Y, 1.0 };
             var transformed = new double[3];
 
-            for (int row = 0; row < 3; row++)
+            for (var row = 0; row < 3; row++)
             {
-                double sum = 0.0;
-                for (int col = 0; col < 3; col++)
-                {
-                    sum += homography.At<double>(row, col) * src[col];
-                }
+                var sum = 0.0;
+                for (var col = 0; col < 3; col++) sum += homography.At<double>(row, col) * src[col];
                 transformed[row] = sum;
             }
 
@@ -292,10 +272,7 @@ public class FrameStabilizer
 
             totalError += error;
 
-            if (error < inlierThreshold)
-            {
-                inliers++;
-            }
+            if (error < inlierThreshold) inliers++;
         }
 
         // Confidence is inlier ratio (0-1)
@@ -304,7 +281,7 @@ public class FrameStabilizer
     }
 
     /// <summary>
-    /// Convert ImageSharp Image to OpenCV Mat (BGR format).
+    ///     Convert ImageSharp Image to OpenCV Mat (BGR format).
     /// </summary>
     private Mat ConvertToOpenCv(Image<Rgba32> image)
     {
@@ -312,10 +289,10 @@ public class FrameStabilizer
 
         image.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < image.Height; y++)
+            for (var y = 0; y < image.Height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < image.Width; x++)
+                for (var x = 0; x < image.Width; x++)
                 {
                     var pixel = row[x];
 
@@ -329,7 +306,7 @@ public class FrameStabilizer
     }
 
     /// <summary>
-    /// Convert OpenCV Mat (BGR format) to ImageSharp Image.
+    ///     Convert OpenCV Mat (BGR format) to ImageSharp Image.
     /// </summary>
     private Image<Rgba32> ConvertFromOpenCv(Mat mat)
     {
@@ -337,10 +314,10 @@ public class FrameStabilizer
 
         image.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < mat.Height; y++)
+            for (var y = 0; y < mat.Height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < mat.Width; x++)
+                for (var x = 0; x < mat.Width; x++)
                 {
                     var bgr = mat.At<Vec3b>(y, x);
 
@@ -355,32 +332,32 @@ public class FrameStabilizer
 }
 
 /// <summary>
-/// Result of frame stabilization operation.
+///     Result of frame stabilization operation.
 /// </summary>
 public record StabilizationResult
 {
     /// <summary>
-    /// Stabilized frames aligned to reference frame.
+    ///     Stabilized frames aligned to reference frame.
     /// </summary>
     public required List<Image<Rgba32>> StabilizedFrames { get; init; }
 
     /// <summary>
-    /// Homography matrices for each frame (null for reference frame or failed frames).
+    ///     Homography matrices for each frame (null for reference frame or failed frames).
     /// </summary>
     public required List<Mat?> HomographyMatrices { get; init; }
 
     /// <summary>
-    /// Confidence scores (0-1) for each stabilization (1.0 = reference frame, 0.0 = failed).
+    ///     Confidence scores (0-1) for each stabilization (1.0 = reference frame, 0.0 = failed).
     /// </summary>
     public required List<double> ConfidenceScores { get; init; }
 
     /// <summary>
-    /// Indices of frames that failed stabilization.
+    ///     Indices of frames that failed stabilization.
     /// </summary>
     public required List<int> FailedFrameIndices { get; init; }
 
     /// <summary>
-    /// Average stabilization confidence across all frames.
+    ///     Average stabilization confidence across all frames.
     /// </summary>
     public double AverageConfidence => ConfidenceScores.Count > 0
         ? ConfidenceScores.Average()

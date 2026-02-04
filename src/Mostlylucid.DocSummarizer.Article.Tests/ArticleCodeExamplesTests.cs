@@ -275,7 +275,7 @@ public class ArticleCodeExamplesTests
         };
 
         // No context
-        var highlighted = result.GetHighlightedText(originalDoc, segment.Id, 0);
+        var highlighted = result.GetHighlightedText(originalDoc, segment.Id);
         Assert.NotNull(highlighted);
         Assert.Equal("World Test", highlighted.SegmentText);
         Assert.Equal("", highlighted.BeforeContext);

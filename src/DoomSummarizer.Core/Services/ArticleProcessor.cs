@@ -1,22 +1,23 @@
+using System.Text;
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Processes articles through DocSummarizer pipeline for signal extraction
-/// and segment-based summarization with evidence tracking.
+///     Processes articles through DocSummarizer pipeline for signal extraction
+///     and segment-based summarization with evidence tracking.
 /// </summary>
 public class ArticleProcessor : IDisposable
 {
+    // Threshold for choosing summarization strategy
+    private const int ShortContentThreshold = 500; // Direct LLM
+    private const int MediumContentThreshold = 2000; // Segment extraction
+    private const int LongContentThreshold = 5000; // Full BertRAG
     private readonly SegmentExtractor _segmentExtractor;
     private bool _disposed;
-
-    // Threshold for choosing summarization strategy
-    private const int ShortContentThreshold = 500;   // Direct LLM
-    private const int MediumContentThreshold = 2000; // Segment extraction
-    private const int LongContentThreshold = 5000;   // Full BertRAG
 
     public ArticleProcessor(OnnxConfig? onnxConfig = null)
     {
@@ -33,24 +34,36 @@ public class ArticleProcessor : IDisposable
         var config = onnxConfig ?? new OnnxConfig();
 
         // Create segment extractor
-        _segmentExtractor = new SegmentExtractor(config, extractionConfig, verbose: false);
+        _segmentExtractor = new SegmentExtractor(config, extractionConfig, false);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _segmentExtractor?.Dispose();
     }
 
     /// <summary>
-    /// Synchronous single-text embedding using the same ONNX model that produces segment embeddings.
-    /// Call after ProcessAsync/ProcessBatchAsync (which initializes the model).
+    ///     Synchronous single-text embedding using the same ONNX model that produces segment embeddings.
+    ///     Call after ProcessAsync/ProcessBatchAsync (which initializes the model).
     /// </summary>
-    public float[] Embed(string text) => _segmentExtractor.Embed(text);
+    public float[] Embed(string text)
+    {
+        return _segmentExtractor.Embed(text);
+    }
 
     /// <summary>
-    /// Ensure the ONNX embedding model is initialized (downloads if needed).
+    ///     Ensure the ONNX embedding model is initialized (downloads if needed).
     /// </summary>
     public Task EnsureInitializedAsync(CancellationToken ct = default)
-        => _segmentExtractor.EnsureInitializedAsync(ct);
+    {
+        return _segmentExtractor.EnsureInitializedAsync(ct);
+    }
 
     /// <summary>
-    /// Process a content item into segments with signals.
-    /// Returns processed article with segments, salience scores, and evidence.
+    ///     Process a content item into segments with signals.
+    ///     Returns processed article with segments, salience scores, and evidence.
     /// </summary>
     public async Task<ProcessedArticle> ProcessAsync(ContentItem item, CancellationToken ct = default)
     {
@@ -169,8 +182,8 @@ public class ArticleProcessor : IDisposable
     }
 
     /// <summary>
-    /// Process multiple articles in batch with bounded parallelism.
-    /// ONNX InferenceSession.Run() is thread-safe, enabling concurrent processing.
+    ///     Process multiple articles in batch with bounded parallelism.
+    ///     ONNX InferenceSession.Run() is thread-safe, enabling concurrent processing.
     /// </summary>
     public async Task<List<ProcessedArticle>> ProcessBatchAsync(
         List<ContentItem> items,
@@ -200,11 +213,11 @@ public class ArticleProcessor : IDisposable
     }
 
     /// <summary>
-    /// Build summary context from top segments with evidence references.
+    ///     Build summary context from top segments with evidence references.
     /// </summary>
     public string BuildSummaryContext(ProcessedArticle article, bool includeReferences = true)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         sb.AppendLine($"# {article.Item.Title}");
         if (!string.IsNullOrEmpty(article.Item.Url))
@@ -227,14 +240,11 @@ public class ArticleProcessor : IDisposable
                 var marker = salience > 0.8 ? "[HIGH]" : salience > 0.5 ? "[MED]" : "";
 
                 if (includeReferences)
-                {
                     sb.AppendLine($"- {marker} {segment.Text} [ref:{segment.Id}]");
-                }
                 else
-                {
                     sb.AppendLine($"- {segment.Text}");
-                }
             }
+
             sb.AppendLine();
         }
 
@@ -243,7 +253,7 @@ public class ArticleProcessor : IDisposable
 
     private static string BuildArticleContent(ContentItem item)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         // Title as heading
         sb.AppendLine($"# {item.Title}");
@@ -257,10 +267,7 @@ public class ArticleProcessor : IDisposable
         sb.AppendLine();
 
         // Main content
-        if (!string.IsNullOrEmpty(item.Content))
-        {
-            sb.AppendLine(item.Content);
-        }
+        if (!string.IsNullOrEmpty(item.Content)) sb.AppendLine(item.Content);
 
         // Append linked page content (one-hop followed links)
         if (item.LinkedPages.Count > 0)
@@ -307,17 +314,10 @@ public class ArticleProcessor : IDisposable
 
         return ContentType.Unknown;
     }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _segmentExtractor?.Dispose();
-    }
 }
 
 /// <summary>
-/// Processing strategy based on content length/complexity.
+///     Processing strategy based on content length/complexity.
 /// </summary>
 public enum ProcessingStrategy
 {
@@ -335,7 +335,7 @@ public enum ProcessingStrategy
 }
 
 /// <summary>
-/// Result of processing an article through the pipeline.
+///     Result of processing an article through the pipeline.
 /// </summary>
 public class ProcessedArticle
 {
@@ -350,7 +350,7 @@ public class ProcessedArticle
 }
 
 /// <summary>
-/// A segment extracted from an article with signals.
+///     A segment extracted from an article with signals.
 /// </summary>
 public class ArticleSegment
 {
@@ -367,7 +367,7 @@ public class ArticleSegment
 }
 
 /// <summary>
-/// Statistics from deduplication.
+///     Statistics from deduplication.
 /// </summary>
 public class DeduplicationStats
 {

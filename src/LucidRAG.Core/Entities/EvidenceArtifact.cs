@@ -4,95 +4,94 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace LucidRAG.Entities;
 
 /// <summary>
-/// Evidence artifact stored for a retrieval entity.
-/// Metadata in database, actual content in blob storage (filesystem/S3).
+///     Evidence artifact stored for a retrieval entity.
+///     Metadata in database, actual content in blob storage (filesystem/S3).
 /// </summary>
 public class EvidenceArtifact
 {
-    [Key]
-    public Guid Id { get; set; }
+    [Key] public Guid Id { get; set; }
 
     /// <summary>
-    /// Parent entity this evidence belongs to.
+    ///     Parent entity this evidence belongs to.
     /// </summary>
     public Guid EntityId { get; set; }
 
     /// <summary>
-    /// Type of evidence artifact (see EvidenceTypes constants).
+    ///     Type of evidence artifact (see EvidenceTypes constants).
     /// </summary>
     [Required]
     [MaxLength(64)]
     public required string ArtifactType { get; set; }
 
     /// <summary>
-    /// MIME type of the stored content.
+    ///     MIME type of the stored content.
     /// </summary>
     [Required]
     [MaxLength(128)]
     public required string MimeType { get; set; }
 
     /// <summary>
-    /// Storage backend: 'filesystem', 's3', 'azure_blob'
+    ///     Storage backend: 'filesystem', 's3', 'azure_blob'
     /// </summary>
     [Required]
     [MaxLength(32)]
     public required string StorageBackend { get; set; }
 
     /// <summary>
-    /// Path or key within the storage backend.
+    ///     Path or key within the storage backend.
     /// </summary>
     [Required]
     [MaxLength(2048)]
     public required string StoragePath { get; set; }
 
     /// <summary>
-    /// Size of the stored content in bytes.
+    ///     Size of the stored content in bytes.
     /// </summary>
     public long FileSizeBytes { get; set; }
 
     /// <summary>
-    /// SHA256 hash of the content for deduplication.
+    ///     SHA256 hash of the content for deduplication.
     /// </summary>
     [MaxLength(64)]
     public string? ContentHash { get; set; }
 
     /// <summary>
-    /// Segment-level content hash for RAG hydration lookups.
-    /// Used to retrieve segment text from evidence when vector store returns only embeddings.
-    /// Indexed for fast lookups.
+    ///     Segment-level content hash for RAG hydration lookups.
+    ///     Used to retrieve segment text from evidence when vector store returns only embeddings.
+    ///     Indexed for fast lookups.
     /// </summary>
     [MaxLength(32)]
     public string? SegmentHash { get; set; }
 
     /// <summary>
-    /// Inline content for text artifacts (segment_text, transcript, etc.).
-    /// Enables PostgreSQL full-text search with tsvector/GIN indexes.
-    /// For binary/large content (images, PDFs), use blob storage instead.
+    ///     Inline content for text artifacts (segment_text, transcript, etc.).
+    ///     Enables PostgreSQL full-text search with tsvector/GIN indexes.
+    ///     For binary/large content (images, PDFs), use blob storage instead.
     /// </summary>
     public string? Content { get; set; }
 
     /// <summary>
-    /// What produced this evidence (e.g., 'tesseract', 'whisper', 'claude-3').
+    ///     What produced this evidence (e.g., 'tesseract', 'whisper', 'claude-3').
     /// </summary>
     [MaxLength(128)]
     public string? ProducerSource { get; set; }
 
     /// <summary>
-    /// Version of the producer.
+    ///     Version of the producer.
     /// </summary>
     [MaxLength(32)]
     public string? ProducerVersion { get; set; }
 
     /// <summary>
-    /// Confidence score if applicable (0-1).
+    ///     Confidence score if applicable (0-1).
     /// </summary>
     public double? Confidence { get; set; }
 
     /// <summary>
-    /// Type-specific metadata (JSON).
-    /// For OCR: bounding boxes, language, word count.
-    /// For frames: timestamp, frame number, scene label.
-    /// For transcripts: start/end time, speaker.
+    ///     Type-specific metadata (JSON).
+    ///     For OCR: bounding boxes, language, word count.
+    ///     For frames: timestamp, frame number, scene label.
+    ///     For transcripts: start/end time, speaker.
     /// </summary>
     [Column(TypeName = "jsonb")]
     public string? Metadata { get; set; }
@@ -100,7 +99,7 @@ public class EvidenceArtifact
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
-    /// Optional expiration for temporary artifacts.
+    ///     Optional expiration for temporary artifacts.
     /// </summary>
     public DateTimeOffset? ExpiresAt { get; set; }
 
@@ -109,13 +108,13 @@ public class EvidenceArtifact
 }
 
 /// <summary>
-/// Standard evidence artifact types.
+///     Standard evidence artifact types.
 /// </summary>
 public static class EvidenceTypes
 {
     // Document/Text Evidence
-    public const string SegmentText = "segment_text";     // RAG segment text content
-    public const string DocumentText = "document_text";   // Full document text
+    public const string SegmentText = "segment_text"; // RAG segment text content
+    public const string DocumentText = "document_text"; // Full document text
     public const string OcrText = "ocr_text";
     public const string OcrWordBoxes = "ocr_word_boxes";
     public const string OcrConfidenceMap = "ocr_confidence_map";
@@ -124,10 +123,10 @@ public static class EvidenceTypes
     public const string LlmEntities = "llm_entities";
 
     // Image/Visual Evidence (from ImageSummarizer/VisionLLM)
-    public const string ImageCaption = "image_caption";       // AI-generated caption
-    public const string ImageAltText = "image_alt_text";      // Original alt text
-    public const string ImageOcrText = "image_ocr_text";      // Text extracted from image
-    public const string ImageMetadata = "image_metadata";     // EXIF, dimensions, etc.
+    public const string ImageCaption = "image_caption"; // AI-generated caption
+    public const string ImageAltText = "image_alt_text"; // Original alt text
+    public const string ImageOcrText = "image_ocr_text"; // Text extracted from image
+    public const string ImageMetadata = "image_metadata"; // EXIF, dimensions, etc.
 
     // Image Evidence
     public const string OriginalImage = "original_image";
@@ -143,19 +142,19 @@ public static class EvidenceTypes
 
     // Audio Evidence
     public const string Transcript = "transcript";
-    public const string TranscriptSrt = "transcript_srt";         // SRT subtitle format (with speaker labels)
-    public const string TranscriptVtt = "transcript_vtt";         // WebVTT subtitle format
+    public const string TranscriptSrt = "transcript_srt"; // SRT subtitle format (with speaker labels)
+    public const string TranscriptVtt = "transcript_vtt"; // WebVTT subtitle format
     public const string TranscriptSegments = "transcript_segments";
     public const string SpeakerDiarization = "speaker_diarization";
-    public const string SpeakerSample = "speaker_sample";         // Audio clip of speaker
+    public const string SpeakerSample = "speaker_sample"; // Audio clip of speaker
     public const string AudioWaveform = "audio_waveform";
-    public const string AudioSignals = "audio_signals";           // Forensic audio signals
+    public const string AudioSignals = "audio_signals"; // Forensic audio signals
 
     // Audio Stem Evidence (Source Separation)
-    public const string StemVocals = "stem_vocals";               // Separated vocals track
-    public const string StemDrums = "stem_drums";                 // Separated drums track
-    public const string StemBass = "stem_bass";                   // Separated bass track
-    public const string StemOther = "stem_other";                 // Separated other/melody track
+    public const string StemVocals = "stem_vocals"; // Separated vocals track
+    public const string StemDrums = "stem_drums"; // Separated drums track
+    public const string StemBass = "stem_bass"; // Separated bass track
+    public const string StemOther = "stem_other"; // Separated other/melody track
     public const string StemInstrumentals = "stem_instrumentals"; // Combined instrumentals (non-vocal)
 
     // Analysis Evidence
@@ -179,7 +178,7 @@ public static class EvidenceTypes
 }
 
 /// <summary>
-/// Metadata for OCR evidence artifacts.
+///     Metadata for OCR evidence artifacts.
 /// </summary>
 public record OcrEvidenceMetadata
 {
@@ -192,7 +191,7 @@ public record OcrEvidenceMetadata
 }
 
 /// <summary>
-/// Metadata for video frame evidence.
+///     Metadata for video frame evidence.
 /// </summary>
 public record FrameEvidenceMetadata
 {
@@ -204,7 +203,7 @@ public record FrameEvidenceMetadata
 }
 
 /// <summary>
-/// Metadata for transcript evidence.
+///     Metadata for transcript evidence.
 /// </summary>
 public record TranscriptEvidenceMetadata
 {
@@ -216,7 +215,7 @@ public record TranscriptEvidenceMetadata
 }
 
 /// <summary>
-/// Metadata for LLM-generated evidence (provenance tracking).
+///     Metadata for LLM-generated evidence (provenance tracking).
 /// </summary>
 public record LlmEvidenceMetadata
 {
@@ -230,7 +229,7 @@ public record LlmEvidenceMetadata
 }
 
 /// <summary>
-/// Bounding box for spatial evidence.
+///     Bounding box for spatial evidence.
 /// </summary>
 public record BoundingBox
 {
@@ -241,7 +240,7 @@ public record BoundingBox
 }
 
 /// <summary>
-/// Metadata for data profile evidence (DataSummarizer outputs).
+///     Metadata for data profile evidence (DataSummarizer outputs).
 /// </summary>
 public record DataEvidenceMetadata
 {
@@ -280,7 +279,7 @@ public record DataEvidenceMetadata
 }
 
 /// <summary>
-/// Metadata for table extraction evidence (PDF tables).
+///     Metadata for table extraction evidence (PDF tables).
 /// </summary>
 public record TableEvidenceMetadata
 {
@@ -310,7 +309,7 @@ public record TableEvidenceMetadata
 }
 
 /// <summary>
-/// Metadata for speaker diarization evidence.
+///     Metadata for speaker diarization evidence.
 /// </summary>
 public record SpeakerDiarizationMetadata
 {
@@ -337,7 +336,7 @@ public record SpeakerDiarizationMetadata
 }
 
 /// <summary>
-/// Metadata for speaker audio sample evidence.
+///     Metadata for speaker audio sample evidence.
 /// </summary>
 public record SpeakerSampleMetadata
 {
@@ -364,7 +363,7 @@ public record SpeakerSampleMetadata
 }
 
 /// <summary>
-/// Metadata for audio forensic signals evidence.
+///     Metadata for audio forensic signals evidence.
 /// </summary>
 public record AudioSignalsMetadata
 {

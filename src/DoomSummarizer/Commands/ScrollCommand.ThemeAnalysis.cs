@@ -1,19 +1,19 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
-using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Theme extraction, story connections, fallback summary generation, key theme analysis.
+///     Theme extraction, story connections, fallback summary generation, key theme analysis.
 /// </summary>
 public partial class ScrollCommand
 {
     /// <summary>
-    /// Display story connections based on shared named entities.
-    /// Shows which articles are linked by people, organizations, locations.
+    ///     Display story connections based on shared named entities.
+    ///     Shows which articles are linked by people, organizations, locations.
     /// </summary>
     private static void DisplayStoryConnections(
         List<(ContentItem item, List<NerEntity> entities)> articleEntityMap)
@@ -23,17 +23,15 @@ public partial class ScrollCommand
             StringComparer.OrdinalIgnoreCase);
 
         foreach (var (item, entities) in articleEntityMap)
+        foreach (var entity in entities.Where(e => e.Confidence >= 0.6))
         {
-            foreach (var entity in entities.Where(e => e.Confidence >= 0.6))
-            {
-                var key = entity.Text.Trim();
-                if (key.Length < 2) continue;
-                if (!entityToArticles.ContainsKey(key))
-                    entityToArticles[key] = [];
-                // Avoid duplicate articles per entity
-                if (entityToArticles[key].All(a => a.item.Id != item.Id))
-                    entityToArticles[key].Add((item, entity));
-            }
+            var key = entity.Text.Trim();
+            if (key.Length < 2) continue;
+            if (!entityToArticles.ContainsKey(key))
+                entityToArticles[key] = [];
+            // Avoid duplicate articles per entity
+            if (entityToArticles[key].All(a => a.item.Id != item.Id))
+                entityToArticles[key].Add((item, entity));
         }
 
         // Find entities that connect 2+ articles (these are the interesting ones)
@@ -89,7 +87,7 @@ public partial class ScrollCommand
         string vibe,
         IngestDocumentType docType = IngestDocumentType.Unknown)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         var heading = docType switch
         {
             IngestDocumentType.Fiction => "Document Analysis",
@@ -175,7 +173,8 @@ public partial class ScrollCommand
                 < -0.1f => "-",
                 _ => "~"
             };
-            sb.AppendLine($"### {topicTitle} [{sentimentIndicator}] ({group.Count()} items, top relevance: {topRelevance:F2})");
+            sb.AppendLine(
+                $"### {topicTitle} [{sentimentIndicator}] ({group.Count()} items, top relevance: {topRelevance:F2})");
 
             foreach (var item in group.OrderByDescending(i => i.relevance).Take(5))
             {
@@ -191,6 +190,7 @@ public partial class ScrollCommand
 
                 sb.AppendLine($"- {sentimentIcon} {pct}% {item.title}");
             }
+
             sb.AppendLine();
         }
 
@@ -198,8 +198,8 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Build a structured theme briefing with named themes, evidence counts,
-    /// supporting snippets (tagged to evidence IDs), and key entities/terms.
+    ///     Build a structured theme briefing with named themes, evidence counts,
+    ///     supporting snippets (tagged to evidence IDs), and key entities/terms.
     /// </summary>
     internal static ThemeBriefing ExtractThemeBriefing(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
@@ -218,21 +218,15 @@ public partial class ScrollCommand
         var entitiesByUrl = new Dictionary<string, List<(string name, string type, double confidence)>>(
             StringComparer.OrdinalIgnoreCase);
         if (itemEntities != null)
-        {
             foreach (var ci in contentItems)
-            {
                 if (!string.IsNullOrEmpty(ci.Url) && itemEntities.TryGetValue(ci.Id, out var ents))
                     entitiesByUrl.TryAdd(ci.Url, ents);
-            }
-        }
 
         // Build evidence index (E1, E2...) from analyzed items
         var evidenceIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < analyzedItems.Count; i++)
-        {
             if (!string.IsNullOrEmpty(analyzedItems[i].url) && !evidenceIndex.ContainsKey(analyzedItems[i].url))
                 evidenceIndex[analyzedItems[i].url] = i + 1;
-        }
 
         // Group analyzed items by topic
         var topicGroups = analyzedItems
@@ -255,33 +249,24 @@ public partial class ScrollCommand
             // Find evidence IDs for this group
             var groupEvidenceIds = new List<int>();
             foreach (var item in group)
-            {
                 if (!string.IsNullOrEmpty(item.url) && evidenceIndex.TryGetValue(item.url, out var eid))
                     groupEvidenceIds.Add(eid);
-            }
             theme.EvidenceIds = groupEvidenceIds.Distinct().OrderBy(x => x).ToList();
 
             // Extract NER entities from the knowledge graph for this theme group
             var groupGraphEntities = new Dictionary<string, (string name, string type, int count, double maxConf)>(
                 StringComparer.OrdinalIgnoreCase);
             foreach (var item in group)
-            {
                 if (!string.IsNullOrEmpty(item.url) && entitiesByUrl.TryGetValue(item.url, out var ents))
-                {
                     foreach (var (name, type, conf) in ents)
                     {
                         var key = name.ToLowerInvariant();
                         if (groupGraphEntities.TryGetValue(key, out var existing))
-                        {
-                            groupGraphEntities[key] = (name, type, existing.count + 1, Math.Max(existing.maxConf, conf));
-                        }
+                            groupGraphEntities[key] = (name, type, existing.count + 1,
+                                Math.Max(existing.maxConf, conf));
                         else
-                        {
                             groupGraphEntities[key] = (name, type, 1, conf);
-                        }
                     }
-                }
-            }
 
             // Use NER entities as GraphEntities (ranked by cross-article count, then confidence)
             // Deduplicate: remove entities that are substrings of higher-ranked entities
@@ -326,12 +311,16 @@ public partial class ScrollCommand
                     var rawText = $"{item.title} {item.summary} {ci?.Content ?? ""}";
                     var text = CleanMarkdownForSnippet(rawText);
                     var tokens = text
-                        .Split([' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '"', '\'', '\u2014', '\u2013', '-', '/'],
+                        .Split(
+                            [
+                                ' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '"', '\'',
+                                '\u2014', '\u2013', '-', '/'
+                            ],
                             StringSplitOptions.RemoveEmptyEntries)
                         .Select(t => t.Trim().ToLowerInvariant())
                         .Where(t => t.Length >= 4 && t.Length <= 25
-                                    && !stopWords.Contains(t) && !int.TryParse(t, out _)
-                                    && !IsUrlFragment(t))
+                                                  && !stopWords.Contains(t) && !int.TryParse(t, out _)
+                                                  && !IsUrlFragment(t))
                         .ToList();
 
                     foreach (var token in tokens.Distinct())
@@ -372,7 +361,8 @@ public partial class ScrollCommand
                 if (snippet != null && theme.Snippets.Count < 2)
                 {
                     var eid = !string.IsNullOrEmpty(item.url) && evidenceIndex.TryGetValue(item.url, out var id)
-                        ? id : (int?)null;
+                        ? id
+                        : (int?)null;
                     theme.Snippets.Add((snippet, eid));
                 }
             }
@@ -392,8 +382,14 @@ public partial class ScrollCommand
             .Where(u => !string.IsNullOrEmpty(u))
             .Select(u =>
             {
-                try { return new Uri(u!).Host; }
-                catch { return u!; }
+                try
+                {
+                    return new Uri(u!).Host;
+                }
+                catch
+                {
+                    return u!;
+                }
             })
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
@@ -422,7 +418,7 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Extract the most relevant sentence from content that mentions key terms.
+    ///     Extract the most relevant sentence from content that mentions key terms.
     /// </summary>
     private static string? ExtractBestSentence(string content, List<string> keyTerms)
     {
@@ -463,7 +459,7 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Strip markdown syntax from content for clean snippet extraction.
+    ///     Strip markdown syntax from content for clean snippet extraction.
     /// </summary>
     private static string CleanMarkdownForSnippet(string content)
     {
@@ -484,7 +480,7 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Build a thesis-style theme name from topic + key terms.
+    ///     Build a thesis-style theme name from topic + key terms.
     /// </summary>
     private static string BuildThesisName(string topic, List<string> keyTerms, int count)
     {
@@ -520,47 +516,52 @@ public partial class ScrollCommand
         return $"{topicLabel}: {termPhrase}";
     }
 
-    private static HashSet<string> BuildStopWordSet() => new(StringComparer.OrdinalIgnoreCase)
+    private static HashSet<string> BuildStopWordSet()
     {
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-        "been", "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "could", "should", "may", "might", "shall", "can", "need",
-        "it", "its", "this", "that", "these", "those", "he", "she", "they",
-        "we", "you", "me", "my", "your", "his", "her", "our", "their",
-        "not", "no", "nor", "so", "if", "then", "than", "too", "very",
-        "just", "about", "also", "more", "most", "some", "any", "all",
-        "each", "every", "both", "few", "many", "much", "such", "own",
-        "same", "other", "new", "old", "first", "last", "long", "great",
-        "said", "says", "like", "well", "back", "even", "still",
-        "take", "come", "make", "know", "get", "got", "see", "look",
-        "think", "give", "use", "find", "tell", "ask", "work", "seem",
-        "news", "articles", "article", "latest", "generated", "content",
-        "page", "pages", "site", "website", "click", "link", "links",
-        "share", "comment", "comments", "posted", "updated", "subscribe",
-        "read", "related", "view", "here", "there", "only", "into",
-        "over", "after", "before", "between", "under", "since", "during",
-        "through", "against", "now", "where", "when", "what", "which",
-        "who", "how", "why", "because", "although", "though", "whether",
-        "already", "yet", "never", "always", "often", "ever", "really",
-        "using", "used", "been", "being", "having", "going", "made",
-        "based", "including", "another", "several", "less", "given",
-        // Blog/web boilerplate
-        "introduction", "conclusion", "summary", "overview", "section",
-        "series", "navigation", "part", "chapter", "previous", "next",
-        "blog", "post", "author", "date", "tags", "category",
-        // URL fragments
-        "http", "https", "www", "html", "com", "org", "net"
-    };
+        return new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+            "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
+            "been", "being", "have", "has", "had", "do", "does", "did", "will",
+            "would", "could", "should", "may", "might", "shall", "can", "need",
+            "it", "its", "this", "that", "these", "those", "he", "she", "they",
+            "we", "you", "me", "my", "your", "his", "her", "our", "their",
+            "not", "no", "nor", "so", "if", "then", "than", "too", "very",
+            "just", "about", "also", "more", "most", "some", "any", "all",
+            "each", "every", "both", "few", "many", "much", "such", "own",
+            "same", "other", "new", "old", "first", "last", "long", "great",
+            "said", "says", "like", "well", "back", "even", "still",
+            "take", "come", "make", "know", "get", "got", "see", "look",
+            "think", "give", "use", "find", "tell", "ask", "work", "seem",
+            "news", "articles", "article", "latest", "generated", "content",
+            "page", "pages", "site", "website", "click", "link", "links",
+            "share", "comment", "comments", "posted", "updated", "subscribe",
+            "read", "related", "view", "here", "there", "only", "into",
+            "over", "after", "before", "between", "under", "since", "during",
+            "through", "against", "now", "where", "when", "what", "which",
+            "who", "how", "why", "because", "although", "though", "whether",
+            "already", "yet", "never", "always", "often", "ever", "really",
+            "using", "used", "been", "being", "having", "going", "made",
+            "based", "including", "another", "several", "less", "given",
+            // Blog/web boilerplate
+            "introduction", "conclusion", "summary", "overview", "section",
+            "series", "navigation", "part", "chapter", "previous", "next",
+            "blog", "post", "author", "date", "tags", "category",
+            // URL fragments
+            "http", "https", "www", "html", "com", "org", "net"
+        };
+    }
 
     /// <summary>
-    /// Check if a token looks like a URL fragment and should be excluded from key terms.
+    ///     Check if a token looks like a URL fragment and should be excluded from key terms.
     /// </summary>
-    private static bool IsUrlFragment(string token) =>
-        token.Contains("//") || token.Contains("www.") || token.Contains(".com")
-        || token.Contains(".net") || token.Contains(".org") || token.Contains(".io")
-        || token.StartsWith("http") || token.Contains("/blog/")
-        || token.All(c => c == '/' || c == '.' || c == ':');
+    private static bool IsUrlFragment(string token)
+    {
+        return token.Contains("//") || token.Contains("www.") || token.Contains(".com")
+               || token.Contains(".net") || token.Contains(".org") || token.Contains(".io")
+               || token.StartsWith("http") || token.Contains("/blog/")
+               || token.All(c => c == '/' || c == '.' || c == ':');
+    }
 
     [GeneratedRegex(@"^#{1,6}\s+", RegexOptions.Multiline)]
     private static partial Regex MarkdownHeadingRegex();
@@ -580,40 +581,12 @@ public partial class ScrollCommand
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
 
-    /// <summary>
-    /// Theme briefing data model.
-    /// </summary>
-    internal class ThemeBriefing
-    {
-        public List<ThemeEntry> Themes { get; set; } = [];
-        public int TotalEvidenceItems { get; set; }
-        public int ItemsInThemes { get; set; }
-        public int SourceCount { get; set; }
-        public int GraphEntityCount { get; set; }
-        public List<string> MissingTopics { get; set; } = [];
-
-        public int CoveragePercent =>
-            TotalEvidenceItems > 0 ? (int)(ItemsInThemes * 100.0 / TotalEvidenceItems) : 0;
-
-        public bool HasGraphEntities => GraphEntityCount > 0;
-    }
-
-    internal class ThemeEntry
-    {
-        public string TopicLabel { get; set; } = "";
-        public string ThesisName { get; set; } = "";
-        public int SegmentCount { get; set; }
-        public List<int> EvidenceIds { get; set; } = [];
-        public List<string> KeyTerms { get; set; } = [];
-        public List<(string name, string type)> GraphEntities { get; set; } = [];
-        public List<(string text, int? evidenceId)> Snippets { get; set; } = [];
-    }
-
     internal static (
         List<(string topic, int count)> topics,
         List<(string term, int articles)> terms)
         ExtractKeyThemes(
-            List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
+            List<(string title, string summary, string topic, float sentiment, string url, double relevance)>
+                analyzedItems,
             List<ContentItem> contentItems)
     {
         // Topic distribution from analyzed items
@@ -682,13 +655,17 @@ public partial class ScrollCommand
         {
             var text = $"{item.Title} {item.Content ?? ""}";
             var tokens = text
-                .Split([' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '{', '}', '"', '\'', '\u2014', '\u2013', '-', '/', '\\'],
+                .Split(
+                    [
+                        ' ', '\t', '\n', '\r', ',', '.', '!', '?', ':', ';', '(', ')', '[', ']', '{', '}', '"', '\'',
+                        '\u2014', '\u2013', '-', '/', '\\'
+                    ],
                     StringSplitOptions.RemoveEmptyEntries)
                 .Select(t => t.Trim().ToLowerInvariant())
                 .Where(t => t.Length >= 4 && t.Length <= 30
-                            && !stopWords.Contains(t) && !int.TryParse(t, out _)
-                            && !t.StartsWith("http") && !t.Contains("www.")
-                            && !t.Contains(".com") && !t.Contains(".org") && !t.Contains(".net"))
+                                          && !stopWords.Contains(t) && !int.TryParse(t, out _)
+                                          && !t.StartsWith("http") && !t.Contains("www.")
+                                          && !t.Contains(".com") && !t.Contains(".org") && !t.Contains(".net"))
                 .Distinct()
                 .ToList();
 
@@ -712,4 +689,32 @@ public partial class ScrollCommand
         return (topics, terms);
     }
 
+    /// <summary>
+    ///     Theme briefing data model.
+    /// </summary>
+    internal class ThemeBriefing
+    {
+        public List<ThemeEntry> Themes { get; set; } = [];
+        public int TotalEvidenceItems { get; set; }
+        public int ItemsInThemes { get; set; }
+        public int SourceCount { get; set; }
+        public int GraphEntityCount { get; set; }
+        public List<string> MissingTopics { get; set; } = [];
+
+        public int CoveragePercent =>
+            TotalEvidenceItems > 0 ? (int)(ItemsInThemes * 100.0 / TotalEvidenceItems) : 0;
+
+        public bool HasGraphEntities => GraphEntityCount > 0;
+    }
+
+    internal class ThemeEntry
+    {
+        public string TopicLabel { get; set; } = "";
+        public string ThesisName { get; set; } = "";
+        public int SegmentCount { get; set; }
+        public List<int> EvidenceIds { get; set; } = [];
+        public List<string> KeyTerms { get; set; } = [];
+        public List<(string name, string type)> GraphEntities { get; set; } = [];
+        public List<(string text, int? evidenceId)> Snippets { get; set; } = [];
+    }
 }

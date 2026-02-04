@@ -9,7 +9,6 @@ using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Detection;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 using Xunit.Abstractions;
 using BoundingBox = Mostlylucid.DocSummarizer.Images.Services.Ocr.BoundingBox;
@@ -17,13 +16,13 @@ using BoundingBox = Mostlylucid.DocSummarizer.Images.Services.Ocr.BoundingBox;
 namespace Mostlylucid.DocSummarizer.Images.Tests.Services.Analysis.Waves;
 
 /// <summary>
-/// Tests for TextDetectionWave - Signal emission from EAST/CRAFT detection.
+///     Tests for TextDetectionWave - Signal emission from EAST/CRAFT detection.
 /// </summary>
 public class TextDetectionWaveTests : IDisposable
 {
+    private readonly Mock<ILogger<TextDetectionWave>> _loggerMock;
     private readonly ITestOutputHelper _output;
     private readonly string _testDir;
-    private readonly Mock<ILogger<TextDetectionWave>> _loggerMock;
 
     public TextDetectionWaveTests(ITestOutputHelper output)
     {
@@ -36,10 +35,14 @@ public class TextDetectionWaveTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_testDir))
-        {
-            try { Directory.Delete(_testDir, true); }
-            catch { /* ignore cleanup errors */ }
-        }
+            try
+            {
+                Directory.Delete(_testDir, true);
+            }
+            catch
+            {
+                /* ignore cleanup errors */
+            }
     }
 
     [Fact]
@@ -58,7 +61,7 @@ public class TextDetectionWaveTests : IDisposable
     public void ShouldRun_ReturnsFalse_WhenDetectionServiceIsNull()
     {
         // Arrange
-        var wave = new TextDetectionWave(detectionService: null);
+        var wave = new TextDetectionWave(null);
         var context = new AnalysisContext();
 
         // Act
@@ -78,7 +81,8 @@ public class TextDetectionWaveTests : IDisposable
 
         var context = new AnalysisContext();
         context.AddSignal(new Signal { Key = "route.selected", Value = "fast", Confidence = 1.0, Source = "test" });
-        context.AddSignal(new Signal { Key = "content.text_likeliness", Value = 0.1, Confidence = 1.0, Source = "test" });
+        context.AddSignal(
+            new Signal { Key = "content.text_likeliness", Value = 0.1, Confidence = 1.0, Source = "test" });
 
         // Act
         var shouldRun = wave.ShouldRun("test.png", context);
@@ -99,7 +103,8 @@ public class TextDetectionWaveTests : IDisposable
 
         var context = new AnalysisContext();
         context.AddSignal(new Signal { Key = "route.selected", Value = "fast", Confidence = 1.0, Source = "test" });
-        context.AddSignal(new Signal { Key = "content.text_likeliness", Value = 0.5, Confidence = 1.0, Source = "test" });
+        context.AddSignal(
+            new Signal { Key = "content.text_likeliness", Value = 0.5, Confidence = 1.0, Source = "test" });
 
         // Act
         var shouldRun = wave.ShouldRun("test.png", context);
@@ -130,7 +135,7 @@ public class TextDetectionWaveTests : IDisposable
     public async Task AnalyzeAsync_EmitsMethodSignal()
     {
         // Arrange
-        var mockService = CreateMockDetectionService(detectionMethod: "TesseractPSM", boxCount: 0);
+        var mockService = CreateMockDetectionService("TesseractPSM", 0);
         var config = Options.Create(new ImageConfig());
         var wave = new TextDetectionWave(mockService, config, _loggerMock.Object);
         var imagePath = CreateTestImage("method.png", 200, 200);
@@ -152,7 +157,7 @@ public class TextDetectionWaveTests : IDisposable
     public async Task AnalyzeAsync_EmitsRegionCountSignal()
     {
         // Arrange - Using fallback TesseractPSM which returns 0 regions (full image OCR mode)
-        var mockService = CreateMockDetectionService(detectionMethod: "TesseractPSM", boxCount: 0);
+        var mockService = CreateMockDetectionService("TesseractPSM", 0);
         var config = Options.Create(new ImageConfig());
         var wave = new TextDetectionWave(mockService, config, _loggerMock.Object);
         var imagePath = CreateTestImage("regions.png", 400, 300);
@@ -208,7 +213,7 @@ public class TextDetectionWaveTests : IDisposable
     public async Task AnalyzeAsync_EmitsFalseHasText_WhenNoRegions()
     {
         // Arrange - no regions
-        var mockService = CreateMockDetectionService(detectionMethod: "TesseractPSM", boxCount: 0);
+        var mockService = CreateMockDetectionService("TesseractPSM", 0);
         var config = Options.Create(new ImageConfig());
         var wave = new TextDetectionWave(mockService, config, _loggerMock.Object);
         var imagePath = CreateTestImage("notext.png", 200, 200);
@@ -340,7 +345,7 @@ public class TextDetectionWaveTests : IDisposable
     public async Task AnalyzeAsync_EmitsUnavailableStatus_WhenNoService()
     {
         // Arrange
-        var wave = new TextDetectionWave(detectionService: null);
+        var wave = new TextDetectionWave(null);
         var imagePath = CreateTestImage("noservice.png", 100, 100);
         var context = new AnalysisContext();
 
@@ -365,7 +370,7 @@ public class TextDetectionWaveTests : IDisposable
         // Create a real service with mock model downloader that returns fallback
         var modelsDir = Path.Combine(_testDir, "models");
         Directory.CreateDirectory(modelsDir);
-        var modelDownloader = new ModelDownloader(modelsDir, autoDownload: false);
+        var modelDownloader = new ModelDownloader(modelsDir, false);
 
         var config = new OcrConfig { EnableTextDetection = true };
 

@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
@@ -8,14 +10,14 @@ using Spectre.Console;
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Output rendering for the scroll command: JSON, markdown panel, briefing, entities, images, email.
+///     Output rendering for the scroll command: JSON, markdown panel, briefing, entities, images, email.
 /// </summary>
 public sealed partial class ScrollCommand
 {
     /// <summary>
-    /// Stream LLM synthesis tokens directly to console as they arrive.
-    /// Used for perceived speed: evidence/links are shown first, then tokens stream in.
-    /// Includes repetition detection to halt degenerate model output.
+    ///     Stream LLM synthesis tokens directly to console as they arrive.
+    ///     Used for perceived speed: evidence/links are shown first, then tokens stream in.
+    ///     Includes repetition detection to halt degenerate model output.
     /// </summary>
     private static async Task<string> RenderStreamingOutputAsync(
         IAsyncEnumerable<string> tokens, string title)
@@ -48,13 +50,14 @@ public sealed partial class ScrollCommand
                     if (repetitionCount >= maxRepetitions)
                     {
                         // Truncate the repeated content and stop
-                        var cleanLength = sb.Length - (windowSize * repetitionCount);
+                        var cleanLength = sb.Length - windowSize * repetitionCount;
                         if (cleanLength > windowSize)
                         {
                             sb.Length = cleanLength;
                             Console.WriteLine();
                             AnsiConsole.MarkupLine("[dim](output truncated — repetition detected)[/]");
                         }
+
                         break;
                     }
                 }
@@ -140,7 +143,7 @@ public sealed partial class ScrollCommand
             if (settings.Graph && boot.VectorStore != null && boot.EntityStore != null)
             {
                 var graphService = new KnowledgeGraphService(boot.VectorStore, boot.EntityStore);
-                await graphService.DisplayGraphAsync(topN: 15, daysBack: 7);
+                await graphService.DisplayGraphAsync(15, 7);
             }
 
             // Image gallery (complete build only)
@@ -180,12 +183,11 @@ public sealed partial class ScrollCommand
         {
             var content = item.Content ?? "";
             if (content.Length > 200)
-            {
                 try
                 {
                     var excerpt = StripMarkdownForLlm(
                         TextRankExtractor.ExtractKeySentences(
-                            content, text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(), maxChars: 400));
+                            content, text => boot.Embedding.EmbedAsync(text).GetAwaiter().GetResult(), 400));
                     itemExcerpts[item.Id] = excerpt;
 
                     if (item.RelevanceScore > 0.3)
@@ -201,17 +203,13 @@ public sealed partial class ScrollCommand
                     itemExcerpts[item.Id] = StripMarkdownForLlm(
                         content.Length > 400 ? content[..400] + "..." : content);
                 }
-            }
-            else if (content.Length > 0)
-            {
-                itemExcerpts[item.Id] = StripMarkdownForLlm(content);
-            }
+            else if (content.Length > 0) itemExcerpts[item.Id] = StripMarkdownForLlm(content);
         }
 
         var keyFacts = keyFactCandidates
             .OrderByDescending(k => k.relevance)
             .Take(7)
-            .Select(k => new { fact = k.fact, source = GetSourceFromUrl(k.url), url = k.url })
+            .Select(k => new { k.fact, source = GetSourceFromUrl(k.url), k.url })
             .ToArray();
 
         var itemsForStats = uniqueItems.Take(settings.Limit).ToList();
@@ -227,9 +225,9 @@ public sealed partial class ScrollCommand
 
         var jsonSummary = ollamaAvailable
             ? finalSummary
-            : (keyFacts.Length > 0
+            : keyFacts.Length > 0
                 ? string.Join(" ", keyFacts.Select(f => f.fact))
-                : $"Found {analyzedItems.Count} items for \"{jsonQuery}\".");
+                : $"Found {analyzedItems.Count} items for \"{jsonQuery}\".";
 
         var jsonOutput = new
         {
@@ -258,7 +256,7 @@ public sealed partial class ScrollCommand
                 var contentItem = uniqueItems.FirstOrDefault(u =>
                     string.Equals(u.Title, i.title, StringComparison.Ordinal));
                 var hasExcerpt = contentItem != null
-                    && itemExcerpts.TryGetValue(contentItem.Id, out _);
+                                 && itemExcerpts.TryGetValue(contentItem.Id, out _);
                 return new
                 {
                     i.title,
@@ -275,19 +273,21 @@ public sealed partial class ScrollCommand
                     linkedCount = contentItem?.LinkedPages.Count ?? 0
                 };
             }).ToArray(),
-            entities = extractEntities ? allEntities.Select(e => new
-            {
-                text = e.Text,
-                type = e.Type,
-                confidence = e.Confidence
-            }).ToArray() : null
+            entities = extractEntities
+                ? allEntities.Select(e => new
+                {
+                    text = e.Text,
+                    type = e.Type,
+                    confidence = e.Confidence
+                }).ToArray()
+                : null
         };
 
-        var json = System.Text.Json.JsonSerializer.Serialize(jsonOutput,
-            new System.Text.Json.JsonSerializerOptions
+        var json = JsonSerializer.Serialize(jsonOutput,
+            new JsonSerializerOptions
             {
                 WriteIndented = true,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             });
 
         if (!string.IsNullOrEmpty(settings.Output))
@@ -315,7 +315,7 @@ public sealed partial class ScrollCommand
         {
             itemEntities = articleEntityMap.ToDictionary(
                 ae => ae.item.Id,
-                ae => ae.entities.Select(e => (e.Text, e.Type, (double)e.Confidence)).ToList(),
+                ae => ae.entities.Select(e => (e.Text, e.Type, e.Confidence)).ToList(),
                 StringComparer.OrdinalIgnoreCase);
         }
         else
@@ -333,7 +333,8 @@ public sealed partial class ScrollCommand
         var entityNote = briefing.HasGraphEntities
             ? $", {briefing.GraphEntityCount} graph entities"
             : "";
-        var coverageNote = $"[dim]Themes inferred from {briefing.TotalEvidenceItems} evidence items across {briefing.SourceCount} sources{entityNote} (coverage: {briefing.CoveragePercent}%).[/]";
+        var coverageNote =
+            $"[dim]Themes inferred from {briefing.TotalEvidenceItems} evidence items across {briefing.SourceCount} sources{entityNote} (coverage: {briefing.CoveragePercent}%).[/]";
         briefingParts.Add(coverageNote);
         var methodNote = briefing.HasGraphEntities
             ? "[dim]Entity-graph enriched; RRF + in-corpus PageRank; diversity decay applied.[/]"
@@ -452,6 +453,7 @@ public sealed partial class ScrollCommand
                 $"[{typeColor}]{entity.Type}[/]",
                 $"{entity.Confidence:P0}");
         }
+
         AnsiConsole.Write(entityTable);
 
         if (articleEntityMap.Count >= 2)

@@ -1,11 +1,10 @@
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using LucidRAG.Core.Services.ConfidenceBooster.Artifacts;
 
 namespace LucidRAG.Core.Services.ConfidenceBooster.Domain;
 
 /// <summary>
-/// ConfidenceBooster for ImageSummarizer - refines object recognition and OCR using LLM.
+///     ConfidenceBooster for ImageSummarizer - refines object recognition and OCR using LLM.
 /// </summary>
 public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
 {
@@ -23,7 +22,7 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
     }
 
     /// <summary>
-    /// Extract low-confidence image crops for boosting.
+    ///     Extract low-confidence image crops for boosting.
     /// </summary>
     public override async Task<List<ImageCropArtifact>> ExtractArtifactsAsync(
         Guid documentId,
@@ -45,7 +44,7 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
         var candidates = signals
             .Where(s => s.Confidence < confidenceThreshold)
             .Where(s => s.Type == "object_detection" || s.Type == "ocr" || s.Type == "classification")
-            .OrderBy(s => s.Confidence)  // Lowest confidence first
+            .OrderBy(s => s.Confidence) // Lowest confidence first
             .Take(maxArtifacts)
             .ToList();
 
@@ -59,27 +58,22 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
 
         // 3. Extract bounded crops for each candidate
         foreach (var signal in candidates)
-        {
             try
             {
                 var artifact = await ExtractCropAsync(documentId, signal, ct);
-                if (artifact != null)
-                {
-                    artifacts.Add(artifact);
-                }
+                if (artifact != null) artifacts.Add(artifact);
             }
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Failed to extract crop for signal {SignalName}", signal.Name);
             }
-        }
 
         Logger.LogInformation("Extracted {Count} image artifacts for boosting", artifacts.Count);
         return artifacts;
     }
 
     /// <summary>
-    /// Extract a bounded crop from the original image using signal metadata.
+    ///     Extract a bounded crop from the original image using signal metadata.
     /// </summary>
     private async Task<ImageCropArtifact?> ExtractCropAsync(
         Guid documentId,
@@ -142,35 +136,35 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
     }
 
     /// <summary>
-    /// Generate system prompt for image understanding.
+    ///     Generate system prompt for image understanding.
     /// </summary>
     protected override string GetSystemPrompt()
     {
         return """
-        You are an expert computer vision analyst helping to refine low-confidence image recognition results.
+               You are an expert computer vision analyst helping to refine low-confidence image recognition results.
 
-        Your task is to analyze image crops and provide:
-        1. A refined classification or description
-        2. Confidence level (0.0-1.0) for your answer
-        3. Reasoning for your classification
+               Your task is to analyze image crops and provide:
+               1. A refined classification or description
+               2. Confidence level (0.0-1.0) for your answer
+               3. Reasoning for your classification
 
-        Always respond in JSON format:
-        {
-            "value": "refined classification or extracted text",
-            "confidence": 0.85,
-            "reasoning": "explanation of what you see and why",
-            "metadata": {
-                "alternative_labels": ["other possible classifications"],
-                "notable_features": ["key visual features"]
-            }
-        }
+               Always respond in JSON format:
+               {
+                   "value": "refined classification or extracted text",
+                   "confidence": 0.85,
+                   "reasoning": "explanation of what you see and why",
+                   "metadata": {
+                       "alternative_labels": ["other possible classifications"],
+                       "notable_features": ["key visual features"]
+                   }
+               }
 
-        Be accurate and conservative. If uncertain, reflect that in the confidence score.
-        """;
+               Be accurate and conservative. If uncertain, reflect that in the confidence score.
+               """;
     }
 
     /// <summary>
-    /// Generate domain-specific prompt for image crop.
+    ///     Generate domain-specific prompt for image crop.
     /// </summary>
     protected override string GeneratePrompt(ImageCropArtifact artifact)
     {
@@ -186,74 +180,74 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
     private string GenerateObjectRecognitionPrompt(ImageCropArtifact artifact)
     {
         return $"""
-        Task: Object Recognition
+                Task: Object Recognition
 
-        Original low-confidence classification: "{artifact.OriginalClassification}" (confidence: {artifact.OriginalConfidence:F2})
+                Original low-confidence classification: "{artifact.OriginalClassification}" (confidence: {artifact.OriginalConfidence:F2})
 
-        Please analyze this image crop and provide:
-        - What object(s) you see in the image
-        - Key distinguishing features
-        - Confidence in your classification
+                Please analyze this image crop and provide:
+                - What object(s) you see in the image
+                - Key distinguishing features
+                - Confidence in your classification
 
-        The image is provided as Base64:
-        {artifact.Base64Image}
+                The image is provided as Base64:
+                {artifact.Base64Image}
 
-        Context:
-        - Frame number: {artifact.FrameNumber ?? 0}
-        - Bounding box: [{string.Join(", ", artifact.BoundingBox)}]
+                Context:
+                - Frame number: {artifact.FrameNumber ?? 0}
+                - Bounding box: [{string.Join(", ", artifact.BoundingBox)}]
 
-        Respond in JSON format as specified in the system prompt.
-        """;
+                Respond in JSON format as specified in the system prompt.
+                """;
     }
 
     private string GenerateOcrPrompt(ImageCropArtifact artifact)
     {
         return $"""
-        Task: Text Extraction (OCR Refinement)
+                Task: Text Extraction (OCR Refinement)
 
-        Original low-confidence OCR result: "{artifact.OriginalClassification}" (confidence: {artifact.OriginalConfidence:F2})
+                Original low-confidence OCR result: "{artifact.OriginalClassification}" (confidence: {artifact.OriginalConfidence:F2})
 
-        Please extract and refine the text from this image crop:
-        - Correct any obvious OCR errors
-        - Preserve formatting if visible
-        - Indicate confidence in the extraction
+                Please extract and refine the text from this image crop:
+                - Correct any obvious OCR errors
+                - Preserve formatting if visible
+                - Indicate confidence in the extraction
 
-        The image is provided as Base64:
-        {artifact.Base64Image}
+                The image is provided as Base64:
+                {artifact.Base64Image}
 
-        Context:
-        - Frame number: {artifact.FrameNumber ?? 0}
-        - Bounding box: [{string.Join(", ", artifact.BoundingBox)}]
+                Context:
+                - Frame number: {artifact.FrameNumber ?? 0}
+                - Bounding box: [{string.Join(", ", artifact.BoundingBox)}]
 
-        Respond in JSON format as specified in the system prompt.
-        """;
+                Respond in JSON format as specified in the system prompt.
+                """;
     }
 
     private string GenerateClassificationPrompt(ImageCropArtifact artifact)
     {
         return $"""
-        Task: Image Classification
+                Task: Image Classification
 
-        Original low-confidence classification: "{artifact.OriginalClassification}" (confidence: {artifact.OriginalConfidence:F2})
+                Original low-confidence classification: "{artifact.OriginalClassification}" (confidence: {artifact.OriginalConfidence:F2})
 
-        Please classify this image crop:
-        - What category or type does it belong to?
-        - What are the distinguishing visual features?
-        - How confident are you in this classification?
+                Please classify this image crop:
+                - What category or type does it belong to?
+                - What are the distinguishing visual features?
+                - How confident are you in this classification?
 
-        The image is provided as Base64:
-        {artifact.Base64Image}
+                The image is provided as Base64:
+                {artifact.Base64Image}
 
-        Context:
-        - Frame number: {artifact.FrameNumber ?? 0}
-        - Bounding box: [{string.Join(", ", artifact.BoundingBox)}]
+                Context:
+                - Frame number: {artifact.FrameNumber ?? 0}
+                - Bounding box: [{string.Join(", ", artifact.BoundingBox)}]
 
-        Respond in JSON format as specified in the system prompt.
-        """;
+                Respond in JSON format as specified in the system prompt.
+                """;
     }
 
     /// <summary>
-    /// Parse LLM JSON response.
+    ///     Parse LLM JSON response.
     /// </summary>
     protected override (string? Value, double? Confidence, string? Reasoning, Dictionary<string, object>? Metadata)
         ParseLlmResponse(string llmResponse, ImageCropArtifact artifact)
@@ -279,10 +273,7 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
             if (root.TryGetProperty("metadata", out var metaProp))
             {
                 metadata = new Dictionary<string, object>();
-                foreach (var prop in metaProp.EnumerateObject())
-                {
-                    metadata[prop.Name] = prop.Value.ToString();
-                }
+                foreach (var prop in metaProp.EnumerateObject()) metadata[prop.Name] = prop.Value.ToString();
             }
 
             return (value, confidence, reasoning, metadata);
@@ -295,7 +286,7 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
     }
 
     /// <summary>
-    /// Persist boost result back to signal ledger.
+    ///     Persist boost result back to signal ledger.
     /// </summary>
     protected override async Task PersistBoostResult(
         Guid documentId,
@@ -308,7 +299,7 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
         await _signalRepository.UpdateSignalAsync(new ImageSignal
         {
             DocumentId = documentId,
-            Name = artifact.SignalName + ".boosted",  // Mark as boosted
+            Name = artifact.SignalName + ".boosted", // Mark as boosted
             Value = result.BoostedValue,
             Type = artifact.TaskType,
             Confidence = result.BoostedConfidence ?? artifact.OriginalConfidence,
@@ -331,8 +322,8 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
     }
 
     /// <summary>
-    /// Extract image crop from Base64 image using bounding box.
-    /// Simplified implementation - would use actual image processing library (SkiaSharp, ImageSharp, etc.).
+    ///     Extract image crop from Base64 image using bounding box.
+    ///     Simplified implementation - would use actual image processing library (SkiaSharp, ImageSharp, etc.).
     /// </summary>
     private string ExtractImageCrop(string base64Image, int[] bbox)
     {
@@ -343,7 +334,7 @@ public class ImageConfidenceBooster : BaseConfidenceBooster<ImageCropArtifact>
 }
 
 /// <summary>
-/// Repository interface for image signals.
+///     Repository interface for image signals.
 /// </summary>
 public interface IImageSignalRepository
 {
@@ -352,7 +343,7 @@ public interface IImageSignalRepository
 }
 
 /// <summary>
-/// Image signal model.
+///     Image signal model.
 /// </summary>
 public class ImageSignal
 {

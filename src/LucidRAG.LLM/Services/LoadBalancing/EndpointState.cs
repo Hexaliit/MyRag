@@ -1,18 +1,18 @@
 namespace LucidRAG.LLM.Services.LoadBalancing;
 
 /// <summary>
-/// Thread-safe per-endpoint health and latency tracking.
-/// Uses lock-free operations (Interlocked/Volatile) for high-throughput scenarios.
+///     Thread-safe per-endpoint health and latency tracking.
+///     Uses lock-free operations (Interlocked/Volatile) for high-throughput scenarios.
 /// </summary>
 public sealed class EndpointState
 {
     private const double EmaAlpha = 0.3;
     private const int MaxConsecutiveFailures = 3;
-
-    private long _totalRequests;
-    private long _totalFailures;
     private int _consecutiveFailures;
     private double _emaResponseTimeMs = double.MaxValue;
+    private long _totalFailures;
+
+    private long _totalRequests;
 
     public EndpointState(string url, string? name = null)
     {
@@ -54,7 +54,7 @@ public sealed class EndpointState
             oldEma = Volatile.Read(ref _emaResponseTimeMs);
             newEma = oldEma >= double.MaxValue
                 ? responseTimeMs
-                : (EmaAlpha * responseTimeMs) + ((1 - EmaAlpha) * oldEma);
+                : EmaAlpha * responseTimeMs + (1 - EmaAlpha) * oldEma;
         } while (Interlocked.CompareExchange(ref _emaResponseTimeMs, newEma, oldEma) != oldEma);
     }
 
@@ -72,7 +72,9 @@ public sealed class EndpointState
         Volatile.Write(ref _consecutiveFailures, 0);
     }
 
-    public override string ToString() =>
-        $"{Name} ({Url}) - Healthy={IsHealthy}, EMA={EmaResponseTimeMs:F1}ms, " +
-        $"Requests={TotalRequests}, Failures={TotalFailures}";
+    public override string ToString()
+    {
+        return $"{Name} ({Url}) - Healthy={IsHealthy}, EMA={EmaResponseTimeMs:F1}ms, " +
+               $"Requests={TotalRequests}, Failures={TotalFailures}";
+    }
 }

@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-#if !SLIM_BUILD
-using CodeSummarizer.Parsing;
-using CodeSummarizer.Services;
-#endif
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services.Onnx;
+#if !SLIM_BUILD
+using CodeSummarizer.Parsing;
+using CodeSummarizer.Services;
+#endif
 
 namespace Mostlylucid.DocSummarizer.Services;
 
@@ -25,10 +25,6 @@ public class SegmentExtractor : IDisposable
     private readonly OnnxEmbeddingService _embeddingService;
     private readonly MarkdigDocumentParser _parser;
     private readonly bool _verbose;
-#if !SLIM_BUILD
-    private readonly CodeSummarizerService _codeSummarizer;
-    private readonly IMermaidParser _mermaidParser;
-#endif
 
 #if !SLIM_BUILD
     public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false,
@@ -59,13 +55,18 @@ public class SegmentExtractor : IDisposable
     ///     Synchronous single-text embedding using the same ONNX model that produces segment embeddings.
     ///     Requires prior use of ExtractAsync (which initializes the model).
     /// </summary>
-    public float[] Embed(string text) => _embeddingService.Embed(text);
+    public float[] Embed(string text)
+    {
+        return _embeddingService.Embed(text);
+    }
 
     /// <summary>
     ///     Ensure the ONNX embedding model is initialized (downloads if needed).
     /// </summary>
     public Task EnsureInitializedAsync(CancellationToken ct = default)
-        => _embeddingService.InitializeAsync(ct);
+    {
+        return _embeddingService.InitializeAsync(ct);
+    }
 
     /// <summary>
     ///     Extract segments from markdown content with embeddings and salience scores.
@@ -1620,4 +1621,8 @@ public class SegmentExtractor : IDisposable
                 .ToList();
         }
     }
+#if !SLIM_BUILD
+    private readonly CodeSummarizerService _codeSummarizer;
+    private readonly IMermaidParser _mermaidParser;
+#endif
 }

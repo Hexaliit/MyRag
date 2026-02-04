@@ -4,14 +4,14 @@ using Mostlylucid.DocSummarizer.Core.Services;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Enhanced PDF handler that uses native extraction with VLM OCR fallback.
-/// Handles scanned PDFs and complex documents that fail native extraction.
-/// Higher priority than default PdfDocumentHandler (10 vs 0).
+///     Enhanced PDF handler that uses native extraction with VLM OCR fallback.
+///     Handles scanned PDFs and complex documents that fail native extraction.
+///     Higher priority than default PdfDocumentHandler (10 vs 0).
 /// </summary>
 public class EnhancedPdfDocumentHandler : IDocumentHandler
 {
-    private readonly DocumentToMarkdownService _markdownService;
     private readonly ILogger<EnhancedPdfDocumentHandler>? _logger;
+    private readonly DocumentToMarkdownService _markdownService;
 
     public EnhancedPdfDocumentHandler(
         DocumentToMarkdownService markdownService,
@@ -45,7 +45,8 @@ public class EnhancedPdfDocumentHandler : IDocumentHandler
 
         if (!result.Success)
         {
-            _logger?.LogWarning("Enhanced PDF processing failed: {Error}. Falling back to basic extraction.", result.Error);
+            _logger?.LogWarning("Enhanced PDF processing failed: {Error}. Falling back to basic extraction.",
+                result.Error);
 
             // Return empty content with error metadata
             return new DocumentContent
@@ -104,13 +105,13 @@ public class EnhancedPdfDocumentHandler : IDocumentHandler
 }
 
 /// <summary>
-/// Image document handler that uses VLM OCR to extract text from images.
-/// Supports common image formats: PNG, JPG, JPEG, WebP, GIF, BMP, TIFF.
+///     Image document handler that uses VLM OCR to extract text from images.
+///     Supports common image formats: PNG, JPG, JPEG, WebP, GIF, BMP, TIFF.
 /// </summary>
 public class VlmImageOcrHandler : IDocumentHandler
 {
-    private readonly DocumentToMarkdownService _markdownService;
     private readonly ILogger<VlmImageOcrHandler>? _logger;
+    private readonly DocumentToMarkdownService _markdownService;
 
     public VlmImageOcrHandler(
         DocumentToMarkdownService markdownService,
@@ -178,13 +179,13 @@ public class VlmImageOcrHandler : IDocumentHandler
 }
 
 /// <summary>
-/// Extension methods to register enhanced document handlers
+///     Extension methods to register enhanced document handlers
 /// </summary>
 public static class EnhancedDocumentHandlerExtensions
 {
     /// <summary>
-    /// Register enhanced document handlers (PDF with OCR fallback, Image OCR)
-    /// These have higher priority than default handlers.
+    ///     Register enhanced document handlers (PDF with OCR fallback, Image OCR)
+    ///     These have higher priority than default handlers.
     /// </summary>
     public static IDocumentHandlerRegistry RegisterEnhancedHandlers(
         this IDocumentHandlerRegistry registry,

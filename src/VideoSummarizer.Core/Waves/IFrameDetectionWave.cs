@@ -1,33 +1,19 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Coordination;
-using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Detects codec I-frames from video stream.
-/// This is a fast operation that doesn't require decoding.
-/// Emits: keyframes.iframes_detected
+///     Detects codec I-frames from video stream.
+///     This is a fast operation that doesn't require decoding.
+///     Emits: keyframes.iframes_detected
 /// </summary>
 public class IFrameDetectionWave : IVideoWave, ISignalAwareVideoWave
 {
     private readonly FFmpegAnalysisService _ffmpegService;
     private readonly ILogger<IFrameDetectionWave> _logger;
-
-    public string Name => "iframe_detection";
-    public int Priority => 850; // After shot detection, before keyframe selection
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
-
-    // Signal contracts
-    public IReadOnlyList<string> RequiredSignals => [VideoSignals.ShotsDetected];
-    public IReadOnlyList<string> OptionalSignals => [];
-    public IReadOnlyList<string> EmittedSignals => [
-        VideoSignals.IframesDetected,
-        VideoSignals.IframesCount
-    ];
-    public IReadOnlyList<string> CacheEmits => ["iframes"];
-    public IReadOnlyList<string> CacheUses => [];
 
     public IFrameDetectionWave(
         FFmpegAnalysisService ffmpegService,
@@ -37,12 +23,31 @@ public class IFrameDetectionWave : IVideoWave, ISignalAwareVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        context.Metadata != null && context.Shots.Count > 0;
+    // Signal contracts
+    public IReadOnlyList<string> RequiredSignals => [VideoSignals.ShotsDetected];
+    public IReadOnlyList<string> OptionalSignals => [];
+
+    public IReadOnlyList<string> EmittedSignals =>
+    [
+        VideoSignals.IframesDetected,
+        VideoSignals.IframesCount
+    ];
+
+    public IReadOnlyList<string> CacheEmits => ["iframes"];
+    public IReadOnlyList<string> CacheUses => [];
+
+    public string Name => "iframe_detection";
+    public int Priority => 850; // After shot detection, before keyframe selection
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null && context.Shots.Count > 0;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         context.ReportProgress("Detecting codec I-frames", 0);
 
         // Emit wave started signal

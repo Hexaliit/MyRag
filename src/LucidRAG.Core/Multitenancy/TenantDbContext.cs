@@ -1,10 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
-/// DbContext for tenant management.
-/// Operates in the public schema, shared across all tenants.
+///     DbContext for tenant management.
+///     Operates in the public schema, shared across all tenants.
 /// </summary>
 public class TenantDbContext : DbContext
 {

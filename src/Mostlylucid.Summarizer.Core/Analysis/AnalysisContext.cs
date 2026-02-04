@@ -1,33 +1,33 @@
 namespace Mostlylucid.Summarizer.Core.Analysis;
 
 /// <summary>
-/// Shared ephemeral context passed between analysis waves.
-/// Allows waves to read results from higher-priority waves and share cached data.
-/// Created per analysis run, discarded after.
+///     Shared ephemeral context passed between analysis waves.
+///     Allows waves to read results from higher-priority waves and share cached data.
+///     Created per analysis run, discarded after.
 /// </summary>
 public class AnalysisContext
 {
-    private readonly Dictionary<string, List<Signal>> _signals = new();
     private readonly Dictionary<string, object> _cache = new();
+    private readonly Dictionary<string, List<Signal>> _signals = new();
     private readonly Dictionary<string, bool> _skippedWaves = new();
 
     /// <summary>
-    /// Route selection for adaptive analysis (fast/balanced/quality).
+    ///     Route selection for adaptive analysis (fast/balanced/quality).
     /// </summary>
     public string? SelectedRoute { get; set; }
 
     /// <summary>
-    /// Check if we're in fast mode (skip expensive operations).
+    ///     Check if we're in fast mode (skip expensive operations).
     /// </summary>
     public bool IsFastRoute => SelectedRoute == "fast";
 
     /// <summary>
-    /// Check if we're in quality mode (run everything).
+    ///     Check if we're in quality mode (run everything).
     /// </summary>
     public bool IsQualityRoute => SelectedRoute == "quality";
 
     /// <summary>
-    /// Add a signal to the context.
+    ///     Add a signal to the context.
     /// </summary>
     public void AddSignal(Signal signal)
     {
@@ -36,11 +36,12 @@ public class AnalysisContext
             list = new List<Signal>();
             _signals[signal.Key] = list;
         }
+
         list.Add(signal);
     }
 
     /// <summary>
-    /// Add multiple signals.
+    ///     Add multiple signals.
     /// </summary>
     public void AddSignals(IEnumerable<Signal> signals)
     {
@@ -49,19 +50,23 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Get all signals for a given key.
+    ///     Get all signals for a given key.
     /// </summary>
-    public IEnumerable<Signal> GetSignals(string key) =>
-        _signals.TryGetValue(key, out var signals) ? signals : [];
+    public IEnumerable<Signal> GetSignals(string key)
+    {
+        return _signals.TryGetValue(key, out var signals) ? signals : [];
+    }
 
     /// <summary>
-    /// Get the most confident signal for a key.
+    ///     Get the most confident signal for a key.
     /// </summary>
-    public Signal? GetBestSignal(string key) =>
-        GetSignals(key).OrderByDescending(s => s.Confidence).FirstOrDefault();
+    public Signal? GetBestSignal(string key)
+    {
+        return GetSignals(key).OrderByDescending(s => s.Confidence).FirstOrDefault();
+    }
 
     /// <summary>
-    /// Get typed value from the most confident signal.
+    ///     Get typed value from the most confident signal.
     /// </summary>
     public T? GetValue<T>(string key)
     {
@@ -70,58 +75,79 @@ public class AnalysisContext
     }
 
     /// <summary>
-    /// Check if a signal exists for a key.
+    ///     Check if a signal exists for a key.
     /// </summary>
-    public bool HasSignal(string key) =>
-        _signals.TryGetValue(key, out var list) && list.Count > 0;
+    public bool HasSignal(string key)
+    {
+        return _signals.TryGetValue(key, out var list) && list.Count > 0;
+    }
 
     /// <summary>
-    /// Get all signals.
+    ///     Get all signals.
     /// </summary>
-    public IEnumerable<Signal> GetAllSignals() =>
-        _signals.Values.SelectMany(s => s);
+    public IEnumerable<Signal> GetAllSignals()
+    {
+        return _signals.Values.SelectMany(s => s);
+    }
 
     /// <summary>
-    /// Get all signals with a specific tag.
+    ///     Get all signals with a specific tag.
     /// </summary>
-    public IEnumerable<Signal> GetSignalsByTag(string tag) =>
-        GetAllSignals().Where(s => s.Tags?.Contains(tag) == true);
+    public IEnumerable<Signal> GetSignalsByTag(string tag)
+    {
+        return GetAllSignals().Where(s => s.Tags?.Contains(tag) == true);
+    }
 
     /// <summary>
-    /// Cache arbitrary data for sharing between waves.
+    ///     Cache arbitrary data for sharing between waves.
     /// </summary>
-    public void SetCached<T>(string key, T value) where T : notnull =>
+    public void SetCached<T>(string key, T value) where T : notnull
+    {
         _cache[key] = value;
+    }
 
     /// <summary>
-    /// Retrieve cached data.
+    ///     Retrieve cached data.
     /// </summary>
-    public T? GetCached<T>(string key) =>
-        _cache.TryGetValue(key, out var value) && value is T typed ? typed : default;
+    public T? GetCached<T>(string key)
+    {
+        return _cache.TryGetValue(key, out var value) && value is T typed ? typed : default;
+    }
 
     /// <summary>
-    /// Check if a key is cached.
+    ///     Check if a key is cached.
     /// </summary>
-    public bool HasCached(string key) => _cache.ContainsKey(key);
+    public bool HasCached(string key)
+    {
+        return _cache.ContainsKey(key);
+    }
 
     /// <summary>
-    /// Clear all cached data.
+    ///     Clear all cached data.
     /// </summary>
-    public void ClearCache() => _cache.Clear();
+    public void ClearCache()
+    {
+        _cache.Clear();
+    }
 
     /// <summary>
-    /// Mark a wave as skipped by routing.
+    ///     Mark a wave as skipped by routing.
     /// </summary>
-    public void SkipWave(string waveName) => _skippedWaves[waveName] = true;
+    public void SkipWave(string waveName)
+    {
+        _skippedWaves[waveName] = true;
+    }
 
     /// <summary>
-    /// Check if a wave is skipped.
+    ///     Check if a wave is skipped.
     /// </summary>
-    public bool IsWaveSkipped(string waveName) =>
-        _skippedWaves.TryGetValue(waveName, out var skipped) && skipped;
+    public bool IsWaveSkipped(string waveName)
+    {
+        return _skippedWaves.TryGetValue(waveName, out var skipped) && skipped;
+    }
 
     /// <summary>
-    /// Aggregate signals for a key using the specified strategy.
+    ///     Aggregate signals for a key using the specified strategy.
     /// </summary>
     public Signal? Aggregate(string key, AggregationStrategy strategy)
     {

@@ -1,11 +1,15 @@
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using AngleSharp;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Discovers and parses RSS/Atom feeds from websites
+///     Discovers and parses RSS/Atom feeds from websites
 /// </summary>
 public partial class FeedDiscovery
 {
@@ -17,7 +21,7 @@ public partial class FeedDiscovery
     }
 
     /// <summary>
-    /// Attempts to discover and fetch content from a URL, trying feeds first
+    ///     Attempts to discover and fetch content from a URL, trying feeds first
     /// </summary>
     public async Task<(List<ContentItem> items, string method)> FetchWithDiscoveryAsync(
         string url, int maxItems = 30, Action<string>? progress = null)
@@ -45,7 +49,8 @@ public partial class FeedDiscovery
         }
 
         // Step 3: Try common feed URL patterns
-        var commonFeedPaths = new[] { "/feed", "/rss", "/atom.xml", "/feed.xml", "/rss.xml", "/index.xml", "/feeds/posts/default" };
+        var commonFeedPaths = new[]
+            { "/feed", "/rss", "/atom.xml", "/feed.xml", "/rss.xml", "/index.xml", "/feeds/posts/default" };
         var baseUri = new Uri(url);
         var baseUrl = $"{baseUri.Scheme}://{baseUri.Host}";
 
@@ -72,7 +77,7 @@ public partial class FeedDiscovery
     }
 
     /// <summary>
-    /// Discovers RSS/Atom feed links from a webpage
+    ///     Discovers RSS/Atom feed links from a webpage
     /// </summary>
     private async Task<List<string>> DiscoverFeedsAsync(string url)
     {
@@ -109,10 +114,8 @@ public partial class FeedDiscovery
                 if (!string.IsNullOrEmpty(href) && !feeds.Contains(href))
                 {
                     var feedUrl = ResolveUrl(url, href);
-                    if (feedUrl.EndsWith(".xml") || feedUrl.Contains("rss") || feedUrl.Contains("feed") || feedUrl.Contains("atom"))
-                    {
-                        feeds.Add(feedUrl);
-                    }
+                    if (feedUrl.EndsWith(".xml") || feedUrl.Contains("rss") || feedUrl.Contains("feed") ||
+                        feedUrl.Contains("atom")) feeds.Add(feedUrl);
                 }
             }
         }
@@ -125,7 +128,7 @@ public partial class FeedDiscovery
     }
 
     /// <summary>
-    /// Tries to parse a URL as an RSS or Atom feed
+    ///     Tries to parse a URL as an RSS or Atom feed
     /// </summary>
     private async Task<List<ContentItem>?> TryParseFeedAsync(string feedUrl)
     {
@@ -145,22 +148,13 @@ public partial class FeedDiscovery
             if (root == null) return null;
 
             // RSS 2.0
-            if (root.Name.LocalName == "rss")
-            {
-                return ParseRss(doc, feedUrl);
-            }
+            if (root.Name.LocalName == "rss") return ParseRss(doc, feedUrl);
 
             // Atom
-            if (root.Name.LocalName == "feed")
-            {
-                return ParseAtom(doc, feedUrl);
-            }
+            if (root.Name.LocalName == "feed") return ParseAtom(doc, feedUrl);
 
             // RSS 1.0 (RDF)
-            if (root.Name.LocalName == "RDF")
-            {
-                return ParseRdf(doc, feedUrl);
-            }
+            if (root.Name.LocalName == "RDF") return ParseRdf(doc, feedUrl);
         }
         catch
         {
@@ -187,10 +181,7 @@ public partial class FeedDiscovery
             if (string.IsNullOrEmpty(title)) continue;
 
             var createdAt = DateTimeOffset.UtcNow;
-            if (!string.IsNullOrEmpty(pubDate) && DateTimeOffset.TryParse(pubDate, out var parsed))
-            {
-                createdAt = parsed;
-            }
+            if (!string.IsNullOrEmpty(pubDate) && DateTimeOffset.TryParse(pubDate, out var parsed)) createdAt = parsed;
 
             items.Add(new ContentItem
             {
@@ -209,7 +200,7 @@ public partial class FeedDiscovery
     private static List<ContentItem> ParseAtom(XDocument doc, string feedUrl)
     {
         var items = new List<ContentItem>();
-        XNamespace ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+        var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
 
         foreach (var entry in doc.Descendants(ns + "entry"))
         {
@@ -226,10 +217,7 @@ public partial class FeedDiscovery
             if (string.IsNullOrEmpty(title)) continue;
 
             var createdAt = DateTimeOffset.UtcNow;
-            if (!string.IsNullOrEmpty(updated) && DateTimeOffset.TryParse(updated, out var parsed))
-            {
-                createdAt = parsed;
-            }
+            if (!string.IsNullOrEmpty(updated) && DateTimeOffset.TryParse(updated, out var parsed)) createdAt = parsed;
 
             items.Add(new ContentItem
             {
@@ -261,10 +249,7 @@ public partial class FeedDiscovery
             if (string.IsNullOrEmpty(title)) continue;
 
             var createdAt = DateTimeOffset.UtcNow;
-            if (!string.IsNullOrEmpty(date) && DateTimeOffset.TryParse(date, out var parsed))
-            {
-                createdAt = parsed;
-            }
+            if (!string.IsNullOrEmpty(date) && DateTimeOffset.TryParse(date, out var parsed)) createdAt = parsed;
 
             items.Add(new ContentItem
             {
@@ -286,7 +271,7 @@ public partial class FeedDiscovery
 
         // Simple HTML tag removal
         var result = HtmlTagRegex().Replace(text, " ");
-        result = System.Net.WebUtility.HtmlDecode(result);
+        result = WebUtility.HtmlDecode(result);
         result = WhitespaceRegex().Replace(result, " ");
         return result.Trim();
     }
@@ -304,8 +289,8 @@ public partial class FeedDiscovery
 
     private static string GenerateId(string input)
     {
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input ?? ""))[..8]).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input ?? ""))[..8]).ToLowerInvariant();
     }
 
     [GeneratedRegex(@"<[^>]+>")]

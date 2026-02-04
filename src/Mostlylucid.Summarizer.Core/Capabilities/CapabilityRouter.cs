@@ -4,22 +4,21 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizer.Core.Capabilities;
 
 /// <summary>
-/// Routes work based on available capabilities.
-/// Responds reactively to capability changes via signals.
-/// Supports fallback chains and work queuing until capabilities become available.
+///     Routes work based on available capabilities.
+///     Responds reactively to capability changes via signals.
+///     Supports fallback chains and work queuing until capabilities become available.
 /// </summary>
 public class CapabilityRouter : IDisposable
 {
-    private readonly ILogger<CapabilityRouter> _logger;
-    private readonly CapabilityRegistry _registry;
-    private readonly BackgroundModelDownloader _downloader;
-    private readonly ICapabilitySignalSink _signalSink;
-
     // Component availability tracking
     private readonly ConcurrentDictionary<string, ComponentState> _componentStates = new();
+    private readonly BackgroundModelDownloader _downloader;
+    private readonly ILogger<CapabilityRouter> _logger;
 
     // Pending work waiting for capabilities
     private readonly ConcurrentDictionary<string, ConcurrentQueue<PendingWork>> _pendingWork = new();
+    private readonly CapabilityRegistry _registry;
+    private readonly ICapabilitySignalSink _signalSink;
 
     // Signal subscription
     private readonly IDisposable _signalSubscription;
@@ -39,8 +38,13 @@ public class CapabilityRouter : IDisposable
         _signalSubscription = signalSink.Subscribe(OnSignalReceived);
     }
 
+    public void Dispose()
+    {
+        _signalSubscription.Dispose();
+    }
+
     /// <summary>
-    /// Register a component with its required capabilities.
+    ///     Register a component with its required capabilities.
     /// </summary>
     public void RegisterComponent(ComponentRegistration registration)
     {
@@ -59,7 +63,7 @@ public class CapabilityRouter : IDisposable
     }
 
     /// <summary>
-    /// Check if a component is ready to accept work.
+    ///     Check if a component is ready to accept work.
     /// </summary>
     public async Task<bool> IsComponentReadyAsync(string componentId, CancellationToken ct = default)
     {
@@ -80,7 +84,7 @@ public class CapabilityRouter : IDisposable
         // Check if required providers are available
         var capabilities = await _registry.GetCapabilitiesAsync(ct);
         var hasRequiredProvider = state.Registration.RequiredProviders.Count == 0 ||
-            state.Registration.RequiredProviders.Any(p => capabilities.HasProvider(p));
+                                  state.Registration.RequiredProviders.Any(p => capabilities.HasProvider(p));
 
         if (!hasRequiredProvider)
             return false;
@@ -103,24 +107,20 @@ public class CapabilityRouter : IDisposable
     }
 
     /// <summary>
-    /// Route work to the best available component from a fallback chain.
+    ///     Route work to the best available component from a fallback chain.
     /// </summary>
     public async Task<RouteResult> RouteAsync(
         string[] fallbackChain,
         CancellationToken ct = default)
     {
         foreach (var componentId in fallbackChain)
-        {
             if (await IsComponentReadyAsync(componentId, ct))
-            {
                 return new RouteResult
                 {
                     Success = true,
                     SelectedComponent = componentId,
                     IsFallback = componentId != fallbackChain[0]
                 };
-            }
-        }
 
         // No component ready - return best option with pending status
         var primary = fallbackChain.FirstOrDefault();
@@ -135,8 +135,8 @@ public class CapabilityRouter : IDisposable
     }
 
     /// <summary>
-    /// Queue work until a component becomes available.
-    /// Returns a task that completes when the work can be executed.
+    ///     Queue work until a component becomes available.
+    ///     Returns a task that completes when the work can be executed.
     /// </summary>
     public async Task<RouteResult> RouteWithWaitAsync(
         string[] fallbackChain,
@@ -151,23 +151,17 @@ public class CapabilityRouter : IDisposable
         // No component ready - queue the work and wait
         var primary = fallbackChain.FirstOrDefault();
         if (string.IsNullOrEmpty(primary))
-        {
             return new RouteResult
             {
                 Success = false,
                 PendingReason = "No components in fallback chain"
             };
-        }
 
         // Ensure models are downloading for the primary component
         if (_componentStates.TryGetValue(primary, out var state))
-        {
             foreach (var modelId in state.Registration.RequiredModels)
-            {
                 // Start download in background (fire and forget, but track)
                 _ = _downloader.EnsureModelAsync(modelId, ct);
-            }
-        }
 
         // Wait for a component to become ready
         var effectiveTimeout = timeout ?? TimeSpan.FromMinutes(30);
@@ -200,7 +194,7 @@ public class CapabilityRouter : IDisposable
     }
 
     /// <summary>
-    /// Get the best execution provider for a model.
+    ///     Get the best execution provider for a model.
     /// </summary>
     public async Task<string> GetBestProviderAsync(string modelId, CancellationToken ct = default)
     {
@@ -211,29 +205,25 @@ public class CapabilityRouter : IDisposable
         var capabilities = await _registry.GetCapabilitiesAsync(ct);
 
         foreach (var provider in model.PreferredProviders)
-        {
             if (capabilities.HasProvider(provider))
                 return provider;
-        }
 
         return "CPUExecutionProvider";
     }
 
     /// <summary>
-    /// Activate a component - ensures all required models are downloaded.
+    ///     Activate a component - ensures all required models are downloaded.
     /// </summary>
     public async Task<ActivationResult> ActivateComponentAsync(
         string componentId,
         CancellationToken ct = default)
     {
         if (!_componentStates.TryGetValue(componentId, out var state))
-        {
             return new ActivationResult
             {
                 Success = false,
                 Error = $"Component {componentId} not registered"
             };
-        }
 
         state.Status = ComponentStatus.Activating;
 
@@ -311,24 +301,15 @@ public class CapabilityRouter : IDisposable
             return;
 
         foreach (var (componentId, state) in _componentStates)
-        {
             if (state.Status == ComponentStatus.Initializing ||
                 state.Status == ComponentStatus.WaitingForModels)
-            {
                 if (state.Registration.RequiredModels.Contains(modelId))
-                {
                     await IsComponentReadyAsync(componentId);
-                }
-            }
-        }
     }
 
     private async Task ReEvaluateAllComponentsAsync()
     {
-        foreach (var componentId in _componentStates.Keys)
-        {
-            await IsComponentReadyAsync(componentId);
-        }
+        foreach (var componentId in _componentStates.Keys) await IsComponentReadyAsync(componentId);
     }
 
     private async Task ProcessPendingWorkAsync(string componentId, CancellationToken ct)
@@ -336,10 +317,7 @@ public class CapabilityRouter : IDisposable
         if (!_pendingWork.TryGetValue(componentId, out var queue))
             return;
 
-        while (queue.TryDequeue(out var pending))
-        {
-            pending.TaskCompletionSource.TrySetResult(componentId);
-        }
+        while (queue.TryDequeue(out var pending)) pending.TaskCompletionSource.TrySetResult(componentId);
 
         await Task.CompletedTask;
     }
@@ -359,15 +337,10 @@ public class CapabilityRouter : IDisposable
 
         return state.Status.ToString();
     }
-
-    public void Dispose()
-    {
-        _signalSubscription.Dispose();
-    }
 }
 
 /// <summary>
-/// Component registration with requirements.
+///     Component registration with requirements.
 /// </summary>
 public record ComponentRegistration
 {
@@ -380,7 +353,7 @@ public record ComponentRegistration
 }
 
 /// <summary>
-/// Component state tracking.
+///     Component state tracking.
 /// </summary>
 public class ComponentState
 {
@@ -392,7 +365,7 @@ public class ComponentState
 }
 
 /// <summary>
-/// Component status enum.
+///     Component status enum.
 /// </summary>
 public enum ComponentStatus
 {
@@ -406,7 +379,7 @@ public enum ComponentStatus
 }
 
 /// <summary>
-/// Result of routing work.
+///     Result of routing work.
 /// </summary>
 public record RouteResult
 {
@@ -418,7 +391,7 @@ public record RouteResult
 }
 
 /// <summary>
-/// Result of activating a component.
+///     Result of activating a component.
 /// </summary>
 public record ActivationResult
 {
@@ -428,7 +401,7 @@ public record ActivationResult
 }
 
 /// <summary>
-/// Pending work item.
+///     Pending work item.
 /// </summary>
 internal class PendingWork
 {

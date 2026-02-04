@@ -4,8 +4,8 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Tenth wave: characterizes the data domain for analytics routing.
-/// Detects if data is: sales, marketing, user/customer, logs, financial, inventory, etc.
+///     Tenth wave: characterizes the data domain for analytics routing.
+///     Detects if data is: sales, marketing, user/customer, logs, financial, inventory, etc.
 /// </summary>
 public class DataCharacterizationWave : IDataAnalysisWave
 {
@@ -70,35 +70,55 @@ public class DataCharacterizationWave : IDataAnalysisWave
         var scores = new Dictionary<string, double>();
 
         // Sales data indicators
-        var salesIndicators = new[] { "order", "sale", "revenue", "invoice", "product", "quantity", "price", "discount", "tax", "total", "customer" };
+        var salesIndicators = new[]
+        {
+            "order", "sale", "revenue", "invoice", "product", "quantity", "price", "discount", "tax", "total",
+            "customer"
+        };
         scores["sales"] = CalculateIndicatorScore(columnsLower, salesIndicators);
 
         // Marketing data indicators
-        var marketingIndicators = new[] { "campaign", "click", "impression", "conversion", "channel", "source", "medium", "utm", "lead", "prospect" };
+        var marketingIndicators = new[]
+        {
+            "campaign", "click", "impression", "conversion", "channel", "source", "medium", "utm", "lead", "prospect"
+        };
         scores["marketing"] = CalculateIndicatorScore(columnsLower, marketingIndicators);
 
         // User/Customer data indicators
-        var userIndicators = new[] { "user", "customer", "member", "account", "profile", "email", "phone", "address", "signup", "registered" };
+        var userIndicators = new[]
+            { "user", "customer", "member", "account", "profile", "email", "phone", "address", "signup", "registered" };
         scores["user_data"] = CalculateIndicatorScore(columnsLower, userIndicators);
 
         // Log data indicators
-        var logIndicators = new[] { "log", "timestamp", "level", "message", "error", "warning", "info", "debug", "trace", "ip", "request", "response", "status_code" };
+        var logIndicators = new[]
+        {
+            "log", "timestamp", "level", "message", "error", "warning", "info", "debug", "trace", "ip", "request",
+            "response", "status_code"
+        };
         scores["logs"] = CalculateIndicatorScore(columnsLower, logIndicators);
 
         // Financial data indicators
-        var financialIndicators = new[] { "amount", "balance", "credit", "debit", "transaction", "payment", "fee", "interest", "currency", "exchange" };
+        var financialIndicators = new[]
+        {
+            "amount", "balance", "credit", "debit", "transaction", "payment", "fee", "interest", "currency", "exchange"
+        };
         scores["financial"] = CalculateIndicatorScore(columnsLower, financialIndicators);
 
         // Inventory data indicators
-        var inventoryIndicators = new[] { "sku", "stock", "inventory", "warehouse", "location", "shelf", "bin", "reorder", "supplier" };
+        var inventoryIndicators = new[]
+            { "sku", "stock", "inventory", "warehouse", "location", "shelf", "bin", "reorder", "supplier" };
         scores["inventory"] = CalculateIndicatorScore(columnsLower, inventoryIndicators);
 
         // IoT/Sensor data indicators
-        var iotIndicators = new[] { "sensor", "device", "temperature", "humidity", "pressure", "reading", "measurement", "lat", "lon", "gps" };
+        var iotIndicators = new[]
+        {
+            "sensor", "device", "temperature", "humidity", "pressure", "reading", "measurement", "lat", "lon", "gps"
+        };
         scores["iot"] = CalculateIndicatorScore(columnsLower, iotIndicators);
 
         // HR data indicators
-        var hrIndicators = new[] { "employee", "department", "salary", "hire", "position", "title", "manager", "performance", "review" };
+        var hrIndicators = new[]
+            { "employee", "department", "salary", "hire", "position", "title", "manager", "performance", "review" };
         scores["hr"] = CalculateIndicatorScore(columnsLower, hrIndicators);
 
         // Find highest scoring domain
@@ -200,16 +220,10 @@ public class DataCharacterizationWave : IDataAnalysisWave
             suggestions.Add("trend_detection");
         }
 
-        if (isTransactional)
-        {
-            suggestions.Add("transaction_analysis");
-        }
+        if (isTransactional) suggestions.Add("transaction_analysis");
 
         var numericCount = columnTypes.Count(kv => kv.Value == "numeric");
-        if (numericCount >= 3)
-        {
-            suggestions.Add("correlation_analysis");
-        }
+        if (numericCount >= 3) suggestions.Add("correlation_analysis");
 
         return suggestions.Distinct().ToList();
     }

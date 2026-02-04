@@ -12,7 +12,7 @@ scope:
   atom: VlmOcr
 
 triggers:
-  requires: []  # Can run standalone for images
+  requires: [ ]  # Can run standalone for images
   skip_when:
     - wave.skipped.VlmOcrWave
     - route.skip.VlmOcrWave
@@ -20,7 +20,7 @@ triggers:
     - extraction.native.high_confidence
   run_when:
     # Always run for images
-    - extension: [.png, .jpg, .jpeg, .webp, .gif, .bmp, .tiff, .tif]
+    - extension: [ .png, .jpg, .jpeg, .webp, .gif, .bmp, .tiff, .tif ]
     # Run for documents when escalated
     - signal: extraction.needs_ocr
       value: true
@@ -47,7 +47,7 @@ emits:
     - key: content.markdown
       type: string
       description: VLM-extracted markdown content
-      confidence_range: [0.6, 0.95]
+      confidence_range: [ 0.6, 0.95 ]
 
     - key: extraction.method
       type: string
@@ -70,7 +70,7 @@ emits:
     - ocr.error
 
 listens:
-  required: []
+  required: [ ]
   optional:
     # Signals from native extraction
     - extraction.text_density

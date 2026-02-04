@@ -1,8 +1,8 @@
 namespace DoomWriter.Models;
 
 /// <summary>
-/// A diagnostic item to display in the editor (spelling, grammar, suggestion, entity link).
-/// Sent to the JavaScript editor for underline rendering and quick-action popups.
+///     A diagnostic item to display in the editor (spelling, grammar, suggestion, entity link).
+///     Sent to the JavaScript editor for underline rendering and quick-action popups.
 /// </summary>
 public record DiagnosticItem
 {
@@ -25,8 +25,8 @@ public enum DiagnosticType
 }
 
 /// <summary>
-/// Request from the editor for quick action at a specific position.
-/// Triggered by Ctrl+. or clicking the margin lightbulb.
+///     Request from the editor for quick action at a specific position.
+///     Triggered by Ctrl+. or clicking the margin lightbulb.
 /// </summary>
 public record QuickActionRequest
 {

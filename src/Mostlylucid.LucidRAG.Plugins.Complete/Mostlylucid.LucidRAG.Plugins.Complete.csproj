@@ -51,18 +51,18 @@
 
     <!-- All processor plugins (ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Books\Mostlylucid.DoomSummarizer.Plugin.Books.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Video\Mostlylucid.DoomSummarizer.Plugin.Video.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Image\Mostlylucid.DoomSummarizer.Plugin.Image.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Audio\Mostlylucid.DoomSummarizer.Plugin.Audio.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Data\Mostlylucid.DoomSummarizer.Plugin.Data.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Books\Mostlylucid.DoomSummarizer.Plugin.Books.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Video\Mostlylucid.DoomSummarizer.Plugin.Video.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Image\Mostlylucid.DoomSummarizer.Plugin.Image.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Audio\Mostlylucid.DoomSummarizer.Plugin.Audio.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Data\Mostlylucid.DoomSummarizer.Plugin.Data.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Books" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Video" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Image" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Audio" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Data" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Books" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Video" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Image" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Audio" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Data" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <!-- Package files -->

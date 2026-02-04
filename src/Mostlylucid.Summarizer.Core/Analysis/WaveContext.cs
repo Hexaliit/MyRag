@@ -1,7 +1,7 @@
 namespace Mostlylucid.Summarizer.Core.Analysis;
 
 /// <summary>
-/// Shared context passed through all waves in a coordinator run.
+///     Shared context passed through all waves in a coordinator run.
 /// </summary>
 public sealed class WaveContext
 {

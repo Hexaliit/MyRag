@@ -51,45 +51,45 @@
 
     <!-- Enable test access to internal members -->
     <ItemGroup>
-        <InternalsVisibleTo Include="DoomSummarizer.Tests" />
-        <InternalsVisibleTo Include="doomsummarizer" />
-        <InternalsVisibleTo Include="lucidrag" />
-        <InternalsVisibleTo Include="DoomWriter" />
+        <InternalsVisibleTo Include="DoomSummarizer.Tests"/>
+        <InternalsVisibleTo Include="doomsummarizer"/>
+        <InternalsVisibleTo Include="lucidrag"/>
+        <InternalsVisibleTo Include="DoomWriter"/>
     </ItemGroup>
 
     <!-- Core dependencies (Lucene and SQLite now come transitively via backend packages) -->
     <ItemGroup>
-        <PackageReference Include="Fluid.Core" Version="2.31.0" />
+        <PackageReference Include="Fluid.Core" Version="2.31.0"/>
 
         <!-- CLI plugin interface (ICliPlugin uses IConfigurator) -->
-        <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
-        <PackageReference Include="Microsoft.Recognizers.Text.DateTime" Version="1.8.13" />
-        <PackageReference Include="Microsoft.Recognizers.Text.Number" Version="1.8.13" />
-        <PackageReference Include="Microsoft.Recognizers.Text.Sequence" Version="1.8.13" />
-        <PackageReference Include="SmartReader" Version="0.11.0" />
+        <PackageReference Include="Spectre.Console.Cli" Version="0.53.1"/>
+        <PackageReference Include="Microsoft.Recognizers.Text.DateTime" Version="1.8.13"/>
+        <PackageReference Include="Microsoft.Recognizers.Text.Number" Version="1.8.13"/>
+        <PackageReference Include="Microsoft.Recognizers.Text.Sequence" Version="1.8.13"/>
+        <PackageReference Include="SmartReader" Version="0.11.0"/>
 
         <!-- DuckDB with VSS for HNSW vector search -->
-        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4" />
+        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4"/>
 
         <!-- ONNX for local embeddings with GPU auto-detection -->
-        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
-        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-        <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2"/>
+        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))"/>
+        <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0"/>
 
         <!-- HTML parsing -->
-        <PackageReference Include="AngleSharp" Version="1.4.1-beta.506" />
+        <PackageReference Include="AngleSharp" Version="1.4.1-beta.506"/>
 
         <!-- Markdown generation -->
-        <PackageReference Include="Markdig" Version="0.44.0" />
+        <PackageReference Include="Markdig" Version="0.44.0"/>
 
         <!-- Polly for resilience -->
-        <PackageReference Include="Polly.Core" Version="8.6.5" />
+        <PackageReference Include="Polly.Core" Version="8.6.5"/>
 
         <!-- YAML config -->
-        <PackageReference Include="YamlDotNet" Version="16.3.0" />
+        <PackageReference Include="YamlDotNet" Version="16.3.0"/>
 
         <!-- Logging abstraction -->
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
     </ItemGroup>
 
     <!-- MinVer -->
@@ -102,51 +102,51 @@
 
     <!-- Shared LLM routing (LlmRouter, ApiKeyService, ApiRateLimiter) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj" />
+        <ProjectReference Include="..\LucidRAG.LLM\LucidRAG.LLM.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.LLM" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.LLM" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <!-- Decomposer: agentic query decomposition engine -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\LucidRAG.Decomposer\LucidRAG.Decomposer.csproj" />
+        <ProjectReference Include="..\LucidRAG.Decomposer\LucidRAG.Decomposer.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.Decomposer" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Decomposer" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <!-- DocSummarizer + backend packages (conditional: ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Rdbms.Sqlite\Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Lucene\Mostlylucid.DocSummarizer.FullText.Lucene.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Sqlite\Mostlylucid.DocSummarizer.FullText.Sqlite.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Anthropic\Mostlylucid.DocSummarizer.Anthropic.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.OpenAI\Mostlylucid.DocSummarizer.OpenAI.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Rdbms.Sqlite\Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Lucene\Mostlylucid.DocSummarizer.FullText.Lucene.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.FullText.Sqlite\Mostlylucid.DocSummarizer.FullText.Sqlite.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Anthropic" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.OpenAI" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.FullText.Lucene" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.FullText.Sqlite" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Anthropic" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.OpenAI" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.FullText.Lucene" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.FullText.Sqlite" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <!-- Playwright for WebsiteFetcher (JS-rendered sites) -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
+        <PackageReference Include="Microsoft.Playwright" Version="1.58.0"/>
     </ItemGroup>
 
     <!-- Embed prompt templates and config -->
     <ItemGroup>
-        <EmbeddedResource Include="Resources\default-config.json" />
-        <EmbeddedResource Include="Resources\default-config.yaml" />
-        <EmbeddedResource Include="Resources\sources.yaml" />
-        <EmbeddedResource Include="Resources\prompts\*.txt" />
-        <EmbeddedResource Include="Resources\templates\*.yaml" />
-        <EmbeddedResource Include="Resources\profiles\*.json" />
+        <EmbeddedResource Include="Resources\default-config.json"/>
+        <EmbeddedResource Include="Resources\default-config.yaml"/>
+        <EmbeddedResource Include="Resources\sources.yaml"/>
+        <EmbeddedResource Include="Resources\prompts\*.txt"/>
+        <EmbeddedResource Include="Resources\templates\*.yaml"/>
+        <EmbeddedResource Include="Resources\profiles\*.json"/>
     </ItemGroup>
 
     <!-- Package files -->

@@ -3,25 +3,30 @@
 Nice-to-have features for future iterations:
 
 ## Time Filtering
+
 - `--since 24h` or `--since yesterday` - Filter content by time
 - `--since 2025-01-20` - Specific date cutoff
 
 ## Output Options
+
 - `--group-by topic` - Organize output by detected topics
 - `--markdown` - Blog/newsletter-ready markdown output
 - `--rss` - Generate RSS feed from digest
 
 ## Trend Analysis
+
 - `--trend` - Compare last run vs current (delta view)
 - `--compare <date>` - Compare with specific historical snapshot
 
 ## Additional Sources (Future)
+
 - YouTube channel summaries
 - Podcast RSS feeds
 - Substack newsletters
 - Mastodon feeds
 
 ## Quality Improvements
+
 - Better query interpretation for special chars (C#, .NET)
 - Topic clustering with embeddings
 - Keyword extraction alongside NER
@@ -32,6 +37,7 @@ Nice-to-have features for future iterations:
 ## Currently Implemented
 
 ### Sources
+
 - **hn** - Hacker News (top, best, new)
 - **reddit** - Reddit programming subreddits
 - **reddit:subreddit** - Specific subreddit (e.g., reddit:dotnet)
@@ -45,6 +51,7 @@ Nice-to-have features for future iterations:
 - **http://url** - Any RSS feed or website
 
 ### Features
+
 - 4 vibes: doom, hopeful, snarky, neutral
 - NER entity extraction (--entities)
 - JSON output for LLM tools (--json)
@@ -57,12 +64,14 @@ Nice-to-have features for future iterations:
 - Self-setup with ONNX model download
 
 ### Commands
+
 - `doomsummarizer setup [--ner] [--playwright]` - Initialize models
 - `doomsummarizer scroll [prompt]` - Main scroll command
 - `doomsummarizer trends` - View historical trends
 - `doomsummarizer config --show` - View configuration
 
 ### Example Prompts
+
 - `scroll "doom scroll hacker news"` - Pessimistic HN summary
 - `scroll "see what bbc says about AI"` - BBC filtered by AI
 - `scroll -s so:csharp -s reddit:dotnet` - C# from SO and Reddit

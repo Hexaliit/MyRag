@@ -1,13 +1,14 @@
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Data.Models;
 
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Relationship Detection Wave - Detects foreign key relationships in databases.
-/// For database files, extracts explicit FKs from schema.
-/// For any data file, detects implicit relationships via column naming conventions.
-/// Priority: 85 (after TypeInference, before Profile)
+///     Relationship Detection Wave - Detects foreign key relationships in databases.
+///     For database files, extracts explicit FKs from schema.
+///     For any data file, detects implicit relationships via column naming conventions.
+///     Priority: 85 (after TypeInference, before Profile)
 /// </summary>
 public class RelationshipWave : IDataAnalysisWave
 {
@@ -101,7 +102,6 @@ public class RelationshipWave : IDataAnalysisWave
 
             // Emit each explicit FK relationship
             foreach (var rel in schema.Relationships)
-            {
                 signals.Add(new DataSignal
                 {
                     Key = $"relationship.fk.{rel.FromTable}.{rel.FromColumn}",
@@ -123,7 +123,6 @@ public class RelationshipWave : IDataAnalysisWave
                         ["description"] = rel.Description
                     }
                 });
-            }
 
             // Emit table summary
             signals.Add(new DataSignal
@@ -158,7 +157,6 @@ public class RelationshipWave : IDataAnalysisWave
 
                 // Emit primary key info
                 if (table.PrimaryKey.Count > 0)
-                {
                     signals.Add(new DataSignal
                     {
                         Key = $"database.table.{table.Name}.primary_key",
@@ -167,7 +165,6 @@ public class RelationshipWave : IDataAnalysisWave
                         Confidence = 1.0,
                         Tags = [DataSignalTags.Schema, "database", "pk"]
                     });
-                }
             }
 
             // Build relationship graph summary
@@ -318,7 +315,7 @@ public class RelationshipWave : IDataAnalysisWave
 
     private static string BuildRelationshipGraphSummary(DatabaseSchema schema)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("Database Relationships:");
 
         // Group relationships by source table
@@ -326,10 +323,7 @@ public class RelationshipWave : IDataAnalysisWave
         foreach (var group in bySourceTable.OrderBy(g => g.Key))
         {
             sb.AppendLine($"  {group.Key}:");
-            foreach (var rel in group)
-            {
-                sb.AppendLine($"    .{rel.FromColumn} -> {rel.ToTable}.{rel.ToColumn}");
-            }
+            foreach (var rel in group) sb.AppendLine($"    .{rel.FromColumn} -> {rel.ToTable}.{rel.ToColumn}");
         }
 
         // Find tables with no relationships (orphan tables)
@@ -341,10 +335,7 @@ public class RelationshipWave : IDataAnalysisWave
             .Where(t => !allTablesInRelationships.Contains(t))
             .ToList();
 
-        if (orphanTables.Count > 0)
-        {
-            sb.AppendLine($"  Standalone tables: {string.Join(", ", orphanTables)}");
-        }
+        if (orphanTables.Count > 0) sb.AppendLine($"  Standalone tables: {string.Join(", ", orphanTables)}");
 
         return sb.ToString();
     }

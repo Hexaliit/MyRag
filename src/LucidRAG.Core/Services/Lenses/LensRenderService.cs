@@ -1,12 +1,11 @@
 using DotLiquid;
-using Microsoft.Extensions.Logging;
 using LucidRAG.Lenses;
 
 namespace LucidRAG.Services.Lenses;
 
 /// <summary>
-/// Renders Liquid templates for lens-specific formatting.
-/// Uses DotLiquid library for template processing.
+///     Renders Liquid templates for lens-specific formatting.
+///     Uses DotLiquid library for template processing.
 /// </summary>
 public class LensRenderService : ILensRenderService
 {
@@ -19,7 +18,8 @@ public class LensRenderService : ILensRenderService
 
         // Register safe types for Liquid templates
         Template.RegisterSafeType(typeof(SourceCitation), member => true);
-        Template.RegisterSafeType(typeof(SourceCitationDrop), new[] {
+        Template.RegisterSafeType(typeof(SourceCitationDrop), new[]
+        {
             "number", "document_id", "document_name", "segment_id",
             "text", "page_or_section", "url", "title", "author",
             "publish_date", "excerpt", "sequence_number"
@@ -48,7 +48,8 @@ public class LensRenderService : ILensRenderService
                 hash["personality_spelling"] = personality.SpellingVariant ?? "american";
                 hash["personality_persona"] = personality.Persona ?? "";
                 hash["personality_style_notes"] = personality.StyleNotes ?? new List<string>();
-                hash["personality_phrase_preferences"] = personality.PhrasePreferences ?? new Dictionary<string, string>();
+                hash["personality_phrase_preferences"] =
+                    personality.PhrasePreferences ?? new Dictionary<string, string>();
 
                 // Build a comprehensive personality instruction string for LLMs
                 var personalityInstructions = BuildPersonalityInstructions(personality);
@@ -69,61 +70,9 @@ public class LensRenderService : ILensRenderService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error rendering system prompt for lens {LensId}", lens.Manifest.Id);
-            throw new InvalidOperationException($"Failed to render system prompt for lens '{lens.Manifest.Id}': {ex.Message}", ex);
+            throw new InvalidOperationException(
+                $"Failed to render system prompt for lens '{lens.Manifest.Id}': {ex.Message}", ex);
         }
-    }
-
-    /// <summary>
-    /// Builds LLM-friendly personality instructions from the personality config.
-    /// </summary>
-    private static string BuildPersonalityInstructions(LensPersonality personality)
-    {
-        var instructions = new List<string>();
-
-        if (!string.IsNullOrEmpty(personality.Tone))
-        {
-            instructions.Add($"Use a {personality.Tone} tone in your responses.");
-        }
-
-        if (!string.IsNullOrEmpty(personality.SpellingVariant))
-        {
-            var spellingNote = personality.SpellingVariant.ToLowerInvariant() switch
-            {
-                "british" => "Use British English spellings (colour, organisation, centre, etc.).",
-                "american" => "Use American English spellings (color, organization, center, etc.).",
-                "australian" => "Use Australian English spellings (similar to British: colour, organisation, centre, etc.).",
-                _ => $"Use {personality.SpellingVariant} English spellings."
-            };
-            instructions.Add(spellingNote);
-        }
-
-        if (!string.IsNullOrEmpty(personality.Persona))
-        {
-            instructions.Add($"Embody the persona of: {personality.Persona}");
-        }
-
-        if (personality.StyleNotes?.Any() == true)
-        {
-            foreach (var note in personality.StyleNotes)
-            {
-                instructions.Add(note);
-            }
-        }
-
-        if (personality.PhrasePreferences?.Any() == true)
-        {
-            foreach (var (from, to) in personality.PhrasePreferences)
-            {
-                if (string.IsNullOrEmpty(to))
-                    instructions.Add($"Avoid using the phrase \"{from}\".");
-                else
-                    instructions.Add($"Instead of \"{from}\", use \"{to}\".");
-            }
-        }
-
-        return instructions.Count > 0
-            ? "\n## Personality & Style Guidelines\n" + string.Join("\n", instructions.Select(i => $"- {i}"))
-            : "";
     }
 
     public string RenderCitation(LensPackage lens, SourceCitation source)
@@ -169,12 +118,54 @@ public class LensRenderService : ILensRenderService
             return answer;
         }
     }
+
+    /// <summary>
+    ///     Builds LLM-friendly personality instructions from the personality config.
+    /// </summary>
+    private static string BuildPersonalityInstructions(LensPersonality personality)
+    {
+        var instructions = new List<string>();
+
+        if (!string.IsNullOrEmpty(personality.Tone))
+            instructions.Add($"Use a {personality.Tone} tone in your responses.");
+
+        if (!string.IsNullOrEmpty(personality.SpellingVariant))
+        {
+            var spellingNote = personality.SpellingVariant.ToLowerInvariant() switch
+            {
+                "british" => "Use British English spellings (colour, organisation, centre, etc.).",
+                "american" => "Use American English spellings (color, organization, center, etc.).",
+                "australian" =>
+                    "Use Australian English spellings (similar to British: colour, organisation, centre, etc.).",
+                _ => $"Use {personality.SpellingVariant} English spellings."
+            };
+            instructions.Add(spellingNote);
+        }
+
+        if (!string.IsNullOrEmpty(personality.Persona))
+            instructions.Add($"Embody the persona of: {personality.Persona}");
+
+        if (personality.StyleNotes?.Any() == true)
+            foreach (var note in personality.StyleNotes)
+                instructions.Add(note);
+
+        if (personality.PhrasePreferences?.Any() == true)
+            foreach (var (from, to) in personality.PhrasePreferences)
+                if (string.IsNullOrEmpty(to))
+                    instructions.Add($"Avoid using the phrase \"{from}\".");
+                else
+                    instructions.Add($"Instead of \"{from}\", use \"{to}\".");
+
+        return instructions.Count > 0
+            ? "\n## Personality & Style Guidelines\n" + string.Join("\n", instructions.Select(i => $"- {i}"))
+            : "";
+    }
 }
 
 /// <summary>
-/// Liquid drop for SourceCitation - makes citation properties accessible in templates.
-/// Maps C# naming (PascalCase) to liquid naming (snake_case).
-/// EXPOSES ALL SIGNALS AND SCORES FOR TRANSPARENT RETRIEVAL.
+///     Liquid drop for SourceCitation - makes citation properties accessible in templates.
+///     Maps C# naming (PascalCase) to liquid naming (snake_case).
+///     EXPOSES ALL SIGNALS AND SCORES FOR TRANSPARENT RETRIEVAL.
 /// </summary>
 public class SourceCitationDrop : Drop
 {
@@ -207,9 +198,9 @@ public class SourceCitationDrop : Drop
     public double freshness_score => _source.FreshnessScore;
 
     // MATCHING INFORMATION - Why this source was selected
-    public List<string> matched_salient_terms => _source.MatchedSalientTerms ?? new();
-    public List<string> matched_entities => _source.MatchedEntities ?? new();
-    public List<string> signal_explanations => _source.SignalExplanations ?? new();
+    public List<string> matched_salient_terms => _source.MatchedSalientTerms ?? new List<string>();
+    public List<string> matched_entities => _source.MatchedEntities ?? new List<string>();
+    public List<string> signal_explanations => _source.SignalExplanations ?? new List<string>();
 
     // METADATA - Document-level information
     public string? author => _source.Author;
@@ -258,12 +249,12 @@ public class SourceCitationDrop : Drop
 }
 
 /// <summary>
-/// Custom Liquid filters for lens templates.
+///     Custom Liquid filters for lens templates.
 /// </summary>
 public static class LensLiquidFilters
 {
     /// <summary>
-    /// Renders a citation using the current lens (placeholder for future enhancement).
+    ///     Renders a citation using the current lens (placeholder for future enhancement).
     /// </summary>
     public static string render_citation(object input)
     {

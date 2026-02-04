@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using StopWord;
 
 namespace Mostlylucid.DocSummarizer.Services.Utilities;
@@ -59,7 +60,7 @@ public static class StopwordLists
     ///     Check if word is a stopword (pronouns, determiners, conjunctions, etc.)
     ///     Optimized: HashSet is case-insensitive, no ToLowerInvariant() needed.
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsStopword(string word)
     {
         // Fast path: very short words are often stopwords
@@ -72,7 +73,7 @@ public static class StopwordLists
     ///     Check if word is an honorific title.
     ///     All HashSets use OrdinalIgnoreCase - no case conversion needed.
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsHonorific(string word)
     {
         // Check with and without trailing period (Dr vs Dr.)
@@ -83,17 +84,18 @@ public static class StopwordLists
     /// <summary>
     ///     Check if word is a place indicator suffix
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsPlaceIndicator(string word)
     {
         return PlaceIndicators.Contains(word) ||
-               (word.Length > 1 && word[^1] == '.' && PlaceIndicators.Contains(word.AsSpan(0, word.Length - 1).ToString()));
+               (word.Length > 1 && word[^1] == '.' &&
+                PlaceIndicators.Contains(word.AsSpan(0, word.Length - 1).ToString()));
     }
 
     /// <summary>
     ///     Check if word is a code/technical keyword
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsCodeKeyword(string word)
     {
         // HashSet is case-insensitive, single Contains suffices
@@ -103,7 +105,7 @@ public static class StopwordLists
     /// <summary>
     ///     Check if word is a day name
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsDayName(string word)
     {
         return DayNames.Contains(word);
@@ -112,7 +114,7 @@ public static class StopwordLists
     /// <summary>
     ///     Check if word is a month name
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsMonthName(string word)
     {
         return MonthNames.Contains(word);
@@ -122,7 +124,7 @@ public static class StopwordLists
     ///     Check if word should be filtered from entity extraction
     ///     (any category except honorific - honorifics precede names)
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool ShouldFilter(string word)
     {
         // All HashSets use OrdinalIgnoreCase - no case conversion needed

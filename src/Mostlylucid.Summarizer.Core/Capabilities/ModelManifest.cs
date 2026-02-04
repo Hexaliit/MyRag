@@ -5,7 +5,7 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Mostlylucid.Summarizer.Core.Capabilities;
 
 /// <summary>
-/// Well-known model IDs - use these constants instead of magic strings.
+///     Well-known model IDs - use these constants instead of magic strings.
 /// </summary>
 public static class ModelIds
 {
@@ -33,7 +33,7 @@ public static class ModelIds
 }
 
 /// <summary>
-/// Well-known component IDs - use these constants for component registration.
+///     Well-known component IDs - use these constants for component registration.
 /// </summary>
 public static class ComponentIds
 {
@@ -58,98 +58,99 @@ public static class ComponentIds
 }
 
 /// <summary>
-/// Defines a model that can be downloaded and used by the system.
-/// Models are lazily downloaded when first needed.
+///     Defines a model that can be downloaded and used by the system.
+///     Models are lazily downloaded when first needed.
 /// </summary>
 public record ModelDefinition
 {
     /// <summary>
-    /// Unique identifier for the model (e.g., "clip-vit-b32", "whisper-base").
+    ///     Unique identifier for the model (e.g., "clip-vit-b32", "whisper-base").
     /// </summary>
     public required string Id { get; init; }
 
     /// <summary>
-    /// Human-readable name.
+    ///     Human-readable name.
     /// </summary>
     public required string Name { get; init; }
 
     /// <summary>
-    /// Model category for grouping.
+    ///     Model category for grouping.
     /// </summary>
     public required ModelCategory Category { get; init; }
 
     /// <summary>
-    /// URL to download the model from (HuggingFace, direct URL, etc.).
+    ///     URL to download the model from (HuggingFace, direct URL, etc.).
     /// </summary>
     public required string DownloadUrl { get; init; }
 
     /// <summary>
-    /// Expected file size in bytes (for progress reporting).
+    ///     Expected file size in bytes (for progress reporting).
     /// </summary>
     public long? ExpectedSizeBytes { get; init; }
 
     /// <summary>
-    /// SHA256 hash for verification.
+    ///     SHA256 hash for verification.
     /// </summary>
     public string? Sha256Hash { get; init; }
 
     /// <summary>
-    /// Relative path within the models directory.
+    ///     Relative path within the models directory.
     /// </summary>
     public required string RelativePath { get; init; }
 
     /// <summary>
-    /// Minimum execution provider required (null = any).
+    ///     Minimum execution provider required (null = any).
     /// </summary>
     public string? RequiredProvider { get; init; }
 
     /// <summary>
-    /// Preferred execution providers in order.
+    ///     Preferred execution providers in order.
     /// </summary>
-    public List<string> PreferredProviders { get; init; } = ["CUDAExecutionProvider", "DmlExecutionProvider", "CPUExecutionProvider"];
+    public List<string> PreferredProviders { get; init; } =
+        ["CUDAExecutionProvider", "DmlExecutionProvider", "CPUExecutionProvider"];
 
     /// <summary>
-    /// Components/waves that require this model.
+    ///     Components/waves that require this model.
     /// </summary>
     public List<string> RequiredBy { get; init; } = [];
 
     /// <summary>
-    /// Memory required to load the model (approximate).
+    ///     Memory required to load the model (approximate).
     /// </summary>
     public long? MemoryRequiredBytes { get; init; }
 
     /// <summary>
-    /// Whether this model has a GPU-optimized variant.
+    ///     Whether this model has a GPU-optimized variant.
     /// </summary>
     public bool HasGpuVariant { get; init; }
 
     /// <summary>
-    /// URL for GPU-optimized variant (if different).
+    ///     URL for GPU-optimized variant (if different).
     /// </summary>
     public string? GpuVariantUrl { get; init; }
 
     /// <summary>
-    /// Additional files (tokenizer, vocab, etc.)
+    ///     Additional files (tokenizer, vocab, etc.)
     /// </summary>
     public Dictionary<string, string>? AdditionalFiles { get; init; }
 }
 
 /// <summary>
-/// Model categories.
+///     Model categories.
 /// </summary>
 public enum ModelCategory
 {
-    Embedding,      // CLIP, sentence transformers
-    Vision,         // Vision LLM, object detection
-    Speech,         // Whisper, speaker diarization
-    Ner,            // Named entity recognition
-    Ocr,            // Text detection, recognition
-    Audio,          // Audio classification, speaker embedding
-    Language        // LLM, text generation
+    Embedding, // CLIP, sentence transformers
+    Vision, // Vision LLM, object detection
+    Speech, // Whisper, speaker diarization
+    Ner, // Named entity recognition
+    Ocr, // Text detection, recognition
+    Audio, // Audio classification, speaker embedding
+    Language // LLM, text generation
 }
 
 /// <summary>
-/// Component registration with model requirements.
+///     Component registration with model requirements.
 /// </summary>
 public record ComponentDefinition
 {
@@ -160,20 +161,19 @@ public record ComponentDefinition
 }
 
 /// <summary>
-/// Central manifest of all models used by the system.
-/// Loads from YAML configuration with type-safe constants for model IDs.
+///     Central manifest of all models used by the system.
+///     Loads from YAML configuration with type-safe constants for model IDs.
 /// </summary>
 public class ModelManifest
 {
     private static ModelManifest? _instance;
     private static readonly object _lock = new();
+    private readonly Dictionary<string, ComponentDefinition> _components = new();
 
     private readonly Dictionary<string, ModelDefinition> _models = new();
-    private readonly Dictionary<string, ComponentDefinition> _components = new();
-    private string _modelsDirectory = GetDefaultModelsDirectory();
 
     /// <summary>
-    /// Get the singleton instance. Loads from embedded defaults if no YAML provided.
+    ///     Get the singleton instance. Loads from embedded defaults if no YAML provided.
     /// </summary>
     public static ModelManifest Instance
     {
@@ -190,22 +190,22 @@ public class ModelManifest
     }
 
     /// <summary>
-    /// All known models.
+    ///     All known models.
     /// </summary>
     public IReadOnlyDictionary<string, ModelDefinition> Models => _models;
 
     /// <summary>
-    /// All registered components.
+    ///     All registered components.
     /// </summary>
     public IReadOnlyDictionary<string, ComponentDefinition> Components => _components;
 
     /// <summary>
-    /// Models directory.
+    ///     Models directory.
     /// </summary>
-    public string ModelsDirectory => _modelsDirectory;
+    public string ModelsDirectory { get; private set; } = GetDefaultModelsDirectory();
 
     /// <summary>
-    /// Load manifest from YAML file.
+    ///     Load manifest from YAML file.
     /// </summary>
     public static ModelManifest LoadFromYaml(string yamlPath)
     {
@@ -214,7 +214,7 @@ public class ModelManifest
     }
 
     /// <summary>
-    /// Load manifest from YAML content.
+    ///     Load manifest from YAML content.
     /// </summary>
     public static ModelManifest LoadFromYamlContent(string yamlContent)
     {
@@ -229,14 +229,11 @@ public class ModelManifest
 
         // Parse settings
         if (yamlDoc.Settings != null)
-        {
-            manifest._modelsDirectory = ExpandEnvironmentVariables(
+            manifest.ModelsDirectory = ExpandEnvironmentVariables(
                 yamlDoc.Settings.ModelsDirectory ?? GetDefaultModelsDirectory());
-        }
 
         // Parse models
         if (yamlDoc.Models != null)
-        {
             foreach (var (id, model) in yamlDoc.Models)
             {
                 var category = ParseCategory(model.Category);
@@ -255,13 +252,10 @@ public class ModelManifest
                     AdditionalFiles = ParseAdditionalFiles(model)
                 };
             }
-        }
 
         // Parse components
         if (yamlDoc.Components != null)
-        {
             foreach (var (id, comp) in yamlDoc.Components)
-            {
                 manifest._components[id] = new ComponentDefinition
                 {
                     Id = id,
@@ -269,55 +263,53 @@ public class ModelManifest
                     OptionalModels = comp.OptionalModels ?? [],
                     FallbackChain = comp.FallbackChain ?? []
                 };
-            }
-        }
 
         return manifest;
     }
 
     /// <summary>
-    /// Get models required by a specific component.
+    ///     Get models required by a specific component.
     /// </summary>
     public IEnumerable<ModelDefinition> GetModelsForComponent(string componentName)
     {
         // Check explicit component registration
         if (_components.TryGetValue(componentName, out var comp))
-        {
             foreach (var modelId in comp.Models)
-            {
                 if (_models.TryGetValue(modelId, out var model))
                     yield return model;
-            }
-        }
 
         // Also check RequiredBy in models
         foreach (var model in _models.Values)
-        {
             if (model.RequiredBy.Contains(componentName, StringComparer.OrdinalIgnoreCase))
                 yield return model;
-        }
     }
 
     /// <summary>
-    /// Get models by category.
+    ///     Get models by category.
     /// </summary>
-    public IEnumerable<ModelDefinition> GetModelsByCategory(ModelCategory category) =>
-        _models.Values.Where(m => m.Category == category);
+    public IEnumerable<ModelDefinition> GetModelsByCategory(ModelCategory category)
+    {
+        return _models.Values.Where(m => m.Category == category);
+    }
 
     /// <summary>
-    /// Get a model by ID.
+    ///     Get a model by ID.
     /// </summary>
-    public ModelDefinition? GetModel(string modelId) =>
-        _models.GetValueOrDefault(modelId);
+    public ModelDefinition? GetModel(string modelId)
+    {
+        return _models.GetValueOrDefault(modelId);
+    }
 
     /// <summary>
-    /// Get component definition by ID.
+    ///     Get component definition by ID.
     /// </summary>
-    public ComponentDefinition? GetComponent(string componentId) =>
-        _components.GetValueOrDefault(componentId);
+    public ComponentDefinition? GetComponent(string componentId)
+    {
+        return _components.GetValueOrDefault(componentId);
+    }
 
     /// <summary>
-    /// Create default manifest with embedded model definitions.
+    ///     Create default manifest with embedded model definitions.
     /// </summary>
     private static ModelManifest CreateDefaultManifest()
     {
@@ -334,7 +326,8 @@ public class ModelManifest
             ExpectedSizeBytes = 350_000_000,
             MemoryRequiredBytes = 400_000_000,
             HasGpuVariant = true,
-            RequiredBy = [ComponentIds.ClipEmbeddingWave, ComponentIds.BatchClipEmbeddingService, ComponentIds.ImageAnalysisWave]
+            RequiredBy =
+                [ComponentIds.ClipEmbeddingWave, ComponentIds.BatchClipEmbeddingService, ComponentIds.ImageAnalysisWave]
         };
 
         // Sentence Transformer (MiniLM)
@@ -494,17 +487,20 @@ public class ModelManifest
         return manifest;
     }
 
-    private static ModelCategory ParseCategory(string? category) => category?.ToLowerInvariant() switch
+    private static ModelCategory ParseCategory(string? category)
     {
-        "embedding" => ModelCategory.Embedding,
-        "vision" => ModelCategory.Vision,
-        "speech" => ModelCategory.Speech,
-        "ner" => ModelCategory.Ner,
-        "ocr" => ModelCategory.Ocr,
-        "audio" => ModelCategory.Audio,
-        "language" => ModelCategory.Language,
-        _ => ModelCategory.Embedding
-    };
+        return category?.ToLowerInvariant() switch
+        {
+            "embedding" => ModelCategory.Embedding,
+            "vision" => ModelCategory.Vision,
+            "speech" => ModelCategory.Speech,
+            "ner" => ModelCategory.Ner,
+            "ocr" => ModelCategory.Ocr,
+            "audio" => ModelCategory.Audio,
+            "language" => ModelCategory.Language,
+            _ => ModelCategory.Embedding
+        };
+    }
 
     private static Dictionary<string, string>? ParseAdditionalFiles(YamlModelDefinition model)
     {

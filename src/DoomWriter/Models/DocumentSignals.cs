@@ -3,26 +3,26 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace DoomWriter.Models;
 
 /// <summary>
-/// Live analysis state for the current document.
-/// Updated by DocumentAnalysisService on every content change.
+///     Live analysis state for the current document.
+///     Updated by DocumentAnalysisService on every content change.
 /// </summary>
 public partial class DocumentSignals : ObservableObject
 {
-    [ObservableProperty] private List<HeadingItem> _headings = [];
-    [ObservableProperty] private List<AnalyzedSegment> _segments = [];
-    [ObservableProperty] private List<TrackedEntity> _entities = [];
-    [ObservableProperty] private List<TopicScore> _topics = [];
     [ObservableProperty] private float _coherenceScore;
     [ObservableProperty] private float[] _documentCentroid = [];
-    [ObservableProperty] private int _wordCount;
-    [ObservableProperty] private int _segmentCount;
-    [ObservableProperty] private int _entityCount;
     [ObservableProperty] private string _dominantTopic = "";
     [ObservableProperty] private float _driftScore;
+    [ObservableProperty] private List<TrackedEntity> _entities = [];
+    [ObservableProperty] private int _entityCount;
+    [ObservableProperty] private List<HeadingItem> _headings = [];
+    [ObservableProperty] private int _segmentCount;
+    [ObservableProperty] private List<AnalyzedSegment> _segments = [];
+    [ObservableProperty] private List<TopicScore> _topics = [];
+    [ObservableProperty] private int _wordCount;
 }
 
 /// <summary>
-/// A heading extracted from the markdown document for TOC display.
+///     A heading extracted from the markdown document for TOC display.
 /// </summary>
 public record HeadingItem
 {
@@ -33,7 +33,7 @@ public record HeadingItem
 }
 
 /// <summary>
-/// A text segment with analysis signals.
+///     A text segment with analysis signals.
 /// </summary>
 public record AnalyzedSegment
 {
@@ -50,22 +50,25 @@ public record AnalyzedSegment
 }
 
 /// <summary>
-/// Classification of a segment for display and scoring purposes.
+///     Classification of a segment for display and scoring purposes.
 /// </summary>
 public enum SegmentKind
 {
     /// <summary>Regular prose paragraph.</summary>
     Prose,
+
     /// <summary>Fenced code block.</summary>
     Code,
+
     /// <summary>Mermaid or other diagram.</summary>
     Diagram,
+
     /// <summary>Section heading.</summary>
     Heading
 }
 
 /// <summary>
-/// A tracked entity with mention and section information.
+///     A tracked entity with mention and section information.
 /// </summary>
 public record TrackedEntity
 {
@@ -77,7 +80,7 @@ public record TrackedEntity
 }
 
 /// <summary>
-/// Topic inference result for a section.
+///     Topic inference result for a section.
 /// </summary>
 public record TopicScore
 {

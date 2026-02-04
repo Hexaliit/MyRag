@@ -8,15 +8,15 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 namespace Mostlylucid.DocSummarizer.Data.Pipeline;
 
 /// <summary>
-/// Pipeline implementation for structured data files (CSV, JSON, Excel, Parquet).
-/// Combines row chunking with wave-based data analysis for rich metadata.
+///     Pipeline implementation for structured data files (CSV, JSON, Excel, Parquet).
+///     Combines row chunking with wave-based data analysis for rich metadata.
 /// </summary>
 public class DataPipeline : PipelineBase
 {
     private readonly IDataProcessor _dataProcessor;
     private readonly IFileSummarizer _fileSummarizer;
-    private readonly DataAnalysisOrchestrator? _orchestrator;
     private readonly ILogger<DataPipeline> _logger;
+    private readonly DataAnalysisOrchestrator? _orchestrator;
 
     public DataPipeline(
         IDataProcessor dataProcessor,
@@ -77,12 +77,10 @@ public class DataPipeline : PipelineBase
 
         var result = await _dataProcessor.ProcessAsync(filePath, ct);
 
-        if (!result.Success)
-        {
-            throw new InvalidOperationException(result.Error ?? "Data processing failed");
-        }
+        if (!result.Success) throw new InvalidOperationException(result.Error ?? "Data processing failed");
 
-        progress?.Report(new PipelineProgress("Converting", "Converting to chunks", 80, result.Chunks.Count, result.Chunks.Count));
+        progress?.Report(new PipelineProgress("Converting", "Converting to chunks", 80, result.Chunks.Count,
+            result.Chunks.Count));
 
         // Step 3: Build metadata from analysis profile
         var analysisMetadata = profile?.ToMetadata() ?? new Dictionary<string, object?>();
@@ -143,7 +141,6 @@ public class DataPipeline : PipelineBase
         {
             var summaryText = profile.ToSummaryText();
             if (!string.IsNullOrWhiteSpace(summaryText))
-            {
                 chunks.Insert(0, new ContentChunk
                 {
                     Id = $"{Path.GetFileName(filePath)}:profile",
@@ -154,7 +151,6 @@ public class DataPipeline : PipelineBase
                     ContentHash = ComputeHash(summaryText),
                     Metadata = analysisMetadata
                 });
-            }
         }
 
         _logger.LogInformation("Processed {ChunkCount} chunks from data file (file: {Size})",

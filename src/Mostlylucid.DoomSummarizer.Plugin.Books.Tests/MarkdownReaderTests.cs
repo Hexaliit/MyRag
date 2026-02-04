@@ -6,6 +6,7 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Books.Tests;
 public class MarkdownReaderTests
 {
     private readonly MarkdownReader _reader = new(NullLogger<MarkdownReader>.Instance);
+
     [Fact]
     public async Task ReadAsync_FrontMatter_ExtractsTitleAndMetadata()
     {
@@ -13,20 +14,20 @@ public class MarkdownReaderTests
         try
         {
             await File.WriteAllTextAsync(tempFile, """
-                ---
-                title: My Test Post
-                author: Scott Galloway
-                date: 2024-01-15
-                ---
+                                                   ---
+                                                   title: My Test Post
+                                                   author: Scott Galloway
+                                                   date: 2024-01-15
+                                                   ---
 
-                # Introduction
+                                                   # Introduction
 
-                This is the introduction to the test document.
+                                                   This is the introduction to the test document.
 
-                ## Section 1
+                                                   ## Section 1
 
-                Content of section 1.
-                """);
+                                                   Content of section 1.
+                                                   """);
 
             var result = await _reader.ReadAsync(tempFile);
 
@@ -39,7 +40,13 @@ public class MarkdownReaderTests
         }
         finally
         {
-            try { File.Delete(tempFile); } catch { }
+            try
+            {
+                File.Delete(tempFile);
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -50,10 +57,10 @@ public class MarkdownReaderTests
         try
         {
             await File.WriteAllTextAsync(tempFile, """
-                # My Document Title
+                                                   # My Document Title
 
-                Some content here.
-                """);
+                                                   Some content here.
+                                                   """);
 
             var result = await _reader.ReadAsync(tempFile);
 
@@ -61,7 +68,13 @@ public class MarkdownReaderTests
         }
         finally
         {
-            try { File.Delete(tempFile); } catch { }
+            try
+            {
+                File.Delete(tempFile);
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -79,7 +92,13 @@ public class MarkdownReaderTests
         }
         finally
         {
-            try { File.Delete(tempFile); } catch { }
+            try
+            {
+                File.Delete(tempFile);
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -98,7 +117,13 @@ public class MarkdownReaderTests
         }
         finally
         {
-            try { File.Delete(tempFile); } catch { }
+            try
+            {
+                File.Delete(tempFile);
+            }
+            catch
+            {
+            }
         }
     }
 }

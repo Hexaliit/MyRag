@@ -1,21 +1,19 @@
 using System.Reflection;
+using DoomSummarizer.Plugins.Runtime;
 using LucidRAG.Coordination;
 using LucidRAG.Plugins;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace LucidRAG.Extensions;
 
 /// <summary>
-/// DI extension methods for the unified plugin system.
+///     DI extension methods for the unified plugin system.
 /// </summary>
 public static class PluginServiceExtensions
 {
     /// <summary>
-    /// Register a compile-time plugin. Scans the assembly for IWave implementations,
-    /// loads embedded wave manifests, and registers prompts/lenses.
+    ///     Register a compile-time plugin. Scans the assembly for IWave implementations,
+    ///     loads embedded wave manifests, and registers prompts/lenses.
     /// </summary>
     public static IServiceCollection AddPlugin<TPlugin>(
         this IServiceCollection services,
@@ -30,13 +28,13 @@ public static class PluginServiceExtensions
         if (configuration is not null)
             plugin.ConfigureServices(services, configuration);
 
-        RegisterWavesFromAssembly(services, assembly);
+        services.RegisterWavesFromAssembly(assembly);
 
         return services;
     }
 
     /// <summary>
-    /// Register all IWave implementations found in the given assembly.
+    ///     Register all IWave implementations found in the given assembly.
     /// </summary>
     public static IServiceCollection RegisterWavesFromAssembly(
         this IServiceCollection services,
@@ -50,7 +48,7 @@ public static class PluginServiceExtensions
     }
 
     /// <summary>
-    /// Register plugins from a directory containing plugin DLLs.
+    ///     Register plugins from a directory containing plugin DLLs.
     /// </summary>
     public static IServiceCollection AddRuntimePlugins(
         this IServiceCollection services,
@@ -66,7 +64,7 @@ public static class PluginServiceExtensions
     }
 
     /// <summary>
-    /// Register a single runtime-loaded plugin from a DLL path.
+    ///     Register a single runtime-loaded plugin from a DLL path.
     /// </summary>
     public static IServiceCollection AddRuntimePlugin(
         this IServiceCollection services,
@@ -82,7 +80,7 @@ public static class PluginServiceExtensions
     }
 
     /// <summary>
-    /// Register the core coordination services (DocumentCoordinator + dependencies).
+    ///     Register the core coordination services (DocumentCoordinator + dependencies).
     /// </summary>
     public static IServiceCollection AddLucidRagCoordination(this IServiceCollection services)
     {
@@ -94,7 +92,7 @@ public static class PluginServiceExtensions
 internal sealed class RuntimePluginLoader;
 
 /// <summary>
-/// Proxy wave that lazily loads a plugin DLL on first execution.
+///     Proxy wave that lazily loads a plugin DLL on first execution.
 /// </summary>
 internal sealed class RuntimePluginProxy : IWave
 {
@@ -126,7 +124,7 @@ internal sealed class RuntimePluginProxy : IWave
 
         try
         {
-            var loadContext = new DoomSummarizer.Plugins.Runtime.PluginLoadContext(_dllPath);
+            var loadContext = new PluginLoadContext(_dllPath);
             var assembly = loadContext.LoadFromAssemblyPath(_dllPath);
             var waveTypes = WaveDiscovery.ScanForWaveTypes(assembly);
             if (waveTypes.Count > 0)

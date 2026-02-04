@@ -1,5 +1,4 @@
 using DoomSummarizer.Commands;
-using DoomSummarizer.Plugins;
 using DoomSummarizer.Plugins.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,8 +9,8 @@ using Spectre.Console.Cli;
 namespace DoomSummarizer;
 
 /// <summary>
-/// Shared CLI application setup. Used by both the slim CLI (doomsummarizer)
-/// and the complete CLI (lucidrag).
+///     Shared CLI application setup. Used by both the slim CLI (doomsummarizer)
+///     and the complete CLI (lucidrag).
 /// </summary>
 public static class CliApp
 {
@@ -99,7 +98,8 @@ public static class CliApp
                 .WithExample("config", "--init");
 
             config.AddCommand<CrawlCommand>("crawl")
-                .WithDescription("Crawl a website to build a searchable knowledge base (incremental with ETag/hash caching)")
+                .WithDescription(
+                    "Crawl a website to build a searchable knowledge base (incremental with ETag/hash caching)")
                 .WithExample("crawl", "https://docs.example.com")
                 .WithExample("crawl", "https://docs.example.com", "--force")
                 .WithExample("crawl", "https://blog.example.com", "-g", "/blog/*", "--entities")
@@ -179,25 +179,27 @@ public static class CliApp
             });
 
             // Plugin-contributed CLI commands (discovered from loaded assemblies)
-            foreach (var cliPlugin in PluginDiscovery.DiscoverAllCliPlugins())
-            {
-                cliPlugin.ConfigureCommands(config);
-            }
+            foreach (var cliPlugin in PluginDiscovery.DiscoverAllCliPlugins()) cliPlugin.ConfigureCommands(config);
         });
 
         return await app.RunAsync(args);
     }
 
-    private static bool IsUrl(string arg) =>
-        arg.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-        arg.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+    private static bool IsUrl(string arg)
+    {
+        return arg.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+               arg.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+    }
 
-    private static bool IsLocalFile(string arg) =>
-        !arg.StartsWith('-') && (File.Exists(arg) || Directory.Exists(arg));
+    private static bool IsLocalFile(string arg)
+    {
+        return !arg.StartsWith('-') && (File.Exists(arg) || Directory.Exists(arg));
+    }
 
     private static bool IsKnownCommand(string arg)
     {
-        if (arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "man" or "benchmark" or "page" or "plugin" or "list")
+        if (arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "man"
+            or "benchmark" or "page" or "plugin" or "list")
             return true;
 
         // Check plugin-contributed commands
@@ -263,14 +265,19 @@ public static class CliApp
         AnsiConsole.WriteLine();
 
         for (var loops = 0; loops < 6 && !ct.IsCancellationRequested; loops++)
+        for (var i = 0; i < frames.Length * 2 && !ct.IsCancellationRequested; i++)
         {
-            for (var i = 0; i < frames.Length * 2 && !ct.IsCancellationRequested; i++)
+            var color = colors[i % colors.Length];
+            var frame = frames[i % frames.Length];
+            AnsiConsole.Cursor.SetPosition(0, 8);
+            AnsiConsole.Write(new Text(frame, new Style(color)));
+            try
             {
-                var color = colors[i % colors.Length];
-                var frame = frames[i % frames.Length];
-                AnsiConsole.Cursor.SetPosition(0, 8);
-                AnsiConsole.Write(new Text(frame, new Style(color)));
-                try { await Task.Delay(150, ct); } catch (OperationCanceledException) { break; }
+                await Task.Delay(150, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
     }

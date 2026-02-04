@@ -1,56 +1,59 @@
 namespace Mostlylucid.DocSummarizer.Resilience;
 
 /// <summary>
-/// Interface for persistent circuit breaker with failure-type-aware retry semantics.
-/// Implementors track service health across restarts and enforce backoff strategies.
+///     Interface for persistent circuit breaker with failure-type-aware retry semantics.
+///     Implementors track service health across restarts and enforce backoff strategies.
 /// </summary>
 public interface ICircuitBreaker
 {
     /// <summary>
-    /// Fast synchronous check if the circuit is open (service should NOT be used).
-    /// Uses in-memory cache — no I/O.
+    ///     Fast synchronous check if the circuit is open (service should NOT be used).
+    ///     Uses in-memory cache — no I/O.
     /// </summary>
     bool IsCircuitOpen(string service);
 
     /// <summary>
-    /// Full async check including retry-after evaluation and half-open probing.
-    /// Returns true if the service is available for requests.
+    ///     Full async check including retry-after evaluation and half-open probing.
+    ///     Returns true if the service is available for requests.
     /// </summary>
     Task<bool> IsServiceAvailableAsync(string service);
 
     /// <summary>
-    /// Report a successful request — closes circuit, resets failure count.
+    ///     Report a successful request — closes circuit, resets failure count.
     /// </summary>
     Task ReportSuccessAsync(string service);
 
     /// <summary>
-    /// Report a failed request — may trip circuit based on failure type and threshold.
+    ///     Report a failed request — may trip circuit based on failure type and threshold.
     /// </summary>
     Task ReportFailureAsync(string service, CircuitFailureType failureType, string? reason = null);
 
     /// <summary>
-    /// Directly trip a circuit (e.g., on budget denial).
+    ///     Directly trip a circuit (e.g., on budget denial).
     /// </summary>
     Task TripCircuitAsync(string service, CircuitFailureType failureType, string? reason = null);
 
     /// <summary>
-    /// Get current circuit entry for a service (null if not tracked).
+    ///     Get current circuit entry for a service (null if not tracked).
     /// </summary>
     CircuitEntry? GetCircuitEntry(string service);
 
     /// <summary>
-    /// Classify an HTTP status code to a failure type.
+    ///     Classify an HTTP status code to a failure type.
     /// </summary>
-    static CircuitFailureType ClassifyHttpStatus(int statusCode) => statusCode switch
+    static CircuitFailureType ClassifyHttpStatus(int statusCode)
     {
-        429 => CircuitFailureType.RateLimit,
-        401 or 403 => CircuitFailureType.AuthError,
-        >= 500 and < 600 => CircuitFailureType.ServerError,
-        _ => CircuitFailureType.None
-    };
+        return statusCode switch
+        {
+            429 => CircuitFailureType.RateLimit,
+            401 or 403 => CircuitFailureType.AuthError,
+            >= 500 and < 600 => CircuitFailureType.ServerError,
+            _ => CircuitFailureType.None
+        };
+    }
 
     /// <summary>
-    /// Classify a budget denial reason to a failure type.
+    ///     Classify a budget denial reason to a failure type.
     /// </summary>
     static CircuitFailureType ClassifyBudgetDenial(string? reason)
     {

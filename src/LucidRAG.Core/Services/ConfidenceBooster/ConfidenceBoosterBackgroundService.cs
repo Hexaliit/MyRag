@@ -1,18 +1,16 @@
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace LucidRAG.Core.Services.ConfidenceBooster;
 
 /// <summary>
-/// Background service that runs confidence boosting in the coordinator's learning pipeline.
-/// Scans for low-confidence signals and processes them with LLM refinement.
+///     Background service that runs confidence boosting in the coordinator's learning pipeline.
+///     Scans for low-confidence signals and processes them with LLM refinement.
 /// </summary>
 public class ConfidenceBoosterBackgroundService : BackgroundService
 {
+    private readonly ConfidenceBoosterConfig _config;
     private readonly ILogger<ConfidenceBoosterBackgroundService> _logger;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ConfidenceBoosterConfig _config;
 
     public ConfidenceBoosterBackgroundService(
         ILogger<ConfidenceBoosterBackgroundService> logger,
@@ -52,7 +50,7 @@ public class ConfidenceBoosterBackgroundService : BackgroundService
     }
 
     /// <summary>
-    /// Run a complete boost cycle: scan → queue → process.
+    ///     Run a complete boost cycle: scan → queue → process.
     /// </summary>
     private async Task RunBoostCycleAsync(CancellationToken ct)
     {
@@ -69,7 +67,7 @@ public class ConfidenceBoosterBackgroundService : BackgroundService
 
             // PHASE 2: Process queued documents
             var processed = 0;
-            var maxPerCycle = 10;  // Process max 10 documents per cycle (cost control)
+            var maxPerCycle = 10; // Process max 10 documents per cycle (cost control)
 
             while (processed < maxPerCycle && !ct.IsCancellationRequested)
             {
@@ -115,7 +113,7 @@ public class ConfidenceBoosterBackgroundService : BackgroundService
 }
 
 /// <summary>
-/// Queue item for confidence boosting.
+///     Queue item for confidence boosting.
 /// </summary>
 public class BoostQueueItem
 {
@@ -126,7 +124,7 @@ public class BoostQueueItem
 }
 
 /// <summary>
-/// Extended document queue service interface.
+///     Extended document queue service interface.
 /// </summary>
 public interface IDocumentQueueService
 {

@@ -6,19 +6,15 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Contradiction Detection Wave - Runs after all other waves to detect signal conflicts.
-/// Uses config-driven rules to identify contradictions between different analysis sources.
-/// Priority: 5 (runs last, after all content/quality/forensic waves)
+///     Contradiction Detection Wave - Runs after all other waves to detect signal conflicts.
+///     Uses config-driven rules to identify contradictions between different analysis sources.
+///     Priority: 5 (runs last, after all content/quality/forensic waves)
 /// </summary>
 public class ContradictionWave : IAnalysisWave
 {
-    private readonly ContradictionDetector _detector;
     private readonly ImageConfig _config;
+    private readonly ContradictionDetector _detector;
     private readonly ILogger<ContradictionWave>? _logger;
-
-    public string Name => "ContradictionWave";
-    public int Priority => 5; // Lowest priority - runs after all other waves
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Quality, "validation", "contradiction" };
 
     public ContradictionWave(
         ContradictionDetector detector,
@@ -29,6 +25,10 @@ public class ContradictionWave : IAnalysisWave
         _config = config.Value;
         _logger = logger;
     }
+
+    public string Name => "ContradictionWave";
+    public int Priority => 5; // Lowest priority - runs after all other waves
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Quality, "validation", "contradiction" };
 
     public Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,

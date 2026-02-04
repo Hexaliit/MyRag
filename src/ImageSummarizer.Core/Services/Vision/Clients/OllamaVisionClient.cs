@@ -6,17 +6,15 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.DocSummarizer.Images.Services.Vision.Clients;
 
 /// <summary>
-/// Ollama local vision client for image analysis
-/// Uses local Ollama models like minicpm-v, llava, bakllava, etc.
+///     Ollama local vision client for image analysis
+///     Uses local Ollama models like minicpm-v, llava, bakllava, etc.
 /// </summary>
 public class OllamaVisionClient : IVisionClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<OllamaVisionClient> _logger;
     private readonly string _baseUrl;
     private readonly string _defaultModel;
-
-    public string Provider => "Ollama";
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<OllamaVisionClient> _logger;
 
     public OllamaVisionClient(IConfiguration configuration, ILogger<OllamaVisionClient> logger)
     {
@@ -31,31 +29,25 @@ public class OllamaVisionClient : IVisionClient
         };
     }
 
+    public string Provider => "Ollama";
+
     public async Task<(bool Available, string? Message)> CheckAvailabilityAsync(CancellationToken ct = default)
     {
         try
         {
             // Check if Ollama is running
             var response = await _httpClient.GetAsync("/api/tags", ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                return (false, $"Ollama not responding at {_baseUrl}");
-            }
+            if (!response.IsSuccessStatusCode) return (false, $"Ollama not responding at {_baseUrl}");
 
             var tags = await response.Content.ReadFromJsonAsync<OllamaTagsResponse>(ct);
-            if (tags?.Models == null)
-            {
-                return (false, "Could not retrieve model list from Ollama");
-            }
+            if (tags?.Models == null) return (false, "Could not retrieve model list from Ollama");
 
             // Check if default vision model is installed
             var hasVisionModel = tags.Models.Any(m =>
                 m.Name.StartsWith(_defaultModel.Split(':')[0], StringComparison.OrdinalIgnoreCase));
 
             if (!hasVisionModel)
-            {
                 return (false, $"Vision model '{_defaultModel}' not found. Install with: ollama pull {_defaultModel}");
-            }
 
             return (true, $"Ollama ready with {_defaultModel}");
         }
@@ -97,23 +89,22 @@ public class OllamaVisionClient : IVisionClient
             var result = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(ct);
 
             if (result == null || string.IsNullOrWhiteSpace(result.Response))
-            {
                 return new VisionResult(
-                    Success: false,
-                    Error: "No response from Ollama",
-                    Caption: null,
-                    Model: modelToUse,
-                    Provider: Provider);
-            }
+                    false,
+                    "No response from Ollama",
+                    null,
+                    modelToUse,
+                    Provider);
 
-            _logger.LogInformation("Ollama vision analysis completed for {ImagePath} using {Model}", imagePath, modelToUse);
+            _logger.LogInformation("Ollama vision analysis completed for {ImagePath} using {Model}", imagePath,
+                modelToUse);
 
             return new VisionResult(
-                Success: true,
-                Error: null,
-                Caption: result.Response,
-                Model: modelToUse,
-                Provider: Provider,
+                true,
+                null,
+                result.Response,
+                modelToUse,
+                Provider,
                 Metadata: new Dictionary<string, object>
                 {
                     { "done", result.Done }
@@ -123,18 +114,18 @@ public class OllamaVisionClient : IVisionClient
         {
             _logger.LogError(ex, "Failed to connect to Ollama at {BaseUrl}", _baseUrl);
             return new VisionResult(
-                Success: false,
-                Error: $"Connection failed: {ex.Message}",
-                Caption: null,
+                false,
+                $"Connection failed: {ex.Message}",
+                null,
                 Provider: Provider);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Ollama vision analysis failed for {ImagePath}", imagePath);
             return new VisionResult(
-                Success: false,
-                Error: $"Analysis failed: {ex.Message}",
-                Caption: null,
+                false,
+                $"Analysis failed: {ex.Message}",
+                null,
                 Provider: Provider);
         }
     }
@@ -143,7 +134,8 @@ public class OllamaVisionClient : IVisionClient
 // Ollama API response models
 internal record OllamaGenerateResponse(
     [property: JsonPropertyName("model")] string Model,
-    [property: JsonPropertyName("response")] string Response,
+    [property: JsonPropertyName("response")]
+    string Response,
     [property: JsonPropertyName("done")] bool Done);
 
 internal record OllamaTagsResponse(

@@ -7,15 +7,8 @@ namespace DoomSummarizer.Commands;
 
 public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [CommandOption("-d|--days")]
-        [Description("Number of days to analyze")]
-        [DefaultValue(7)]
-        public int Days { get; init; } = 7;
-    }
-
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
+        CancellationToken cancellationToken)
     {
         var config = await ConfigService.LoadAsync();
         var dbPath = ConfigService.GetDbPath(config);
@@ -96,7 +89,8 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
         }
         else
         {
-            AnsiConsole.MarkupLine("[grey]No data found for this period. Run 'doomsummarizer scroll' to fetch some content.[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]No data found for this period. Run 'doomsummarizer scroll' to fetch some content.[/]");
         }
 
         AnsiConsole.WriteLine();
@@ -121,7 +115,7 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
         };
 
         AnsiConsole.Write(new Panel(
-            $"{sentimentMessage}\n{changeMessage}")
+                $"{sentimentMessage}\n{changeMessage}")
             .Header("[bold]Sentiment Summary[/]")
             .Border(BoxBorder.Rounded));
 
@@ -153,5 +147,13 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
         var arrow = change >= 0 ? "^" : "v";
         var sign = change >= 0 ? "+" : "";
         return $"[{color}]{arrow} {sign}{change:F2}[/]";
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [CommandOption("-d|--days")]
+        [Description("Number of days to analyze")]
+        [DefaultValue(7)]
+        public int Days { get; init; } = 7;
     }
 }

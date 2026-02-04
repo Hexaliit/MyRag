@@ -1,8 +1,8 @@
 namespace LucidRAG.Decomposer.Glossary;
 
 /// <summary>
-/// YAML/JSON glossary model. Defines foundational terms that are fetched,
-/// summarized, embedded, and stored in KB at startup.
+///     YAML/JSON glossary model. Defines foundational terms that are fetched,
+///     summarized, embedded, and stored in KB at startup.
 /// </summary>
 public class GlossaryConfig
 {

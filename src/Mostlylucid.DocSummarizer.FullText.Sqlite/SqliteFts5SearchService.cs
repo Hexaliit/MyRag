@@ -4,17 +4,18 @@ using Mostlylucid.DocSummarizer.Search;
 namespace Mostlylucid.DocSummarizer.FullText.Sqlite;
 
 /// <summary>
-/// Standalone SQLite FTS5 full-text search service implementing <see cref="IFullTextSearch"/>.
-/// Uses FTS5 virtual tables with IDF-aware query building and keyword corpus tracking.
+///     Standalone SQLite FTS5 full-text search service implementing <see cref="IFullTextSearch" />.
+///     Uses FTS5 virtual tables with IDF-aware query building and keyword corpus tracking.
 /// </summary>
 public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
 {
     private readonly SqliteConnection _db;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
-    private bool _initialized;
 
     /// <summary>Keyword document frequencies for IDF-aware query construction.</summary>
-    private Dictionary<string, int> _keywordCorpus = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _keywordCorpus = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool _initialized;
     private int _totalDocuments;
 
     public SqliteFts5SearchService(string dbPath)
@@ -22,7 +23,14 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         _db = new SqliteConnection($"Data Source={dbPath}");
     }
 
-    /// <inheritdoc/>
+    public async ValueTask DisposeAsync()
+    {
+        _dbLock.Dispose();
+        await _db.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <inheritdoc />
     public async Task InitializeAsync(CancellationToken ct = default)
     {
         if (_initialized) return;
@@ -30,27 +38,27 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
 
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            CREATE VIRTUAL TABLE IF NOT EXISTS fts_documents USING fts5(
-                doc_id,
-                title,
-                keywords,
-                content,
-                tokenize='porter unicode61'
-            );
+                          CREATE VIRTUAL TABLE IF NOT EXISTS fts_documents USING fts5(
+                              doc_id,
+                              title,
+                              keywords,
+                              content,
+                              tokenize='porter unicode61'
+                          );
 
-            CREATE TABLE IF NOT EXISTS keyword_corpus (
-                keyword TEXT PRIMARY KEY,
-                document_count INTEGER DEFAULT 0,
-                updated_at TEXT NOT NULL
-            );
-            """;
+                          CREATE TABLE IF NOT EXISTS keyword_corpus (
+                              keyword TEXT PRIMARY KEY,
+                              document_count INTEGER DEFAULT 0,
+                              updated_at TEXT NOT NULL
+                          );
+                          """;
         await cmd.ExecuteNonQueryAsync(ct);
 
         await LoadKeywordCorpusAsync(ct);
         _initialized = true;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task IndexDocumentAsync(string id, string title, string content,
         IEnumerable<string>? keywords = null, CancellationToken ct = default)
     {
@@ -67,9 +75,9 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
             var keywordsText = keywords != null ? string.Join(" ", keywords) : "";
             using var insCmd = _db.CreateCommand();
             insCmd.CommandText = """
-                INSERT INTO fts_documents (doc_id, title, keywords, content)
-                VALUES (@id, @title, @keywords, @content)
-                """;
+                                 INSERT INTO fts_documents (doc_id, title, keywords, content)
+                                 VALUES (@id, @title, @keywords, @content)
+                                 """;
             insCmd.Parameters.AddWithValue("@id", id);
             insCmd.Parameters.AddWithValue("@title", title ?? "");
             insCmd.Parameters.AddWithValue("@keywords", keywordsText);
@@ -78,12 +86,8 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
 
             // Update keyword corpus
             if (keywords != null)
-            {
                 foreach (var kw in keywords.Distinct(StringComparer.OrdinalIgnoreCase))
-                {
                     await UpsertKeywordAsync(kw, ct);
-                }
-            }
 
             _totalDocuments++;
         }
@@ -93,8 +97,9 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         }
     }
 
-    /// <inheritdoc/>
-    public async Task<List<FullTextResult>> SearchAsync(string query, int maxResults = 20, CancellationToken ct = default)
+    /// <inheritdoc />
+    public async Task<List<FullTextResult>> SearchAsync(string query, int maxResults = 20,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             return [];
@@ -107,13 +112,13 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         try
         {
             using var cmd = _db.CreateCommand();
-            cmd.CommandText = $"""
-                SELECT doc_id, rank, title
-                FROM fts_documents
-                WHERE fts_documents MATCH @query
-                ORDER BY rank
-                LIMIT @limit
-                """;
+            cmd.CommandText = """
+                              SELECT doc_id, rank, title
+                              FROM fts_documents
+                              WHERE fts_documents MATCH @query
+                              ORDER BY rank
+                              LIMIT @limit
+                              """;
             cmd.Parameters.AddWithValue("@query", ftsQuery);
             cmd.Parameters.AddWithValue("@limit", maxResults);
 
@@ -136,7 +141,7 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task DeleteDocumentAsync(string id, CancellationToken ct = default)
     {
         await _dbLock.WaitAsync(ct);
@@ -153,7 +158,7 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task DeleteAllAsync(CancellationToken ct = default)
     {
         await _dbLock.WaitAsync(ct);
@@ -161,9 +166,9 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         {
             using var cmd = _db.CreateCommand();
             cmd.CommandText = """
-                DELETE FROM fts_documents;
-                DELETE FROM keyword_corpus;
-                """;
+                              DELETE FROM fts_documents;
+                              DELETE FROM keyword_corpus;
+                              """;
             await cmd.ExecuteNonQueryAsync(ct);
             _keywordCorpus.Clear();
             _totalDocuments = 0;
@@ -175,7 +180,7 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
     }
 
     /// <summary>
-    /// Build an IDF-aware FTS5 query that boosts distinctive terms and demotes common ones.
+    ///     Build an IDF-aware FTS5 query that boosts distinctive terms and demotes common ones.
     /// </summary>
     private string BuildIdfAwareFtsQuery(string query)
     {
@@ -195,7 +200,6 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
             var common = new List<string>();
 
             foreach (var term in terms)
-            {
                 if (_keywordCorpus.TryGetValue(term, out var docCount))
                 {
                     // IDF threshold: if term appears in >50% of docs, it's common
@@ -208,7 +212,6 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
                 {
                     distinctive.Add(term); // Unknown terms are distinctive
                 }
-            }
 
             // Distinctive terms are AND'd, common terms are OR'd
             var parts = new List<string>();
@@ -229,9 +232,7 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         // FTS5 special chars that need quoting
         if (term.Contains('"') || term.Contains('*') || term.Contains('-') ||
             term.Contains('+') || term.Contains('(') || term.Contains(')'))
-        {
             return $"\"{term.Replace("\"", "\"\"")}\"";
-        }
         return term;
     }
 
@@ -239,12 +240,12 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO keyword_corpus (keyword, document_count, updated_at)
-            VALUES (@kw, 1, @now)
-            ON CONFLICT(keyword) DO UPDATE SET
-                document_count = document_count + 1,
-                updated_at = @now
-            """;
+                          INSERT INTO keyword_corpus (keyword, document_count, updated_at)
+                          VALUES (@kw, 1, @now)
+                          ON CONFLICT(keyword) DO UPDATE SET
+                              document_count = document_count + 1,
+                              updated_at = @now
+                          """;
         cmd.Parameters.AddWithValue("@kw", keyword.ToLowerInvariant());
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
@@ -257,22 +258,12 @@ public sealed class SqliteFts5SearchService : IFullTextSearch, IAsyncDisposable
         using var cmd = _db.CreateCommand();
         cmd.CommandText = "SELECT keyword, document_count FROM keyword_corpus";
         using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            _keywordCorpus[reader.GetString(0)] = reader.GetInt32(1);
-        }
+        while (await reader.ReadAsync(ct)) _keywordCorpus[reader.GetString(0)] = reader.GetInt32(1);
 
         // Count total documents
         using var countCmd = _db.CreateCommand();
         countCmd.CommandText = "SELECT COUNT(*) FROM fts_documents";
         var count = await countCmd.ExecuteScalarAsync(ct);
         _totalDocuments = count is long v ? (int)v : 0;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _dbLock.Dispose();
-        await _db.DisposeAsync();
-        GC.SuppressFinalize(this);
     }
 }

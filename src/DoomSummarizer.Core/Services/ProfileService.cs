@@ -1,11 +1,10 @@
-using System.Reflection;
 using System.Text.Json.Nodes;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Loads and manages hardware-adaptive configuration profiles.
-/// Profiles are partial JSON overlays embedded as assembly resources.
+///     Loads and manages hardware-adaptive configuration profiles.
+///     Profiles are partial JSON overlays embedded as assembly resources.
 /// </summary>
 public static class ProfileService
 {
@@ -19,13 +18,14 @@ public static class ProfileService
         ["laptop"] = ("8-16GB, no GPU", "Default: balanced local models with moderate context"),
         ["desktop"] = ("16-64GB, GPU", "Enhanced: larger context, GPU acceleration, batch processing"),
         ["server"] = ("32GB+, Ollama", "Ollama-primary: LLamaSharp disabled, large context, more sources"),
-        ["enterprise"] = ("64GB+, full stack", "Maximum: large Ollama models, huge context, all sources, cloud fallback"),
-        ["dynamic"] = ("Auto-detect", "Probes hardware and resolves to the best matching profile"),
+        ["enterprise"] = ("64GB+, full stack",
+            "Maximum: large Ollama models, huge context, all sources, cloud fallback"),
+        ["dynamic"] = ("Auto-detect", "Probes hardware and resolves to the best matching profile")
     };
 
     /// <summary>
-    /// Load a profile overlay as a JsonNode for deep-merging into the config.
-    /// Returns null if the profile is not found.
+    ///     Load a profile overlay as a JsonNode for deep-merging into the config.
+    ///     Returns null if the profile is not found.
     /// </summary>
     public static JsonNode? LoadProfile(string profileName)
     {
@@ -41,8 +41,10 @@ public static class ProfileService
     }
 
     /// <summary>
-    /// Check if a profile name is valid (including "dynamic").
+    ///     Check if a profile name is valid (including "dynamic").
     /// </summary>
     public static bool IsValidProfile(string name)
-        => name == "dynamic" || ProfileNames.Contains(name);
+    {
+        return name == "dynamic" || ProfileNames.Contains(name);
+    }
 }

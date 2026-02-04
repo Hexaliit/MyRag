@@ -3,28 +3,12 @@ using OpenCvSharp;
 namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
-/// Detects over-correction by comparing bounding box metrics before/after processing.
+///     Detects over-correction by comparing bounding box metrics before/after processing.
 /// </summary>
 public class OverCorrectionDetector
 {
-    public record ComponentStats(
-        int NumComponents,
-        int TotalInkArea,
-        double MeanComponentArea,
-        Rect[] BoundingBoxes);
-
-    public record OverCorrectionReport
-    {
-        public double ComponentRatio { get; init; }
-        public double InkRatio { get; init; }
-        public double AreaRatio { get; init; }
-        public bool IsOverCorrected { get; init; }
-        public string[] Issues { get; init; } = [];
-        public double Severity { get; init; }
-    }
-
     /// <summary>
-    /// Detect over-correction by comparing original and processed images.
+    ///     Detect over-correction by comparing original and processed images.
     /// </summary>
     public OverCorrectionReport Detect(Mat original, Mat processed)
     {
@@ -32,11 +16,11 @@ public class OverCorrectionDetector
         var procStats = GetComponentStats(processed);
 
         var componentRatio = (double)procStats.NumComponents /
-                            Math.Max(origStats.NumComponents, 1);
+                             Math.Max(origStats.NumComponents, 1);
         var inkRatio = (double)procStats.TotalInkArea /
-                      Math.Max(origStats.TotalInkArea, 1);
+                       Math.Max(origStats.TotalInkArea, 1);
         var areaRatio = procStats.MeanComponentArea /
-                       Math.Max(origStats.MeanComponentArea, 1);
+                        Math.Max(origStats.MeanComponentArea, 1);
 
         var issues = new List<string>();
 
@@ -81,7 +65,7 @@ public class OverCorrectionDetector
         using var stats = new Mat();
         using var centroids = new Mat();
         var numLabels = Cv2.ConnectedComponentsWithStats(
-            binary, labels, stats, centroids, PixelConnectivity.Connectivity8);
+            binary, labels, stats, centroids);
 
         var areas = new List<int>();
         var boxes = new List<Rect>();
@@ -109,5 +93,21 @@ public class OverCorrectionDetector
             areas.Count > 0 ? areas.Average() : 0,
             [.. boxes]
         );
+    }
+
+    public record ComponentStats(
+        int NumComponents,
+        int TotalInkArea,
+        double MeanComponentArea,
+        Rect[] BoundingBoxes);
+
+    public record OverCorrectionReport
+    {
+        public double ComponentRatio { get; init; }
+        public double InkRatio { get; init; }
+        public double AreaRatio { get; init; }
+        public bool IsOverCorrected { get; init; }
+        public string[] Issues { get; init; } = [];
+        public double Severity { get; init; }
     }
 }

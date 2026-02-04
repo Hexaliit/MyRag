@@ -1,14 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Mostlylucid.DocSummarizer;
-using Mostlylucid.DocSummarizer.Models;
-using Mostlylucid.DocSummarizer.Services;
 using LucidRAG.Config;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Services.Background;
+using Microsoft.Extensions.Options;
+using Mostlylucid.DocSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 
 namespace LucidRAG.Services;
 
@@ -19,24 +17,25 @@ public class DocumentProcessingService(
     IOptions<RagDocumentsConfig> config,
     ILogger<DocumentProcessingService> logger) : IDocumentProcessingService
 {
-    private readonly RagDocumentsConfig _config = config.Value;
     private const string CollectionName = "ragdocs";
+    private readonly RagDocumentsConfig _config = config.Value;
 
-    public async Task<Guid> QueueDocumentAsync(Stream fileStream, string filename, Guid? collectionId, CancellationToken ct = default)
+    public async Task<Guid> QueueDocumentAsync(Stream fileStream, string filename, Guid? collectionId,
+        CancellationToken ct = default)
     {
         // Validate extension
         var extension = Path.GetExtension(filename).ToLowerInvariant();
         if (!_config.AllowedExtensions.Contains(extension))
-        {
-            throw new ArgumentException($"File type '{extension}' is not allowed. Allowed types: {string.Join(", ", _config.AllowedExtensions)}");
-        }
+            throw new ArgumentException(
+                $"File type '{extension}' is not allowed. Allowed types: {string.Join(", ", _config.AllowedExtensions)}");
 
         // Compute content hash - NOTE: This hash is for deduplication based on raw file bytes,
         // NOT for matching with vector store (which uses canonicalized markdown content)
         // The stableDocId format in vector store is: {filename}_{BertRagSummarizer.ComputeContentHash(markdown)}
         using var sha = SHA256.Create();
         var hashBytes = await sha.ComputeHashAsync(fileStream, ct);
-        var contentHash = Convert.ToHexString(hashBytes).ToLowerInvariant()[..32]; // First 32 hex chars for deduplication
+        var contentHash =
+            Convert.ToHexString(hashBytes).ToLowerInvariant()[..32]; // First 32 hex chars for deduplication
         fileStream.Position = 0;
 
         // Check for duplicate
@@ -44,7 +43,8 @@ public class DocumentProcessingService(
             .FirstOrDefaultAsync(d => d.ContentHash == contentHash && d.CollectionId == collectionId, ct);
         if (existingDoc is not null)
         {
-            logger.LogInformation("Document with hash {Hash} already exists as {DocumentId}", contentHash, existingDoc.Id);
+            logger.LogInformation("Document with hash {Hash} already exists as {DocumentId}", contentHash,
+                existingDoc.Id);
             return existingDoc.Id;
         }
 
@@ -77,7 +77,8 @@ public class DocumentProcessingService(
         await db.SaveChangesAsync(ct);
 
         // Queue for processing
-        logger.LogInformation("Queueing document {DocumentId} via queue instance {QueueInstanceId}", documentId, queue.InstanceId);
+        logger.LogInformation("Queueing document {DocumentId} via queue instance {QueueInstanceId}", documentId,
+            queue.InstanceId);
         await queue.EnqueueAsync(new DocumentProcessingJob(documentId, filePath, collectionId), ct);
 
         logger.LogInformation("Document {DocumentId} queued for processing: {Filename}", documentId, filename);
@@ -97,9 +98,8 @@ public class DocumentProcessingService(
         // Validate extension
         var extension = Path.GetExtension(filename).ToLowerInvariant();
         if (!_config.AllowedExtensions.Contains(extension))
-        {
-            throw new ArgumentException($"File type '{extension}' is not allowed. Allowed types: {string.Join(", ", _config.AllowedExtensions)}");
-        }
+            throw new ArgumentException(
+                $"File type '{extension}' is not allowed. Allowed types: {string.Join(", ", _config.AllowedExtensions)}");
 
         // Compute content hash for change detection
         using var sha = SHA256.Create();
@@ -123,7 +123,8 @@ public class DocumentProcessingService(
             {
                 // Content unchanged - skip
                 logger.LogDebug("Document unchanged (same hash), skipping: {SourcePath}", normalizedSourcePath);
-                return new ImportResult(existingDoc.Id, normalizedSourcePath, ImportAction.Unchanged, existingDoc.Version);
+                return new ImportResult(existingDoc.Id, normalizedSourcePath, ImportAction.Unchanged,
+                    existingDoc.Version);
             }
 
             // Content changed - update the document
@@ -132,7 +133,6 @@ public class DocumentProcessingService(
 
             // Delete old vectors if they exist
             if (!string.IsNullOrEmpty(existingDoc.VectorStoreDocId))
-            {
                 try
                 {
                     await vectorStore.DeleteDocumentAsync(CollectionName, existingDoc.VectorStoreDocId, ct);
@@ -141,7 +141,6 @@ public class DocumentProcessingService(
                 {
                     logger.LogWarning(ex, "Failed to delete old vectors for document update: {DocId}", existingDoc.Id);
                 }
-            }
 
             // Update file on disk
             var existingFilePath = existingDoc.FilePath;
@@ -210,17 +209,15 @@ public class DocumentProcessingService(
         };
 
         // Preserve original creation date if provided
-        if (sourceCreatedAt.HasValue)
-        {
-            document.CreatedAt = sourceCreatedAt.Value;
-        }
+        if (sourceCreatedAt.HasValue) document.CreatedAt = sourceCreatedAt.Value;
 
         db.Documents.Add(document);
         await db.SaveChangesAsync(ct);
 
         await queue.EnqueueAsync(new DocumentProcessingJob(documentId, filePath, collectionId), ct);
 
-        logger.LogInformation("Document {DocumentId} imported and queued: {SourcePath}", documentId, normalizedSourcePath);
+        logger.LogInformation("Document {DocumentId} imported and queued: {SourcePath}", documentId,
+            normalizedSourcePath);
 
         return new ImportResult(documentId, normalizedSourcePath, ImportAction.Created, 1);
     }
@@ -232,19 +229,14 @@ public class DocumentProcessingService(
             .FirstOrDefaultAsync(d => d.Id == documentId, ct);
     }
 
-    public async Task<List<DocumentEntity>> GetDocumentsAsync(Guid? collectionId = null, bool readyOnly = false, CancellationToken ct = default)
+    public async Task<List<DocumentEntity>> GetDocumentsAsync(Guid? collectionId = null, bool readyOnly = false,
+        CancellationToken ct = default)
     {
         var query = db.Documents.Include(d => d.Collection).AsQueryable();
 
-        if (collectionId.HasValue)
-        {
-            query = query.Where(d => d.CollectionId == collectionId);
-        }
+        if (collectionId.HasValue) query = query.Where(d => d.CollectionId == collectionId);
 
-        if (readyOnly)
-        {
-            query = query.Where(d => d.Status == DocumentStatus.Completed);
-        }
+        if (readyOnly) query = query.Where(d => d.Status == DocumentStatus.Completed);
 
         return await query.OrderByDescending(d => d.CreatedAt).ToListAsync(ct);
     }
@@ -262,7 +254,8 @@ public class DocumentProcessingService(
             if (!string.IsNullOrEmpty(docIdForVectors))
             {
                 await vectorStore.DeleteDocumentAsync(CollectionName, docIdForVectors, ct);
-                logger.LogInformation("Deleted vectors for document {DocumentId} (hash: {Hash})", documentId, docIdForVectors);
+                logger.LogInformation("Deleted vectors for document {DocumentId} (hash: {Hash})", documentId,
+                    docIdForVectors);
             }
         }
         catch (Exception ex)
@@ -275,10 +268,7 @@ public class DocumentProcessingService(
         if (!string.IsNullOrEmpty(document.FilePath) && File.Exists(document.FilePath))
         {
             var dir = Path.GetDirectoryName(document.FilePath);
-            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-            {
-                Directory.Delete(dir, recursive: true);
-            }
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir)) Directory.Delete(dir, true);
         }
 
         // Delete from database (cascades to entity links)
@@ -288,7 +278,8 @@ public class DocumentProcessingService(
         logger.LogInformation("Document {DocumentId} deleted", documentId);
     }
 
-    public async IAsyncEnumerable<ProgressUpdate> StreamProgressAsync(Guid documentId, [EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<ProgressUpdate> StreamProgressAsync(Guid documentId,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
         if (!queue.TryGetProgressChannel(documentId, out var channel) || channel is null)
         {
@@ -296,35 +287,22 @@ public class DocumentProcessingService(
             var doc = await GetDocumentAsync(documentId, ct);
             if (doc is null)
             {
-                yield return ProgressUpdates.Error("Status", "Document not found", 0);
+                yield return ProgressUpdates.Error("Status", "Document not found");
                 yield break;
             }
 
             yield return doc.Status switch
             {
                 DocumentStatus.Completed => ProgressUpdates.Completed($"Completed with {doc.SegmentCount} segments", 0),
-                DocumentStatus.Failed => ProgressUpdates.Error("Processing", doc.StatusMessage ?? "Failed", 0),
-                DocumentStatus.Pending => ProgressUpdates.Stage("Pending", "Waiting in queue...", 0, 0),
-                _ => ProgressUpdates.Stage("Processing", $"Progress: {doc.ProcessingProgress}%", doc.ProcessingProgress, 0)
+                DocumentStatus.Failed => ProgressUpdates.Error("Processing", doc.StatusMessage ?? "Failed"),
+                DocumentStatus.Pending => ProgressUpdates.Stage("Pending", "Waiting in queue..."),
+                _ => ProgressUpdates.Stage("Processing", $"Progress: {doc.ProcessingProgress}%", doc.ProcessingProgress)
             };
             yield break;
         }
 
-        await foreach (var update in channel.Reader.ReadAllAsync(ct))
-        {
-            yield return update;
-        }
+        await foreach (var update in channel.Reader.ReadAllAsync(ct)) yield return update;
     }
-
-    private static string GetMimeType(string extension) => extension switch
-    {
-        ".pdf" => "application/pdf",
-        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".md" => "text/markdown",
-        ".txt" => "text/plain",
-        ".html" => "text/html",
-        _ => "application/octet-stream"
-    };
 
     public async Task<List<Segment>> GetSegmentsAsync(Guid documentId, CancellationToken ct = default)
     {
@@ -336,7 +314,8 @@ public class DocumentProcessingService(
         var stableDocId = document.VectorStoreDocId;
         if (string.IsNullOrEmpty(stableDocId))
         {
-            logger.LogWarning("Document {DocumentId} has no VectorStoreDocId - may not have been fully processed", documentId);
+            logger.LogWarning("Document {DocumentId} has no VectorStoreDocId - may not have been fully processed",
+                documentId);
             return [];
         }
 
@@ -352,7 +331,8 @@ public class DocumentProcessingService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to get segments for document {DocumentId} (VectorStoreDocId: {StableDocId})", documentId, stableDocId);
+            logger.LogWarning(ex, "Failed to get segments for document {DocumentId} (VectorStoreDocId: {StableDocId})",
+                documentId, stableDocId);
             return [];
         }
     }
@@ -384,10 +364,7 @@ public class DocumentProcessingService(
     public async Task RetryProcessingAsync(Guid documentId, bool fullReprocess = false, CancellationToken ct = default)
     {
         var document = await db.Documents.FindAsync([documentId], ct);
-        if (document is null)
-        {
-            throw new ArgumentException($"Document {documentId} not found");
-        }
+        if (document is null) throw new ArgumentException($"Document {documentId} not found");
 
         // Reset status to pending for reprocessing
         document.Status = DocumentStatus.Pending;
@@ -399,7 +376,8 @@ public class DocumentProcessingService(
         // Re-queue for processing
         await queue.EnqueueAsync(new DocumentProcessingJob(documentId, document.FilePath!, document.CollectionId), ct);
 
-        logger.LogInformation("Document {DocumentId} queued for {Mode}", documentId, fullReprocess ? "full reprocessing" : "signal recovery");
+        logger.LogInformation("Document {DocumentId} queued for {Mode}", documentId,
+            fullReprocess ? "full reprocessing" : "signal recovery");
     }
 
     public async Task<int> ClearAllAsync(bool clearVectors = true, CancellationToken ct = default)
@@ -410,27 +388,21 @@ public class DocumentProcessingService(
 
         // Delete files from disk
         foreach (var doc in documents)
-        {
             try
             {
                 if (!string.IsNullOrEmpty(doc.FilePath) && File.Exists(doc.FilePath))
                 {
                     var dir = Path.GetDirectoryName(doc.FilePath);
-                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-                    {
-                        Directory.Delete(dir, recursive: true);
-                    }
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir)) Directory.Delete(dir, true);
                 }
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to delete files for document {DocumentId}", doc.Id);
             }
-        }
 
         // Clear vectors from vector store by deleting and recreating collection
         if (clearVectors)
-        {
             try
             {
                 await vectorStore.DeleteCollectionAsync(CollectionName, ct);
@@ -441,7 +413,6 @@ public class DocumentProcessingService(
             {
                 logger.LogWarning(ex, "Failed to clear vectors from collection {CollectionName}", CollectionName);
             }
-        }
 
         // Clear database (cascade deletes entity links, etc.)
         db.Documents.RemoveRange(documents);
@@ -466,5 +437,18 @@ public class DocumentProcessingService(
 
         logger.LogInformation("Cleared {Count} documents and all related data", count);
         return count;
+    }
+
+    private static string GetMimeType(string extension)
+    {
+        return extension switch
+        {
+            ".pdf" => "application/pdf",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".md" => "text/markdown",
+            ".txt" => "text/plain",
+            ".html" => "text/html",
+            _ => "application/octet-stream"
+        };
     }
 }

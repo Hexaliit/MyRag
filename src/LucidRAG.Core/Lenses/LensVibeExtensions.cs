@@ -4,15 +4,15 @@ using LucidRAG.Lenses;
 namespace LucidRAG.Services.Lenses;
 
 /// <summary>
-/// Extension methods that bridge LucidRAG lenses and DoomSummarizer vibes.
-/// A lens's personality section maps directly to a vibe, closing the loop
-/// between the two systems: a vibe IS the personality facet of a lens.
+///     Extension methods that bridge LucidRAG lenses and DoomSummarizer vibes.
+///     A lens's personality section maps directly to a vibe, closing the loop
+///     between the two systems: a vibe IS the personality facet of a lens.
 /// </summary>
 public static class LensVibeExtensions
 {
     /// <summary>
-    /// Convert a LensPackage to a DoomSummarizer Vibe.
-    /// Extracts the personality configuration and builds the prompt instruction.
+    ///     Convert a LensPackage to a DoomSummarizer Vibe.
+    ///     Extracts the personality configuration and builds the prompt instruction.
     /// </summary>
     public static Vibe ToVibe(this LensPackage lens)
     {
@@ -37,7 +37,7 @@ public static class LensVibeExtensions
     }
 
     /// <summary>
-    /// Export all registered lenses as vibes.
+    ///     Export all registered lenses as vibes.
     /// </summary>
     public static IReadOnlyList<Vibe> ToVibes(this ILensRegistry registry)
     {
@@ -61,15 +61,11 @@ public static class LensVibeExtensions
             parts.Add($"Use {personality.SpellingVariant} spelling.");
 
         if (personality.PhrasePreferences?.Count > 0)
-        {
             foreach (var (avoid, use) in personality.PhrasePreferences)
-            {
                 if (string.IsNullOrEmpty(use))
                     parts.Add($"Avoid \"{avoid}\".");
                 else
                     parts.Add($"Use \"{use}\" instead of \"{avoid}\".");
-            }
-        }
 
         return parts.Count > 0
             ? string.Join(" ", parts)

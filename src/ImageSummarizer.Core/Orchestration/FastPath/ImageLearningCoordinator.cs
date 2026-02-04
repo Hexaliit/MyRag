@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -8,7 +8,6 @@ namespace Mostlylucid.DocSummarizer.Images.Orchestration.FastPath;
 /// <summary>
 ///     Background learning coordinator for image analysis.
 ///     Queues learning tasks for async processing OUTSIDE the request path.
-///
 ///     Keyed by signal type for parallel processing:
 ///     - "signature.update" - Update signature cache with refined results
 ///     - "ocr.quality" - Train OCR quality model on spellcheck results
@@ -78,14 +77,14 @@ public sealed record LearningStats
 public sealed class ImageLearningCoordinator : BackgroundService, IImageLearningCoordinator
 {
     private readonly Channel<LearningTask> _channel;
-    private readonly IImageSignatureCache _signatureCache;
-    private readonly ImageAnalysisOrchestrator _orchestrator;
     private readonly ILogger<ImageLearningCoordinator> _logger;
+    private readonly ImageAnalysisOrchestrator _orchestrator;
+    private readonly IImageSignatureCache _signatureCache;
+    private double _avgProcessingTimeMs;
+    private long _totalFailed;
+    private long _totalProcessed;
 
     private long _totalQueued;
-    private long _totalProcessed;
-    private long _totalFailed;
-    private double _avgProcessingTimeMs;
 
     public ImageLearningCoordinator(
         IImageSignatureCache signatureCache,
@@ -168,13 +167,9 @@ public sealed class ImageLearningCoordinator : BackgroundService, IImageLearning
     private void TryEnqueue(LearningTask task)
     {
         if (_channel.Writer.TryWrite(task))
-        {
             Interlocked.Increment(ref _totalQueued);
-        }
         else
-        {
             _logger.LogWarning("Learning queue full, dropping task: {Type}", task.Type);
-        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -182,10 +177,9 @@ public sealed class ImageLearningCoordinator : BackgroundService, IImageLearning
         _logger.LogInformation("Image learning coordinator started");
 
         await foreach (var task in _channel.Reader.ReadAllAsync(stoppingToken))
-        {
             try
             {
-                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var sw = Stopwatch.StartNew();
 
                 await ProcessTaskAsync(task, stoppingToken);
 
@@ -201,7 +195,6 @@ public sealed class ImageLearningCoordinator : BackgroundService, IImageLearning
                 _logger.LogError(ex, "Error processing learning task: {Type}", task.Type);
                 Interlocked.Increment(ref _totalFailed);
             }
-        }
 
         _logger.LogInformation("Image learning coordinator stopped");
     }
@@ -336,13 +329,11 @@ public sealed class ImageLearningCoordinator : BackgroundService, IImageLearning
         // TODO: Train OCR quality model
         // For now, just log for future implementation
         if (task.OcrFeatures != null)
-        {
             _logger.LogDebug(
                 "OCR quality learning: words={Words}, spellcheck={Spell:F2}, quality={Quality}",
                 task.OcrFeatures.WordCount,
                 task.OcrFeatures.SpellcheckScore,
                 task.IsHighQuality);
-        }
     }
 
     private sealed class LearningTask

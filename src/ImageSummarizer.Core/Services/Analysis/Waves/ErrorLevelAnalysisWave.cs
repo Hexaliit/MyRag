@@ -1,25 +1,23 @@
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Error Level Analysis (ELA) wave for detecting image manipulation.
-/// ELA works by resaving the image at a known quality level and computing
-/// the difference. Manipulated regions show different error levels.
+///     Error Level Analysis (ELA) wave for detecting image manipulation.
+///     ELA works by resaving the image at a known quality level and computing
+///     the difference. Manipulated regions show different error levels.
 /// </summary>
 public class ErrorLevelAnalysisWave : IAnalysisWave
 {
+    private const int ElaQuality = 95; // JPEG quality for ELA resave
+    private const int GridSize = 16; // Divide image into grid for regional analysis
     public string Name => "ErrorLevelAnalysisWave";
     public int Priority => 70; // Medium-high priority
     public IReadOnlyList<string> Tags => new[] { SignalTags.Forensic, SignalTags.Quality };
-
-    private const int ElaQuality = 95; // JPEG quality for ELA resave
-    private const int GridSize = 16; // Divide image into grid for regional analysis
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
@@ -79,7 +77,6 @@ public class ErrorLevelAnalysisWave : IAnalysisWave
             var tamperingConfidence = CalculateTamperingConfidence(stats);
 
             if (tamperingConfidence > 0.5)
-            {
                 signals.Add(new Signal
                 {
                     Key = "forensics.ela_tampering_detected",
@@ -94,13 +91,11 @@ public class ErrorLevelAnalysisWave : IAnalysisWave
                         ["stddev"] = stats.StdDev
                     }
                 });
-            }
 
             // Regional analysis - detect localized tampering
             var regionalAnalysis = AnalyzeRegionalErrorLevels(errorLevels, originalImage.Width, originalImage.Height);
 
             if (regionalAnalysis.SuspiciousRegions.Any())
-            {
                 signals.Add(new Signal
                 {
                     Key = "forensics.ela_suspicious_regions",
@@ -114,7 +109,6 @@ public class ErrorLevelAnalysisWave : IAnalysisWave
                         ["detection_method"] = "regional_error_level_analysis"
                     }
                 });
-            }
 
             signals.Add(new Signal
             {
@@ -125,7 +119,9 @@ public class ErrorLevelAnalysisWave : IAnalysisWave
                 Tags = new List<string> { SignalTags.Forensic },
                 Metadata = new Dictionary<string, object>
                 {
-                    ["interpretation"] = stats.Uniformity > 0.8 ? "Consistent compression" : "Inconsistent compression (possible tampering)"
+                    ["interpretation"] = stats.Uniformity > 0.8
+                        ? "Consistent compression"
+                        : "Inconsistent compression (possible tampering)"
                 }
             });
         }
@@ -162,12 +158,12 @@ public class ErrorLevelAnalysisWave : IAnalysisWave
 
         var errorLevels = new double[width, height];
 
-        for (int y = 0; y < height; y++)
+        for (var y = 0; y < height; y++)
         {
             var origRow = original.DangerousGetPixelRowMemory(y).Span;
             var resavedRow = resaved.DangerousGetPixelRowMemory(y).Span;
 
-            for (int x = 0; x < width; x++)
+            for (var x = 0; x < width; x++)
             {
                 var origPixel = origRow[x];
                 var resavedPixel = resavedRow[x];
@@ -193,13 +189,9 @@ public class ErrorLevelAnalysisWave : IAnalysisWave
 
         var values = new List<double>(totalPixels);
 
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                values.Add(errorLevels[x, y]);
-            }
-        }
+        for (var x = 0; x < width; x++)
+        for (var y = 0; y < height; y++)
+            values.Add(errorLevels[x, y]);
 
         var mean = values.Average();
         var variance = values.Sum(v => Math.Pow(v - mean, 2)) / totalPixels;
@@ -240,42 +232,33 @@ public class ErrorLevelAnalysisWave : IAnalysisWave
         var cellAverages = new List<(int X, int Y, double AvgError)>();
 
         // Calculate average error level for each cell
-        for (int gridY = 0; gridY < GridSize; gridY++)
+        for (var gridY = 0; gridY < GridSize; gridY++)
+        for (var gridX = 0; gridX < GridSize; gridX++)
         {
-            for (int gridX = 0; gridX < GridSize; gridX++)
-            {
-                var startX = gridX * cellWidth;
-                var startY = gridY * cellHeight;
-                var endX = Math.Min(startX + cellWidth, imageWidth);
-                var endY = Math.Min(startY + cellHeight, imageHeight);
+            var startX = gridX * cellWidth;
+            var startY = gridY * cellHeight;
+            var endX = Math.Min(startX + cellWidth, imageWidth);
+            var endY = Math.Min(startY + cellHeight, imageHeight);
 
-                double sum = 0;
-                int count = 0;
+            double sum = 0;
+            var count = 0;
 
-                for (int x = startX; x < endX; x++)
+            for (var x = startX; x < endX; x++)
+            for (var y = startY; y < endY; y++)
+                if (x < errorLevels.GetLength(0) && y < errorLevels.GetLength(1))
                 {
-                    for (int y = startY; y < endY; y++)
-                    {
-                        if (x < errorLevels.GetLength(0) && y < errorLevels.GetLength(1))
-                        {
-                            sum += errorLevels[x, y];
-                            count++;
-                        }
-                    }
+                    sum += errorLevels[x, y];
+                    count++;
                 }
 
-                if (count > 0)
-                {
-                    cellAverages.Add((gridX, gridY, sum / count));
-                }
-            }
+            if (count > 0) cellAverages.Add((gridX, gridY, sum / count));
         }
 
         // Find cells with significantly higher error levels
         var globalAvg = cellAverages.Average(c => c.AvgError);
         var globalStdDev = Math.Sqrt(cellAverages.Sum(c => Math.Pow(c.AvgError - globalAvg, 2)) / cellAverages.Count);
 
-        var threshold = globalAvg + (2 * globalStdDev); // 2 standard deviations above mean
+        var threshold = globalAvg + 2 * globalStdDev; // 2 standard deviations above mean
 
         var suspiciousRegions = cellAverages
             .Where(c => c.AvgError > threshold)

@@ -1,12 +1,10 @@
 using System.Text;
-using Mostlylucid.DataSummarizer.Models;
 using Mostlylucid.DataSummarizer.Services;
-using Xunit;
 
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for DataSynthesizer functionality
+///     Tests for DataSynthesizer functionality
 /// </summary>
 public class DataSynthesizerTests
 {
@@ -15,7 +13,7 @@ public class DataSynthesizerTests
     {
         var csv = "Name,Age,Salary\nAlice,30,50000\nBob,25,45000\nCharlie,35,60000\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService(false, null, vectorStorePath: null);
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -31,7 +29,7 @@ public class DataSynthesizerTests
     {
         var csv = "Name,Age,Salary\nAlice,30,50000\nBob,25,45000\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService(false, null, vectorStorePath: null);
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -49,12 +47,9 @@ public class DataSynthesizerTests
     {
         var sb = new StringBuilder();
         sb.AppendLine("Value");
-        for (int i = 0; i < 100; i++)
-        {
-            sb.AppendLine((i * 10).ToString());
-        }
+        for (var i = 0; i < 100; i++) sb.AppendLine((i * 10).ToString());
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -62,13 +57,9 @@ public class DataSynthesizerTests
 
         var lines = File.ReadAllLines(outputPath).Skip(1).ToList();
         foreach (var line in lines)
-        {
             if (double.TryParse(line, out var val))
-            {
                 // Should be roughly within the range of original data
                 Assert.True(val >= -100 && val <= 1100, $"Value {val} outside expected range");
-            }
-        }
     }
 
     [Fact]
@@ -76,12 +67,12 @@ public class DataSynthesizerTests
     {
         var sb = new StringBuilder();
         sb.AppendLine("Color");
-        for (int i = 0; i < 30; i++) sb.AppendLine("Red");
-        for (int i = 0; i < 20; i++) sb.AppendLine("Blue");
-        for (int i = 0; i < 10; i++) sb.AppendLine("Green");
+        for (var i = 0; i < 30; i++) sb.AppendLine("Red");
+        for (var i = 0; i < 20; i++) sb.AppendLine("Blue");
+        for (var i = 0; i < 10; i++) sb.AppendLine("Green");
 
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -99,11 +90,11 @@ public class DataSynthesizerTests
     {
         var sb = new StringBuilder();
         sb.AppendLine("Value");
-        for (int i = 0; i < 50; i++) sb.AppendLine(i.ToString());
-        for (int i = 0; i < 50; i++) sb.AppendLine(""); // 50% nulls
+        for (var i = 0; i < 50; i++) sb.AppendLine(i.ToString());
+        for (var i = 0; i < 50; i++) sb.AppendLine(""); // 50% nulls
 
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         // Verify that the profile captured the null percentage
@@ -125,13 +116,10 @@ public class DataSynthesizerTests
     {
         var sb = new StringBuilder();
         sb.AppendLine("Id,Name,Score,Active");
-        for (int i = 1; i <= 20; i++)
-        {
-            sb.AppendLine($"{i},User{i},{50 + i},{(i % 2 == 0 ? "true" : "false")}");
-        }
+        for (var i = 1; i <= 20; i++) sb.AppendLine($"{i},User{i},{50 + i},{(i % 2 == 0 ? "true" : "false")}");
 
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -145,7 +133,7 @@ public class DataSynthesizerTests
         var header = lines[0];
         var headerParts = ParseCsvLine(header);
         Assert.Equal(4, headerParts.Length);
-        
+
         foreach (var line in lines.Skip(1))
         {
             var parts = ParseCsvLine(line);
@@ -158,7 +146,7 @@ public class DataSynthesizerTests
     {
         var csv = "Name,Age\nAlice,30\nBob,25\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -173,7 +161,7 @@ public class DataSynthesizerTests
     {
         var csv = "Value\n1\n2\n3\n4\n5\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -188,13 +176,10 @@ public class DataSynthesizerTests
     {
         var sb = new StringBuilder();
         sb.AppendLine("Date");
-        for (int i = 1; i <= 12; i++)
-        {
-            sb.AppendLine($"2024-{i:D2}-15");
-        }
+        for (var i = 1; i <= 12; i++) sb.AppendLine($"2024-{i:D2}-15");
 
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
         var outputPath = Path.Combine(Path.GetTempPath(), $"synth-{Guid.NewGuid():N}.csv");
@@ -211,20 +196,20 @@ public class DataSynthesizerTests
         File.WriteAllText(path, content);
         return path;
     }
-    
+
     /// <summary>
-    /// Parse a CSV line properly handling quoted values that may contain commas.
+    ///     Parse a CSV line properly handling quoted values that may contain commas.
     /// </summary>
     private static string[] ParseCsvLine(string line)
     {
         var result = new List<string>();
         var inQuotes = false;
         var current = new StringBuilder();
-        
-        for (int i = 0; i < line.Length; i++)
+
+        for (var i = 0; i < line.Length; i++)
         {
             var c = line[i];
-            
+
             if (c == '"')
             {
                 // Check for escaped quote
@@ -248,7 +233,7 @@ public class DataSynthesizerTests
                 current.Append(c);
             }
         }
-        
+
         result.Add(current.ToString());
         return result.ToArray();
     }

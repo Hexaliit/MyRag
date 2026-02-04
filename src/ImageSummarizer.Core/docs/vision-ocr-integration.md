@@ -24,11 +24,11 @@ Image → Text Detection → Route Decision
 
 ### Route Selection
 
-| Route | When | Cost |
-|-------|------|------|
-| FAST | Simple text, high contrast | ~100ms |
+| Route    | When                             | Cost   |
+|----------|----------------------------------|--------|
+| FAST     | Simple text, high contrast       | ~100ms |
 | BALANCED | Normal text, moderate confidence | ~300ms |
-| QUALITY | Charts, diagrams, stylized fonts | ~1-5s |
+| QUALITY  | Charts, diagrams, stylized fonts | ~1-5s  |
 
 ## Multi-Frame GIF OCR
 
@@ -53,6 +53,7 @@ Combined text output
 ```
 
 **Example** (anchorman-not-even-mad.gif):
+
 - 93 frames → 10 sampled → 2 unique results
 - Output: "I'm not even mad." + "That's amazing."
 

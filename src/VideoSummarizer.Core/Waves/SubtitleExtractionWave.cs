@@ -5,18 +5,14 @@ using VideoSummarizer.Core.Services;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 2.5: Extract subtitles from video (embedded or external SRT).
-/// Creates Utterances for speech text and TextTracks for on-screen text.
-/// Subtitle text feeds into DocSummarizer for entity extraction and evidence.
+///     Stage 2.5: Extract subtitles from video (embedded or external SRT).
+///     Creates Utterances for speech text and TextTracks for on-screen text.
+///     Subtitle text feeds into DocSummarizer for entity extraction and evidence.
 /// </summary>
 public class SubtitleExtractionWave : IVideoWave
 {
     private readonly FFmpegAnalysisService _ffmpegService;
     private readonly ILogger<SubtitleExtractionWave> _logger;
-
-    public string Name => "subtitle_extraction";
-    public int Priority => 750; // After keyframe extraction
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Speech, VideoSignalTags.Ocr];
 
     public SubtitleExtractionWave(
         FFmpegAnalysisService ffmpegService,
@@ -26,7 +22,14 @@ public class SubtitleExtractionWave : IVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) => context.Metadata != null;
+    public string Name => "subtitle_extraction";
+    public int Priority => 750; // After keyframe extraction
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Speech, VideoSignalTags.Ocr];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -177,8 +180,8 @@ public class SubtitleExtractionWave : IVideoWave
     }
 
     /// <summary>
-    /// Find external SRT files in the same directory as the video.
-    /// Looks for: video.srt, video.en.srt, video.eng.srt, etc.
+    ///     Find external SRT files in the same directory as the video.
+    ///     Looks for: video.srt, video.en.srt, video.eng.srt, etc.
     /// </summary>
     private List<string> FindExternalSrtFiles(string directory, string videoName)
     {
@@ -195,7 +198,6 @@ public class SubtitleExtractionWave : IVideoWave
         };
 
         foreach (var pattern in patterns)
-        {
             try
             {
                 var files = Directory.GetFiles(directory, pattern);
@@ -205,13 +207,12 @@ public class SubtitleExtractionWave : IVideoWave
             {
                 _logger.LogDebug(ex, "Error searching for SRT pattern: {Pattern}", pattern);
             }
-        }
 
         return srtFiles.Distinct().ToList();
     }
 
     /// <summary>
-    /// Merge overlapping entries and deduplicate identical text.
+    ///     Merge overlapping entries and deduplicate identical text.
     /// </summary>
     private List<SubtitleEntry> MergeAndDeduplicateEntries(List<SubtitleEntry> entries)
     {
@@ -227,10 +228,7 @@ public class SubtitleExtractionWave : IVideoWave
         foreach (var entry in sorted)
         {
             var key = $"{entry.StartTime:F2}:{entry.Text.Trim().ToLowerInvariant()}";
-            if (seen.Add(key))
-            {
-                unique.Add(entry);
-            }
+            if (seen.Add(key)) unique.Add(entry);
         }
 
         // Merge adjacent entries with same text
@@ -238,7 +236,6 @@ public class SubtitleExtractionWave : IVideoWave
         SubtitleEntry? current = null;
 
         foreach (var entry in unique)
-        {
             if (current == null)
             {
                 current = entry;
@@ -254,7 +251,6 @@ public class SubtitleExtractionWave : IVideoWave
                 merged.Add(current);
                 current = entry;
             }
-        }
 
         if (current != null) merged.Add(current);
 
@@ -262,8 +258,8 @@ public class SubtitleExtractionWave : IVideoWave
     }
 
     /// <summary>
-    /// Create TextTracks from persistent subtitle text.
-    /// Identifies text that appears multiple times (titles, lower thirds, etc.).
+    ///     Create TextTracks from persistent subtitle text.
+    ///     Identifies text that appears multiple times (titles, lower thirds, etc.).
     /// </summary>
     private Task CreateTextTracksFromSubtitles(
         VideoContext context,
@@ -279,10 +275,8 @@ public class SubtitleExtractionWave : IVideoWave
         {
             var items = group.ToList();
             if (items.Count == 1 && items[0].Duration < 5.0)
-            {
                 // Single occurrence, short duration - skip (probably speech)
                 continue;
-            }
 
             // This text appears multiple times or has long duration - might be a title/caption
             var textTrack = new TextTrack
@@ -324,23 +318,14 @@ public class SubtitleExtractionWave : IVideoWave
         var occurrenceCount = occurrences.Count;
 
         // Long duration, appears once - probably a title slide
-        if (occurrenceCount == 1 && totalDuration > 3.0)
-        {
-            return TextTrackType.SlideTitle;
-        }
+        if (occurrenceCount == 1 && totalDuration > 3.0) return TextTrackType.SlideTitle;
 
         // Short text at start/end - might be intro/outro
         var avgTime = occurrences.Average(o => o.StartTime);
-        if (text.Length < 50 && (avgTime < 30 || avgTime > totalDuration * 0.9))
-        {
-            return TextTrackType.LowerThird;
-        }
+        if (text.Length < 50 && (avgTime < 30 || avgTime > totalDuration * 0.9)) return TextTrackType.LowerThird;
 
         // Multiple occurrences - might be chapter heading
-        if (occurrenceCount > 1)
-        {
-            return TextTrackType.SlideContent;
-        }
+        if (occurrenceCount > 1) return TextTrackType.SlideContent;
 
         return TextTrackType.Unknown;
     }

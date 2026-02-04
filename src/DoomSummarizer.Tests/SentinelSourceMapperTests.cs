@@ -4,12 +4,15 @@ using Mostlylucid.DocSummarizer.Services.Onnx;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for SentinelSourceMapper: structured intent → source list mapping.
-/// Verifies that category weights are correctly converted to CLI source identifiers.
+///     Tests for SentinelSourceMapper: structured intent → source list mapping.
+///     Verifies that category weights are correctly converted to CLI source identifiers.
 /// </summary>
 public class SentinelSourceMapperTests
 {
-    private static SourceRouter GetRouter() => SourceRouter.Load();
+    private static SourceRouter GetRouter()
+    {
+        return SourceRouter.Load();
+    }
 
     // --- Category-based source selection ---
 
@@ -29,7 +32,7 @@ public class SentinelSourceMapperTests
         // Should include tech-specific sources
         sources.Should().Contain(s => s.StartsWith("gnews:"));
         sources.Should().Contain(s => s == "hn" || s == "ars" || s == "verge" || s == "lobsters" ||
-                                       s == "techcrunch" || s == "theregister");
+                                      s == "techcrunch" || s == "theregister");
     }
 
     [Fact]

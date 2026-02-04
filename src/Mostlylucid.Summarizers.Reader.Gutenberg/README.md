@@ -32,7 +32,8 @@ Console.WriteLine(result.Metadata["language"]); // "English"
 ## Dependencies
 
 - `System.IO.Compression` (built-in)
-- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) -
+  IDocumentReader interface
 
 ## License
 

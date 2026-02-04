@@ -1,15 +1,14 @@
 using System.Threading.Channels;
 using DoomSummarizer.Commands;
 using DoomSummarizer.Models;
-using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Encapsulates the 5-stage crawl pipeline (crawl, embed, NER, save, persist entities)
-/// running on a background Task. Reports progress via a bounded Channel and exposes
-/// an atomic ItemsIndexedSoFar counter for the ask loop to observe.
+///     Encapsulates the 5-stage crawl pipeline (crawl, embed, NER, save, persist entities)
+///     running on a background Task. Reports progress via a bounded Channel and exposes
+///     an atomic ItemsIndexedSoFar counter for the ask loop to observe.
 /// </summary>
 public sealed class BackgroundCrawlSession : IAsyncDisposable
 {
@@ -17,11 +16,6 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
     private readonly CancellationTokenSource _internalCts;
     private readonly CancellationTokenSource _linkedCts;
     private readonly int[] _sharedCounter; // [0] = items indexed, shared with background task
-
-    public ChannelReader<CrawlProgressUpdate> Progress => _channel.Reader;
-    public Task<CrawlSessionResult> Completion { get; }
-    public bool IsRunning => !Completion.IsCompleted;
-    public int ItemsIndexedSoFar => Volatile.Read(ref _sharedCounter[0]);
 
     private BackgroundCrawlSession(
         Channel<CrawlProgressUpdate> channel,
@@ -37,7 +31,31 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
         Completion = completion;
     }
 
-    public void RequestStop() => _internalCts.Cancel();
+    public ChannelReader<CrawlProgressUpdate> Progress => _channel.Reader;
+    public Task<CrawlSessionResult> Completion { get; }
+    public bool IsRunning => !Completion.IsCompleted;
+    public int ItemsIndexedSoFar => Volatile.Read(ref _sharedCounter[0]);
+
+    public async ValueTask DisposeAsync()
+    {
+        _internalCts.Cancel();
+        try
+        {
+            await Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch
+        {
+            // Timeout or cancellation — ok
+        }
+
+        _linkedCts.Dispose();
+        _internalCts.Dispose();
+    }
+
+    public void RequestStop()
+    {
+        _internalCts.Cancel();
+    }
 
     public static BackgroundCrawlSession Start(
         CommandBootstrap boot,
@@ -72,7 +90,6 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
         int[] sharedCounter,
         CancellationToken ct)
     {
-
         try
         {
             using var httpClient = HttpClientFactory.CreateDefault();
@@ -80,45 +97,47 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
             var crawler = new WebCrawlerService(httpClient, crawlConfig);
 
             // Pre-load URL cache for conditional request headers
-            var urlCacheLookup = new Dictionary<string, (string? etag, string? lastModified)>(StringComparer.OrdinalIgnoreCase);
+            var urlCacheLookup =
+                new Dictionary<string, (string? etag, string? lastModified)>(StringComparer.OrdinalIgnoreCase);
             if (!settings.Force)
             {
                 var allCached = await boot.Storage.GetAllUrlCacheEntriesAsync();
                 foreach (var entry in allCached)
-                {
                     if (!string.IsNullOrEmpty(entry.ETag) || !string.IsNullOrEmpty(entry.LastModified))
                         urlCacheLookup[entry.Url] = (entry.ETag, entry.LastModified);
-                }
             }
 
             var newItems = new List<ContentItem>();
             var urlCachedItems = new List<ContentItem>();
             var httpNotModifiedCount = 0;
             var contentHashCachedCount = 0;
-            var capturedHeaders = new Dictionary<string, (string? etag, string? lastModified)>(StringComparer.OrdinalIgnoreCase);
+            var capturedHeaders =
+                new Dictionary<string, (string? etag, string? lastModified)>(StringComparer.OrdinalIgnoreCase);
 
             // Stage 1: Crawl
             Func<string, (string? etag, string? lastModified)>? cacheProvider =
-                settings.Force ? null : url =>
-                {
-                    var normalized = url.Split('?')[0].Split('#')[0].TrimEnd('/').ToLowerInvariant();
-                    return urlCacheLookup.TryGetValue(normalized, out var cached) ? cached : (null, null);
-                };
+                settings.Force
+                    ? null
+                    : url =>
+                    {
+                        var normalized = url.Split('?')[0].Split('#')[0].TrimEnd('/').ToLowerInvariant();
+                        return urlCacheLookup.TryGetValue(normalized, out var cached) ? cached : (null, null);
+                    };
 
             await writer.WriteAsync(new CrawlProgressUpdate(
                 CrawlStage.Crawling, "Starting crawl...", 0, settings.MaxPages), ct);
 
             await foreach (var result in crawler.CrawlAsync(
-                settings.Url,
-                cacheProvider: cacheProvider,
-                progress: new Progress<(int visited, int queued, int extracted)>(p =>
-                {
-                    writer.TryWrite(new CrawlProgressUpdate(
-                        CrawlStage.Crawling,
-                        $"Crawling ({p.visited} visited, {p.extracted} extracted, {p.queued} queued)",
-                        p.visited, settings.MaxPages));
-                }),
-                ct: ct))
+                               settings.Url,
+                               cacheProvider,
+                               new Progress<(int visited, int queued, int extracted)>(p =>
+                               {
+                                   writer.TryWrite(new CrawlProgressUpdate(
+                                       CrawlStage.Crawling,
+                                       $"Crawling ({p.visited} visited, {p.extracted} extracted, {p.queued} queued)",
+                                       p.visited, settings.MaxPages));
+                               }),
+                               ct: ct))
             {
                 if (result.Url != null && (result.ETag != null || result.LastModified != null))
                     capturedHeaders[result.Url] = (result.ETag, result.LastModified);
@@ -141,7 +160,8 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                     {
                         contentHashCachedCount++;
                         var (etag, lastMod) = capturedHeaders.TryGetValue(item.Url, out var h) ? h : (null, null);
-                        await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
+                        await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod,
+                            item.Content.Length);
                         continue;
                     }
                 }
@@ -187,15 +207,14 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                 item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, ct);
 
                 if ((i + 1) % 5 == 0 || i == newItems.Count - 1)
-                {
                     writer.TryWrite(new CrawlProgressUpdate(
                         CrawlStage.Embedding,
                         $"Computing embeddings {i + 1}/{newItems.Count}",
                         i + 1, newItems.Count));
-                }
             }
 
-            using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, collectionName: kbName, ct: ct);
+            using var processor =
+                await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, kbName, ct);
 
             // Stage 3: NER entity extraction (optional)
             var articleEntityMap = new List<(ContentItem item, List<NerEntity> entities)>();
@@ -221,12 +240,10 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                         }
 
                         if ((i + 1) % 5 == 0 || i == newItems.Count - 1)
-                        {
                             writer.TryWrite(new CrawlProgressUpdate(
                                 CrawlStage.ExtractingEntities,
                                 $"Extracting entities {i + 1}/{newItems.Count}",
                                 i + 1, newItems.Count));
-                        }
                     }
                 }
             }
@@ -253,12 +270,10 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                 Interlocked.Increment(ref sharedCounter[0]);
 
                 if ((i + 1) % 3 == 0 || i == newItems.Count - 1)
-                {
                     writer.TryWrite(new CrawlProgressUpdate(
                         CrawlStage.Saving,
                         $"Saving to KB '{kbName}' {i + 1}/{newItems.Count}",
                         i + 1, newItems.Count, Volatile.Read(ref sharedCounter[0])));
-                }
             }
 
             // Compensate: URL-cached items need Lucene indexing for this collection.
@@ -271,7 +286,7 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
                 var shortfall = Math.Min(urlCachedItems.Count, settings.MaxPages - newItems.Count);
                 if (shortfall > 0)
                 {
-                    var storedItems = await boot.Storage.GetItemsBySourceAsync(sourceTag, limit: shortfall);
+                    var storedItems = await boot.Storage.GetItemsBySourceAsync(sourceTag, shortfall);
                     processor.EnsureInLucene(storedItems.Select(s => s.ToContentItem()));
                 }
 
@@ -283,28 +298,25 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
 
             // Stage 5: Persist entities
             if (articleEntityMap.Count > 0)
-            {
                 for (var i = 0; i < articleEntityMap.Count; i++)
                 {
                     var (item, entities) = articleEntityMap[i];
                     await processor.PersistEntitiesAsync(item, entities);
 
                     if ((i + 1) % 5 == 0 || i == articleEntityMap.Count - 1)
-                    {
                         writer.TryWrite(new CrawlProgressUpdate(
                             CrawlStage.PersistingEntities,
                             $"Persisting entities {i + 1}/{articleEntityMap.Count}",
                             i + 1, articleEntityMap.Count, Volatile.Read(ref sharedCounter[0])));
-                    }
                 }
-            }
 
             var completionMsg = $"{newItems.Count} pages indexed" +
-                (totalCached > 0 ? $" ({totalCached} cached)" : "") +
-                (crawler.PagesSkipped > 0 ? $" ({crawler.PagesSkipped} skipped)" : "");
+                                (totalCached > 0 ? $" ({totalCached} cached)" : "") +
+                                (crawler.PagesSkipped > 0 ? $" ({crawler.PagesSkipped} skipped)" : "");
 
             await writer.WriteAsync(new CrawlProgressUpdate(
-                CrawlStage.Completed, completionMsg, ItemsIndexed: Volatile.Read(ref sharedCounter[0]), IsComplete: true), ct);
+                CrawlStage.Completed, completionMsg, ItemsIndexed: Volatile.Read(ref sharedCounter[0]),
+                IsComplete: true), ct);
 
             return new CrawlSessionResult(
                 crawler.PagesVisited, crawler.PagesExtracted, crawler.PagesSkipped,
@@ -314,33 +326,20 @@ public sealed class BackgroundCrawlSession : IAsyncDisposable
         catch (OperationCanceledException)
         {
             writer.TryWrite(new CrawlProgressUpdate(
-                CrawlStage.Failed, "Crawl cancelled", ItemsIndexed: Volatile.Read(ref sharedCounter[0]), IsComplete: true));
+                CrawlStage.Failed, "Crawl cancelled", ItemsIndexed: Volatile.Read(ref sharedCounter[0]),
+                IsComplete: true));
             throw;
         }
         catch (Exception ex)
         {
             writer.TryWrite(new CrawlProgressUpdate(
-                CrawlStage.Failed, $"Crawl failed: {ex.Message}", ItemsIndexed: Volatile.Read(ref sharedCounter[0]), IsComplete: true, Error: ex));
+                CrawlStage.Failed, $"Crawl failed: {ex.Message}", ItemsIndexed: Volatile.Read(ref sharedCounter[0]),
+                IsComplete: true, Error: ex));
             throw;
         }
         finally
         {
             writer.TryComplete();
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _internalCts.Cancel();
-        try
-        {
-            await Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-        catch
-        {
-            // Timeout or cancellation — ok
-        }
-        _linkedCts.Dispose();
-        _internalCts.Dispose();
     }
 }

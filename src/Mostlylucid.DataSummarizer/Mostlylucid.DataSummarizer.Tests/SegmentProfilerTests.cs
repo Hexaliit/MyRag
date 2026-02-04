@@ -4,7 +4,7 @@ using Mostlylucid.DataSummarizer.Services;
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for segment profiling and centroid computation
+///     Tests for segment profiling and centroid computation
 /// </summary>
 public class SegmentProfilerTests
 {
@@ -57,7 +57,7 @@ public class SegmentProfilerTests
                     NullCount = 0,
                     UniqueCount = distribution.Count,
                     TopValues = topValues,
-                    Entropy = -distribution.Values.Where(p => p > 0).Sum(p => (p/100) * Math.Log2(p/100))
+                    Entropy = -distribution.Values.Where(p => p > 0).Sum(p => p / 100 * Math.Log2(p / 100))
                 }
             ]
         };
@@ -66,10 +66,10 @@ public class SegmentProfilerTests
     [Fact]
     public void ComputeCentroid_NumericColumn_ExtractsCorrectStats()
     {
-        var profile = CreateNumericProfile(mean: 50, stdDev: 10);
-        
+        var profile = CreateNumericProfile(50, 10);
+
         var centroid = _profiler.ComputeCentroid(profile);
-        
+
         Assert.Single(centroid.Columns);
         var col = centroid.Columns[0];
         Assert.Equal("value", col.ColumnName);
@@ -88,9 +88,9 @@ public class SegmentProfilerTests
             ["B"] = 30,
             ["C"] = 10
         });
-        
+
         var centroid = _profiler.ComputeCentroid(profile);
-        
+
         Assert.Single(centroid.Columns);
         var col = centroid.Columns[0];
         Assert.Equal("category", col.ColumnName);
@@ -104,35 +104,35 @@ public class SegmentProfilerTests
     [Fact]
     public void ComputeCentroid_SetsSegmentName()
     {
-        var profile = CreateNumericProfile(mean: 100, stdDev: 20);
-        
+        var profile = CreateNumericProfile(100, 20);
+
         var centroid = _profiler.ComputeCentroid(profile, "Q1-2024");
-        
+
         Assert.Equal("Q1-2024", centroid.SegmentName);
     }
 
     [Fact]
     public void ComputeDistance_IdenticalProfiles_ReturnsZero()
     {
-        var profile = CreateNumericProfile(mean: 50, stdDev: 10);
+        var profile = CreateNumericProfile(50, 10);
         var centroidA = _profiler.ComputeCentroid(profile);
         var centroidB = _profiler.ComputeCentroid(profile);
-        
+
         var distance = _profiler.ComputeDistance(centroidA, centroidB);
-        
-        Assert.Equal(0, distance, precision: 5);
+
+        Assert.Equal(0, distance, 5);
     }
 
     [Fact]
     public void ComputeDistance_DifferentMeans_ReturnsPositiveDistance()
     {
-        var profileA = CreateNumericProfile(mean: 50, stdDev: 10);
-        var profileB = CreateNumericProfile(mean: 100, stdDev: 10);
+        var profileA = CreateNumericProfile(50, 10);
+        var profileB = CreateNumericProfile(100, 10);
         var centroidA = _profiler.ComputeCentroid(profileA);
         var centroidB = _profiler.ComputeCentroid(profileB);
-        
+
         var distance = _profiler.ComputeDistance(centroidA, centroidB);
-        
+
         Assert.True(distance > 0);
         Assert.True(distance < 1);
     }
@@ -150,9 +150,9 @@ public class SegmentProfilerTests
         });
         var centroidA = _profiler.ComputeCentroid(profileA);
         var centroidB = _profiler.ComputeCentroid(profileB);
-        
+
         var distance = _profiler.ComputeDistance(centroidA, centroidB);
-        
+
         Assert.True(distance > 0);
     }
 
@@ -173,20 +173,20 @@ public class SegmentProfilerTests
         };
         var centroidA = _profiler.ComputeCentroid(profileA);
         var centroidB = _profiler.ComputeCentroid(profileB);
-        
+
         var distance = _profiler.ComputeDistance(centroidA, centroidB);
-        
+
         Assert.Equal(1.0, distance);
     }
 
     [Fact]
     public void CompareSegments_ReturnsDetailedComparison()
     {
-        var segmentA = CreateNumericProfile(mean: 50, stdDev: 10, rowCount: 1000);
-        var segmentB = CreateNumericProfile(mean: 75, stdDev: 15, rowCount: 800);
-        
+        var segmentA = CreateNumericProfile(50, 10, 1000);
+        var segmentB = CreateNumericProfile(75, 15, 800);
+
         var comparison = _profiler.CompareSegments(segmentA, segmentB, "Control", "Treatment");
-        
+
         Assert.Equal("Control", comparison.SegmentAName);
         Assert.Equal("Treatment", comparison.SegmentBName);
         Assert.Equal(1000, comparison.SegmentARowCount);
@@ -202,11 +202,11 @@ public class SegmentProfilerTests
     [Fact]
     public void CompareSegments_ColumnComparison_IncludesMeanDelta()
     {
-        var segmentA = CreateNumericProfile(mean: 50, stdDev: 10);
-        var segmentB = CreateNumericProfile(mean: 75, stdDev: 10);
-        
+        var segmentA = CreateNumericProfile(50, 10);
+        var segmentB = CreateNumericProfile(75, 10);
+
         var comparison = _profiler.CompareSegments(segmentA, segmentB);
-        
+
         var colComparison = comparison.ColumnComparisons.First(c => c.ColumnName == "value");
         Assert.Equal(50, colComparison.MeanA);
         Assert.Equal(75, colComparison.MeanB);
@@ -216,11 +216,11 @@ public class SegmentProfilerTests
     [Fact]
     public void CompareSegments_GeneratesInsights()
     {
-        var segmentA = CreateNumericProfile(mean: 50, stdDev: 10, rowCount: 1000);
-        var segmentB = CreateNumericProfile(mean: 100, stdDev: 10, rowCount: 500); // 50% size difference
-        
+        var segmentA = CreateNumericProfile(50, 10, 1000);
+        var segmentB = CreateNumericProfile(100, 10, 500); // 50% size difference
+
         var comparison = _profiler.CompareSegments(segmentA, segmentB);
-        
+
         Assert.NotEmpty(comparison.Insights);
         // Should mention size difference
         Assert.Contains(comparison.Insights, i => i.Contains("size") || i.Contains("rows"));
@@ -229,10 +229,10 @@ public class SegmentProfilerTests
     [Fact]
     public void ComputeCentroid_Vector_IsNotEmpty()
     {
-        var profile = CreateNumericProfile(mean: 50, stdDev: 10);
-        
+        var profile = CreateNumericProfile(50, 10);
+
         var centroid = _profiler.ComputeCentroid(profile);
-        
+
         Assert.NotNull(centroid.Vector);
         Assert.NotEmpty(centroid.Vector);
     }
@@ -240,11 +240,11 @@ public class SegmentProfilerTests
     [Fact]
     public void CompareSegments_HighlySimilar_ReportsHighSimilarity()
     {
-        var profileA = CreateNumericProfile(mean: 50, stdDev: 10);
-        var profileB = CreateNumericProfile(mean: 51, stdDev: 10.5); // Very similar
-        
+        var profileA = CreateNumericProfile(50, 10);
+        var profileB = CreateNumericProfile(51, 10.5); // Very similar
+
         var comparison = _profiler.CompareSegments(profileA, profileB);
-        
+
         Assert.True(comparison.Similarity > 0.8);
         Assert.Contains(comparison.Insights, i => i.Contains("similar") || i.Contains("match"));
     }
@@ -252,11 +252,11 @@ public class SegmentProfilerTests
     [Fact]
     public void CompareSegments_VeryDifferent_HasPositiveDistance()
     {
-        var profileA = CreateNumericProfile(mean: 10, stdDev: 2);
-        var profileB = CreateNumericProfile(mean: 1000, stdDev: 200);
-        
+        var profileA = CreateNumericProfile(10, 2);
+        var profileB = CreateNumericProfile(1000, 200);
+
         var comparison = _profiler.CompareSegments(profileA, profileB);
-        
+
         // Should have some distance between very different profiles
         // Note: Our algorithm may still report high similarity if normalized values are similar
         // The important thing is that the comparison runs without error

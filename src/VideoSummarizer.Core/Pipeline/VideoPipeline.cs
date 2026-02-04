@@ -8,20 +8,20 @@ using VideoSummarizer.Core.Waves;
 namespace VideoSummarizer.Core.Pipeline;
 
 /// <summary>
-/// Pipeline implementation for video files.
-/// Chains to ImageSummarizer for keyframe analysis and AudioSummarizer for transcription.
-/// Uses signal-based wave coordination for reactive, parallel processing.
+///     Pipeline implementation for video files.
+///     Chains to ImageSummarizer for keyframe analysis and AudioSummarizer for transcription.
+///     Uses signal-based wave coordination for reactive, parallel processing.
 /// </summary>
 public class VideoPipeline : PipelineBase, IDisposable
 {
-    private readonly SignalAwareWaveCoordinator _coordinator;
-    private readonly IFileSummarizer _fileSummarizer;
-    private readonly ILogger<VideoPipeline> _logger;
-
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".m4v", ".mpeg", ".mpg"
     };
+
+    private readonly SignalAwareWaveCoordinator _coordinator;
+    private readonly IFileSummarizer _fileSummarizer;
+    private readonly ILogger<VideoPipeline> _logger;
 
     public VideoPipeline(
         SignalAwareWaveCoordinator coordinator,
@@ -36,11 +36,6 @@ public class VideoPipeline : PipelineBase, IDisposable
         _coordinator.OnSignalEmitted += OnSignalEmitted;
     }
 
-    private void OnSignalEmitted(VideoSignalEvent evt)
-    {
-        _logger.LogDebug("Signal emitted: {Key} from {Source}", evt.Signal, evt.Source);
-    }
-
     /// <inheritdoc />
     public override string PipelineId => "video";
 
@@ -49,6 +44,18 @@ public class VideoPipeline : PipelineBase, IDisposable
 
     /// <inheritdoc />
     public override IReadOnlySet<string> SupportedExtensions => VideoExtensions;
+
+    public void Dispose()
+    {
+        _coordinator.OnSignalEmitted -= OnSignalEmitted;
+        _coordinator.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    private void OnSignalEmitted(VideoSignalEvent evt)
+    {
+        _logger.LogDebug("Signal emitted: {Key} from {Source}", evt.Signal, evt.Source);
+    }
 
     /// <inheritdoc />
     protected override async Task<IReadOnlyList<ContentChunk>> ProcessCoreAsync(
@@ -89,7 +96,8 @@ public class VideoPipeline : PipelineBase, IDisposable
             // Convert video signals to content chunks for RAG
             var chunks = BuildContentChunks(context, filePath, fileMetadataDict);
 
-            _logger.LogInformation("Processed video: {Shots} shots, {Scenes} scenes, {Utterances} utterances, {Chunks} chunks (file: {Size})",
+            _logger.LogInformation(
+                "Processed video: {Shots} shots, {Scenes} scenes, {Utterances} utterances, {Chunks} chunks (file: {Size})",
                 context.Shots.Count,
                 context.Scenes.Count,
                 context.Utterances.Count,
@@ -103,10 +111,7 @@ public class VideoPipeline : PipelineBase, IDisposable
             // Cleanup working directory
             try
             {
-                if (Directory.Exists(workingDir))
-                {
-                    Directory.Delete(workingDir, recursive: true);
-                }
+                if (Directory.Exists(workingDir)) Directory.Delete(workingDir, true);
             }
             catch (Exception ex)
             {
@@ -116,8 +121,8 @@ public class VideoPipeline : PipelineBase, IDisposable
     }
 
     /// <summary>
-    /// Convert video context to content chunks for RAG indexing.
-    /// Creates chunks for: scenes, transcripts, text tracks, and metadata.
+    ///     Convert video context to content chunks for RAG indexing.
+    ///     Creates chunks for: scenes, transcripts, text tracks, and metadata.
     /// </summary>
     private List<ContentChunk> BuildContentChunks(
         VideoContext context,
@@ -219,26 +224,20 @@ public class VideoPipeline : PipelineBase, IDisposable
     }
 
     /// <summary>
-    /// Build text representation of a scene for RAG.
+    ///     Build text representation of a scene for RAG.
     /// </summary>
     private string BuildSceneText(VideoContext context, SceneSegment scene)
     {
         var parts = new List<string>();
 
         // Add label if available
-        if (!string.IsNullOrEmpty(scene.Label))
-        {
-            parts.Add($"Scene: {scene.Label}");
-        }
+        if (!string.IsNullOrEmpty(scene.Label)) parts.Add($"Scene: {scene.Label}");
 
         // Add time range
         parts.Add($"[{FormatTime(scene.StartTime)} - {FormatTime(scene.EndTime)}]");
 
         // Add key terms
-        if (scene.KeyTerms.Count > 0)
-        {
-            parts.Add($"Topics: {string.Join(", ", scene.KeyTerms)}");
-        }
+        if (scene.KeyTerms.Count > 0) parts.Add($"Topics: {string.Join(", ", scene.KeyTerms)}");
 
         // Add transcript from utterances in this scene
         var sceneUtterances = context.Utterances
@@ -259,16 +258,13 @@ public class VideoPipeline : PipelineBase, IDisposable
             .Distinct()
             .ToList();
 
-        if (sceneTextTracks.Count > 0)
-        {
-            parts.Add($"On-screen: {string.Join("; ", sceneTextTracks)}");
-        }
+        if (sceneTextTracks.Count > 0) parts.Add($"On-screen: {string.Join("; ", sceneTextTracks)}");
 
         return string.Join("\n", parts);
     }
 
     /// <summary>
-    /// Build transcript chunks grouped by time windows.
+    ///     Build transcript chunks grouped by time windows.
     /// </summary>
     private List<ContentChunk> BuildTranscriptChunks(
         VideoContext context,
@@ -319,7 +315,7 @@ public class VideoPipeline : PipelineBase, IDisposable
     }
 
     /// <summary>
-    /// Build metadata text summary.
+    ///     Build metadata text summary.
     /// </summary>
     private static string BuildMetadataText(VideoContext context)
     {
@@ -332,9 +328,7 @@ public class VideoPipeline : PipelineBase, IDisposable
         };
 
         if (!string.IsNullOrEmpty(meta.AudioCodec))
-        {
             parts.Add($"Audio: {meta.AudioCodec} ({meta.AudioChannels} channels, {meta.AudioSampleRate}Hz)");
-        }
 
         parts.Add($"Shots: {context.Shots.Count}, Scenes: {context.Scenes.Count}");
 
@@ -345,10 +339,7 @@ public class VideoPipeline : PipelineBase, IDisposable
             parts.Add($"Transcript: {context.Utterances.Count} utterances, ~{wordCount} words");
         }
 
-        if (context.TextTracks.Count > 0)
-        {
-            parts.Add($"On-screen text: {context.TextTracks.Count} tracked elements");
-        }
+        if (context.TextTracks.Count > 0) parts.Add($"On-screen text: {context.TextTracks.Count} tracked elements");
 
         return string.Join("\n", parts);
     }
@@ -359,12 +350,5 @@ public class VideoPipeline : PipelineBase, IDisposable
         return ts.TotalHours >= 1
             ? $"{ts.Hours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
             : $"{ts.Minutes}:{ts.Seconds:D2}";
-    }
-
-    public void Dispose()
-    {
-        _coordinator.OnSignalEmitted -= OnSignalEmitted;
-        _coordinator.Dispose();
-        GC.SuppressFinalize(this);
     }
 }

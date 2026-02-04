@@ -1,25 +1,18 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 // ReSharper disable TemplateIsNotCompileTimeConstantProblem
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
-/// Unified OCR preprocessing pipeline with fast quality check and adaptive enhancement.
-/// Only applies preprocessing when needed based on image quality metrics.
+///     Unified OCR preprocessing pipeline with fast quality check and adaptive enhancement.
+///     Only applies preprocessing when needed based on image quality metrics.
 /// </summary>
 public class OcrPreprocessor
 {
-    private readonly ImageQualityAssessor _assessor = new();
-    private readonly SkewCorrector _skewCorrector = new();
-    private readonly NoiseReducer _noiseReducer = new();
-    private readonly InkExtractor _inkExtractor = new();
-    private readonly OverCorrectionDetector _overCorrectionDetector = new();
-    private readonly SuperResolutionService? _superResolution;
-    private readonly ILogger<OcrPreprocessor>? _logger;
-    private readonly OcrPreprocessorConfig _config;
-
     public enum PreprocessingLevel
     {
         None,
@@ -28,20 +21,14 @@ public class OcrPreprocessor
         Aggressive
     }
 
-    public record PreprocessingResult
-    {
-        public Mat ProcessedImage { get; init; } = null!;
-        public Mat? BinaryImage { get; init; }
-        public ImageQualityAssessor.QualityReport QualityBefore { get; init; } = null!;
-        public ImageQualityAssessor.QualityReport? QualityAfter { get; init; }
-        public double SkewAngle { get; init; }
-        public PreprocessingLevel Level { get; init; }
-        public bool WasPreprocessed { get; init; }
-        public bool UsedSuperResolution { get; init; }
-        public bool OverCorrectionDetected { get; init; }
-        public double Confidence { get; init; }
-        public TimeSpan ProcessingTime { get; init; }
-    }
+    private readonly ImageQualityAssessor _assessor = new();
+    private readonly OcrPreprocessorConfig _config;
+    private readonly InkExtractor _inkExtractor = new();
+    private readonly ILogger<OcrPreprocessor>? _logger;
+    private readonly NoiseReducer _noiseReducer = new();
+    private readonly OverCorrectionDetector _overCorrectionDetector = new();
+    private readonly SkewCorrector _skewCorrector = new();
+    private readonly SuperResolutionService? _superResolution;
 
     public OcrPreprocessor(OcrPreprocessorConfig config, ILogger<OcrPreprocessor>? logger = null)
     {
@@ -50,30 +37,14 @@ public class OcrPreprocessor
 
         // Initialize super-resolution if enabled and model path is available
         if (config.EnableSuperResolution && !string.IsNullOrEmpty(config.SuperResolutionModelPath))
-        {
             _superResolution = new SuperResolutionService(
                 config.SuperResolutionModelPath,
                 logger != null ? new LoggerAdapter<SuperResolutionService>(logger) : null);
-        }
     }
 
     /// <summary>
-    /// Logger adapter to convert generic ILogger to typed ILogger{T}.
-    /// </summary>
-    private class LoggerAdapter<T> : ILogger<T>
-    {
-        private readonly ILogger _inner;
-        public LoggerAdapter(ILogger inner) => _inner = inner;
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _inner.BeginScope(state);
-        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => _inner.IsEnabled(logLevel);
-        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state,
-            Exception? exception, Func<TState, Exception?, string> formatter)
-            => _inner.Log(logLevel, eventId, state, exception, formatter);
-    }
-
-    /// <summary>
-    /// Fast check to determine if preprocessing is needed.
-    /// This is a lightweight assessment that runs in ~5-10ms.
+    ///     Fast check to determine if preprocessing is needed.
+    ///     This is a lightweight assessment that runs in ~5-10ms.
     /// </summary>
     public (bool NeedsPreprocessing, ImageQualityAssessor.QualityReport Report) FastCheck(Mat image)
     {
@@ -90,12 +61,12 @@ public class OcrPreprocessor
     }
 
     /// <summary>
-    /// Full preprocessing pipeline with adaptive enhancement.
-    /// Only call this if FastCheck indicates preprocessing is needed.
+    ///     Full preprocessing pipeline with adaptive enhancement.
+    ///     Only call this if FastCheck indicates preprocessing is needed.
     /// </summary>
     public PreprocessingResult Process(Mat image, int? currentDpi = null)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         // Step 1: Fast quality assessment
         var (needsPreprocessing, qualityBefore) = FastCheck(image);
@@ -193,10 +164,7 @@ public class OcrPreprocessor
         Mat? binary = null;
         var overCorrected = false;
 
-        if (_config.GenerateBinary)
-        {
-            (binary, overCorrected) = SafeBinarize(gray, enhanced, level);
-        }
+        if (_config.GenerateBinary) (binary, overCorrected) = SafeBinarize(gray, enhanced, level);
 
         // Step 8: Final quality assessment
         var qualityAfter = _assessor.Analyze(enhanced);
@@ -229,7 +197,7 @@ public class OcrPreprocessor
     }
 
     /// <summary>
-    /// Convenience method: Process image from file path.
+    ///     Convenience method: Process image from file path.
     /// </summary>
     public PreprocessingResult ProcessFile(string imagePath, int? dpi = null)
     {
@@ -241,7 +209,7 @@ public class OcrPreprocessor
     }
 
     /// <summary>
-    /// Convenience method: Process and save to file.
+    ///     Convenience method: Process and save to file.
     /// </summary>
     public PreprocessingResult ProcessAndSave(string inputPath, string outputPath, int? dpi = null)
     {
@@ -378,5 +346,49 @@ public class OcrPreprocessor
             confidence -= 0.1;
 
         return Math.Clamp(confidence, 0.0, 1.0);
+    }
+
+    public record PreprocessingResult
+    {
+        public Mat ProcessedImage { get; init; } = null!;
+        public Mat? BinaryImage { get; init; }
+        public ImageQualityAssessor.QualityReport QualityBefore { get; init; } = null!;
+        public ImageQualityAssessor.QualityReport? QualityAfter { get; init; }
+        public double SkewAngle { get; init; }
+        public PreprocessingLevel Level { get; init; }
+        public bool WasPreprocessed { get; init; }
+        public bool UsedSuperResolution { get; init; }
+        public bool OverCorrectionDetected { get; init; }
+        public double Confidence { get; init; }
+        public TimeSpan ProcessingTime { get; init; }
+    }
+
+    /// <summary>
+    ///     Logger adapter to convert generic ILogger to typed ILogger{T}.
+    /// </summary>
+    private class LoggerAdapter<T> : ILogger<T>
+    {
+        private readonly ILogger _inner;
+
+        public LoggerAdapter(ILogger inner)
+        {
+            _inner = inner;
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return _inner.BeginScope(state);
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return _inner.IsEnabled(logLevel);
+        }
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            _inner.Log(logLevel, eventId, state, exception, formatter);
+        }
     }
 }

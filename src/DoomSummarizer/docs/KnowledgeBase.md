@@ -1,6 +1,7 @@
 # DoomSummarizer as a Local Knowledge Base
 
 DoomSummarizer is "secretly" a console-first knowledge base system:
+
 - It *collects* content from the web (`scroll`, `page`, `crawl`)
 - It *stores* the raw content, summaries, embeddings, entities, and usage data locally (SQLite)
 - It *retrieves* relevant evidence later (`ask`, `scroll --local`)
@@ -14,22 +15,23 @@ By default, data is stored in `$HOME/.doomsummarizer/doom.db` (configurable via 
 
 **Core tables:**
 
-| Table | Purpose |
-|-------|---------|
-| `items` | Articles: title, URL, content, summary, sentiment, topic, 384-dim embedding |
-| `items_fts` | SQLite FTS5 index (legacy, lightweight backup for KB enrichment) |
-| `keyword_corpus` | Global term frequencies for proper IDF computation |
-| `entities` | NER-extracted entities (people, organizations, locations) |
-| `entity_mentions` | Entity-to-article provenance links |
-| `entity_relationships` | Co-occurrence edges between entities |
-| `url_cache` | HTTP ETags, Last-Modified, content hashes for conditional fetching |
-| `query_log` | Query embeddings for segment reuse |
-| `feature_cache` | Disambiguation feature embeddings |
-| `daily_stats` | Per-day sentiment/topic statistics |
+| Table                  | Purpose                                                                     |
+|------------------------|-----------------------------------------------------------------------------|
+| `items`                | Articles: title, URL, content, summary, sentiment, topic, 384-dim embedding |
+| `items_fts`            | SQLite FTS5 index (legacy, lightweight backup for KB enrichment)            |
+| `keyword_corpus`       | Global term frequencies for proper IDF computation                          |
+| `entities`             | NER-extracted entities (people, organizations, locations)                   |
+| `entity_mentions`      | Entity-to-article provenance links                                          |
+| `entity_relationships` | Co-occurrence edges between entities                                        |
+| `url_cache`            | HTTP ETags, Last-Modified, content hashes for conditional fetching          |
+| `query_log`            | Query embeddings for segment reuse                                          |
+| `feature_cache`        | Disambiguation feature embeddings                                           |
+| `daily_stats`          | Per-day sentiment/topic statistics                                          |
 
 ### DuckDB Vector Store
 
 When `--graph` is enabled, a separate DuckDB database at `$HOME/.doomsummarizer/vectors.duckdb` stores:
+
 - Item embeddings with HNSW index for fast similarity search
 - Entity nodes and co-occurrence relationships
 - In-corpus PageRank scores for authority ranking
@@ -37,14 +39,18 @@ When `--graph` is enabled, a separate DuckDB database at `$HOME/.doomsummarizer/
 ### Lucene Index
 
 A Lucene index is maintained at `$HOME/.doomsummarizer/lucene/<collection>/` for full-text search:
+
 - Complex boolean queries with fuzzy matching
 - Porter stemming for term expansion ("running" matches "run")
 - Field-weighted search (title boosted)
 - LLM-generated query optimization (converts natural language to Lucene syntax)
 
-Lucene is the primary search engine for KB queries (`--local`, `--name`), providing sophisticated text search with Porter stemming, fuzzy matching, and field-weighted search. The sentinel LLM generates optimized Lucene queries from natural language. Results are fused with embedding similarity for hybrid retrieval.
+Lucene is the primary search engine for KB queries (`--local`, `--name`), providing sophisticated text search with
+Porter stemming, fuzzy matching, and field-weighted search. The sentinel LLM generates optimized Lucene queries from
+natural language. Results are fused with embedding similarity for hybrid retrieval.
 
 Retention:
+
 - `scroll` runs `CleanupOldDataAsync(retentionDays)` based on `storage.retentionDays`
 
 ## Building your KB
@@ -87,16 +93,24 @@ doomsummarizer crawl C:\Blog\posts --ask   # Ingest + interactive Q&A
 ```
 
 **Source tags**:
+
 - Web crawls: `crawl:<name>` (e.g., `crawl:docs`)
 - Local ingestion: `file:<name>` (e.g., `file:project-specs`)
 
 **Supported local formats**: PDF, DOCX, Markdown, HTML, TXT, PPTX, plus any registered processor plugins.
 
-**Document type detection**: The ingestion pipeline classifies documents as Fiction, NonFiction, Academic, Technical, or Unknown using heuristic scoring (chapter markers, dialogue patterns, abstract/keywords sections, code blocks, ISBN markers). This affects chunk sizing — books use 5000-char chunks for narrative continuity while technical documents use 2000-char chunks.
+**Document type detection**: The ingestion pipeline classifies documents as Fiction, NonFiction, Academic, Technical, or
+Unknown using heuristic scoring (chapter markers, dialogue patterns, abstract/keywords sections, code blocks, ISBN
+markers). This affects chunk sizing — books use 5000-char chunks for narrative continuity while technical documents use
+2000-char chunks.
 
-**Batch processing**: Local ingestion is optimized with batch ONNX embedding (single forward pass for all chunks) and batch SQLite indexing (single transaction for all items).
+**Batch processing**: Local ingestion is optimized with batch ONNX embedding (single forward pass for all chunks) and
+batch SQLite indexing (single transaction for all items).
 
-Re-crawling (web) is **incremental by default**: the crawler sends HTTP conditional request headers (`If-None-Match` / `If-Modified-Since`) using stored ETags and Last-Modified dates. Pages that return `304 Not Modified` skip downloading entirely. For servers without ETag support, a SHA256 content hash fallback detects unchanged pages after download. Local ingestion checks if the collection already has items and skips re-ingestion unless `--force` is used.
+Re-crawling (web) is **incremental by default**: the crawler sends HTTP conditional request headers (`If-None-Match` /
+`If-Modified-Since`) using stored ETags and Last-Modified dates. Pages that return `304 Not Modified` skip downloading
+entirely. For servers without ETag support, a SHA256 content hash fallback detects unchanged pages after download. Local
+ingestion checks if the collection already has items and skips re-ingestion unless `--force` is used.
 
 ## Querying Your KB
 
@@ -131,14 +145,15 @@ doomsummarizer ask --once "latest security news"  # Single answer, no loop
 ```
 
 How it behaves:
+
 - Computes an embedding for your question
 - Runs three-layer retrieval in parallel: Lucene FTS + embedding HNSW + entity profiles (via `Task.WhenAll`)
 - Re-ranks evidence using batch cosine similarity against your query
 - Synthesizes an answer using `SynthesizeSummaryAsync` — the same pipeline as `scroll`:
-  - Smart evidence budgeting (short items donate surplus to long ones)
-  - TextRank key-sentence extraction for compressing long evidence
-  - Full content snippets (not truncated summaries)
-  - Conversation history folded into the query for multi-turn context
+    - Smart evidence budgeting (short items donate surplus to long ones)
+    - TextRank key-sentence extraction for compressing long evidence
+    - Full content snippets (not truncated summaries)
+    - Conversation history folded into the query for multi-turn context
 - If no LLM is available, shows the evidence items directly
 - If your query is ambiguous (multiple entities), it can prompt you to pick which cluster you meant
 
@@ -156,19 +171,21 @@ doomsummarizer crawl https://docs.example.com --ask
 
 ## Retrieval Pipeline
 
-When you query the KB, DoomSummarizer uses a **three-layer retrieval pipeline**. Layers 1 and 2 execute in parallel via `Task.WhenAll` for lower latency.
+When you query the KB, DoomSummarizer uses a **three-layer retrieval pipeline**. Layers 1 and 2 execute in parallel via
+`Task.WhenAll` for lower latency.
 
 ### Layer 1: Lucene.NET Full-Text Search
 
-DoomSummarizer uses [Lucene.NET](https://lucenenet.apache.org/) (Apache Lucene ported to .NET) instead of SQLite FTS5 as the primary search engine. Why Lucene over FTS5?
+DoomSummarizer uses [Lucene.NET](https://lucenenet.apache.org/) (Apache Lucene ported to .NET) instead of SQLite FTS5 as
+the primary search engine. Why Lucene over FTS5?
 
-| Feature | Lucene.NET | SQLite FTS5 |
-|---------|-----------|-------------|
+| Feature         | Lucene.NET                                 | SQLite FTS5              |
+|-----------------|--------------------------------------------|--------------------------|
 | Field weighting | BM25F: title 2x, keywords 2.5x, content 1x | Equal weight all columns |
-| Stemming | Porter stemmer ("running" → "run") | No stemming |
-| Fuzzy matching | Edit distance (`languge~` → "language") | No fuzzy |
-| Phrase boosting | `"machine learning"^3` | No phrase boost |
-| Query syntax | Full boolean + proximity + wildcards | Simple prefix/AND/OR |
+| Stemming        | Porter stemmer ("running" → "run")         | No stemming              |
+| Fuzzy matching  | Edit distance (`languge~` → "language")    | No fuzzy                 |
+| Phrase boosting | `"machine learning"^3`                     | No phrase boost          |
+| Query syntax    | Full boolean + proximity + wildcards       | Simple prefix/AND/OR     |
 
 The sentinel LLM converts natural language queries into optimized Lucene syntax:
 
@@ -189,29 +206,32 @@ Query: "history of LLMs"
    30 docs → ~10-15 candidates
 ```
 
-Each collection gets its own Lucene index at `$HOME/.doomsummarizer/lucene/<collection>/`. SQLite FTS5 is retained as a lightweight backup for KB enrichment pre-filtering.
+Each collection gets its own Lucene index at `$HOME/.doomsummarizer/lucene/<collection>/`. SQLite FTS5 is retained as a
+lightweight backup for KB enrichment pre-filtering.
 
 ### Layer 2: Embedding HNSW Similarity
 
-384-dim all-MiniLM-L6-v2 embeddings with cosine similarity. For composite queries, items are scored against the best-matching subquery (max-sim). Runs concurrently with Layer 1.
+384-dim all-MiniLM-L6-v2 embeddings with cosine similarity. For composite queries, items are scored against the
+best-matching subquery (max-sim). Runs concurrently with Layer 1.
 
 ### Layer 3: Entity Profile HNSW (optional)
 
-With `--entities`, documents get entity profile embeddings (TF-IDF-confidence weighted). HNSW search finds related documents in O(log N).
+With `--entities`, documents get entity profile embeddings (TF-IDF-confidence weighted). HNSW search finds related
+documents in O(log N).
 
 ### RRF Fusion
 
 Reciprocal Rank Fusion combines signals from all layers:
 
-| Signal | Weight | Purpose |
-|--------|--------|---------|
-| BM25F | 1.0 | Keyword relevance (title 2x, keywords 2.5x, content 1x) |
-| Embedding similarity | 0.8 | Semantic matching ("pharmaceutical" ↔ "drug") |
-| Freshness | 0.5 | Recency boost (configurable decay) |
-| Authority | 0.3 | In-corpus PageRank, source quality |
-| Quality | 0.2 | Content vs clickbait (anchor-based) |
-| Vibe alignment | 0.4 | Tone matching (doom, hopeful, etc.) |
-| Entity profile | 0.3 | Entity fingerprint similarity (when `--entities`) |
+| Signal               | Weight | Purpose                                                 |
+|----------------------|--------|---------------------------------------------------------|
+| BM25F                | 1.0    | Keyword relevance (title 2x, keywords 2.5x, content 1x) |
+| Embedding similarity | 0.8    | Semantic matching ("pharmaceutical" ↔ "drug")           |
+| Freshness            | 0.5    | Recency boost (configurable decay)                      |
+| Authority            | 0.3    | In-corpus PageRank, source quality                      |
+| Quality              | 0.2    | Content vs clickbait (anchor-based)                     |
+| Vibe alignment       | 0.4    | Tone matching (doom, hopeful, etc.)                     |
+| Entity profile       | 0.3    | Entity fingerprint similarity (when `--entities`)       |
 
 ### Graph Enrichment (optional)
 
@@ -221,18 +241,19 @@ With `--entities --graph`, entity co-occurrence discovers related documents:
 doomsummarizer scroll "OpenAI regulation" --entities --graph --debug
 ```
 
-This finds documents sharing entities with top results (e.g., "Sam Altman" appears in both AI policy and business articles).
+This finds documents sharing entities with top results (e.g., "Sam Altman" appears in both AI policy and business
+articles).
 
 ## Keyword Profiling
 
 Each document is automatically profiled with structurally-weighted keywords:
 
-| Zone | Weight | Why |
-|------|--------|-----|
-| Title | 4.0x | Author's chosen label — strongest topic signal |
-| Headings (H1-H6) | 3.0x | Section topics summarize document themes |
-| Intro paragraphs | 2.0x | Opening sets context and thesis |
-| Body text | 1.0x | Baseline — lots of supporting detail |
+| Zone             | Weight | Why                                            |
+|------------------|--------|------------------------------------------------|
+| Title            | 4.0x   | Author's chosen label — strongest topic signal |
+| Headings (H1-H6) | 3.0x   | Section topics summarize document themes       |
+| Intro paragraphs | 2.0x   | Opening sets context and thesis                |
+| Body text        | 1.0x   | Baseline — lots of supporting detail           |
 
 Keywords are stored in the `items.keywords` column and indexed in Lucene for fast pre-filtering.
 
@@ -266,12 +287,12 @@ doomsummarizer crawl https://docs.example.com --entities
 
 **Entity types:**
 
-| Type | Examples | Uses |
-|------|----------|------|
-| `PER` | "Sam Altman", "Elon Musk" | Person tracking, biography queries |
-| `ORG` | "OpenAI", "Microsoft" | Company news, organization queries |
-| `LOC` | "San Francisco", "EU" | Regional filtering, location queries |
-| `MISC` | "GPT-4", "GDPR" | Product/concept tracking |
+| Type   | Examples                  | Uses                                 |
+|--------|---------------------------|--------------------------------------|
+| `PER`  | "Sam Altman", "Elon Musk" | Person tracking, biography queries   |
+| `ORG`  | "OpenAI", "Microsoft"     | Company news, organization queries   |
+| `LOC`  | "San Francisco", "EU"     | Regional filtering, location queries |
+| `MISC` | "GPT-4", "GDPR"           | Product/concept tracking             |
 
 Entities are stored in the `entities` table with mention provenance in `entity_mentions`.
 
@@ -338,11 +359,11 @@ doomsummarizer scroll "LLM news since last week" --debug
 
 **Temporal signals in SentinelIntent:**
 
-| Field | Values | Effect |
-|-------|--------|--------|
-| `time_sensitivity` | `today`, `breaking`, `week`, `any` | Freshness boost |
-| `requires_fresh` | `true` | Skip cache, fetch new |
-| `date_range` | `{ start: "2024-01-15", end: null }` | Filter to date range |
+| Field              | Values                               | Effect                |
+|--------------------|--------------------------------------|-----------------------|
+| `time_sensitivity` | `today`, `breaking`, `week`, `any`   | Freshness boost       |
+| `requires_fresh`   | `true`                               | Skip cache, fetch new |
+| `date_range`       | `{ start: "2024-01-15", end: null }` | Filter to date range  |
 
 Use `--debug` to see temporal extraction in action:
 

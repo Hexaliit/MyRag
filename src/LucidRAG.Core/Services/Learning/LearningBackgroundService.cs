@@ -1,21 +1,19 @@
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Core.Services.Learning;
 
 /// <summary>
-/// Background service that scans for documents needing learning and submits them to the coordinator.
-/// Runs in hosted mode only (not CLI).
-///
-/// Pattern: Like BotDetection's learning background service - periodic scans,
-/// submits to keyed coordinator for sequential processing per document.
+///     Background service that scans for documents needing learning and submits them to the coordinator.
+///     Runs in hosted mode only (not CLI).
+///     Pattern: Like BotDetection's learning background service - periodic scans,
+///     submits to keyed coordinator for sequential processing per document.
 /// </summary>
 public class LearningBackgroundService : BackgroundService
 {
-    private readonly ILogger<LearningBackgroundService> _logger;
-    private readonly ILearningCoordinator _coordinator;
-    private readonly ILearningScanner _scanner;
     private readonly LearningConfig _config;
+    private readonly ILearningCoordinator _coordinator;
+    private readonly ILogger<LearningBackgroundService> _logger;
+    private readonly ILearningScanner _scanner;
 
     public LearningBackgroundService(
         ILogger<LearningBackgroundService> logger,
@@ -37,7 +35,8 @@ public class LearningBackgroundService : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Learning background service starting (scan interval: {Interval})", _config.ScanInterval);
+        _logger.LogInformation("Learning background service starting (scan interval: {Interval})",
+            _config.ScanInterval);
 
         // Wait a bit before starting (let system initialize)
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
@@ -65,7 +64,7 @@ public class LearningBackgroundService : BackgroundService
     }
 
     /// <summary>
-    /// Scan for documents that need learning and submit them to coordinator.
+    ///     Scan for documents that need learning and submit them to coordinator.
     /// </summary>
     private async Task RunLearningScanAsync(CancellationToken ct)
     {
@@ -87,22 +86,16 @@ public class LearningBackgroundService : BackgroundService
             // Submit each to the coordinator
             var submitted = 0;
             foreach (var candidate in candidates)
-            {
                 if (_coordinator.TrySubmitLearning(
-                    candidate.TenantId,
-                    candidate.DocumentId,
-                    candidate.Reason,
-                    candidate.Priority))
-                {
+                        candidate.TenantId,
+                        candidate.DocumentId,
+                        candidate.Reason,
+                        candidate.Priority))
                     submitted++;
-                }
                 else
-                {
                     _logger.LogWarning(
                         "Failed to submit document {DocumentId} (tenant: {TenantId}) for learning (queue full?)",
                         candidate.DocumentId, candidate.TenantId);
-                }
-            }
 
             _logger.LogInformation(
                 "Learning scan complete: submitted {Submitted}/{Total} documents",
@@ -116,12 +109,12 @@ public class LearningBackgroundService : BackgroundService
 }
 
 /// <summary>
-/// Scanner that finds documents eligible for learning.
+///     Scanner that finds documents eligible for learning.
 /// </summary>
 public interface ILearningScanner
 {
     /// <summary>
-    /// Scan for documents that need learning based on various criteria.
+    ///     Scan for documents that need learning based on various criteria.
     /// </summary>
     Task<List<LearningCandidate>> ScanForLearningCandidatesAsync(
         LearningConfig config,
@@ -129,7 +122,7 @@ public interface ILearningScanner
 }
 
 /// <summary>
-/// Document candidate for learning.
+///     Document candidate for learning.
 /// </summary>
 public class LearningCandidate
 {
@@ -140,23 +133,23 @@ public class LearningCandidate
     public double? CurrentConfidence { get; init; }
     public int? CurrentEntityCount { get; init; }
     public DateTime ProcessedAt { get; init; }
-    public int Priority { get; init; } = 50;  // Default medium priority
+    public int Priority { get; init; } = 50; // Default medium priority
 }
 
 /// <summary>
-/// Default implementation of learning scanner.
-/// Finds documents based on:
-/// - Low confidence scores
-/// - Low entity counts
-/// - User feedback
-/// - Periodic refresh
+///     Default implementation of learning scanner.
+///     Finds documents based on:
+///     - Low confidence scores
+///     - Low entity counts
+///     - User feedback
+///     - Periodic refresh
 /// </summary>
 public class LearningScanner : ILearningScanner
 {
-    private readonly ILogger<LearningScanner> _logger;
     private readonly IDocumentRepository _documentRepository;
     private readonly IEntityRepository _entityRepository;
     private readonly IEvidenceRepository _evidenceRepository;
+    private readonly ILogger<LearningScanner> _logger;
 
     public LearningScanner(
         ILogger<LearningScanner> logger,
@@ -221,9 +214,9 @@ public class LearningScanner : ILearningScanner
 
         // Query documents with average confidence below threshold
         var lowConfDocs = await _documentRepository.FindByConfidenceAsync(
-            maxConfidence: config.ConfidenceThreshold,
-            minAge: config.MinDocumentAge,
-            ct: ct);
+            config.ConfidenceThreshold,
+            config.MinDocumentAge,
+            ct);
 
         foreach (var doc in lowConfDocs)
         {
@@ -255,9 +248,9 @@ public class LearningScanner : ILearningScanner
 
         // Query documents with very few entities (likely poor extraction)
         var lowEntityDocs = await _documentRepository.FindByEntityCountAsync(
-            maxEntityCount: 3,
-            minAge: config.MinDocumentAge,
-            ct: ct);
+            3,
+            config.MinDocumentAge,
+            ct);
 
         foreach (var doc in lowEntityDocs)
         {
@@ -285,11 +278,10 @@ public class LearningScanner : ILearningScanner
 
         // Query documents with user feedback indicating poor results
         var feedbackDocs = await _documentRepository.FindWithNegativeFeedbackAsync(
-            minAge: config.MinDocumentAge,
-            ct: ct);
+            config.MinDocumentAge,
+            ct);
 
         foreach (var doc in feedbackDocs)
-        {
             candidates.Add(new LearningCandidate
             {
                 TenantId = doc.TenantId,
@@ -297,9 +289,8 @@ public class LearningScanner : ILearningScanner
                 Reason = "user_feedback",
                 DocumentType = doc.ContentType ?? "document",
                 ProcessedAt = doc.ProcessedAt ?? DateTime.UtcNow,
-                Priority = 10  // User feedback gets high priority
+                Priority = 10 // User feedback gets high priority
             });
-        }
 
         return candidates;
     }
@@ -313,11 +304,10 @@ public class LearningScanner : ILearningScanner
         // Query documents that haven't been reprocessed in a long time (e.g., 30 days)
         var staleThreshold = DateTime.UtcNow.AddDays(-30);
         var staleDocs = await _documentRepository.FindProcessedBeforeAsync(
-            cutoffDate: staleThreshold,
-            ct: ct);
+            staleThreshold,
+            ct);
 
         foreach (var doc in staleDocs)
-        {
             candidates.Add(new LearningCandidate
             {
                 TenantId = doc.TenantId,
@@ -325,9 +315,8 @@ public class LearningScanner : ILearningScanner
                 Reason = "periodic_refresh",
                 DocumentType = doc.ContentType ?? "document",
                 ProcessedAt = doc.ProcessedAt ?? DateTime.UtcNow,
-                Priority = 80  // Periodic refresh gets low priority
+                Priority = 80 // Periodic refresh gets low priority
             });
-        }
 
         return candidates;
     }

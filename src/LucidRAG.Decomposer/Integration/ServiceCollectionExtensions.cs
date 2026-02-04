@@ -1,7 +1,6 @@
 using LucidRAG.Decomposer.Analysis;
 using LucidRAG.Decomposer.Caching;
 using LucidRAG.Decomposer.Glossary;
-using LucidRAG.Decomposer.KnowledgeBase;
 using LucidRAG.Decomposer.Models;
 using LucidRAG.Decomposer.Orchestration;
 using LucidRAG.Decomposer.Refinement;
@@ -10,12 +9,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LucidRAG.Decomposer.Integration;
 
 /// <summary>
-/// DI registration for the decomposer pipeline.
+///     DI registration for the decomposer pipeline.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Register the decomposition pipeline and all its components.
+    ///     Register the decomposition pipeline and all its components.
     /// </summary>
     public static IServiceCollection AddDecomposer(this IServiceCollection services)
     {

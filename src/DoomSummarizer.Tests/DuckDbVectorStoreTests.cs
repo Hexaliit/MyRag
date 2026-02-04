@@ -1,17 +1,16 @@
-using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for DuckDB vector store with HNSW indexing.
-/// Uses a temp database per test to avoid cross-test contamination.
+///     Tests for DuckDB vector store with HNSW indexing.
+///     Uses a temp database per test to avoid cross-test contamination.
 /// </summary>
 public class DuckDbVectorStoreTests : IAsyncLifetime
 {
     private readonly string _dbPath;
-    private DuckDbVectorStore _store = null!;
     private IEntityGraphStore _entityStore = null!;
+    private DuckDbVectorStore _store = null!;
 
     public DuckDbVectorStoreTests()
     {
@@ -39,7 +38,10 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
             var walPath = _dbPath + ".wal";
             if (File.Exists(walPath)) File.Delete(walPath);
         }
-        catch { /* best effort */ }
+        catch
+        {
+            /* best effort */
+        }
     }
 
     [Fact]
@@ -77,7 +79,7 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
         await _store.UpsertItemEmbeddingAsync("item2", "Also Similar", "hn", null, similarEmbedding);
         await _store.UpsertItemEmbeddingAsync("item3", "Very Different", "hn", null, differentEmbedding);
 
-        var results = await _store.FindSimilarItemsAsync(baseEmbedding, topK: 10, minSimilarity: 0.5f);
+        var results = await _store.FindSimilarItemsAsync(baseEmbedding, 10, 0.5f);
 
         results.Should().NotBeEmpty();
         results.Should().Contain(r => r.itemId == "item1");
@@ -98,7 +100,8 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
     public async Task UpsertEntityMention_RecordsProvenance()
     {
         await _entityStore.UpsertEntityAsync("per_abc", "Alice", "PER", 0.9);
-        await _store.UpsertItemEmbeddingAsync("article1", "Article One", "hn", "https://example.com", CreateRandomEmbedding());
+        await _store.UpsertItemEmbeddingAsync("article1", "Article One", "hn", "https://example.com",
+            CreateRandomEmbedding());
         await _entityStore.UpsertEntityMentionAsync("per_abc", "article1", 0.9, "mentioned in title");
 
         var articles = await _entityStore.GetArticlesForEntityAsync("per_abc");
@@ -159,7 +162,7 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
         await _entityStore.UpsertEntityAsync("org_b", "Acme", "ORG", 0.8);
         await _entityStore.UpsertEntityAsync("loc_c", "London", "LOC", 0.7);
 
-        var people = await _entityStore.GetTopEntitiesAsync(10, type: "PER");
+        var people = await _entityStore.GetTopEntitiesAsync(10, "PER");
         people.Should().HaveCount(1);
         people[0].Name.Should().Be("Alice");
     }
@@ -175,8 +178,8 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
         // Cleanup with 0-day retention should remove everything
         // (but since we just inserted, the timestamps are fresh,
         // so nothing should be removed with reasonable retention)
-        await _entityStore.CleanupAsync(retentionDays: 365);
-        await _store.CleanupAsync(retentionDays: 365);
+        await _entityStore.CleanupAsync(365);
+        await _store.CleanupAsync(365);
         var stats = await _entityStore.GetStatsAsync();
         stats.entities.Should().Be(1, "recent data should survive cleanup");
     }
@@ -213,7 +216,7 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
     {
         // Create items with entity profiles
         var profile1 = CreateNormalizedEmbedding(1.0f);
-        var profile2 = CreateNormalizedEmbedding(0.9f);  // Similar to profile1
+        var profile2 = CreateNormalizedEmbedding(0.9f); // Similar to profile1
         var profile3 = CreateNormalizedEmbedding(-1.0f); // Very different
 
         await _store.UpsertItemEmbeddingAsync("item1", "AI Article 1", "hn", null, CreateRandomEmbedding());
@@ -225,7 +228,7 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
         await _entityStore.UpsertItemEntityProfileAsync("item3", profile3);
 
         // Search with a query profile similar to item1
-        var results = await _entityStore.FindRelatedByEntityProfileAsync(profile1, topK: 10, minSimilarity: 0.5f);
+        var results = await _entityStore.FindRelatedByEntityProfileAsync(profile1, 10, 0.5f);
 
         results.Should().NotBeEmpty();
         results.Should().Contain(r => r.itemId == "item1");
@@ -334,7 +337,7 @@ public class DuckDbVectorStoreTests : IAsyncLifetime
     {
         var embedding = new float[384];
         for (var i = 0; i < 384; i++)
-            embedding[i] = bias + (i % 10) * 0.01f;
+            embedding[i] = bias + i % 10 * 0.01f;
         return Normalize(embedding);
     }
 

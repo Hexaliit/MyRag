@@ -1,23 +1,20 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using AudioSummarizer.Core.Config;
-using AudioSummarizer.Core.Models;
 using NAudio.Wave;
 
 namespace AudioSummarizer.Core.Services.Transcription;
 
 /// <summary>
-/// HTTP-based transcription service using Ollama API
-/// Fallback option when Whisper.NET is unavailable
+///     HTTP-based transcription service using Ollama API
+///     Fallback option when Whisper.NET is unavailable
 /// </summary>
 public sealed class OllamaTranscriptionService : ITranscriptionService
 {
     private readonly AudioConfig _config;
-    private readonly ILogger<OllamaTranscriptionService> _logger;
     private readonly HttpClient _httpClient;
-
-    public string ProviderName => "Ollama";
+    private readonly ILogger<OllamaTranscriptionService> _logger;
 
     public OllamaTranscriptionService(
         IOptions<AudioConfig> config,
@@ -30,6 +27,8 @@ public sealed class OllamaTranscriptionService : ITranscriptionService
         _httpClient.BaseAddress = new Uri(_config.Ollama?.BaseUrl ?? "http://localhost:11434");
         _httpClient.Timeout = TimeSpan.FromMinutes(10); // Long timeout for large audio files
     }
+
+    public string ProviderName => "Ollama";
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
@@ -54,7 +53,7 @@ public sealed class OllamaTranscriptionService : ITranscriptionService
         string? language = null,
         CancellationToken cancellationToken = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         try
         {
@@ -86,9 +85,7 @@ public sealed class OllamaTranscriptionService : ITranscriptionService
                 sw.Stop();
 
                 if (result == null || string.IsNullOrEmpty(result.Text))
-                {
                     throw new InvalidOperationException("Ollama returned empty transcription");
-                }
 
                 // Parse segments if available
                 var segments = ParseSegments(result.Text);
@@ -110,10 +107,7 @@ public sealed class OllamaTranscriptionService : ITranscriptionService
             finally
             {
                 // Clean up temporary WAV file if we created one
-                if (wavPath != audioPath && File.Exists(wavPath))
-                {
-                    File.Delete(wavPath);
-                }
+                if (wavPath != audioPath && File.Exists(wavPath)) File.Delete(wavPath);
             }
         }
         catch (Exception ex)
@@ -169,35 +163,28 @@ public sealed class OllamaTranscriptionService : ITranscriptionService
 
     private class OllamaTranscribeRequest
     {
-        [JsonPropertyName("model")]
-        public required string Model { get; init; }
+        [JsonPropertyName("model")] public required string Model { get; init; }
 
-        [JsonPropertyName("audio")]
-        public required string Audio { get; init; }
+        [JsonPropertyName("audio")] public required string Audio { get; init; }
 
-        [JsonPropertyName("language")]
-        public string? Language { get; init; }
+        [JsonPropertyName("language")] public string? Language { get; init; }
     }
 
     private class OllamaTranscribeResponse
     {
-        [JsonPropertyName("text")]
-        public required string Text { get; init; }
+        [JsonPropertyName("text")] public required string Text { get; init; }
 
-        [JsonPropertyName("language")]
-        public string? Language { get; init; }
+        [JsonPropertyName("language")] public string? Language { get; init; }
     }
 
     private class OllamaTagsResponse
     {
-        [JsonPropertyName("models")]
-        public List<OllamaModel>? Models { get; init; }
+        [JsonPropertyName("models")] public List<OllamaModel>? Models { get; init; }
     }
 
     private class OllamaModel
     {
-        [JsonPropertyName("name")]
-        public required string Name { get; init; }
+        [JsonPropertyName("name")] public required string Name { get; init; }
     }
 
     #endregion

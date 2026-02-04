@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import {defineConfig, devices} from '@playwright/test';
 
 /**
  * LucidRAG Playwright Configuration
@@ -17,96 +17,96 @@ import { defineConfig, devices } from '@playwright/test';
 const baseURL = process.env.BASE_URL || 'http://localhost:5020';
 
 export default defineConfig({
-  testDir: './tests',
+    testDir: './tests',
 
-  /* Run tests in files in parallel */
-  fullyParallel: true,
+    /* Run tests in files in parallel */
+    fullyParallel: true,
 
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: !!process.env.CI,
+    /* Fail the build on CI if you accidentally left test.only in the source code. */
+    forbidOnly: !!process.env.CI,
 
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
+    /* Retry on CI only */
+    retries: process.env.CI ? 2 : 0,
 
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+    /* Opt out of parallel tests on CI. */
+    workers: process.env.CI ? 1 : undefined,
 
-  /* Reporter to use */
-  reporter: [
-    ['html', { open: 'never' }],
-    ['list']
-  ],
+    /* Reporter to use */
+    reporter: [
+        ['html', {open: 'never'}],
+        ['list']
+    ],
 
-  /* Global timeout for each test */
-  timeout: 60000,
+    /* Global timeout for each test */
+    timeout: 60000,
 
-  /* Expect timeout */
-  expect: {
-    timeout: 10000,
-  },
-
-  /* Shared settings for all the projects below */
-  use: {
-    /* Base URL for page.goto('') calls */
-    baseURL,
-
-    /* Collect trace when retrying the failed test */
-    trace: 'on-first-retry',
-
-    /* Take screenshot on failure */
-    screenshot: 'only-on-failure',
-
-    /* Video recording */
-    video: 'retain-on-failure',
-
-    /* Default viewport */
-    viewport: { width: 1400, height: 900 },
-  },
-
-  /* Configure projects for major browsers */
-  projects: [
-    // Setup project for authentication
-    {
-      name: 'setup',
-      testMatch: /.*\.setup\.ts/,
+    /* Expect timeout */
+    expect: {
+        timeout: 10000,
     },
 
-    {
-      name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        // Use stored auth state
-        storageState: 'playwright/.auth/user.json',
-      },
-      dependencies: ['setup'],
+    /* Shared settings for all the projects below */
+    use: {
+        /* Base URL for page.goto('') calls */
+        baseURL,
+
+        /* Collect trace when retrying the failed test */
+        trace: 'on-first-retry',
+
+        /* Take screenshot on failure */
+        screenshot: 'only-on-failure',
+
+        /* Video recording */
+        video: 'retain-on-failure',
+
+        /* Default viewport */
+        viewport: {width: 1400, height: 900},
     },
 
-    // Uncomment to test on more browsers
-    // {
-    //   name: 'firefox',
-    //   use: {
-    //     ...devices['Desktop Firefox'],
-    //     storageState: 'playwright/.auth/user.json',
-    //   },
-    //   dependencies: ['setup'],
-    // },
-    // {
-    //   name: 'webkit',
-    //   use: {
-    //     ...devices['Desktop Safari'],
-    //     storageState: 'playwright/.auth/user.json',
-    //   },
-    //   dependencies: ['setup'],
-    // },
-  ],
+    /* Configure projects for major browsers */
+    projects: [
+        // Setup project for authentication
+        {
+            name: 'setup',
+            testMatch: /.*\.setup\.ts/,
+        },
 
-  /* Run your local dev server before starting the tests */
-  webServer: process.env.BASE_URL ? undefined : {
-    command: 'dotnet run --project src/LucidRAG/LucidRAG.csproj -- --standalone',
-    url: 'http://localhost:5020',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000, // .NET apps take longer to start
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+        {
+            name: 'chromium',
+            use: {
+                ...devices['Desktop Chrome'],
+                // Use stored auth state
+                storageState: 'playwright/.auth/user.json',
+            },
+            dependencies: ['setup'],
+        },
+
+        // Uncomment to test on more browsers
+        // {
+        //   name: 'firefox',
+        //   use: {
+        //     ...devices['Desktop Firefox'],
+        //     storageState: 'playwright/.auth/user.json',
+        //   },
+        //   dependencies: ['setup'],
+        // },
+        // {
+        //   name: 'webkit',
+        //   use: {
+        //     ...devices['Desktop Safari'],
+        //     storageState: 'playwright/.auth/user.json',
+        //   },
+        //   dependencies: ['setup'],
+        // },
+    ],
+
+    /* Run your local dev server before starting the tests */
+    webServer: process.env.BASE_URL ? undefined : {
+        command: 'dotnet run --project src/LucidRAG/LucidRAG.csproj -- --standalone',
+        url: 'http://localhost:5020',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120000, // .NET apps take longer to start
+        stdout: 'pipe',
+        stderr: 'pipe',
+    },
 });

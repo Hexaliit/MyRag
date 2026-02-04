@@ -1,16 +1,14 @@
-using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Models;
 using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Analysis.Waves;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace AudioSummarizer.Tests.Waves;
 
 public class ContentClassifierWaveTests
 {
-    private readonly ContentClassifierWave _wave;
     private readonly string _testAudioPath;
+    private readonly ContentClassifierWave _wave;
 
     public ContentClassifierWaveTests()
     {
@@ -61,10 +59,7 @@ public class ContentClassifierWaveTests
     public async Task AnalyzeAsync_WithValidAudio_ExtractsContentType()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 
@@ -86,10 +81,7 @@ public class ContentClassifierWaveTests
     public async Task AnalyzeAsync_WithValidAudio_ExtractsAcousticFeatures()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 
@@ -115,10 +107,7 @@ public class ContentClassifierWaveTests
     public async Task AnalyzeAsync_ExtractsLikelihoodScores()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 

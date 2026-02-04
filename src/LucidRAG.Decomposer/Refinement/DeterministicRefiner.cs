@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.Decomposer.Refinement;
 
 /// <summary>
-/// Fallback refiner when no LLM is available.
-/// Passes Phase 1 output through unchanged  -  the system works fully without LLM.
+///     Fallback refiner when no LLM is available.
+///     Passes Phase 1 output through unchanged  -  the system works fully without LLM.
 /// </summary>
 public class DeterministicRefiner : IDecompositionRefiner
 {
@@ -24,7 +24,6 @@ public class DeterministicRefiner : IDecompositionRefiner
 
         // If no nodes were proposed, create a single atomic node for the whole query
         if (nodes.Count == 0)
-        {
             nodes =
             [
                 new QueryNode
@@ -36,7 +35,6 @@ public class DeterministicRefiner : IDecompositionRefiner
                     Depth = 0
                 }
             ];
-        }
 
         var plan = BuildExecutionPlan(nodes);
 

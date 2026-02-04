@@ -1,7 +1,7 @@
+using System.Diagnostics;
+using System.IO.Hashing;
 using System.Text;
 using System.Text.Json;
-using System.IO.Hashing;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using Mostlylucid.DocSummarizer.Models;
@@ -10,34 +10,35 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Service for detecting communities in the entity graph and extracting their features.
-/// Uses Leiden algorithm for community detection and LLM for summary generation.
+///     Service for detecting communities in the entity graph and extracting their features.
+///     Uses Leiden algorithm for community detection and LLM for summary generation.
 /// </summary>
 public interface ICommunityDetectionService
 {
     /// <summary>
-    /// Detect communities in the entity graph. If collectionId is null, detects across all entities.
+    ///     Detect communities in the entity graph. If collectionId is null, detects across all entities.
     /// </summary>
     Task<CommunityDetectionResult> DetectCommunitiesAsync(Guid? collectionId = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Get all detected communities for a collection
+    ///     Get all detected communities for a collection
     /// </summary>
     Task<IReadOnlyList<CommunityEntity>> GetCommunitiesAsync(Guid? collectionId = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Get community by ID with members
+    ///     Get community by ID with members
     /// </summary>
     Task<CommunityEntity?> GetCommunityAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
-    /// Find communities relevant to a query
+    ///     Find communities relevant to a query
     /// </summary>
-    Task<IReadOnlyList<CommunityEntity>> SearchCommunitiesAsync(string query, Guid? collectionId = null, int limit = 5, CancellationToken ct = default);
+    Task<IReadOnlyList<CommunityEntity>> SearchCommunitiesAsync(string query, Guid? collectionId = null, int limit = 5,
+        CancellationToken ct = default);
 
     /// <summary>
-    /// Generate/regenerate summaries for communities using LLM (3-word titles, paragraph descriptions)
-    /// Ensures unique names per tenant
+    ///     Generate/regenerate summaries for communities using LLM (3-word titles, paragraph descriptions)
+    ///     Ensures unique names per tenant
     /// </summary>
     Task GenerateCommunitySummariesAsync(Guid? collectionId = null, CancellationToken ct = default);
 }
@@ -51,12 +52,12 @@ public record CommunityDetectionResult(
 public class CommunityDetectionService : ICommunityDetectionService
 {
     private readonly RagDocumentsDbContext _db;
+    private readonly IEmbeddingService _embeddingService;
+    private readonly IEvidenceRepository _evidenceRepository;
     private readonly IEntityGraphService _graphService;
     private readonly ILlmService _llmService;
-    private readonly IEmbeddingService _embeddingService;
-    private readonly IVectorStore _vectorStore;
-    private readonly IEvidenceRepository _evidenceRepository;
     private readonly ILogger<CommunityDetectionService> _logger;
+    private readonly IVectorStore _vectorStore;
 
     public CommunityDetectionService(
         RagDocumentsDbContext db,
@@ -76,9 +77,10 @@ public class CommunityDetectionService : ICommunityDetectionService
         _logger = logger;
     }
 
-    public async Task<CommunityDetectionResult> DetectCommunitiesAsync(Guid? collectionId = null, CancellationToken ct = default)
+    public async Task<CommunityDetectionResult> DetectCommunitiesAsync(Guid? collectionId = null,
+        CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         _logger.LogInformation("Starting community detection{ForCollection}...",
             collectionId.HasValue ? $" for collection {collectionId}" : " for all entities");
 
@@ -193,7 +195,8 @@ public class CommunityDetectionService : ICommunityDetectionService
             {
                 Id = Guid.NewGuid(),
                 CollectionId = collectionId,
-                Name = $"Community {idx + 1}: {string.Join(", ", topEntities)}", // Temporary name, will be replaced by LLM
+                Name =
+                    $"Community {idx + 1}: {string.Join(", ", topEntities)}", // Temporary name, will be replaced by LLM
                 Algorithm = "leiden",
                 Level = 0,
                 EntityCount = memberEntities.Count,
@@ -220,9 +223,7 @@ public class CommunityDetectionService : ICommunityDetectionService
                 if (nameToNodeId.TryGetValue(entity.CanonicalName.ToLowerInvariant(), out var graphNodeId) &&
                     nodeIndex.TryGetValue(graphNodeId, out var nodeIdx) &&
                     centralities.TryGetValue(nodeIdx, out var c))
-                {
                     centrality = c;
-                }
 
                 _db.CommunityMemberships.Add(new CommunityMembership
                 {
@@ -247,11 +248,154 @@ public class CommunityDetectionService : ICommunityDetectionService
             sw.Elapsed);
     }
 
+    public async Task<IReadOnlyList<CommunityEntity>> GetCommunitiesAsync(Guid? collectionId = null,
+        CancellationToken ct = default)
+    {
+        var query = _db.Communities
+            .Include(c => c.Members)
+            .AsQueryable();
+
+        if (collectionId.HasValue) query = query.Where(c => c.CollectionId == collectionId.Value);
+
+        return await query
+            .OrderByDescending(c => c.EntityCount)
+            .ToListAsync(ct);
+    }
+
+    public async Task<CommunityEntity?> GetCommunityAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _db.Communities
+            .Include(c => c.Members)
+            .ThenInclude(m => m.Entity)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
+    }
+
+    public async Task<IReadOnlyList<CommunityEntity>> SearchCommunitiesAsync(
+        string query, Guid? collectionId = null, int limit = 5, CancellationToken ct = default)
+    {
+        // Embed query and find communities with similar embeddings
+        var queryEmbedding = await _embeddingService.EmbedAsync(query, ct);
+
+        var queryable = _db.Communities.Where(c => c.Embedding != null);
+
+        if (collectionId.HasValue) queryable = queryable.Where(c => c.CollectionId == collectionId.Value);
+
+        var communities = await queryable.ToListAsync(ct);
+
+        // Calculate cosine similarity
+        var scored = communities
+            .Select(c => (Community: c, Score: CosineSimilarity(queryEmbedding, c.Embedding!)))
+            .OrderByDescending(x => x.Score)
+            .Take(limit)
+            .Select(x => x.Community)
+            .ToList();
+
+        return scored;
+    }
+
+    public async Task GenerateCommunitySummariesAsync(Guid? collectionId = null, CancellationToken ct = default)
+    {
+        var query = _db.Communities
+            .Include(c => c.Members)
+            .ThenInclude(m => m.Entity)
+            .AsQueryable();
+
+        if (collectionId.HasValue) query = query.Where(c => c.CollectionId == collectionId.Value);
+
+        var communities = await query.ToListAsync(ct);
+
+        _logger.LogInformation("Generating summaries for {Count} communities", communities.Count);
+
+        foreach (var community in communities)
+            try
+            {
+                var features = !string.IsNullOrEmpty(community.Features)
+                    ? JsonSerializer.Deserialize<CommunityFeatures>(community.Features)
+                    : null;
+
+                var entityNames = community.Members
+                    .OrderByDescending(m => m.Centrality)
+                    .Take(10)
+                    .Select(m => m.Entity?.CanonicalName ?? "unknown")
+                    .ToList();
+
+                var prompt = $@"You are analyzing a community of related entities from a knowledge graph.
+
+Entities in this community:
+{string.Join(", ", entityNames)}
+
+Entity types present: {(features != null ? string.Join(", ", features.DominantTypes.Select(kv => $"{kv.Key}({kv.Value})")) : "mixed")}
+Key terms: {(features != null ? string.Join(", ", features.KeyTerms) : "various")}
+
+Based on these entities and their characteristics, provide:
+1. A descriptive title (MAXIMUM 3 words, like ""Image Processing"" or ""Database Optimization"")
+2. A paragraph description (maximum 5 sentences) explaining what this community represents, what topics it covers, and its key themes
+
+Format your response as:
+NAME: [maximum 3 word title]
+SUMMARY: [descriptive paragraph, max 5 sentences]";
+
+                var response = await _llmService.GenerateAsync(prompt, new LlmOptions { Temperature = 0.3 }, ct);
+
+                _logger.LogDebug("LLM response for community {Id}: {Response}", community.Id, response);
+
+                // Parse response - handle multiple formats
+                // First strip markdown from each line for consistent parsing
+                var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(l => StripMarkdownPrefix(l.Trim()))
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .ToArray();
+
+                string? parsedName = null;
+                string? parsedSummary = null;
+
+                // Try structured format first (NAME: ..., SUMMARY: ...)
+                var nameLine = lines.FirstOrDefault(l => l.StartsWith("NAME:", StringComparison.OrdinalIgnoreCase));
+                var summaryLine =
+                    lines.FirstOrDefault(l => l.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase));
+
+                if (nameLine != null && nameLine.Length > 5) parsedName = CleanLlmText(nameLine.Substring(5));
+                if (summaryLine != null && summaryLine.Length > 8)
+                    parsedSummary = CleanLlmText(summaryLine.Substring(8));
+
+                // Fallback: if no structured format, use first non-empty line as name, rest as summary
+                if (string.IsNullOrWhiteSpace(parsedName) && lines.Length > 0)
+                {
+                    parsedName = lines[0].Trim().Trim('"', '*', '#', '-');
+                    if (lines.Length > 1) parsedSummary = string.Join(" ", lines.Skip(1)).Trim().Trim('"', '*');
+                }
+
+                if (!string.IsNullOrWhiteSpace(parsedName) && parsedName.Length >= 3) community.Name = parsedName;
+                if (!string.IsNullOrWhiteSpace(parsedSummary)) community.Summary = parsedSummary;
+
+                // Generate embedding for the community
+                var communityText = $"{community.Name}. {community.Summary ?? ""} {string.Join(" ", entityNames)}";
+                community.Embedding = await _embeddingService.EmbedAsync(communityText, ct);
+
+                community.UpdatedAt = DateTimeOffset.UtcNow;
+
+                // Store summary as evidence artifact
+                await StoreCommunityEvidenceAsync(community, communityText, ct);
+
+                // Add to vector store for semantic search
+                await IndexCommunityInVectorStoreAsync(community, communityText, ct);
+
+                _logger.LogDebug("Generated summary for community: {Name}", community.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to generate summary for community {Id}", community.Id);
+            }
+
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Community summary generation complete");
+    }
+
     /// <summary>
-    /// Leiden community detection algorithm
-    /// Improves on Louvain by adding a refinement phase to ensure well-connected communities.
-    /// Based on: Traag, V.A., Waltman, L. & van Eck, N.J. (2019)
-    /// "From Louvain to Leiden: guaranteeing well-connected communities"
+    ///     Leiden community detection algorithm
+    ///     Improves on Louvain by adding a refinement phase to ensure well-connected communities.
+    ///     Based on: Traag, V.A., Waltman, L. & van Eck, N.J. (2019)
+    ///     "From Louvain to Leiden: guaranteeing well-connected communities"
     /// </summary>
     private (Dictionary<int, int> communities, double modularity) RunLeiden(
         Dictionary<int, List<(int neighbor, float weight)>> adjacency,
@@ -266,10 +410,7 @@ public class CommunityDetectionService : ICommunityDetectionService
 
         // Node weights (sum of incident edges)
         var nodeWeights = new float[nodeCount];
-        foreach (var (node, neighbors) in adjacency)
-        {
-            nodeWeights[node] = neighbors.Sum(n => n.weight);
-        }
+        foreach (var (node, neighbors) in adjacency) nodeWeights[node] = neighbors.Sum(n => n.weight);
 
         var maxIterations = 100;
         var iteration = 0;
@@ -285,11 +426,7 @@ public class CommunityDetectionService : ICommunityDetectionService
             improved = moved;
 
             // Phase 2: Refinement - check for and fix poorly connected communities
-            if (improved)
-            {
-                RefineCommunitiesPhase(communities, adjacency, nodeWeights, totalWeight, nodeCount);
-            }
-
+            if (improved) RefineCommunitiesPhase(communities, adjacency, nodeWeights, totalWeight, nodeCount);
         } while (improved && iteration < maxIterations);
 
         // Renumber communities to be contiguous
@@ -303,7 +440,7 @@ public class CommunityDetectionService : ICommunityDetectionService
     }
 
     /// <summary>
-    /// Local moving phase: Greedily move nodes to improve modularity
+    ///     Local moving phase: Greedily move nodes to improve modularity
     /// </summary>
     private bool LocalMovingPhase(
         Dictionary<int, int> communities,
@@ -361,8 +498,8 @@ public class CommunityDetectionService : ICommunityDetectionService
     }
 
     /// <summary>
-    /// Refinement phase: Check communities for connectivity and split poorly connected ones
-    /// This is the key difference from Louvain - Leiden guarantees well-connected communities
+    ///     Refinement phase: Check communities for connectivity and split poorly connected ones
+    ///     This is the key difference from Louvain - Leiden guarantees well-connected communities
     /// </summary>
     private void RefineCommunitiesPhase(
         Dictionary<int, int> communities,
@@ -393,10 +530,7 @@ public class CommunityDetectionService : ICommunityDetectionService
                 // Other components get new community IDs
                 for (var i = 1; i < sortedComponents.Count; i++)
                 {
-                    foreach (var node in sortedComponents[i])
-                    {
-                        communities[node] = nextCommunityId;
-                    }
+                    foreach (var node in sortedComponents[i]) communities[node] = nextCommunityId;
                     nextCommunityId++;
                 }
             }
@@ -404,7 +538,7 @@ public class CommunityDetectionService : ICommunityDetectionService
     }
 
     /// <summary>
-    /// Find connected components within a set of nodes using BFS
+    ///     Find connected components within a set of nodes using BFS
     /// </summary>
     private List<HashSet<int>> FindConnectedComponents(
         HashSet<int> nodes,
@@ -431,13 +565,11 @@ public class CommunityDetectionService : ICommunityDetectionService
                 if (!adjacency.TryGetValue(node, out var neighbors)) continue;
 
                 foreach (var (neighbor, _) in neighbors)
-                {
                     if (nodes.Contains(neighbor) && !visited.Contains(neighbor))
                     {
                         visited.Add(neighbor);
                         queue.Enqueue(neighbor);
                     }
-                }
             }
 
             components.Add(component);
@@ -467,7 +599,7 @@ public class CommunityDetectionService : ICommunityDetectionService
         var ki = nodeWeights[node];
         var m2 = 2 * totalWeight;
 
-        return (sumIn / m2) - (sumTot * ki) / (m2 * m2);
+        return sumIn / m2 - sumTot * ki / (m2 * m2);
     }
 
     private double CalculateModularity(
@@ -484,12 +616,8 @@ public class CommunityDetectionService : ICommunityDetectionService
         {
             var nodeCommunity = communities[node];
             foreach (var (neighbor, weight) in neighbors)
-            {
                 if (communities[neighbor] == nodeCommunity)
-                {
-                    modularity += weight - (nodeWeights[node] * nodeWeights[neighbor]) / m2;
-                }
-            }
+                    modularity += weight - nodeWeights[node] * nodeWeights[neighbor] / m2;
         }
 
         return modularity / m2;
@@ -587,174 +715,8 @@ public class CommunityDetectionService : ICommunityDetectionService
         };
     }
 
-    public async Task<IReadOnlyList<CommunityEntity>> GetCommunitiesAsync(Guid? collectionId = null, CancellationToken ct = default)
-    {
-        var query = _db.Communities
-            .Include(c => c.Members)
-            .AsQueryable();
-
-        if (collectionId.HasValue)
-        {
-            query = query.Where(c => c.CollectionId == collectionId.Value);
-        }
-
-        return await query
-            .OrderByDescending(c => c.EntityCount)
-            .ToListAsync(ct);
-    }
-
-    public async Task<CommunityEntity?> GetCommunityAsync(Guid id, CancellationToken ct = default)
-    {
-        return await _db.Communities
-            .Include(c => c.Members)
-                .ThenInclude(m => m.Entity)
-            .FirstOrDefaultAsync(c => c.Id == id, ct);
-    }
-
-    public async Task<IReadOnlyList<CommunityEntity>> SearchCommunitiesAsync(
-        string query, Guid? collectionId = null, int limit = 5, CancellationToken ct = default)
-    {
-        // Embed query and find communities with similar embeddings
-        var queryEmbedding = await _embeddingService.EmbedAsync(query, ct);
-
-        var queryable = _db.Communities.Where(c => c.Embedding != null);
-
-        if (collectionId.HasValue)
-        {
-            queryable = queryable.Where(c => c.CollectionId == collectionId.Value);
-        }
-
-        var communities = await queryable.ToListAsync(ct);
-
-        // Calculate cosine similarity
-        var scored = communities
-            .Select(c => (Community: c, Score: CosineSimilarity(queryEmbedding, c.Embedding!)))
-            .OrderByDescending(x => x.Score)
-            .Take(limit)
-            .Select(x => x.Community)
-            .ToList();
-
-        return scored;
-    }
-
-    public async Task GenerateCommunitySummariesAsync(Guid? collectionId = null, CancellationToken ct = default)
-    {
-        var query = _db.Communities
-            .Include(c => c.Members)
-                .ThenInclude(m => m.Entity)
-            .AsQueryable();
-
-        if (collectionId.HasValue)
-        {
-            query = query.Where(c => c.CollectionId == collectionId.Value);
-        }
-
-        var communities = await query.ToListAsync(ct);
-
-        _logger.LogInformation("Generating summaries for {Count} communities", communities.Count);
-
-        foreach (var community in communities)
-        {
-            try
-            {
-                var features = !string.IsNullOrEmpty(community.Features)
-                    ? JsonSerializer.Deserialize<CommunityFeatures>(community.Features)
-                    : null;
-
-                var entityNames = community.Members
-                    .OrderByDescending(m => m.Centrality)
-                    .Take(10)
-                    .Select(m => m.Entity?.CanonicalName ?? "unknown")
-                    .ToList();
-
-                var prompt = $@"You are analyzing a community of related entities from a knowledge graph.
-
-Entities in this community:
-{string.Join(", ", entityNames)}
-
-Entity types present: {(features != null ? string.Join(", ", features.DominantTypes.Select(kv => $"{kv.Key}({kv.Value})")) : "mixed")}
-Key terms: {(features != null ? string.Join(", ", features.KeyTerms) : "various")}
-
-Based on these entities and their characteristics, provide:
-1. A descriptive title (MAXIMUM 3 words, like ""Image Processing"" or ""Database Optimization"")
-2. A paragraph description (maximum 5 sentences) explaining what this community represents, what topics it covers, and its key themes
-
-Format your response as:
-NAME: [maximum 3 word title]
-SUMMARY: [descriptive paragraph, max 5 sentences]";
-
-                var response = await _llmService.GenerateAsync(prompt, new LlmOptions { Temperature = 0.3 }, ct);
-
-                _logger.LogDebug("LLM response for community {Id}: {Response}", community.Id, response);
-
-                // Parse response - handle multiple formats
-                // First strip markdown from each line for consistent parsing
-                var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(l => StripMarkdownPrefix(l.Trim()))
-                    .Where(l => !string.IsNullOrWhiteSpace(l))
-                    .ToArray();
-
-                string? parsedName = null;
-                string? parsedSummary = null;
-
-                // Try structured format first (NAME: ..., SUMMARY: ...)
-                var nameLine = lines.FirstOrDefault(l => l.StartsWith("NAME:", StringComparison.OrdinalIgnoreCase));
-                var summaryLine = lines.FirstOrDefault(l => l.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase));
-
-                if (nameLine != null && nameLine.Length > 5)
-                {
-                    parsedName = CleanLlmText(nameLine.Substring(5));
-                }
-                if (summaryLine != null && summaryLine.Length > 8)
-                {
-                    parsedSummary = CleanLlmText(summaryLine.Substring(8));
-                }
-
-                // Fallback: if no structured format, use first non-empty line as name, rest as summary
-                if (string.IsNullOrWhiteSpace(parsedName) && lines.Length > 0)
-                {
-                    parsedName = lines[0].Trim().Trim('"', '*', '#', '-');
-                    if (lines.Length > 1)
-                    {
-                        parsedSummary = string.Join(" ", lines.Skip(1)).Trim().Trim('"', '*');
-                    }
-                }
-
-                if (!string.IsNullOrWhiteSpace(parsedName) && parsedName.Length >= 3)
-                {
-                    community.Name = parsedName;
-                }
-                if (!string.IsNullOrWhiteSpace(parsedSummary))
-                {
-                    community.Summary = parsedSummary;
-                }
-
-                // Generate embedding for the community
-                var communityText = $"{community.Name}. {community.Summary ?? ""} {string.Join(" ", entityNames)}";
-                community.Embedding = await _embeddingService.EmbedAsync(communityText, ct);
-
-                community.UpdatedAt = DateTimeOffset.UtcNow;
-
-                // Store summary as evidence artifact
-                await StoreCommunityEvidenceAsync(community, communityText, ct);
-
-                // Add to vector store for semantic search
-                await IndexCommunityInVectorStoreAsync(community, communityText, ct);
-
-                _logger.LogDebug("Generated summary for community: {Name}", community.Name);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to generate summary for community {Id}", community.Id);
-            }
-        }
-
-        await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Community summary generation complete");
-    }
-
     /// <summary>
-    /// Store community summary and features as evidence artifacts.
+    ///     Store community summary and features as evidence artifacts.
     /// </summary>
     private async Task StoreCommunityEvidenceAsync(CommunityEntity community, string summaryText, CancellationToken ct)
     {
@@ -780,11 +742,11 @@ SUMMARY: [descriptive paragraph, max 5 sentences]";
             };
 
             await _evidenceRepository.StoreAsync(
-                entityId: community.Id,  // Use community ID as entity ID
-                artifactType: EvidenceTypes.LlmSummary,
-                content: textStream,
-                mimeType: "text/plain",
-                producerSource: "CommunityDetection",
+                community.Id, // Use community ID as entity ID
+                EvidenceTypes.LlmSummary,
+                textStream,
+                "text/plain",
+                "CommunityDetection",
                 confidence: community.Cohesion,
                 metadata: metadata,
                 segmentHash: contentHash,
@@ -799,10 +761,11 @@ SUMMARY: [descriptive paragraph, max 5 sentences]";
     }
 
     /// <summary>
-    /// Add community summary to vector store for semantic search.
-    /// Communities appear as searchable segments with type CommunitySummary.
+    ///     Add community summary to vector store for semantic search.
+    ///     Communities appear as searchable segments with type CommunitySummary.
     /// </summary>
-    private async Task IndexCommunityInVectorStoreAsync(CommunityEntity community, string summaryText, CancellationToken ct)
+    private async Task IndexCommunityInVectorStoreAsync(CommunityEntity community, string summaryText,
+        CancellationToken ct)
     {
         if (community.Embedding == null || community.Embedding.Length == 0)
         {
@@ -816,12 +779,12 @@ SUMMARY: [descriptive paragraph, max 5 sentences]";
 
             // Create a segment for the community summary (use Heading type as it represents high-level content)
             var segment = new Segment(
-                docId: $"community_{community.Id}",
-                text: summaryText,
-                type: SegmentType.Heading,
-                index: 0,
-                startChar: 0,
-                endChar: summaryText.Length)
+                $"community_{community.Id}",
+                summaryText,
+                SegmentType.Heading,
+                0,
+                0,
+                summaryText.Length)
             {
                 ContentHash = contentHash,
                 SectionTitle = community.Name,
@@ -844,7 +807,7 @@ SUMMARY: [descriptive paragraph, max 5 sentences]";
     }
 
     /// <summary>
-    /// Generate a content hash for deduplication and lookups.
+    ///     Generate a content hash for deduplication and lookups.
     /// </summary>
     private static string GenerateContentHash(string text)
     {
@@ -854,7 +817,7 @@ SUMMARY: [descriptive paragraph, max 5 sentences]";
     }
 
     /// <summary>
-    /// Strips markdown prefix characters from a line (**, *, #, etc.) to normalize for parsing
+    ///     Strips markdown prefix characters from a line (**, *, #, etc.) to normalize for parsing
     /// </summary>
     private static string StripMarkdownPrefix(string line)
     {
@@ -862,7 +825,8 @@ SUMMARY: [descriptive paragraph, max 5 sentences]";
 
         var result = line;
         // Strip leading markdown characters
-        while (result.Length > 0 && (result[0] == '*' || result[0] == '#' || result[0] == '-' || result[0] == '_' || result[0] == ' '))
+        while (result.Length > 0 && (result[0] == '*' || result[0] == '#' || result[0] == '-' || result[0] == '_' ||
+                                     result[0] == ' '))
             result = result[1..];
 
         return result;

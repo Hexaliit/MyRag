@@ -3,10 +3,10 @@ using DuckDB.NET.Data;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// DuckDB-backed vector store for item embeddings with HNSW indexing.
-/// Handles only item embedding storage and similarity search.
-/// Entity operations are in <see cref="IEntityGraphStore"/> / <see cref="DuckDbEntityGraphStore"/>.
-/// Single-file database (~/.doomsummarizer/vectors.duckdb).
+///     DuckDB-backed vector store for item embeddings with HNSW indexing.
+///     Handles only item embedding storage and similarity search.
+///     Entity operations are in <see cref="IEntityGraphStore" /> / <see cref="DuckDbEntityGraphStore" />.
+///     Single-file database (~/.doomsummarizer/vectors.duckdb).
 /// </summary>
 public class DuckDbVectorStore : IAsyncDisposable
 {
@@ -15,7 +15,7 @@ public class DuckDbVectorStore : IAsyncDisposable
     private DuckDBConnection? _conn;
 
     /// <summary>
-    /// Create a new DuckDB vector store.
+    ///     Create a new DuckDB vector store.
     /// </summary>
     /// <param name="dbPath">Path to the .duckdb file</param>
     /// <param name="embeddingDimension">Embedding vector dimension (384 for all-MiniLM-L6-v2)</param>
@@ -23,6 +23,15 @@ public class DuckDbVectorStore : IAsyncDisposable
     {
         _dbPath = dbPath;
         _dim = embeddingDimension;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_conn != null)
+        {
+            await _conn.CloseAsync();
+            await _conn.DisposeAsync();
+        }
     }
 
     public async Task InitializeAsync()
@@ -44,16 +53,16 @@ public class DuckDbVectorStore : IAsyncDisposable
     {
         // Item embeddings - for finding similar articles
         await ExecAsync($"""
-            CREATE TABLE IF NOT EXISTS item_embeddings (
-                item_id VARCHAR PRIMARY KEY,
-                title VARCHAR NOT NULL,
-                source VARCHAR,
-                url VARCHAR,
-                embedding FLOAT[{_dim}],
-                entity_profile FLOAT[{_dim}],
-                indexed_at TIMESTAMP DEFAULT current_timestamp
-            )
-            """);
+                         CREATE TABLE IF NOT EXISTS item_embeddings (
+                             item_id VARCHAR PRIMARY KEY,
+                             title VARCHAR NOT NULL,
+                             source VARCHAR,
+                             url VARCHAR,
+                             embedding FLOAT[{_dim}],
+                             entity_profile FLOAT[{_dim}],
+                             indexed_at TIMESTAMP DEFAULT current_timestamp
+                         )
+                         """);
 
         // Migration: add entity_profile column if not exists
         try
@@ -68,11 +77,11 @@ public class DuckDbVectorStore : IAsyncDisposable
         // HNSW index for fast cosine similarity search on item embeddings
         try
         {
-            await ExecAsync($"""
-                CREATE INDEX IF NOT EXISTS item_emb_hnsw
-                ON item_embeddings USING HNSW (embedding)
-                WITH (metric = 'cosine')
-                """);
+            await ExecAsync("""
+                            CREATE INDEX IF NOT EXISTS item_emb_hnsw
+                            ON item_embeddings USING HNSW (embedding)
+                            WITH (metric = 'cosine')
+                            """);
         }
         catch
         {
@@ -83,9 +92,10 @@ public class DuckDbVectorStore : IAsyncDisposable
     // --- Item Embeddings ---
 
     /// <summary>
-    /// Upsert an item embedding for HNSW-backed similarity search.
+    ///     Upsert an item embedding for HNSW-backed similarity search.
     /// </summary>
-    public async Task UpsertItemEmbeddingAsync(string itemId, string title, string? source, string? url, float[] embedding)
+    public async Task UpsertItemEmbeddingAsync(string itemId, string title, string? source, string? url,
+        float[] embedding)
     {
         await ExecAsync(
             """
@@ -99,7 +109,7 @@ public class DuckDbVectorStore : IAsyncDisposable
     }
 
     /// <summary>
-    /// Find similar items using HNSW cosine similarity search.
+    ///     Find similar items using HNSW cosine similarity search.
     /// </summary>
     public async Task<List<(string itemId, string title, string? url, float similarity)>> FindSimilarItemsAsync(
         float[] queryEmbedding, int topK = 10, float minSimilarity = 0.5f)
@@ -108,13 +118,13 @@ public class DuckDbVectorStore : IAsyncDisposable
         using var cmd = _conn!.CreateCommand();
 
         cmd.CommandText = $"""
-            SELECT item_id, title, url,
-                   1.0 - array_cosine_distance(embedding, $1::FLOAT[{_dim}]) as similarity
-            FROM item_embeddings
-            WHERE embedding IS NOT NULL
-            ORDER BY array_cosine_distance(embedding, $1::FLOAT[{_dim}])
-            LIMIT $2
-            """;
+                           SELECT item_id, title, url,
+                                  1.0 - array_cosine_distance(embedding, $1::FLOAT[{_dim}]) as similarity
+                           FROM item_embeddings
+                           WHERE embedding IS NOT NULL
+                           ORDER BY array_cosine_distance(embedding, $1::FLOAT[{_dim}])
+                           LIMIT $2
+                           """;
         cmd.Parameters.Add(new DuckDBParameter { Value = queryEmbedding });
         cmd.Parameters.Add(new DuckDBParameter { Value = topK });
 
@@ -123,20 +133,18 @@ public class DuckDbVectorStore : IAsyncDisposable
         {
             var similarity = reader.GetFloat(3);
             if (similarity >= minSimilarity)
-            {
                 results.Add((
                     reader.GetString(0),
                     reader.GetString(1),
                     reader.IsDBNull(2) ? null : reader.GetString(2),
                     similarity));
-            }
         }
 
         return results;
     }
 
     /// <summary>
-    /// Get the number of indexed item embeddings.
+    ///     Get the number of indexed item embeddings.
     /// </summary>
     public async Task<int> GetItemCountAsync()
     {
@@ -147,7 +155,7 @@ public class DuckDbVectorStore : IAsyncDisposable
     }
 
     /// <summary>
-    /// Delete all item embeddings.
+    ///     Delete all item embeddings.
     /// </summary>
     public async Task ClearAllAsync()
     {
@@ -155,14 +163,14 @@ public class DuckDbVectorStore : IAsyncDisposable
     }
 
     /// <summary>
-    /// Cleanup old item embeddings past retention window.
+    ///     Cleanup old item embeddings past retention window.
     /// </summary>
     public async Task CleanupAsync(int retentionDays)
     {
         await ExecAsync($"""
-            DELETE FROM item_embeddings
-            WHERE indexed_at < current_timestamp - INTERVAL '{retentionDays} days';
-            """);
+                         DELETE FROM item_embeddings
+                         WHERE indexed_at < current_timestamp - INTERVAL '{retentionDays} days';
+                         """);
     }
 
     // --- Helpers ---
@@ -173,19 +181,8 @@ public class DuckDbVectorStore : IAsyncDisposable
         cmd.CommandText = sql;
 
         for (var i = 0; i < parameters.Length; i++)
-        {
             cmd.Parameters.Add(new DuckDBParameter { Value = parameters[i] ?? DBNull.Value });
-        }
 
         await cmd.ExecuteNonQueryAsync();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_conn != null)
-        {
-            await _conn.CloseAsync();
-            await _conn.DisposeAsync();
-        }
     }
 }

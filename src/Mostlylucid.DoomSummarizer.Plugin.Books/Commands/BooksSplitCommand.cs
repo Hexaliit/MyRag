@@ -2,7 +2,6 @@ using System.ComponentModel;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
-using DoomSummarizer.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DoomSummarizer.Plugin.Books.Detection;
 using Mostlylucid.DoomSummarizer.Plugin.Books.Splitters;
@@ -12,29 +11,10 @@ using Spectre.Console.Cli;
 namespace Mostlylucid.DoomSummarizer.Plugin.Books.Commands;
 
 /// <summary>
-/// Show the chapter/section structure of a book file as a tree.
+///     Show the chapter/section structure of a book file as a tree.
 /// </summary>
 public sealed class BooksSplitCommand : AsyncCommand<BooksSplitCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [Description("Path to the book file (.pdf, .docx, .txt, .md, .zip)")]
-        [CommandArgument(0, "<file>")]
-        public string FilePath { get; set; } = "";
-
-        [Description("Splitting pattern: novel, play, anthology, academic (default: auto-detect)")]
-        [CommandOption("-p|--pattern")]
-        public string? Pattern { get; set; }
-
-        [Description("Maximum tree depth")]
-        [CommandOption("-d|--depth")]
-        public int MaxDepth { get; set; } = 4;
-
-        [Description("Skip LLM fallback (heuristic only)")]
-        [CommandOption("--no-llm")]
-        public bool NoLlm { get; set; }
-    }
-
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
         if (!File.Exists(settings.FilePath))
@@ -73,7 +53,8 @@ public sealed class BooksSplitCommand : AsyncCommand<BooksSplitCommand.Settings>
             _ => "novel"
         };
 
-        AnsiConsole.MarkupLine($"[cyan]Type:[/] {result.Type} ({result.Confidence:P0} confidence) [dim]\\[{result.Source}][/]");
+        AnsiConsole.MarkupLine(
+            $"[cyan]Type:[/] {result.Type} ({result.Confidence:P0} confidence) [dim]\\[{result.Source}][/]");
         AnsiConsole.MarkupLine($"[cyan]Pattern:[/] {pattern}");
         AnsiConsole.WriteLine();
 
@@ -88,7 +69,8 @@ public sealed class BooksSplitCommand : AsyncCommand<BooksSplitCommand.Settings>
         var tree = await splitter.SplitAsync(markdown, splitOptions, ct);
 
         // Render as Spectre tree
-        var root = new Tree($"[bold]{Markup.Escape(tree.Title)}[/] [dim]({tree.TotalWordCount:N0} words, {tree.LeafCount} leaves)[/]");
+        var root = new Tree(
+            $"[bold]{Markup.Escape(tree.Title)}[/] [dim]({tree.TotalWordCount:N0} words, {tree.LeafCount} leaves)[/]");
         RenderNode(root, tree);
 
         AnsiConsole.Write(root);
@@ -108,5 +90,24 @@ public sealed class BooksSplitCommand : AsyncCommand<BooksSplitCommand.Settings>
             if (!child.IsLeaf)
                 RenderNode(childNode, child);
         }
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [Description("Path to the book file (.pdf, .docx, .txt, .md, .zip)")]
+        [CommandArgument(0, "<file>")]
+        public string FilePath { get; set; } = "";
+
+        [Description("Splitting pattern: novel, play, anthology, academic (default: auto-detect)")]
+        [CommandOption("-p|--pattern")]
+        public string? Pattern { get; set; }
+
+        [Description("Maximum tree depth")]
+        [CommandOption("-d|--depth")]
+        public int MaxDepth { get; set; } = 4;
+
+        [Description("Skip LLM fallback (heuristic only)")]
+        [CommandOption("--no-llm")]
+        public bool NoLlm { get; set; }
     }
 }

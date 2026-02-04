@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using PuppeteerSharp;
@@ -46,7 +45,6 @@ public class BrowserModalityTests : IAsyncLifetime
     {
         // Clean up uploaded documents
         foreach (var docId in _uploadedDocumentIds)
-        {
             try
             {
                 await _page!.EvaluateFunctionAsync(@"
@@ -55,12 +53,113 @@ public class BrowserModalityTests : IAsyncLifetime
                     }
                 ", docId);
             }
-            catch { /* Ignore cleanup errors */ }
-        }
+            catch
+            {
+                /* Ignore cleanup errors */
+            }
 
         if (_page != null) await _page.CloseAsync();
         if (_browser != null) await _browser.CloseAsync();
     }
+
+    #region End-to-End Flow Tests
+
+    [Fact]
+    public async Task EndToEnd_UploadSearchChat_FullFlow()
+    {
+        // This test runs the full flow: upload -> process -> search -> chat
+        await _page!.GoToAsync(BaseUrl);
+        await Task.Delay(1000);
+
+        var uniqueId = Guid.NewGuid().ToString("N")[..8];
+
+        // Step 1: Upload document
+        Console.WriteLine("Step 1: Uploading document...");
+        var testContent = $@"# E2E Test Document {uniqueId}
+
+This document tests the complete lucidRAG pipeline.
+
+## Content Section
+The unique identifier {uniqueId} should be searchable.
+This tests document processing, entity extraction, and embeddings.
+
+## Summary
+End-to-end testing ensures all components work together.
+";
+
+        var uploadResult = await UploadDocumentAsync(testContent, $"e2e-test-{uniqueId}.md", "text/markdown");
+        uploadResult.TryGetProperty("error", out _).Should().BeFalse("Upload should succeed");
+        var documentId = uploadResult.GetProperty("documentId").GetString()!;
+        _uploadedDocumentIds.Add(documentId);
+        Console.WriteLine($"  Uploaded: {documentId}");
+
+        // Step 2: Wait for processing
+        Console.WriteLine("Step 2: Waiting for processing...");
+        var processed = await WaitForProcessingAsync(documentId);
+        processed.Should().BeTrue("Processing should complete");
+        Console.WriteLine("  Processing complete");
+
+        // Step 3: Verify document appears in list
+        Console.WriteLine("Step 3: Verifying document in list...");
+        var listResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
+            async (docId) => {
+                const response = await fetch('/api/documents');
+                if (!response.ok) return { error: 'Failed to list documents' };
+                const result = await response.json();
+                const found = result.documents?.some(d => d.id === docId) ?? false;
+                return { found, total: result.documents?.length ?? 0 };
+            }
+        ", documentId);
+
+        if (!listResult.TryGetProperty("error", out _))
+        {
+            var found = listResult.GetProperty("found").GetBoolean();
+            Console.WriteLine($"  Document found in list: {found}");
+        }
+
+        // Step 4: Search for document
+        Console.WriteLine("Step 4: Searching for document...");
+        var searchResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
+            async (query) => {
+                const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+                if (!response.ok) return { error: 'Search failed' };
+                return await response.json();
+            }
+        ", $"e2e test {uniqueId}");
+
+        if (!searchResult.TryGetProperty("error", out _) && searchResult.TryGetProperty("results", out var results))
+            Console.WriteLine($"  Search returned {results.GetArrayLength()} results");
+
+        // Step 5: Chat about document
+        Console.WriteLine("Step 5: Testing chat...");
+        var chatResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
+            async () => {
+                const collectionsResp = await fetch('/api/collections');
+                const collections = await collectionsResp.json();
+                if (!collections || collections.length === 0) return { noCollections: true };
+
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: 'What is this collection about?',
+                        collectionId: collections[0].id
+                    })
+                });
+                return { success: response.ok, status: response.status };
+            }
+        ");
+
+        if (!chatResult.TryGetProperty("error", out _) && !chatResult.TryGetProperty("noCollections", out _))
+        {
+            var chatSuccess = chatResult.GetProperty("success").GetBoolean();
+            Console.WriteLine($"  Chat test: {(chatSuccess ? "passed" : "failed")}");
+        }
+
+        Console.WriteLine("End-to-end test completed");
+    }
+
+    #endregion
 
     #region Document Upload Tests
 
@@ -208,7 +307,7 @@ Keywords: testing, RAG, embeddings, search, AI
         var documentId = uploadResult.GetProperty("documentId").GetString()!;
         _uploadedDocumentIds.Add(documentId);
 
-        var processed = await WaitForProcessingAsync(documentId, timeoutMs: 120000); // Images take longer
+        var processed = await WaitForProcessingAsync(documentId, 120000); // Images take longer
         processed.Should().BeTrue("Image should complete processing");
 
         Console.WriteLine($"PNG image {documentId} processed successfully");
@@ -232,7 +331,7 @@ Keywords: testing, RAG, embeddings, search, AI
         var documentId = uploadResult.GetProperty("documentId").GetString()!;
         _uploadedDocumentIds.Add(documentId);
 
-        var processed = await WaitForProcessingAsync(documentId, timeoutMs: 120000);
+        var processed = await WaitForProcessingAsync(documentId, 120000);
         processed.Should().BeTrue("Image should complete processing");
 
         Console.WriteLine($"JPEG image {documentId} processed successfully");
@@ -266,7 +365,7 @@ Keywords: testing, RAG, embeddings, search, AI
         _uploadedDocumentIds.Add(documentId);
 
         // Audio processing may fail if Whisper is not available
-        var processed = await WaitForProcessingAsync(documentId, timeoutMs: 180000, allowFailed: true);
+        var processed = await WaitForProcessingAsync(documentId, 180000, true);
         Console.WriteLine($"Audio document {documentId} processing result: {processed}");
     }
 
@@ -293,7 +392,7 @@ Keywords: testing, RAG, embeddings, search, AI
         var documentId = uploadResult.GetProperty("documentId").GetString()!;
         _uploadedDocumentIds.Add(documentId);
 
-        var processed = await WaitForProcessingAsync(documentId, timeoutMs: 180000, allowFailed: true);
+        var processed = await WaitForProcessingAsync(documentId, 180000, true);
         Console.WriteLine($"WAV document {documentId} processing result: {processed}");
     }
 
@@ -385,7 +484,8 @@ The term quantum-{uniqueId} should be findable via semantic search.
         searchCapability.TryGetProperty("error", out _).Should().BeFalse();
         searchCapability.GetProperty("hasSubmitQuestion").GetBoolean().Should().BeTrue();
 
-        Console.WriteLine($"Search capability verified - collections: {searchCapability.GetProperty("collectionsCount")}");
+        Console.WriteLine(
+            $"Search capability verified - collections: {searchCapability.GetProperty("collectionsCount")}");
     }
 
     #endregion
@@ -481,9 +581,7 @@ The unique identifier for this document is {uniqueId}.
         Console.WriteLine($"Chat completed - messages: {messagesCount}");
 
         if (chatResult.TryGetProperty("lastMessage", out var lastMessage))
-        {
             Console.WriteLine($"Last message preview: {lastMessage}");
-        }
     }
 
     [Fact]
@@ -586,107 +684,6 @@ The unique identifier for this document is {uniqueId}.
 
     #endregion
 
-    #region End-to-End Flow Tests
-
-    [Fact]
-    public async Task EndToEnd_UploadSearchChat_FullFlow()
-    {
-        // This test runs the full flow: upload -> process -> search -> chat
-        await _page!.GoToAsync(BaseUrl);
-        await Task.Delay(1000);
-
-        var uniqueId = Guid.NewGuid().ToString("N")[..8];
-
-        // Step 1: Upload document
-        Console.WriteLine("Step 1: Uploading document...");
-        var testContent = $@"# E2E Test Document {uniqueId}
-
-This document tests the complete lucidRAG pipeline.
-
-## Content Section
-The unique identifier {uniqueId} should be searchable.
-This tests document processing, entity extraction, and embeddings.
-
-## Summary
-End-to-end testing ensures all components work together.
-";
-
-        var uploadResult = await UploadDocumentAsync(testContent, $"e2e-test-{uniqueId}.md", "text/markdown");
-        uploadResult.TryGetProperty("error", out _).Should().BeFalse("Upload should succeed");
-        var documentId = uploadResult.GetProperty("documentId").GetString()!;
-        _uploadedDocumentIds.Add(documentId);
-        Console.WriteLine($"  Uploaded: {documentId}");
-
-        // Step 2: Wait for processing
-        Console.WriteLine("Step 2: Waiting for processing...");
-        var processed = await WaitForProcessingAsync(documentId);
-        processed.Should().BeTrue("Processing should complete");
-        Console.WriteLine("  Processing complete");
-
-        // Step 3: Verify document appears in list
-        Console.WriteLine("Step 3: Verifying document in list...");
-        var listResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
-            async (docId) => {
-                const response = await fetch('/api/documents');
-                if (!response.ok) return { error: 'Failed to list documents' };
-                const result = await response.json();
-                const found = result.documents?.some(d => d.id === docId) ?? false;
-                return { found, total: result.documents?.length ?? 0 };
-            }
-        ", documentId);
-
-        if (!listResult.TryGetProperty("error", out _))
-        {
-            var found = listResult.GetProperty("found").GetBoolean();
-            Console.WriteLine($"  Document found in list: {found}");
-        }
-
-        // Step 4: Search for document
-        Console.WriteLine("Step 4: Searching for document...");
-        var searchResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
-            async (query) => {
-                const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
-                if (!response.ok) return { error: 'Search failed' };
-                return await response.json();
-            }
-        ", $"e2e test {uniqueId}");
-
-        if (!searchResult.TryGetProperty("error", out _) && searchResult.TryGetProperty("results", out var results))
-        {
-            Console.WriteLine($"  Search returned {results.GetArrayLength()} results");
-        }
-
-        // Step 5: Chat about document
-        Console.WriteLine("Step 5: Testing chat...");
-        var chatResult = await _page.EvaluateFunctionAsync<JsonElement>(@"
-            async () => {
-                const collectionsResp = await fetch('/api/collections');
-                const collections = await collectionsResp.json();
-                if (!collections || collections.length === 0) return { noCollections: true };
-
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: 'What is this collection about?',
-                        collectionId: collections[0].id
-                    })
-                });
-                return { success: response.ok, status: response.status };
-            }
-        ");
-
-        if (!chatResult.TryGetProperty("error", out _) && !chatResult.TryGetProperty("noCollections", out _))
-        {
-            var chatSuccess = chatResult.GetProperty("success").GetBoolean();
-            Console.WriteLine($"  Chat test: {(chatSuccess ? "passed" : "failed")}");
-        }
-
-        Console.WriteLine("End-to-end test completed");
-    }
-
-    #endregion
-
     #region Helper Methods
 
     private async Task<JsonElement> UploadDocumentAsync(string content, string filename, string mimeType)
@@ -750,7 +747,8 @@ End-to-end testing ensures all components work together.
         ", base64, filename, mimeType);
     }
 
-    private async Task<bool> WaitForProcessingAsync(string documentId, int timeoutMs = ProcessingTimeoutMs, bool allowFailed = false)
+    private async Task<bool> WaitForProcessingAsync(string documentId, int timeoutMs = ProcessingTimeoutMs,
+        bool allowFailed = false)
     {
         var startTime = DateTime.UtcNow;
 
@@ -787,7 +785,7 @@ End-to-end testing ensures all components work together.
     }
 
     /// <summary>
-    /// Creates a minimal valid PNG file (1x1 red pixel)
+    ///     Creates a minimal valid PNG file (1x1 red pixel)
     /// </summary>
     private static byte[] CreateMinimalPng()
     {
@@ -820,7 +818,7 @@ End-to-end testing ensures all components work together.
     }
 
     /// <summary>
-    /// Creates a minimal valid JPEG file (1x1 red pixel)
+    ///     Creates a minimal valid JPEG file (1x1 red pixel)
     /// </summary>
     private static byte[] CreateMinimalJpeg()
     {
@@ -860,7 +858,7 @@ End-to-end testing ensures all components work together.
     }
 
     /// <summary>
-    /// Creates a minimal valid MP3 file (silent, single frame)
+    ///     Creates a minimal valid MP3 file (silent, single frame)
     /// </summary>
     private static byte[] CreateMinimalMp3()
     {
@@ -884,7 +882,7 @@ End-to-end testing ensures all components work together.
     }
 
     /// <summary>
-    /// Creates a minimal valid WAV file (silent, 1 second at 8kHz mono)
+    ///     Creates a minimal valid WAV file (silent, 1 second at 8kHz mono)
     /// </summary>
     private static byte[] CreateMinimalWav()
     {

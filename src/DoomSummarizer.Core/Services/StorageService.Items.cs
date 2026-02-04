@@ -1,15 +1,18 @@
 using DoomSummarizer.Models;
+using Microsoft.Data.Sqlite;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Item retrieval operations: recent items, similarity search, batch loading by ID/source.
-/// Table: items (read operations)
+///     Item retrieval operations: recent items, similarity search, batch loading by ID/source.
+///     Table: items (read operations)
 /// </summary>
 public partial class StorageService
 {
     public async Task<List<StoredItem>> GetRecentItemsAsync(int days = 7, string? source = null)
-        => await GetRecentItemsAsync(days, source != null ? [source] : null);
+    {
+        return await GetRecentItemsAsync(days, source != null ? [source] : null);
+    }
 
     public async Task<List<StoredItem>> GetRecentItemsAsync(int days, IReadOnlyList<string>? sources)
     {
@@ -26,18 +29,19 @@ public partial class StorageService
         cmd.CommandText = $"SELECT * FROM items WHERE {string.Join(" AND ", clauses)} ORDER BY fetched_at DESC";
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            items.Add(ReadStoredItem(reader));
-        }
+        while (await reader.ReadAsync()) items.Add(ReadStoredItem(reader));
 
         return items;
     }
 
-    public async Task<List<StoredItem>> FindSimilarAsync(float[] embedding, int limit = 10, double threshold = 0.85, string? source = null)
-        => await FindSimilarAsync(embedding, limit, threshold, source != null ? [source] : null);
+    public async Task<List<StoredItem>> FindSimilarAsync(float[] embedding, int limit = 10, double threshold = 0.85,
+        string? source = null)
+    {
+        return await FindSimilarAsync(embedding, limit, threshold, source != null ? [source] : null);
+    }
 
-    public async Task<List<StoredItem>> FindSimilarAsync(float[] embedding, int limit, double threshold, IReadOnlyList<string>? sources)
+    public async Task<List<StoredItem>> FindSimilarAsync(float[] embedding, int limit, double threshold,
+        IReadOnlyList<string>? sources)
     {
         // Simple brute-force similarity search - works fine for small datasets
         var items = new List<(StoredItem item, float similarity)>();
@@ -49,7 +53,8 @@ public partial class StorageService
         AppendFilterClauses(filterSet, clauses, cmd);
 
         var dbLimit = filterSet.HasFilters ? 5000 : 1000;
-        cmd.CommandText = $"SELECT * FROM items WHERE {string.Join(" AND ", clauses)} ORDER BY fetched_at DESC LIMIT {dbLimit}";
+        cmd.CommandText =
+            $"SELECT * FROM items WHERE {string.Join(" AND ", clauses)} ORDER BY fetched_at DESC LIMIT {dbLimit}";
 
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -60,10 +65,7 @@ public partial class StorageService
             var storedEmbedding = EmbeddingCompat.FromBytes(item.Embedding);
             var similarity = VectorMath.CosineSimilarity(embedding, storedEmbedding);
 
-            if (similarity >= threshold)
-            {
-                items.Add((item, similarity));
-            }
+            if (similarity >= threshold) items.Add((item, similarity));
         }
 
         return items
@@ -74,7 +76,7 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Load content items by their IDs (for segment reuse from a cached query).
+    ///     Load content items by their IDs (for segment reuse from a cached query).
     /// </summary>
     public async Task<List<StoredItem>> GetItemsByIdsAsync(List<string> ids)
     {
@@ -91,13 +93,11 @@ public partial class StorageService
                 placeholders.Add($"@id{i}");
                 cmd.Parameters.AddWithValue($"@id{i}", batch[i]);
             }
+
             cmd.CommandText = $"SELECT * FROM items WHERE id IN ({string.Join(",", placeholders)})";
 
             await using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                items.Add(ReadStoredItem(reader));
-            }
+            while (await reader.ReadAsync()) items.Add(ReadStoredItem(reader));
         }
 
         return items;
@@ -106,9 +106,9 @@ public partial class StorageService
     // --- URL cache methods ---
 
     /// <summary>
-    /// Find a stored item by its URL. Returns null if no item with this URL exists.
-    /// Used for URL-level deduplication: if a web search returns a URL that's already in storage
-    /// (e.g., from a previous crawl), we can reuse the cached content.
+    ///     Find a stored item by its URL. Returns null if no item with this URL exists.
+    ///     Used for URL-level deduplication: if a web search returns a URL that's already in storage
+    ///     (e.g., from a previous crawl), we can reuse the cached content.
     /// </summary>
     public async Task<StoredItem?> FindByUrlAsync(string url)
     {
@@ -120,8 +120,8 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Mark an item as web-validated: a web search found this URL, confirming it's still relevant.
-    /// KB items with a recent web_validated_at are included in general queries despite being KB sources.
+    ///     Mark an item as web-validated: a web search found this URL, confirming it's still relevant.
+    ///     KB items with a recent web_validated_at are included in general queries despite being KB sources.
     /// </summary>
     public async Task WebValidateByUrlAsync(string url)
     {
@@ -133,23 +133,23 @@ public partial class StorageService
     }
 
     /// <summary>
-    /// Delete a single item by ID, along with its FTS and entity mention records.
+    ///     Delete a single item by ID, along with its FTS and entity mention records.
     /// </summary>
     public async Task DeleteItemByIdAsync(string itemId)
     {
         await using var cmd = _connection!.CreateCommand();
         cmd.CommandText = """
-            DELETE FROM items_fts WHERE item_id = @id;
-            DELETE FROM entity_mentions WHERE item_id = @id;
-            DELETE FROM items WHERE id = @id;
-            """;
+                          DELETE FROM items_fts WHERE item_id = @id;
+                          DELETE FROM entity_mentions WHERE item_id = @id;
+                          DELETE FROM items WHERE id = @id;
+                          """;
         cmd.Parameters.AddWithValue("@id", itemId);
         await cmd.ExecuteNonQueryAsync();
     }
 
     /// <summary>
-    /// Get distinct source values matching a prefix (e.g., "personal:" → ["personal:default", "personal:scott"]).
-    /// Bypasses the auto-exclusion filter since it queries source values directly.
+    ///     Get distinct source values matching a prefix (e.g., "personal:" → ["personal:default", "personal:scott"]).
+    ///     Bypasses the auto-exclusion filter since it queries source values directly.
     /// </summary>
     public async Task<List<string>> GetDistinctSourcesAsync(string prefix)
     {
@@ -158,24 +158,21 @@ public partial class StorageService
         cmd.CommandText = "SELECT DISTINCT source FROM items WHERE source LIKE @prefix";
         cmd.Parameters.AddWithValue("@prefix", prefix + "%");
         await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            sources.Add(reader.GetString(0));
-        }
+        while (await reader.ReadAsync()) sources.Add(reader.GetString(0));
         return sources;
     }
 
     // --- Shared filter clause builder ---
 
     /// <summary>
-    /// Append SQL WHERE clauses for a SourceFilterSet, handling include, exclude,
-    /// ExcludeKbSources (with web-validation override), and URL glob exclusions.
-    /// Self-manages its own @wv_cutoff parameter for web-validation (30-day window).
+    ///     Append SQL WHERE clauses for a SourceFilterSet, handling include, exclude,
+    ///     ExcludeKbSources (with web-validation override), and URL glob exclusions.
+    ///     Self-manages its own @wv_cutoff parameter for web-validation (30-day window).
     /// </summary>
     private static void AppendFilterClauses(
         SourceFilterSet filterSet,
         List<string> clauses,
-        Microsoft.Data.Sqlite.SqliteCommand cmd)
+        SqliteCommand cmd)
     {
         if (filterSet.ExcludeKbSources)
         {
@@ -191,11 +188,11 @@ public partial class StorageService
                 var includeList = string.Join(", ",
                     filterSet.Include.Select((_, i) => $"@si{i}"));
                 clauses.Add($"""
-                    (source IN ({includeList})
-                     OR (source NOT LIKE 'crawl:%' AND source NOT LIKE 'file:%'
-                         AND source NOT LIKE 'youtube:%' AND source != 'manual')
-                     OR web_validated_at >= @wv_cutoff)
-                    """);
+                             (source IN ({includeList})
+                              OR (source NOT LIKE 'crawl:%' AND source NOT LIKE 'file:%'
+                                  AND source NOT LIKE 'youtube:%' AND source != 'manual')
+                              OR web_validated_at >= @wv_cutoff)
+                             """);
                 for (var i = 0; i < filterSet.Include.Count; i++)
                     cmd.Parameters.AddWithValue($"@si{i}", filterSet.Include[i]);
             }
@@ -203,10 +200,10 @@ public partial class StorageService
             {
                 // Pure web mode: non-KB sources + web-validated KB items
                 clauses.Add("""
-                    ((source NOT LIKE 'crawl:%' AND source NOT LIKE 'file:%'
-                      AND source NOT LIKE 'youtube:%' AND source != 'manual')
-                     OR web_validated_at >= @wv_cutoff)
-                    """);
+                            ((source NOT LIKE 'crawl:%' AND source NOT LIKE 'file:%'
+                              AND source NOT LIKE 'youtube:%' AND source != 'manual')
+                             OR web_validated_at >= @wv_cutoff)
+                            """);
             }
         }
         else
@@ -242,12 +239,8 @@ public partial class StorageService
         // personal: items are excluded from evidence (user context injected separately
         // via USER_CONTEXT) but their entities remain in the knowledge graph.
         if (!filterSet.Include.Any(s => s.StartsWith("chat:", StringComparison.OrdinalIgnoreCase)))
-        {
             clauses.Add("source NOT LIKE 'chat:%'");
-        }
         if (!filterSet.Include.Any(s => s.StartsWith("personal:", StringComparison.OrdinalIgnoreCase)))
-        {
             clauses.Add("source NOT LIKE 'personal:%'");
-        }
     }
 }

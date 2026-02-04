@@ -8,16 +8,14 @@ using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 namespace Mostlylucid.DocSummarizer.Images.Services.Vision;
 
 /// <summary>
-/// CLIP Zero-Shot Classification Service
-/// Uses CLIP text encoder to classify images against predetermined labels.
-/// Computes cosine similarity between image embeddings and label text embeddings.
+///     CLIP Zero-Shot Classification Service
+///     Uses CLIP text encoder to classify images against predetermined labels.
+///     Computes cosine similarity between image embeddings and label text embeddings.
 /// </summary>
 public class ClipZeroShotService
 {
-    private readonly ImageConfig _config;
-    private readonly ModelDownloader? _modelDownloader;
-    private readonly OnnxSessionFactory? _sessionFactory;
-    private readonly ILogger<ClipZeroShotService>? _logger;
+    private const int MaxTokenLength = 77; // CLIP's max token length
+    private const int EmbeddingSize = 512;
 
     private static InferenceSession? _textSession;
     private static readonly object _modelLock = new();
@@ -97,8 +95,10 @@ public class ClipZeroShotService
         ["a map or geographic image"] = "map"
     };
 
-    private const int MaxTokenLength = 77; // CLIP's max token length
-    private const int EmbeddingSize = 512;
+    private readonly ImageConfig _config;
+    private readonly ILogger<ClipZeroShotService>? _logger;
+    private readonly ModelDownloader? _modelDownloader;
+    private readonly OnnxSessionFactory? _sessionFactory;
 
     public ClipZeroShotService(
         IOptions<ImageConfig> config,
@@ -113,7 +113,7 @@ public class ClipZeroShotService
     }
 
     /// <summary>
-    /// Check if the text encoder model is available
+    ///     Check if the text encoder model is available
     /// </summary>
     public async Task<bool> IsAvailableAsync(CancellationToken ct = default)
     {
@@ -129,8 +129,8 @@ public class ClipZeroShotService
     }
 
     /// <summary>
-    /// Classify an image embedding against predetermined labels.
-    /// Returns top-k matching labels with confidence scores.
+    ///     Classify an image embedding against predetermined labels.
+    ///     Returns top-k matching labels with confidence scores.
     /// </summary>
     public async Task<List<ClipClassification>> ClassifyAsync(
         float[] imageEmbedding,
@@ -194,7 +194,7 @@ public class ClipZeroShotService
     }
 
     /// <summary>
-    /// Classify with custom labels (not using predetermined set)
+    ///     Classify with custom labels (not using predetermined set)
     /// </summary>
     public async Task<List<ClipClassification>> ClassifyWithLabelsAsync(
         float[] imageEmbedding,
@@ -257,10 +257,7 @@ public class ClipZeroShotService
             foreach (var label in EntityLabels)
             {
                 var embedding = EncodeTextAsync(label, session, ct).GetAwaiter().GetResult();
-                if (embedding != null)
-                {
-                    cache[label] = NormalizeEmbedding(embedding);
-                }
+                if (embedding != null) cache[label] = NormalizeEmbedding(embedding);
             }
 
             _labelEmbeddingsCache = cache;
@@ -277,7 +274,6 @@ public class ClipZeroShotService
 
         // Try to get from ModelDownloader
         if (_modelDownloader != null)
-        {
             try
             {
                 modelPath = await _modelDownloader.GetModelPathAsync(ModelType.ClipTextual, ct);
@@ -286,7 +282,6 @@ public class ClipZeroShotService
             {
                 _logger?.LogWarning(ex, "Failed to get CLIP text model from downloader");
             }
-        }
 
         // Fallback paths
         if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
@@ -351,10 +346,7 @@ public class ClipZeroShotService
             var tokens = TokenizeSimple(text);
 
             var inputTensor = new DenseTensor<long>(new[] { 1, MaxTokenLength });
-            for (int i = 0; i < MaxTokenLength; i++)
-            {
-                inputTensor[0, i] = i < tokens.Length ? tokens[i] : 0;
-            }
+            for (var i = 0; i < MaxTokenLength; i++) inputTensor[0, i] = i < tokens.Length ? tokens[i] : 0;
 
             var inputName = session.InputNames.FirstOrDefault() ?? "input_ids";
             var inputs = new List<NamedOnnxValue>
@@ -375,8 +367,8 @@ public class ClipZeroShotService
     }
 
     /// <summary>
-    /// Simple tokenizer for CLIP (approximates BPE tokenization)
-    /// Uses SOT (49406) and EOT (49407) tokens
+    ///     Simple tokenizer for CLIP (approximates BPE tokenization)
+    ///     Uses SOT (49406) and EOT (49407) tokens
     /// </summary>
     private long[] TokenizeSimple(string text)
     {
@@ -418,10 +410,7 @@ public class ClipZeroShotService
         if (norm < 1e-10) return embedding;
 
         var normalized = new float[embedding.Length];
-        for (int i = 0; i < embedding.Length; i++)
-        {
-            normalized[i] = embedding[i] / (float)norm;
-        }
+        for (var i = 0; i < embedding.Length; i++) normalized[i] = embedding[i] / (float)norm;
         return normalized;
     }
 
@@ -430,10 +419,7 @@ public class ClipZeroShotService
         if (a.Length != b.Length) return 0;
 
         double dot = 0;
-        for (int i = 0; i < a.Length; i++)
-        {
-            dot += a[i] * b[i];
-        }
+        for (var i = 0; i < a.Length; i++) dot += a[i] * b[i];
 
         // Already normalized, so dot product = cosine similarity
         return Math.Max(0, Math.Min(1, dot));
@@ -441,7 +427,7 @@ public class ClipZeroShotService
 }
 
 /// <summary>
-/// Result of CLIP zero-shot classification
+///     Result of CLIP zero-shot classification
 /// </summary>
 public record ClipClassification
 {

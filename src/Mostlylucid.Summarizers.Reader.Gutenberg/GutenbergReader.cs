@@ -8,15 +8,16 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizers.Reader.Gutenberg;
 
 /// <summary>
-/// Reader for Project Gutenberg ZIP and TXT files.
-/// Handles:
-/// - ZIP archives containing one or more .txt files
-/// - Plain .txt files with PG header/footer boilerplate
-/// - Metadata extraction (title, author, language, release date)
-/// - Encoding detection (UTF-8 / Latin-1)
+///     Reader for Project Gutenberg ZIP and TXT files.
+///     Handles:
+///     - ZIP archives containing one or more .txt files
+///     - Plain .txt files with PG header/footer boilerplate
+///     - Metadata extraction (title, author, language, release date)
+///     - Encoding detection (UTF-8 / Latin-1)
 /// </summary>
 public partial class GutenbergReader : IDocumentReader
 {
+    private static readonly string[] _extensions = [".zip"];
     private readonly ILogger<GutenbergReader> _logger;
 
     public GutenbergReader(ILogger<GutenbergReader> logger)
@@ -25,11 +26,11 @@ public partial class GutenbergReader : IDocumentReader
     }
 
     public string ReaderName => "gutenberg";
-    private static readonly string[] _extensions = [".zip"];
     public IReadOnlyList<string> SupportedExtensions => _extensions;
     public int Priority => 50; // Lower priority — only handles Gutenberg-formatted content
 
-    public async Task<ReaderResult> ReadAsync(string filePath, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(string filePath, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
@@ -39,7 +40,6 @@ public partial class GutenbergReader : IDocumentReader
         // For .txt files, check if it looks like a Gutenberg file
         var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, ct);
         if (!IsGutenbergText(content))
-        {
             // Not a Gutenberg file — return as-is with a warning
             return new ReaderResult
             {
@@ -48,12 +48,12 @@ public partial class GutenbergReader : IDocumentReader
                 Warnings = ["File does not appear to be a Project Gutenberg text"],
                 WordCount = WordCounter.Count(content)
             };
-        }
 
         return ProcessGutenbergText(content, Path.GetFileNameWithoutExtension(filePath));
     }
 
-    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
 
@@ -63,13 +63,22 @@ public partial class GutenbergReader : IDocumentReader
             try
             {
                 await using (var fs = File.Create(tempPath))
+                {
                     await stream.CopyToAsync(fs, ct);
+                }
 
                 return await ReadZipAsync(tempPath, options, ct);
             }
             finally
             {
-                try { File.Delete(tempPath); } catch { /* best effort */ }
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch
+                {
+                    /* best effort */
+                }
             }
         }
 
@@ -85,23 +94,22 @@ public partial class GutenbergReader : IDocumentReader
         using (var archive = ZipFile.OpenRead(zipPath))
         {
             foreach (var entry in archive.Entries
-                .Where(e => e.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
-                          || e.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
-                          || e.Name.EndsWith(".htm", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(e => e.Name))
+                         .Where(e => e.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+                                     || e.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                                     || e.Name.EndsWith(".htm", StringComparison.OrdinalIgnoreCase))
+                         .OrderBy(e => e.Name))
             {
                 ct.ThrowIfCancellationRequested();
 
                 await using var stream = entry.Open();
                 // Try UTF-8 first, fall back to Latin-1 if we detect encoding issues
-                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                using var reader = new StreamReader(stream, Encoding.UTF8, true);
                 var text = await reader.ReadToEndAsync(ct);
                 allTexts.Add((entry.Name, text));
             }
         }
 
         if (allTexts.Count == 0)
-        {
             return new ReaderResult
             {
                 Markdown = "",
@@ -109,7 +117,6 @@ public partial class GutenbergReader : IDocumentReader
                 Warnings = ["No .txt files found in ZIP archive"],
                 WordCount = 0
             };
-        }
 
         // Process the largest text/HTML file (the main work)
         var mainText = allTexts.OrderByDescending(t => t.content.Length).First();
@@ -137,8 +144,8 @@ public partial class GutenbergReader : IDocumentReader
     }
 
     /// <summary>
-    /// Extract metadata from the Project Gutenberg header.
-    /// Parses Title:, Author:, Release Date:, Language:, etc.
+    ///     Extract metadata from the Project Gutenberg header.
+    ///     Parses Title:, Author:, Release Date:, Language:, etc.
     /// </summary>
     public static Dictionary<string, string> ExtractMetadata(string content)
     {
@@ -180,7 +187,7 @@ public partial class GutenbergReader : IDocumentReader
     }
 
     /// <summary>
-    /// Strip Project Gutenberg header and footer boilerplate.
+    ///     Strip Project Gutenberg header and footer boilerplate.
     /// </summary>
     public static string StripBoilerplate(string content)
     {
@@ -206,7 +213,7 @@ public partial class GutenbergReader : IDocumentReader
     }
 
     /// <summary>
-    /// Check if a text file looks like a Project Gutenberg text.
+    ///     Check if a text file looks like a Project Gutenberg text.
     /// </summary>
     public static bool IsGutenbergText(string content)
     {
@@ -241,7 +248,7 @@ public partial class GutenbergReader : IDocumentReader
     private static partial Regex HtmlTagRegex();
 
     /// <summary>
-    /// Strip HTML tags from Gutenberg HTML content, preserving text.
+    ///     Strip HTML tags from Gutenberg HTML content, preserving text.
     /// </summary>
     internal static string StripHtmlTags(string html)
     {

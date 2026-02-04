@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Extensions;
-using Mostlylucid.DocSummarizer.Images.Models;
 using Mostlylucid.DocSummarizer.Images.Services;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.DocSummarizer.Services;
@@ -28,10 +27,7 @@ public class ImageDocumentHandlerTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
+        if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true);
     }
 
     #region SupportedExtensions Tests
@@ -327,10 +323,7 @@ public class ImageDocumentHandlerTests : IDisposable
     public async Task ProcessAsync_RealScreenshot_ProducesValidOutput()
     {
         var testImagePath = GetTestImagePath("01-home.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         var result = await _handler.ProcessAsync(testImagePath, new DocumentHandlerOptions());
 
@@ -344,10 +337,7 @@ public class ImageDocumentHandlerTests : IDisposable
     public async Task ProcessAsync_AllTestImages_ProduceValidOutput()
     {
         var testImagesDir = GetTestImagesDirectory();
-        if (!Directory.Exists(testImagesDir))
-        {
-            return;
-        }
+        if (!Directory.Exists(testImagesDir)) return;
 
         var imageFiles = Directory.GetFiles(testImagesDir, "*.png");
         foreach (var imagePath in imageFiles)

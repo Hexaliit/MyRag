@@ -5,19 +5,18 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Compresses conversation history into a dense context string that fits
-/// within a target token budget. Uses a tiered strategy:
-///   Small history:  Pass-through (no compression)
-///   Medium history: Extractive (cosine similarity to current query)
-///   Large history:  Abstractive (LLM summarization per chunk)
+///     Compresses conversation history into a dense context string that fits
+///     within a target token budget. Uses a tiered strategy:
+///     Small history:  Pass-through (no compression)
+///     Medium history: Extractive (cosine similarity to current query)
+///     Large history:  Abstractive (LLM summarization per chunk)
 /// </summary>
 public sealed partial class ContextCompressor
 {
-    private readonly IEmbeddingService _embedding;
-    private readonly OllamaService? _ollama;
-
     // Rough chars-per-token estimate for English text
     private const double CharsPerToken = 3.5;
+    private readonly IEmbeddingService _embedding;
+    private readonly OllamaService? _ollama;
 
     public ContextCompressor(IEmbeddingService embedding, OllamaService? ollama)
     {
@@ -26,7 +25,7 @@ public sealed partial class ContextCompressor
     }
 
     /// <summary>
-    /// Compress conversation history into a context string for the synthesis prompt.
+    ///     Compress conversation history into a context string for the synthesis prompt.
     /// </summary>
     public async Task<string> CompressAsync(
         List<(string question, string answer)> history,
@@ -62,6 +61,7 @@ public sealed partial class ContextCompressor
             sb.AppendLine($"A: {a}");
             sb.AppendLine();
         }
+
         return sb.ToString();
     }
 
@@ -71,8 +71,8 @@ public sealed partial class ContextCompressor
     }
 
     /// <summary>
-    /// Extractive compression: keep sentences most similar to the current query.
-    /// Preserves chronological order.
+    ///     Extractive compression: keep sentences most similar to the current query.
+    ///     Preserves chronological order.
     /// </summary>
     private async Task<string> ExtractiveCompressAsync(
         List<(string question, string answer)> history,
@@ -90,10 +90,8 @@ public sealed partial class ContextCompressor
             // Split answer into sentences
             var answerSentences = SplitSentences(a);
             foreach (var s in answerSentences)
-            {
                 if (s.Length > 10) // Skip very short fragments
                     sentences.Add(($"A: {s}", i));
-            }
         }
 
         if (sentences.Count == 0)
@@ -143,7 +141,7 @@ public sealed partial class ContextCompressor
     }
 
     /// <summary>
-    /// Abstractive compression: LLM-summarize history chunks, then apply extractive.
+    ///     Abstractive compression: LLM-summarize history chunks, then apply extractive.
     /// </summary>
     private async Task<string> AbstractiveCompressAsync(
         List<(string question, string answer)> history,
@@ -162,18 +160,17 @@ public sealed partial class ContextCompressor
         // Summarize each chunk
         var summaries = new List<string>();
         foreach (var chunk in chunks)
-        {
             try
             {
                 var prompt = $"""
-                    Summarize the key facts and topics from this conversation excerpt in 2-3 sentences.
-                    Focus on information the user was asking about and what was learned.
+                              Summarize the key facts and topics from this conversation excerpt in 2-3 sentences.
+                              Focus on information the user was asking about and what was learned.
 
-                    EXCERPT:
-                    {chunk}
+                              EXCERPT:
+                              {chunk}
 
-                    SUMMARY:
-                    """;
+                              SUMMARY:
+                              """;
 
                 var summary = await _ollama.SentinelGenerateAsync(prompt, temperature: 0.1, ct: ct);
                 if (!string.IsNullOrWhiteSpace(summary))
@@ -183,7 +180,6 @@ public sealed partial class ContextCompressor
             {
                 // Skip failed chunks
             }
-        }
 
         if (summaries.Count == 0)
             return await ExtractiveCompressAsync(history, currentQuery, targetChars, ct);

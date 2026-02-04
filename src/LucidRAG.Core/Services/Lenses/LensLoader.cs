@@ -1,17 +1,14 @@
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using LucidRAG.Lenses;
 
 namespace LucidRAG.Services.Lenses;
 
 /// <summary>
-/// Loads lens packages from filesystem directories.
-/// Validates manifests, loads templates, and handles errors gracefully.
+///     Loads lens packages from filesystem directories.
+///     Validates manifests, loads templates, and handles errors gracefully.
 /// </summary>
 public class LensLoader : ILensLoader
 {
-    private readonly ILogger<LensLoader> _logger;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -20,12 +17,15 @@ public class LensLoader : ILensLoader
         ReadCommentHandling = JsonCommentHandling.Skip
     };
 
+    private readonly ILogger<LensLoader> _logger;
+
     public LensLoader(ILogger<LensLoader> logger)
     {
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<LensPackage>> LoadFromDirectoryAsync(string directory, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LensPackage>> LoadFromDirectoryAsync(string directory,
+        CancellationToken ct = default)
     {
         if (!Directory.Exists(directory))
         {
@@ -144,7 +144,7 @@ public class LensLoader : ILensLoader
 
         // Validate scoring weights sum to 1.0 (with tolerance)
         var totalWeight = manifest.Scoring.DenseWeight + manifest.Scoring.Bm25Weight +
-                         manifest.Scoring.SalienceWeight + manifest.Scoring.FreshnessWeight;
+                          manifest.Scoring.SalienceWeight + manifest.Scoring.FreshnessWeight;
 
         if (Math.Abs(totalWeight - 1.0) > 0.01)
         {

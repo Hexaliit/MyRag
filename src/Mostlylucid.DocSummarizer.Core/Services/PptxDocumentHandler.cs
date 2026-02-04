@@ -3,7 +3,6 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
 using A = DocumentFormat.OpenXml.Drawing;
 using C = DocumentFormat.OpenXml.Drawing.Charts;
-using P = DocumentFormat.OpenXml.Presentation;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
@@ -23,7 +22,7 @@ public class PptxDocumentHandler : IDocumentHandler
             return false;
 
         // Only handle .pptx (Open XML), not .ppt (binary)
-        var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
         return ext == ".pptx";
     }
 
@@ -38,14 +37,12 @@ public class PptxDocumentHandler : IDocumentHandler
         {
             var presentationPart = presentation.PresentationPart;
             if (presentationPart == null)
-            {
                 return Task.FromResult(new DocumentContent
                 {
                     Markdown = "",
-                    Title = System.IO.Path.GetFileNameWithoutExtension(filePath),
+                    Title = Path.GetFileNameWithoutExtension(filePath),
                     ContentType = "pptx"
                 });
-            }
 
             // Try to get title from core properties
             if (presentation.PackageProperties?.Title != null)
@@ -54,14 +51,12 @@ public class PptxDocumentHandler : IDocumentHandler
             // Get slide IDs in order
             var slideIdList = presentationPart.Presentation?.SlideIdList;
             if (slideIdList == null)
-            {
                 return Task.FromResult(new DocumentContent
                 {
                     Markdown = "",
-                    Title = documentTitle ?? System.IO.Path.GetFileNameWithoutExtension(filePath),
+                    Title = documentTitle ?? Path.GetFileNameWithoutExtension(filePath),
                     ContentType = "pptx"
                 });
-            }
 
             var slideNumber = 0;
             var totalSlides = slideIdList.Count();
@@ -94,9 +89,7 @@ public class PptxDocumentHandler : IDocumentHandler
                 {
                     sb.AppendLine("> **Speaker Notes:**");
                     foreach (var line in notes.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                    {
                         sb.AppendLine($"> {line.Trim()}");
-                    }
                     sb.AppendLine();
                 }
 
@@ -166,7 +159,7 @@ public class PptxDocumentHandler : IDocumentHandler
         return Task.FromResult(new DocumentContent
         {
             Markdown = sb.ToString().Trim(),
-            Title = documentTitle ?? System.IO.Path.GetFileNameWithoutExtension(filePath),
+            Title = documentTitle ?? Path.GetFileNameWithoutExtension(filePath),
             ContentType = "pptx",
             Metadata = metadata,
             Assets = embeddedAssets.Count > 0 ? embeddedAssets : null
@@ -185,7 +178,7 @@ public class PptxDocumentHandler : IDocumentHandler
             return string.Empty;
 
         // Get all shapes with text
-        foreach (var shape in slide.CommonSlideData.ShapeTree.Elements<P.Shape>())
+        foreach (var shape in slide.CommonSlideData.ShapeTree.Elements<Shape>())
         {
             var textBody = shape.TextBody;
             if (textBody == null) continue;
@@ -198,25 +191,18 @@ public class PptxDocumentHandler : IDocumentHandler
             if (string.IsNullOrWhiteSpace(shapeText)) continue;
 
             if (isTitle)
-            {
                 // Format as heading
                 sb.AppendLine($"### {shapeText}");
-            }
             else
-            {
                 // Regular content
                 sb.AppendLine(shapeText);
-            }
         }
 
         // Also extract text from group shapes
-        foreach (var groupShape in slide.CommonSlideData.ShapeTree.Elements<P.GroupShape>())
+        foreach (var groupShape in slide.CommonSlideData.ShapeTree.Elements<GroupShape>())
         {
             var groupText = ExtractTextFromGroupShape(groupShape);
-            if (!string.IsNullOrWhiteSpace(groupText))
-            {
-                sb.AppendLine(groupText);
-            }
+            if (!string.IsNullOrWhiteSpace(groupText)) sb.AppendLine(groupText);
         }
 
         return sb.ToString().Trim();
@@ -225,7 +211,7 @@ public class PptxDocumentHandler : IDocumentHandler
     /// <summary>
     ///     Extract text from a TextBody element, preserving paragraph structure.
     /// </summary>
-    private static string ExtractTextFromTextBody(P.TextBody textBody)
+    private static string ExtractTextFromTextBody(TextBody textBody)
     {
         var sb = new StringBuilder();
 
@@ -236,10 +222,7 @@ public class PptxDocumentHandler : IDocumentHandler
             foreach (var run in para.Elements<A.Run>())
             {
                 var text = run.Text?.Text;
-                if (!string.IsNullOrEmpty(text))
-                {
-                    paraText.Append(text);
-                }
+                if (!string.IsNullOrEmpty(text)) paraText.Append(text);
             }
 
             // Get level for indentation
@@ -252,7 +235,7 @@ public class PptxDocumentHandler : IDocumentHandler
                 if (level > 0 || HasBulletStyling(para))
                 {
                     // Indent based on level
-                    var indent = new string(' ', (int)(level * 2));
+                    var indent = new string(' ', level * 2);
                     sb.AppendLine($"{indent}- {lineText}");
                 }
                 else
@@ -283,31 +266,25 @@ public class PptxDocumentHandler : IDocumentHandler
     /// <summary>
     ///     Extract text from a group shape (recursive).
     /// </summary>
-    private static string ExtractTextFromGroupShape(P.GroupShape groupShape)
+    private static string ExtractTextFromGroupShape(GroupShape groupShape)
     {
         var sb = new StringBuilder();
 
-        foreach (var shape in groupShape.Elements<P.Shape>())
+        foreach (var shape in groupShape.Elements<Shape>())
         {
             var textBody = shape.TextBody;
             if (textBody != null)
             {
                 var text = ExtractTextFromTextBody(textBody);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    sb.AppendLine(text);
-                }
+                if (!string.IsNullOrWhiteSpace(text)) sb.AppendLine(text);
             }
         }
 
         // Recurse into nested group shapes
-        foreach (var nestedGroup in groupShape.Elements<P.GroupShape>())
+        foreach (var nestedGroup in groupShape.Elements<GroupShape>())
         {
             var nestedText = ExtractTextFromGroupShape(nestedGroup);
-            if (!string.IsNullOrWhiteSpace(nestedText))
-            {
-                sb.AppendLine(nestedText);
-            }
+            if (!string.IsNullOrWhiteSpace(nestedText)) sb.AppendLine(nestedText);
         }
 
         return sb.ToString().Trim();
@@ -316,10 +293,10 @@ public class PptxDocumentHandler : IDocumentHandler
     /// <summary>
     ///     Check if a shape is a specific placeholder type.
     /// </summary>
-    private static bool IsPlaceholderType(P.Shape shape, PlaceholderValues placeholderType)
+    private static bool IsPlaceholderType(Shape shape, PlaceholderValues placeholderType)
     {
         var placeholder = shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties?
-            .GetFirstChild<P.PlaceholderShape>();
+            .GetFirstChild<PlaceholderShape>();
 
         return placeholder?.Type?.Value == placeholderType;
     }
@@ -335,7 +312,7 @@ public class PptxDocumentHandler : IDocumentHandler
 
         var sb = new StringBuilder();
 
-        foreach (var shape in notesPart.NotesSlide.CommonSlideData.ShapeTree.Elements<P.Shape>())
+        foreach (var shape in notesPart.NotesSlide.CommonSlideData.ShapeTree.Elements<Shape>())
         {
             // Find the notes placeholder (body text, not slide image placeholder)
             if (!IsPlaceholderType(shape, PlaceholderValues.Body)) continue;
@@ -344,10 +321,7 @@ public class PptxDocumentHandler : IDocumentHandler
             if (textBody == null) continue;
 
             var text = ExtractTextFromTextBody(textBody);
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                sb.AppendLine(text);
-            }
+            if (!string.IsNullOrWhiteSpace(text)) sb.AppendLine(text);
         }
 
         return sb.ToString().Trim();
@@ -475,14 +449,13 @@ public class PptxDocumentHandler : IDocumentHandler
         {
             var sb = new StringBuilder();
             foreach (var para in chartText.RichText.Elements<A.Paragraph>())
+            foreach (var run in para.Elements<A.Run>())
             {
-                foreach (var run in para.Elements<A.Run>())
-                {
-                    var text = run.Text?.Text;
-                    if (!string.IsNullOrEmpty(text))
-                        sb.Append(text);
-                }
+                var text = run.Text?.Text;
+                if (!string.IsNullOrEmpty(text))
+                    sb.Append(text);
             }
+
             return sb.ToString().Trim();
         }
 
@@ -503,19 +476,11 @@ public class PptxDocumentHandler : IDocumentHandler
             var values = GetNumericValues(series.GetFirstChild<C.Values>());
 
             if (categories != null && values != null)
-            {
-                for (int i = 0; i < Math.Min(categories.Count, values.Count); i++)
-                {
+                for (var i = 0; i < Math.Min(categories.Count, values.Count); i++)
                     sb.AppendLine($"  - {categories[i]}: {values[i]:G}");
-                }
-            }
             else if (values != null)
-            {
-                for (int i = 0; i < values.Count; i++)
-                {
+                for (var i = 0; i < values.Count; i++)
                     sb.AppendLine($"  - Point {i + 1}: {values[i]:G}");
-                }
-            }
         }
     }
 
@@ -532,7 +497,7 @@ public class PptxDocumentHandler : IDocumentHandler
             if (categories != null && values != null)
             {
                 var total = values.Sum();
-                for (int i = 0; i < Math.Min(categories.Count, values.Count); i++)
+                for (var i = 0; i < Math.Min(categories.Count, values.Count); i++)
                 {
                     var percentage = total > 0 ? values[i] / total * 100 : 0;
                     sb.AppendLine($"  - {categories[i]}: {values[i]:G} ({percentage:F1}%)");
@@ -540,10 +505,7 @@ public class PptxDocumentHandler : IDocumentHandler
             }
             else if (values != null)
             {
-                for (int i = 0; i < values.Count; i++)
-                {
-                    sb.AppendLine($"  - Segment {i + 1}: {values[i]:G}");
-                }
+                for (var i = 0; i < values.Count; i++) sb.AppendLine($"  - Segment {i + 1}: {values[i]:G}");
             }
         }
     }
@@ -562,19 +524,11 @@ public class PptxDocumentHandler : IDocumentHandler
             var values = GetNumericValues(series.GetFirstChild<C.Values>());
 
             if (categories != null && values != null)
-            {
-                for (int i = 0; i < Math.Min(categories.Count, values.Count); i++)
-                {
+                for (var i = 0; i < Math.Min(categories.Count, values.Count); i++)
                     sb.AppendLine($"  - {categories[i]}: {values[i]:G}");
-                }
-            }
             else if (values != null)
-            {
-                for (int i = 0; i < values.Count; i++)
-                {
+                for (var i = 0; i < values.Count; i++)
                     sb.AppendLine($"  - Point {i + 1}: {values[i]:G}");
-                }
-            }
         }
     }
 
@@ -592,19 +546,11 @@ public class PptxDocumentHandler : IDocumentHandler
             var values = GetNumericValues(series.GetFirstChild<C.Values>());
 
             if (categories != null && values != null)
-            {
-                for (int i = 0; i < Math.Min(categories.Count, values.Count); i++)
-                {
+                for (var i = 0; i < Math.Min(categories.Count, values.Count); i++)
                     sb.AppendLine($"  - {categories[i]}: {values[i]:G}");
-                }
-            }
             else if (values != null)
-            {
-                for (int i = 0; i < values.Count; i++)
-                {
+                for (var i = 0; i < values.Count; i++)
                     sb.AppendLine($"  - Point {i + 1}: {values[i]:G}");
-                }
-            }
         }
     }
 
@@ -622,12 +568,8 @@ public class PptxDocumentHandler : IDocumentHandler
             var yValues = GetNumericValues(series.GetFirstChild<C.YValues>());
 
             if (xValues != null && yValues != null)
-            {
-                for (int i = 0; i < Math.Min(xValues.Count, yValues.Count); i++)
-                {
+                for (var i = 0; i < Math.Min(xValues.Count, yValues.Count); i++)
                     sb.AppendLine($"  - ({xValues[i]:G}, {yValues[i]:G})");
-                }
-            }
         }
     }
 
@@ -644,7 +586,7 @@ public class PptxDocumentHandler : IDocumentHandler
             if (categories != null && values != null)
             {
                 var total = values.Sum();
-                for (int i = 0; i < Math.Min(categories.Count, values.Count); i++)
+                for (var i = 0; i < Math.Min(categories.Count, values.Count); i++)
                 {
                     var percentage = total > 0 ? values[i] / total * 100 : 0;
                     sb.AppendLine($"  - {categories[i]}: {values[i]:G} ({percentage:F1}%)");
@@ -652,10 +594,7 @@ public class PptxDocumentHandler : IDocumentHandler
             }
             else if (values != null)
             {
-                for (int i = 0; i < values.Count; i++)
-                {
-                    sb.AppendLine($"  - Segment {i + 1}: {values[i]:G}");
-                }
+                for (var i = 0; i < values.Count; i++) sb.AppendLine($"  - Segment {i + 1}: {values[i]:G}");
             }
         }
     }
@@ -689,32 +628,26 @@ public class PptxDocumentHandler : IDocumentHandler
         // Try StringReference first
         var stringRef = catData.StringReference;
         if (stringRef?.StringCache != null)
-        {
             return stringRef.StringCache.Elements<C.StringPoint>()
                 .OrderBy(p => p.Index?.Value ?? 0)
                 .Select(p => p.NumericValue?.Text ?? "")
                 .ToList();
-        }
 
         // Try NumberReference (for numeric categories)
         var numRef = catData.NumberReference;
         if (numRef?.NumberingCache != null)
-        {
             return numRef.NumberingCache.Elements<C.NumericPoint>()
                 .OrderBy(p => p.Index?.Value ?? 0)
                 .Select(p => p.NumericValue?.Text ?? "")
                 .ToList();
-        }
 
         // Try StringLiteral
         var stringLit = catData.StringLiteral;
         if (stringLit != null)
-        {
             return stringLit.Elements<C.StringPoint>()
                 .OrderBy(p => p.Index?.Value ?? 0)
                 .Select(p => p.NumericValue?.Text ?? "")
                 .ToList();
-        }
 
         return null;
     }
@@ -729,21 +662,17 @@ public class PptxDocumentHandler : IDocumentHandler
 
         var numRef = values.NumberReference;
         if (numRef?.NumberingCache != null)
-        {
             return numRef.NumberingCache.Elements<C.NumericPoint>()
                 .OrderBy(p => p.Index?.Value ?? 0)
                 .Select(p => double.TryParse(p.NumericValue?.Text, out var v) ? v : 0)
                 .ToList();
-        }
 
         var numLit = values.NumberLiteral;
         if (numLit != null)
-        {
             return numLit.Elements<C.NumericPoint>()
                 .OrderBy(p => p.Index?.Value ?? 0)
                 .Select(p => double.TryParse(p.NumericValue?.Text, out var v) ? v : 0)
                 .ToList();
-        }
 
         return null;
     }
@@ -758,12 +687,10 @@ public class PptxDocumentHandler : IDocumentHandler
 
         var numRef = xValues.NumberReference;
         if (numRef?.NumberingCache != null)
-        {
             return numRef.NumberingCache.Elements<C.NumericPoint>()
                 .OrderBy(p => p.Index?.Value ?? 0)
                 .Select(p => double.TryParse(p.NumericValue?.Text, out var v) ? v : 0)
                 .ToList();
-        }
 
         return null;
     }
@@ -778,12 +705,10 @@ public class PptxDocumentHandler : IDocumentHandler
 
         var numRef = yValues.NumberReference;
         if (numRef?.NumberingCache != null)
-        {
             return numRef.NumberingCache.Elements<C.NumericPoint>()
                 .OrderBy(p => p.Index?.Value ?? 0)
                 .Select(p => double.TryParse(p.NumericValue?.Text, out var v) ? v : 0)
                 .ToList();
-        }
 
         return null;
     }

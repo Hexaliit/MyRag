@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 
@@ -10,7 +9,8 @@ public class ConversationService(
     RagDocumentsDbContext db,
     ILogger<ConversationService> logger) : IConversationService
 {
-    public async Task<ConversationEntity> CreateConversationAsync(Guid? collectionId = null, string? title = null, CancellationToken ct = default)
+    public async Task<ConversationEntity> CreateConversationAsync(Guid? collectionId = null, string? title = null,
+        CancellationToken ct = default)
     {
         var conversation = new ConversationEntity
         {
@@ -34,22 +34,21 @@ public class ConversationService(
             .FirstOrDefaultAsync(c => c.Id == conversationId, ct);
     }
 
-    public async Task<List<ConversationEntity>> GetConversationsAsync(Guid? collectionId = null, CancellationToken ct = default)
+    public async Task<List<ConversationEntity>> GetConversationsAsync(Guid? collectionId = null,
+        CancellationToken ct = default)
     {
         var query = db.Conversations.Include(c => c.Collection).AsQueryable();
 
-        if (collectionId.HasValue)
-        {
-            query = query.Where(c => c.CollectionId == collectionId);
-        }
+        if (collectionId.HasValue) query = query.Where(c => c.CollectionId == collectionId);
 
         return await query.OrderByDescending(c => c.UpdatedAt).ToListAsync(ct);
     }
 
-    public async Task<ConversationMessage> AddMessageAsync(Guid conversationId, string role, string content, string? metadata = null, CancellationToken ct = default)
+    public async Task<ConversationMessage> AddMessageAsync(Guid conversationId, string role, string content,
+        string? metadata = null, CancellationToken ct = default)
     {
         var conversation = await db.Conversations.FindAsync([conversationId], ct)
-            ?? throw new InvalidOperationException($"Conversation {conversationId} not found");
+                           ?? throw new InvalidOperationException($"Conversation {conversationId} not found");
 
         // Ensure stable ordering even on providers that store DateTimeOffset with millisecond precision (e.g. SQLite).
         // When messages are inserted in a tight loop, multiple rows can share the same timestamp, making "last N" queries
@@ -82,16 +81,15 @@ public class ConversationService(
 
         conversation.UpdatedAt = now;
         if (role == "user" && string.IsNullOrEmpty(conversation.Title))
-        {
             // Use first user message as title
             conversation.Title = content.Length > 50 ? content[..47] + "..." : content;
-        }
 
         await db.SaveChangesAsync(ct);
         return message;
     }
 
-    public async Task<string> BuildContextAsync(Guid conversationId, int maxMessages = 10, CancellationToken ct = default)
+    public async Task<string> BuildContextAsync(Guid conversationId, int maxMessages = 10,
+        CancellationToken ct = default)
     {
         var messages = await db.ConversationMessages
             .Where(m => m.ConversationId == conversationId)
@@ -105,10 +103,7 @@ public class ConversationService(
 
         var sb = new StringBuilder();
         sb.AppendLine("Previous conversation:");
-        foreach (var msg in messages)
-        {
-            sb.AppendLine($"{msg.Role}: {msg.Content}");
-        }
+        foreach (var msg in messages) sb.AppendLine($"{msg.Role}: {msg.Content}");
 
         return sb.ToString();
     }
@@ -144,7 +139,8 @@ public class ConversationService(
         conversation.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
-        logger.LogDebug("Set {Count} active documents for conversation {ConversationId}", documentIds.Length, conversationId);
+        logger.LogDebug("Set {Count} active documents for conversation {ConversationId}", documentIds.Length,
+            conversationId);
     }
 
     public async Task<Guid[]?> GetActiveDocumentsAsync(Guid conversationId, CancellationToken ct = default)
@@ -162,7 +158,8 @@ public class ConversationService(
         }
         catch (JsonException)
         {
-            logger.LogWarning("Failed to deserialize active document IDs for conversation {ConversationId}", conversationId);
+            logger.LogWarning("Failed to deserialize active document IDs for conversation {ConversationId}",
+                conversationId);
             return null;
         }
     }

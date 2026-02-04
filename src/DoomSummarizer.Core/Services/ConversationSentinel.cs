@@ -1,12 +1,11 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Result from the conversation sentinel's query resolution.
+///     Result from the conversation sentinel's query resolution.
 /// </summary>
 public record ConversationSentinelResult
 {
@@ -17,27 +16,22 @@ public record ConversationSentinelResult
     public bool ShouldSearch { get; init; } = true;
 
     /// <summary>
-    /// Personal context resolved from user's personal corpus entities.
-    /// Injected into synthesis prompt as USER_CONTEXT. Null if no personal context applied.
+    ///     Personal context resolved from user's personal corpus entities.
+    ///     Injected into synthesis prompt as USER_CONTEXT. Null if no personal context applied.
     /// </summary>
     public string? PersonalContext { get; init; }
 }
 
 /// <summary>
-/// Lightweight sentinel that runs before retrieval to decide whether a question
-/// is a follow-up, rewrite it into a standalone query, and score cached segments
-/// for salience.
-///
-/// Two-tier strategy:
-///   Tier 1 (rule-based, no LLM, less than 5ms): pronoun/continuation detection + embedding similarity
-///   Tier 2 (LLM-assisted, ~200ms): fires only when Tier 1 detects a follow-up
+///     Lightweight sentinel that runs before retrieval to decide whether a question
+///     is a follow-up, rewrite it into a standalone query, and score cached segments
+///     for salience.
+///     Two-tier strategy:
+///     Tier 1 (rule-based, no LLM, less than 5ms): pronoun/continuation detection + embedding similarity
+///     Tier 2 (LLM-assisted, ~200ms): fires only when Tier 1 detects a follow-up
 /// </summary>
 public sealed partial class ConversationSentinel
 {
-    private readonly OllamaService? _ollama;
-    private readonly IEmbeddingService _embedding;
-    private readonly bool _ollamaAvailable;
-
     // Pronouns that often refer to previous topic
     private static readonly HashSet<string> Pronouns = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -54,6 +48,10 @@ public sealed partial class ConversationSentinel
         "why is that", "how so", "in what way"
     ];
 
+    private readonly IEmbeddingService _embedding;
+    private readonly OllamaService? _ollama;
+    private readonly bool _ollamaAvailable;
+
     public ConversationSentinel(
         OllamaService? ollama,
         IEmbeddingService embedding,
@@ -65,8 +63,8 @@ public sealed partial class ConversationSentinel
     }
 
     /// <summary>
-    /// Resolve a question in context of conversation history.
-    /// Returns a standalone query suitable for retrieval, plus salience metadata.
+    ///     Resolve a question in context of conversation history.
+    ///     Returns a standalone query suitable for retrieval, plus salience metadata.
     /// </summary>
     public async Task<ConversationSentinelResult> ResolveAsync(
         string question,
@@ -75,7 +73,6 @@ public sealed partial class ConversationSentinel
     {
         // No history = first turn, return as-is
         if (history.Count == 0)
-        {
             return new ConversationSentinelResult
             {
                 ResolvedQuery = question,
@@ -83,13 +80,11 @@ public sealed partial class ConversationSentinel
                 Confidence = 1.0f,
                 Reason = "First turn"
             };
-        }
 
         // --- Tier 1: Rule-based analysis ---
         var tier1 = await AnalyzeTier1Async(question, history, ct);
 
         if (!tier1.IsFollowUp)
-        {
             return new ConversationSentinelResult
             {
                 ResolvedQuery = question,
@@ -98,7 +93,6 @@ public sealed partial class ConversationSentinel
                 Reason = tier1.Reason,
                 ShouldSearch = true
             };
-        }
 
         // --- Tier 2: LLM-assisted rewrite (only if Tier 1 detected follow-up) ---
         var resolvedQuery = tier1.RuleBasedRewrite ?? question;
@@ -106,7 +100,6 @@ public sealed partial class ConversationSentinel
         // Skip LLM when the rule-based rewrite is already complete
         // (e.g., generic continuations like "go on" → "More details about {topic}")
         if (_ollamaAvailable && _ollama != null && !tier1.RewriteComplete)
-        {
             try
             {
                 var llmResult = await RewriteWithLlmAsync(question, history, ct);
@@ -120,7 +113,6 @@ public sealed partial class ConversationSentinel
             {
                 // LLM failure is non-fatal - use rule-based rewrite
             }
-        }
 
         return new ConversationSentinelResult
         {
@@ -142,7 +134,6 @@ public sealed partial class ConversationSentinel
 
         // Check continuation markers
         foreach (var marker in ContinuationMarkers)
-        {
             if (questionLower.StartsWith(marker) || questionLower.Contains(marker))
             {
                 // Generic continuation (question IS the marker, e.g., "go on", "continue")
@@ -150,7 +141,7 @@ public sealed partial class ConversationSentinel
                 // Specific continuation (has extra terms, e.g., "tell me more about GPD")
                 // → LLM may improve the rewrite
                 var isGeneric = questionLower.TrimEnd('?', '.', '!').Trim() == marker
-                    || questionLower.TrimEnd('?', '.', '!').Trim().Length <= marker.Length + 3;
+                                || questionLower.TrimEnd('?', '.', '!').Trim().Length <= marker.Length + 3;
 
                 return new Tier1Result
                 {
@@ -161,7 +152,6 @@ public sealed partial class ConversationSentinel
                     RewriteComplete = isGeneric
                 };
             }
-        }
 
         // Check for pronoun references
         var words = Regex.Split(questionLower, @"\W+").Where(w => w.Length > 0).ToHashSet();
@@ -189,7 +179,6 @@ public sealed partial class ConversationSentinel
             var similarity = VectorMath.CosineSimilarity(currentEmb, prevEmb);
 
             if (similarity > 0.7f)
-            {
                 return new Tier1Result
                 {
                     IsFollowUp = true,
@@ -197,10 +186,8 @@ public sealed partial class ConversationSentinel
                     Reason = $"High semantic similarity: {similarity:F2}",
                     RuleBasedRewrite = $"{question} (in the context of: {lastTurn.question})"
                 };
-            }
 
             if (similarity > 0.4f)
-            {
                 // Related but not a clear follow-up - treat as semi-followup
                 // Still search fresh but include relevant cached segments
                 return new Tier1Result
@@ -209,7 +196,6 @@ public sealed partial class ConversationSentinel
                     Confidence = similarity,
                     Reason = $"Moderate similarity: {similarity:F2}, treating as new query"
                 };
-            }
         }
         catch
         {
@@ -238,25 +224,25 @@ public sealed partial class ConversationSentinel
         }));
 
         var prompt = $$"""
-            Rewrite the NEW QUESTION as a short standalone search query by resolving pronouns.
+                       Rewrite the NEW QUESTION as a short standalone search query by resolving pronouns.
 
-            HISTORY:
-            {{historyBlock}}
+                       HISTORY:
+                       {{historyBlock}}
 
-            NEW QUESTION: "{{question}}"
+                       NEW QUESTION: "{{question}}"
 
-            Output JSON:
-            {
-              "resolved_query": "short standalone query"
-            }
+                       Output JSON:
+                       {
+                         "resolved_query": "short standalone query"
+                       }
 
-            RULES:
-            - Replace pronouns (it, they, that, etc.) with the specific subject from history
-            - Keep the rewrite SHORT — same length or shorter than the original question
-            - Do NOT add explanations, clauses, or background context
-            - Do NOT restate what the subject is — just name it
-            - Example: "How does it work?" → "How does Bazzite work?" (NOT "How does Bazzite, a Linux gaming distribution, work?")
-            """;
+                       RULES:
+                       - Replace pronouns (it, they, that, etc.) with the specific subject from history
+                       - Keep the rewrite SHORT — same length or shorter than the original question
+                       - Do NOT add explanations, clauses, or background context
+                       - Do NOT restate what the subject is — just name it
+                       - Example: "How does it work?" → "How does Bazzite work?" (NOT "How does Bazzite, a Linux gaming distribution, work?")
+                       """;
 
         if (_ollama == null) return null;
         var response = await _ollama.SentinelGenerateJsonAsync(prompt, temperature: 0.1, ct: ct);
@@ -288,7 +274,7 @@ public sealed partial class ConversationSentinel
     }
 
     /// <summary>
-    /// Extract the main topic from a Q+A turn for pronoun resolution.
+    ///     Extract the main topic from a Q+A turn for pronoun resolution.
     /// </summary>
     private static string ExtractTopic(string prevQuestion, string prevAnswer)
     {
@@ -312,11 +298,10 @@ public sealed partial class ConversationSentinel
             "describe ", "define ",
             // Continuation-style prefixes (from follow-up rewrites)
             "more details about ", "more about ",
-            "what about ", "how about ",
+            "what about ", "how about "
         };
 
         foreach (var prefix in prefixes)
-        {
             if (q.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 q = q[prefix.Length..].TrimEnd('?', '.', '!');
@@ -326,7 +311,6 @@ public sealed partial class ConversationSentinel
                     q = string.Join(" ", topicWords.Take(8));
                 return q;
             }
-        }
 
         // Fallback: take the first noun phrase (up to 5 words, skip leading non-topic words)
         var words = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -345,8 +329,8 @@ public sealed partial class ConversationSentinel
     }
 
     /// <summary>
-    /// Walk back through history to find a clean topic (no unresolved pronouns).
-    /// Tries: previous question → earlier questions → answer-based extraction.
+    ///     Walk back through history to find a clean topic (no unresolved pronouns).
+    ///     Tries: previous question → earlier questions → answer-based extraction.
     /// </summary>
     private static string ExtractCleanTopic(
         string prevQuestion, string prevAnswer,
@@ -359,22 +343,20 @@ public sealed partial class ConversationSentinel
 
         // Walk back through history to find a question with a clean topic
         if (fullHistory != null)
-        {
             for (var i = fullHistory.Count - 2; i >= 0; i--)
             {
                 topic = ExtractTopic(fullHistory[i].question, fullHistory[i].answer);
                 if (!PronounPattern().IsMatch(topic))
                     return topic;
             }
-        }
 
         // Last resort: extract proper nouns from the answer
         return ExtractTopicFromAnswer(prevAnswer);
     }
 
     /// <summary>
-    /// Extract the main topic from an answer by finding the first capitalized
-    /// noun phrase (proper nouns are usually the key subject).
+    ///     Extract the main topic from an answer by finding the first capitalized
+    ///     noun phrase (proper nouns are usually the key subject).
     /// </summary>
     private static string ExtractTopicFromAnswer(string answer)
     {
@@ -414,13 +396,17 @@ public sealed partial class ConversationSentinel
     }
 
     private static bool IsCommonWord(string word)
-        => word is "The" or "A" or "An" or "This" or "That" or "It"
+    {
+        return word is "The" or "A" or "An" or "This" or "That" or "It"
             or "They" or "He" or "She" or "We" or "I"
             or "However" or "Furthermore" or "According" or "Additionally"
             or "Specifically" or "Notably" or "Ultimately";
+    }
 
     private static string ReplacePronounsWithTopic(string question, string topic)
-        => PronounPattern().Replace(question, topic);
+    {
+        return PronounPattern().Replace(question, topic);
+    }
 
     [GeneratedRegex(@"\b(?:it|its|that|this|they|them|their|those|these|he|she|his|her)\b", RegexOptions.IgnoreCase)]
     private static partial Regex PronounPattern();
@@ -441,15 +427,11 @@ public sealed partial class ConversationSentinel
         if (lower is "tell me more" or "go on" or "continue" or "elaborate"
             or "keep going" or "more detail" or "more details"
             or "explain further" or "can you expand")
-        {
             return $"More details about {topic}";
-        }
 
         // "What about Y" / "How about Y" -> "Y in relation to {topic}"
         if (lower.StartsWith("what about") || lower.StartsWith("how about"))
-        {
             return $"{question} in relation to {topic}";
-        }
 
         // User included specific terms — keep the full question with context appended
         // e.g., "Tell me more about the GPD controversy" stays mostly intact
@@ -457,8 +439,8 @@ public sealed partial class ConversationSentinel
     }
 
     /// <summary>
-    /// Resolve implicit references using personal corpus entities.
-    /// "here" → user's LOC, "my company" → user's ORG, etc.
+    ///     Resolve implicit references using personal corpus entities.
+    ///     "here" → user's LOC, "my company" → user's ORG, etc.
     /// </summary>
     public async Task<(string resolvedQuery, string? personalContext)>
         ResolveFromPersonalAsync(
@@ -473,7 +455,7 @@ public sealed partial class ConversationSentinel
         if (HasLocationGap(question))
         {
             var locs = await personalCorpus.GetPersonalEntitiesAsync(
-                "default", "LOC", limit: 1, ct);
+                "default", "LOC", 1, ct);
             if (locs.Count > 0)
             {
                 resolved = ResolveLocationGap(resolved, locs[0].name);
@@ -485,12 +467,12 @@ public sealed partial class ConversationSentinel
         if (HasOrgGap(question))
         {
             var orgs = await personalCorpus.GetPersonalEntitiesAsync(
-                "default", "ORG", limit: 1, ct);
+                "default", "ORG", 1, ct);
             if (orgs.Count > 0)
             {
                 resolved = ResolveOrgGap(resolved, orgs[0].name);
                 context = (context != null ? context + "; " : "")
-                    + $"Works at {orgs[0].name}";
+                          + $"Works at {orgs[0].name}";
             }
         }
 
@@ -498,12 +480,12 @@ public sealed partial class ConversationSentinel
         if (HasTechGap(question))
         {
             var techs = await personalCorpus.GetPersonalEntitiesAsync(
-                "default", "MISC", limit: 3, ct);
+                "default", "MISC", 3, ct);
             if (techs.Count > 0)
             {
                 var techNames = string.Join(", ", techs.Select(t => t.name));
                 context = (context != null ? context + "; " : "")
-                    + $"Uses {techNames}";
+                          + $"Uses {techNames}";
             }
         }
 
@@ -512,25 +494,31 @@ public sealed partial class ConversationSentinel
 
     // --- Gap detection helpers ---
 
-    private static bool HasLocationGap(string q) =>
-        q.Contains("here", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("locally", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("nearby", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my area", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my city", StringComparison.OrdinalIgnoreCase);
+    private static bool HasLocationGap(string q)
+    {
+        return q.Contains("here", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("locally", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("nearby", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my area", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my city", StringComparison.OrdinalIgnoreCase);
+    }
 
-    private static bool HasOrgGap(string q) =>
-        q.Contains("my company", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my org", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("at work", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my team", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my employer", StringComparison.OrdinalIgnoreCase);
+    private static bool HasOrgGap(string q)
+    {
+        return q.Contains("my company", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my org", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("at work", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my team", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my employer", StringComparison.OrdinalIgnoreCase);
+    }
 
-    private static bool HasTechGap(string q) =>
-        q.Contains("my stack", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my project", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my codebase", StringComparison.OrdinalIgnoreCase)
-        || q.Contains("my setup", StringComparison.OrdinalIgnoreCase);
+    private static bool HasTechGap(string q)
+    {
+        return q.Contains("my stack", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my project", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my codebase", StringComparison.OrdinalIgnoreCase)
+               || q.Contains("my setup", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string ResolveLocationGap(string query, string location)
     {
@@ -568,9 +556,10 @@ public sealed partial class ConversationSentinel
         public float Confidence { get; init; }
         public string? Reason { get; init; }
         public string? RuleBasedRewrite { get; init; }
+
         /// <summary>
-        /// When true, the rule-based rewrite is complete and the LLM should NOT override it.
-        /// Used for generic continuations like "go on" where Tier 1 already produced a good query.
+        ///     When true, the rule-based rewrite is complete and the LLM should NOT override it.
+        ///     Used for generic continuations like "go on" where Tier 1 already produced a good query.
         /// </summary>
         public bool RewriteComplete { get; init; }
     }

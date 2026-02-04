@@ -9,34 +9,8 @@ namespace DoomSummarizer.Commands;
 
 public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [CommandOption("--init")]
-        [Description("Create config file (minimal starter; use --full for all settings)")]
-        public bool Init { get; init; }
-
-        [CommandOption("--full")]
-        [Description("With --init: generate a complete config.json with every setting")]
-        public bool Full { get; init; }
-
-        [CommandOption("--show")]
-        [Description("Show current configuration with load sources and overrides")]
-        public bool Show { get; init; }
-
-        [CommandOption("--reference")]
-        [Description("Print the full YAML configuration reference to stdout")]
-        public bool Reference { get; init; }
-
-        [CommandOption("--profile")]
-        [Description("Apply a hardware profile (pi, laptop, desktop, server, enterprise, dynamic)")]
-        public string? Profile { get; init; }
-
-        [CommandOption("--list-profiles")]
-        [Description("Show available hardware profiles with descriptions")]
-        public bool ListProfiles { get; init; }
-    }
-
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
+        CancellationToken cancellationToken)
     {
         if (settings.Reference)
         {
@@ -55,29 +29,27 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
             if (settings.Full)
             {
                 await ConfigService.InitializeFullConfigAsync();
-                AnsiConsole.MarkupLine($"[green]Created full config:[/] {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json");
+                AnsiConsole.MarkupLine(
+                    $"[green]Created full config:[/] {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json");
             }
             else
             {
                 await ConfigService.InitializeStarterConfigAsync();
-                AnsiConsole.MarkupLine($"[green]Created starter config:[/] {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json");
-                AnsiConsole.MarkupLine("[grey]Only commonly-changed settings included. Run 'config --init --full' for all settings.[/]");
+                AnsiConsole.MarkupLine(
+                    $"[green]Created starter config:[/] {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json");
+                AnsiConsole.MarkupLine(
+                    "[grey]Only commonly-changed settings included. Run 'config --init --full' for all settings.[/]");
                 AnsiConsole.MarkupLine("[grey]Run 'config --reference' for the complete setting reference.[/]");
             }
+
             return 0;
         }
 
-        if (!string.IsNullOrEmpty(settings.Profile))
-        {
-            return await ApplyProfileAsync(settings);
-        }
+        if (!string.IsNullOrEmpty(settings.Profile)) return await ApplyProfileAsync(settings);
 
         var config = await ConfigService.LoadAsync();
 
-        if (settings.Show || !settings.Init)
-        {
-            ShowConfig(config);
-        }
+        if (settings.Show || !settings.Init) ShowConfig(config);
 
         return 0;
     }
@@ -98,7 +70,8 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         {
             var hw = await HardwareDetector.DetectAsync();
             resolvedName = HardwareDetector.ResolveProfile(hw);
-            AnsiConsole.MarkupLine($"[cyan]Hardware detected:[/] {hw.TotalRamGb:F1} GB RAM, {hw.CpuCores} cores, GPU: {(hw.HasGpu ? "yes" : "no")}, Ollama: {(hw.OllamaAvailable ? "yes" : "no")}");
+            AnsiConsole.MarkupLine(
+                $"[cyan]Hardware detected:[/] {hw.TotalRamGb:F1} GB RAM, {hw.CpuCores} cores, GPU: {(hw.HasGpu ? "yes" : "no")}, Ollama: {(hw.OllamaAvailable ? "yes" : "no")}");
             AnsiConsole.MarkupLine($"[cyan]Resolved profile:[/] [bold]{resolvedName}[/]");
         }
 
@@ -118,6 +91,7 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
             {
                 ConfigService.RequestedProfile = null;
             }
+
             ShowConfig(previewConfig);
             AnsiConsole.MarkupLine("[grey]This is a preview. Remove --show to apply.[/]");
             return 0;
@@ -143,7 +117,8 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         AnsiConsole.MarkupLine($"[green]Applied profile:[/] [bold]{resolvedName}[/]");
         if (!string.IsNullOrEmpty(desc))
             AnsiConsole.MarkupLine($"[grey]{desc}[/]");
-        AnsiConsole.MarkupLine($"[grey]Config saved to {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json[/]");
+        AnsiConsole.MarkupLine(
+            $"[grey]Config saved to {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json[/]");
 
 #if !FEATURE_LLAMASHARP
         // Warn if the profile configured LLamaSharp settings but this build doesn't include it
@@ -151,7 +126,8 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         if (ls.Enabled != false && (ls.ContextSize != null || ls.GpuLayerCount != null || ls.SynthesisModel != null))
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[yellow]Note:[/] This profile configures local GGUF inference (LLamaSharp), which is not included in this build.");
+            AnsiConsole.MarkupLine(
+                "[yellow]Note:[/] This profile configures local GGUF inference (LLamaSharp), which is not included in this build.");
             AnsiConsole.MarkupLine("  LLamaSharp settings will be ignored. LLM providers: Ollama, cloud APIs.");
             AnsiConsole.MarkupLine("  For local GGUF support, use [bold cyan]lucidrag[/] (the complete build).");
         }
@@ -228,9 +204,7 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         {
             var webNode = sourcesTree.AddNode("[green]>[/] Custom Websites");
             foreach (var site in config.Sources.Websites)
-            {
                 webNode.AddNode($"{site.Url} {(site.UsePlaywright ? "[grey](Playwright)[/]" : "")}");
-            }
         }
 
         AnsiConsole.Write(sourcesTree);
@@ -304,6 +278,7 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
             var marker = i == 0 ? "[blue]base[/]" : "[yellow]override[/]";
             AnsiConsole.MarkupLine($"  {i + 1}. {marker} {Markup.Escape(sources[i])}");
         }
+
         AnsiConsole.WriteLine();
     }
 
@@ -316,9 +291,34 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
 
         AnsiConsole.Write(new Rule("[bold]Values overridden from defaults[/]").RuleStyle("grey").LeftJustified());
         foreach (var (path, value) in overrides)
-        {
             AnsiConsole.MarkupLine($"  [yellow]{Markup.Escape(path)}[/] = [green]{Markup.Escape(value)}[/]");
-        }
         AnsiConsole.WriteLine();
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [CommandOption("--init")]
+        [Description("Create config file (minimal starter; use --full for all settings)")]
+        public bool Init { get; init; }
+
+        [CommandOption("--full")]
+        [Description("With --init: generate a complete config.json with every setting")]
+        public bool Full { get; init; }
+
+        [CommandOption("--show")]
+        [Description("Show current configuration with load sources and overrides")]
+        public bool Show { get; init; }
+
+        [CommandOption("--reference")]
+        [Description("Print the full YAML configuration reference to stdout")]
+        public bool Reference { get; init; }
+
+        [CommandOption("--profile")]
+        [Description("Apply a hardware profile (pi, laptop, desktop, server, enterprise, dynamic)")]
+        public string? Profile { get; init; }
+
+        [CommandOption("--list-profiles")]
+        [Description("Show available hardware profiles with descriptions")]
+        public bool ListProfiles { get; init; }
     }
 }

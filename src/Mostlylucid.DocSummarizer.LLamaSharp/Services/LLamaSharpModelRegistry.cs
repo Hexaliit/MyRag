@@ -6,18 +6,6 @@ namespace Mostlylucid.DocSummarizer.LLamaSharp.Services;
 public static class LLamaSharpModelRegistry
 {
     /// <summary>
-    ///     Information about a downloadable GGUF model.
-    /// </summary>
-    public record ModelInfo(
-        string Name,
-        string DisplayName,
-        string HuggingFaceRepo,
-        string Filename,
-        long ExpectedSizeBytes,
-        int ContextWindow,
-        string Role);
-
-    /// <summary>
     ///     All known models available for download.
     /// </summary>
     public static readonly ModelInfo[] Models =
@@ -49,32 +37,56 @@ public static class LLamaSharpModelRegistry
     /// <summary>
     ///     Get the default sentinel model info.
     /// </summary>
-    public static ModelInfo GetSentinel(string name) =>
-        Models.FirstOrDefault(m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && m.Role == "sentinel")
-        ?? Models.First(m => m.Role == "sentinel");
+    public static ModelInfo GetSentinel(string name)
+    {
+        return Models.FirstOrDefault(m =>
+                   m.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && m.Role == "sentinel")
+               ?? Models.First(m => m.Role == "sentinel");
+    }
 
     /// <summary>
     ///     Get the default synthesis model info.
     /// </summary>
-    public static ModelInfo GetSynthesis(string name) =>
-        Models.FirstOrDefault(m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && m.Role == "synthesis")
-        ?? Models.First(m => m.Role == "synthesis");
+    public static ModelInfo GetSynthesis(string name)
+    {
+        return Models.FirstOrDefault(m =>
+                   m.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && m.Role == "synthesis")
+               ?? Models.First(m => m.Role == "synthesis");
+    }
 
     /// <summary>
     ///     Get all models for a given role.
     /// </summary>
-    public static IEnumerable<ModelInfo> GetModelsForRole(string role) =>
-        Models.Where(m => m.Role.Equals(role, StringComparison.OrdinalIgnoreCase));
+    public static IEnumerable<ModelInfo> GetModelsForRole(string role)
+    {
+        return Models.Where(m => m.Role.Equals(role, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>
     ///     Find a model by name (any role).
     /// </summary>
-    public static ModelInfo? FindByName(string name) =>
-        Models.FirstOrDefault(m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    public static ModelInfo? FindByName(string name)
+    {
+        return Models.FirstOrDefault(m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>
     ///     Build the HuggingFace download URL for a model.
     /// </summary>
-    public static string GetDownloadUrl(ModelInfo model) =>
-        $"https://huggingface.co/{model.HuggingFaceRepo}/resolve/main/{model.Filename}";
+    public static string GetDownloadUrl(ModelInfo model)
+    {
+        return $"https://huggingface.co/{model.HuggingFaceRepo}/resolve/main/{model.Filename}";
+    }
+
+    /// <summary>
+    ///     Information about a downloadable GGUF model.
+    /// </summary>
+    public record ModelInfo(
+        string Name,
+        string DisplayName,
+        string HuggingFaceRepo,
+        string Filename,
+        long ExpectedSizeBytes,
+        int ContextWindow,
+        string Role);
 }

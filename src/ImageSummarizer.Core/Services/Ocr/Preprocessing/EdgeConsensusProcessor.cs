@@ -2,37 +2,37 @@ using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using Size = OpenCvSharp.Size;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.Preprocessing;
 
 /// <summary>
-/// Creates high-quality edge maps using consensus voting from multiple edge detection algorithms.
-/// Combines Sobel, Canny, and Laplacian of Gaussian (LoG) to identify robust text boundaries.
-///
-/// Algorithm:
-/// 1. Apply Sobel edge detection (gradient-based)
-/// 2. Apply Canny edge detection (gradient + non-maximum suppression)
-/// 3. Apply Laplacian of Gaussian (LoG) edge detection (second derivative)
-/// 4. Create consensus mask: pixels detected by 2+ methods
+///     Creates high-quality edge maps using consensus voting from multiple edge detection algorithms.
+///     Combines Sobel, Canny, and Laplacian of Gaussian (LoG) to identify robust text boundaries.
+///     Algorithm:
+///     1. Apply Sobel edge detection (gradient-based)
+///     2. Apply Canny edge detection (gradient + non-maximum suppression)
+///     3. Apply Laplacian of Gaussian (LoG) edge detection (second derivative)
+///     4. Create consensus mask: pixels detected by 2+ methods
 /// </summary>
 public class EdgeConsensusProcessor
 {
-    private readonly ILogger<EdgeConsensusProcessor>? _logger;
-    private readonly bool _verbose;
-    private readonly int _consensusThreshold; // Minimum votes (1-3)
+    private readonly double _cannyHigh;
 
     // Canny parameters
     private readonly double _cannyLow;
-    private readonly double _cannyHigh;
-
-    // Sobel parameters
-    private readonly int _sobelKernelSize;
-    private readonly double _sobelThreshold;
+    private readonly int _consensusThreshold; // Minimum votes (1-3)
+    private readonly ILogger<EdgeConsensusProcessor>? _logger;
 
     // LoG parameters
     private readonly int _logKernelSize;
     private readonly double _logSigma;
     private readonly double _logThreshold;
+
+    // Sobel parameters
+    private readonly int _sobelKernelSize;
+    private readonly double _sobelThreshold;
+    private readonly bool _verbose;
 
     public EdgeConsensusProcessor(
         int consensusThreshold = 2,
@@ -47,9 +47,7 @@ public class EdgeConsensusProcessor
         ILogger<EdgeConsensusProcessor>? logger = null)
     {
         if (consensusThreshold < 1 || consensusThreshold > 3)
-        {
             throw new ArgumentException("Consensus threshold must be between 1 and 3", nameof(consensusThreshold));
-        }
 
         _consensusThreshold = consensusThreshold;
         _cannyLow = cannyLow;
@@ -64,15 +62,12 @@ public class EdgeConsensusProcessor
     }
 
     /// <summary>
-    /// Compute edge consensus masks for a sequence of frames.
-    /// Returns binary edge masks where pixels detected by multiple algorithms are white.
+    ///     Compute edge consensus masks for a sequence of frames.
+    ///     Returns binary edge masks where pixels detected by multiple algorithms are white.
     /// </summary>
     public EdgeConsensusResult ComputeEdgeConsensus(List<Image<Rgba32>> frames)
     {
-        if (frames.Count == 0)
-        {
-            throw new ArgumentException("No frames provided", nameof(frames));
-        }
+        if (frames.Count == 0) throw new ArgumentException("No frames provided", nameof(frames));
 
         _logger?.LogInformation("Computing edge consensus for {Count} frames (threshold: {Threshold}/3 algorithms)",
             frames.Count, _consensusThreshold);
@@ -97,10 +92,7 @@ public class EdgeConsensusProcessor
             edgeMasks.Add(consensusMask);
             consensusScores.Add(score);
 
-            if (_verbose)
-            {
-                _logger?.LogDebug("Frame: edge consensus score = {Score:F3}", score);
-            }
+            if (_verbose) _logger?.LogDebug("Frame: edge consensus score = {Score:F3}", score);
         }
 
         var avgScore = consensusScores.Average();
@@ -115,7 +107,7 @@ public class EdgeConsensusProcessor
     }
 
     /// <summary>
-    /// Detect edges using Canny algorithm.
+    ///     Detect edges using Canny algorithm.
     /// </summary>
     private Mat DetectEdges_Canny(Mat gray)
     {
@@ -125,7 +117,7 @@ public class EdgeConsensusProcessor
     }
 
     /// <summary>
-    /// Detect edges using Sobel operator (gradient magnitude).
+    ///     Detect edges using Sobel operator (gradient magnitude).
     /// </summary>
     private Mat DetectEdges_Sobel(Mat gray)
     {
@@ -133,8 +125,8 @@ public class EdgeConsensusProcessor
         using var gradY = new Mat();
 
         // Compute gradients in X and Y directions
-        Cv2.Sobel(gray, gradX, MatType.CV_32F, 1, 0, ksize: _sobelKernelSize);
-        Cv2.Sobel(gray, gradY, MatType.CV_32F, 0, 1, ksize: _sobelKernelSize);
+        Cv2.Sobel(gray, gradX, MatType.CV_32F, 1, 0, _sobelKernelSize);
+        Cv2.Sobel(gray, gradY, MatType.CV_32F, 0, 1, _sobelKernelSize);
 
         // Compute gradient magnitude
         using var magnitude = new Mat();
@@ -154,13 +146,13 @@ public class EdgeConsensusProcessor
     }
 
     /// <summary>
-    /// Detect edges using Laplacian of Gaussian (LoG).
+    ///     Detect edges using Laplacian of Gaussian (LoG).
     /// </summary>
     private Mat DetectEdges_LoG(Mat gray)
     {
         // Apply Gaussian blur first (the "G" in LoG)
         using var blurred = new Mat();
-        Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(_logKernelSize, _logKernelSize), _logSigma);
+        Cv2.GaussianBlur(gray, blurred, new Size(_logKernelSize, _logKernelSize), _logSigma);
 
         // Apply Laplacian (second derivative)
         using var laplacian = new Mat();
@@ -178,8 +170,8 @@ public class EdgeConsensusProcessor
     }
 
     /// <summary>
-    /// Combine three edge maps using consensus voting.
-    /// Returns binary mask where pixels detected by consensusThreshold or more algorithms are white.
+    ///     Combine three edge maps using consensus voting.
+    ///     Returns binary mask where pixels detected by consensusThreshold or more algorithms are white.
     /// </summary>
     private (Image<L8> ConsensusMask, double ConsensusScore) CombineEdgeMaps(Mat canny, Mat sobel, Mat log)
     {
@@ -188,28 +180,26 @@ public class EdgeConsensusProcessor
 
         // Create vote matrix
         var votes = new byte[height, width];
-        int totalEdgePixels = 0;
-        int consensusPixels = 0;
+        var totalEdgePixels = 0;
+        var consensusPixels = 0;
 
-        for (int y = 0; y < height; y++)
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
         {
-            for (int x = 0; x < width; x++)
-            {
-                byte voteCount = 0;
+            byte voteCount = 0;
 
-                if (canny.At<byte>(y, x) > 0) voteCount++;
-                if (sobel.At<byte>(y, x) > 0) voteCount++;
-                if (log.At<byte>(y, x) > 0) voteCount++;
+            if (canny.At<byte>(y, x) > 0) voteCount++;
+            if (sobel.At<byte>(y, x) > 0) voteCount++;
+            if (log.At<byte>(y, x) > 0) voteCount++;
 
-                votes[y, x] = voteCount;
+            votes[y, x] = voteCount;
 
-                if (voteCount > 0) totalEdgePixels++;
-                if (voteCount >= _consensusThreshold) consensusPixels++;
-            }
+            if (voteCount > 0) totalEdgePixels++;
+            if (voteCount >= _consensusThreshold) consensusPixels++;
         }
 
         // Calculate consensus score (what fraction of edge pixels meet threshold)
-        double consensusScore = totalEdgePixels > 0
+        var consensusScore = totalEdgePixels > 0
             ? consensusPixels / (double)totalEdgePixels
             : 0.0;
 
@@ -217,12 +207,12 @@ public class EdgeConsensusProcessor
         var consensusMask = new Image<L8>(width, height);
         consensusMask.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < height; y++)
+            for (var y = 0; y < height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < width; x++)
+                for (var x = 0; x < width; x++)
                 {
-                    byte value = votes[y, x] >= _consensusThreshold ? (byte)255 : (byte)0;
+                    var value = votes[y, x] >= _consensusThreshold ? (byte)255 : (byte)0;
                     row[x] = new L8(value);
                 }
             }
@@ -232,7 +222,7 @@ public class EdgeConsensusProcessor
     }
 
     /// <summary>
-    /// Convert ImageSharp Image to OpenCV Mat (BGR format).
+    ///     Convert ImageSharp Image to OpenCV Mat (BGR format).
     /// </summary>
     private Mat ConvertToOpenCv(Image<Rgba32> image)
     {
@@ -240,10 +230,10 @@ public class EdgeConsensusProcessor
 
         image.ProcessPixelRows(accessor =>
         {
-            for (int y = 0; y < image.Height; y++)
+            for (var y = 0; y < image.Height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < image.Width; x++)
+                for (var x = 0; x < image.Width; x++)
                 {
                     var pixel = row[x];
                     // OpenCV uses BGR order
@@ -257,22 +247,22 @@ public class EdgeConsensusProcessor
 }
 
 /// <summary>
-/// Result of edge consensus operation.
+///     Result of edge consensus operation.
 /// </summary>
 public record EdgeConsensusResult
 {
     /// <summary>
-    /// Binary edge masks for each frame (white = edges detected by consensus).
+    ///     Binary edge masks for each frame (white = edges detected by consensus).
     /// </summary>
     public required List<Image<L8>> EdgeMasks { get; init; }
 
     /// <summary>
-    /// Consensus scores for each frame (0-1, higher = more agreement between algorithms).
+    ///     Consensus scores for each frame (0-1, higher = more agreement between algorithms).
     /// </summary>
     public required List<double> ConsensusScores { get; init; }
 
     /// <summary>
-    /// Average consensus score across all frames.
+    ///     Average consensus score across all frames.
     /// </summary>
     public required double AverageConsensusScore { get; init; }
 }

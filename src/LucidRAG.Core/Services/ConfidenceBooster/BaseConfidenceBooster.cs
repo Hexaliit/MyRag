@@ -1,18 +1,16 @@
-using Microsoft.Extensions.Logging;
-
 namespace LucidRAG.Core.Services.ConfidenceBooster;
 
 /// <summary>
-/// Base implementation of confidence boosting with common LLM orchestration logic.
-/// Domain-specific implementations override artifact extraction and prompt generation.
+///     Base implementation of confidence boosting with common LLM orchestration logic.
+///     Domain-specific implementations override artifact extraction and prompt generation.
 /// </summary>
 public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArtifact>
     where TArtifact : IArtifact
 {
-    protected readonly ILogger Logger;
-    protected readonly ILlmService LlmService;
-    protected readonly IEvidenceRepository EvidenceRepository;
     protected readonly ConfidenceBoosterConfig Config;
+    protected readonly IEvidenceRepository EvidenceRepository;
+    protected readonly ILlmService LlmService;
+    protected readonly ILogger Logger;
 
     protected BaseConfidenceBooster(
         ILogger logger,
@@ -27,8 +25,8 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
     }
 
     /// <summary>
-    /// Scan for low-confidence signals and extract artifacts.
-    /// Implemented by domain-specific boosters.
+    ///     Scan for low-confidence signals and extract artifacts.
+    ///     Implemented by domain-specific boosters.
     /// </summary>
     public abstract Task<List<TArtifact>> ExtractArtifactsAsync(
         Guid documentId,
@@ -37,8 +35,8 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
         CancellationToken ct = default);
 
     /// <summary>
-    /// Boost a batch of artifacts using LLM inference.
-    /// Common implementation - uses domain-specific prompt generation.
+    ///     Boost a batch of artifacts using LLM inference.
+    ///     Common implementation - uses domain-specific prompt generation.
     /// </summary>
     public async Task<List<BoostResult>> BoostBatchAsync(
         IEnumerable<TArtifact> artifacts,
@@ -56,17 +54,13 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
         Logger.LogInformation("Boosting {Count} artifacts with LLM", artifactList.Count);
 
         foreach (var artifact in artifactList)
-        {
             try
             {
                 var result = await BoostSingleAsync(artifact, ct);
                 results.Add(result);
 
                 // Rate limiting / cost control
-                if (Config.DelayBetweenRequestsMs > 0)
-                {
-                    await Task.Delay(Config.DelayBetweenRequestsMs, ct);
-                }
+                if (Config.DelayBetweenRequestsMs > 0) await Task.Delay(Config.DelayBetweenRequestsMs, ct);
             }
             catch (Exception ex)
             {
@@ -78,7 +72,6 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
                     ErrorMessage = ex.Message
                 });
             }
-        }
 
         Logger.LogInformation(
             "Boost batch complete: {SuccessCount}/{TotalCount} successful, {TokensUsed} tokens",
@@ -90,7 +83,43 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
     }
 
     /// <summary>
-    /// Boost a single artifact with LLM.
+    ///     Update signal ledger with boosted values.
+    /// </summary>
+    public async Task UpdateSignalLedgerAsync(
+        Guid documentId,
+        IEnumerable<BoostResult> results,
+        CancellationToken ct = default)
+    {
+        var successfulBoosts = results.Where(r => r.Success).ToList();
+
+        if (!successfulBoosts.Any())
+        {
+            Logger.LogDebug("No successful boosts to persist for document {DocumentId}", documentId);
+            return;
+        }
+
+        Logger.LogInformation(
+            "Updating signal ledger for document {DocumentId} with {Count} boosted signals",
+            documentId,
+            successfulBoosts.Count);
+
+        foreach (var result in successfulBoosts)
+            try
+            {
+                await PersistBoostResult(documentId, result, ct);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex,
+                    "Failed to persist boost result for artifact {ArtifactId}",
+                    result.Artifact.ArtifactId);
+            }
+
+        Logger.LogInformation("Signal ledger updated successfully");
+    }
+
+    /// <summary>
+    ///     Boost a single artifact with LLM.
     /// </summary>
     protected async Task<BoostResult> BoostSingleAsync(
         TArtifact artifact,
@@ -117,7 +146,7 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
                 UserPrompt = prompt,
                 Temperature = Config.Temperature,
                 MaxTokens = Config.MaxTokensPerRequest,
-                ResponseFormat = "json"  // Request structured JSON response
+                ResponseFormat = "json" // Request structured JSON response
             }, ct);
 
             var inferenceTime = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
@@ -153,61 +182,23 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
     }
 
     /// <summary>
-    /// Update signal ledger with boosted values.
-    /// </summary>
-    public async Task UpdateSignalLedgerAsync(
-        Guid documentId,
-        IEnumerable<BoostResult> results,
-        CancellationToken ct = default)
-    {
-        var successfulBoosts = results.Where(r => r.Success).ToList();
-
-        if (!successfulBoosts.Any())
-        {
-            Logger.LogDebug("No successful boosts to persist for document {DocumentId}", documentId);
-            return;
-        }
-
-        Logger.LogInformation(
-            "Updating signal ledger for document {DocumentId} with {Count} boosted signals",
-            documentId,
-            successfulBoosts.Count);
-
-        foreach (var result in successfulBoosts)
-        {
-            try
-            {
-                await PersistBoostResult(documentId, result, ct);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex,
-                    "Failed to persist boost result for artifact {ArtifactId}",
-                    result.Artifact.ArtifactId);
-            }
-        }
-
-        Logger.LogInformation("Signal ledger updated successfully");
-    }
-
-    /// <summary>
-    /// Generate system prompt for LLM (domain-specific).
+    ///     Generate system prompt for LLM (domain-specific).
     /// </summary>
     protected abstract string GetSystemPrompt();
 
     /// <summary>
-    /// Generate domain-specific prompt for artifact.
+    ///     Generate domain-specific prompt for artifact.
     /// </summary>
     protected abstract string GeneratePrompt(TArtifact artifact);
 
     /// <summary>
-    /// Parse LLM response into structured boost data.
+    ///     Parse LLM response into structured boost data.
     /// </summary>
     protected abstract (string? Value, double? Confidence, string? Reasoning, Dictionary<string, object>? Metadata)
         ParseLlmResponse(string llmResponse, TArtifact artifact);
 
     /// <summary>
-    /// Persist boost result to signal ledger.
+    ///     Persist boost result to signal ledger.
     /// </summary>
     protected abstract Task PersistBoostResult(
         Guid documentId,
@@ -216,43 +207,43 @@ public abstract class BaseConfidenceBooster<TArtifact> : IConfidenceBooster<TArt
 }
 
 /// <summary>
-/// Configuration for ConfidenceBooster service.
+///     Configuration for ConfidenceBooster service.
 /// </summary>
 public class ConfidenceBoosterConfig
 {
     /// <summary>
-    /// Confidence threshold for extracting artifacts (default: 0.75).
+    ///     Confidence threshold for extracting artifacts (default: 0.75).
     /// </summary>
     public double ConfidenceThreshold { get; set; } = 0.75;
 
     /// <summary>
-    /// Maximum artifacts to boost per document (cost control, default: 5).
+    ///     Maximum artifacts to boost per document (cost control, default: 5).
     /// </summary>
     public int MaxArtifactsPerDocument { get; set; } = 5;
 
     /// <summary>
-    /// LLM temperature for boosting (default: 0.1 for consistency).
+    ///     LLM temperature for boosting (default: 0.1 for consistency).
     /// </summary>
     public double Temperature { get; set; } = 0.1;
 
     /// <summary>
-    /// Maximum tokens per LLM request (default: 500).
+    ///     Maximum tokens per LLM request (default: 500).
     /// </summary>
     public int MaxTokensPerRequest { get; set; } = 500;
 
     /// <summary>
-    /// Delay between LLM requests in milliseconds (rate limiting, default: 0).
+    ///     Delay between LLM requests in milliseconds (rate limiting, default: 0).
     /// </summary>
     public int DelayBetweenRequestsMs { get; set; } = 0;
 
     /// <summary>
-    /// Enable confidence boosting (default: false - opt-in).
+    ///     Enable confidence boosting (default: false - opt-in).
     /// </summary>
     public bool Enabled { get; set; } = false;
 }
 
 /// <summary>
-/// LLM service interface for confidence boosting.
+///     LLM service interface for confidence boosting.
 /// </summary>
 public interface ILlmService
 {
@@ -260,7 +251,7 @@ public interface ILlmService
 }
 
 /// <summary>
-/// LLM request model.
+///     LLM request model.
 /// </summary>
 public class LlmRequest
 {
@@ -272,7 +263,7 @@ public class LlmRequest
 }
 
 /// <summary>
-/// LLM response model.
+///     LLM response model.
 /// </summary>
 public class LlmResponse
 {
@@ -282,7 +273,7 @@ public class LlmResponse
 }
 
 /// <summary>
-/// Evidence repository interface for storing artifacts and results.
+///     Evidence repository interface for storing artifacts and results.
 /// </summary>
 public interface IEvidenceRepository
 {
@@ -291,7 +282,7 @@ public interface IEvidenceRepository
 }
 
 /// <summary>
-/// Evidence artifact model (reuse existing if available).
+///     Evidence artifact model (reuse existing if available).
 /// </summary>
 public class EvidenceArtifact
 {

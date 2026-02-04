@@ -5,35 +5,34 @@ using Mostlylucid.DocSummarizer.Services.Utilities;
 namespace LucidRAG.Services;
 
 /// <summary>
-/// ML-powered query expansion service.
-/// Uses embedding similarity to find synonyms and related terms.
-///
-/// "golden" → ["golden", "yellow", "gold", "amber", "warm"]
-/// "fast" → ["fast", "quick", "rapid", "speedy", "swift"]
-///
-/// This enables semantic signal matching without embedding every signal.
-/// BM25 on expanded terms gives semantic-ish matching at BM25 speed.
+///     ML-powered query expansion service.
+///     Uses embedding similarity to find synonyms and related terms.
+///     "golden" → ["golden", "yellow", "gold", "amber", "warm"]
+///     "fast" → ["fast", "quick", "rapid", "speedy", "swift"]
+///     This enables semantic signal matching without embedding every signal.
+///     BM25 on expanded terms gives semantic-ish matching at BM25 speed.
 /// </summary>
 public interface IQueryExpansionService
 {
     /// <summary>
-    /// Expand a query term to include synonyms and related terms.
+    ///     Expand a query term to include synonyms and related terms.
     /// </summary>
-    Task<IReadOnlyList<string>> ExpandTermAsync(string term, int maxExpansions = 5, double minSimilarity = 0.6, CancellationToken ct = default);
+    Task<IReadOnlyList<string>> ExpandTermAsync(string term, int maxExpansions = 5, double minSimilarity = 0.6,
+        CancellationToken ct = default);
 
     /// <summary>
-    /// Expand all terms in a query.
+    ///     Expand all terms in a query.
     /// </summary>
     Task<ExpandedQuery> ExpandQueryAsync(string query, int maxExpansionsPerTerm = 3, CancellationToken ct = default);
 
     /// <summary>
-    /// Pre-warm the expansion cache with common signal terms.
+    ///     Pre-warm the expansion cache with common signal terms.
     /// </summary>
     Task WarmCacheAsync(IEnumerable<string> terms, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Expanded query with original and expanded terms.
+///     Expanded query with original and expanded terms.
 /// </summary>
 public record ExpandedQuery(
     string OriginalQuery,
@@ -42,24 +41,18 @@ public record ExpandedQuery(
     string ExpandedQueryText);
 
 /// <summary>
-/// Embedding-based query expansion using semantic similarity.
+///     Embedding-based query expansion using semantic similarity.
 /// </summary>
 public class EmbeddingQueryExpansionService : IQueryExpansionService
 {
-    private readonly IEmbeddingService _embedder;
-    private readonly ILogger<EmbeddingQueryExpansionService> _logger;
-
-    // Pre-computed signal vocabulary with embeddings
-    private readonly ConcurrentDictionary<string, float[]> _vocabularyEmbeddings = new();
-    private readonly ConcurrentDictionary<string, IReadOnlyList<string>> _expansionCache = new();
-
     // Real signal terms from actual analysis services in the codebase
     // Source: ColorAnalyzer.cs, EntityTypeProfiles.cs, prompt-templates.json, SIGNALS.md
     // NOTE: Multi-word terms use hyphens for embedding, but we also add single-word versions
     private static readonly Dictionary<string, string[]> SignalVocabulary = new()
     {
         // Colors from ColorAnalyzer.NamedColors (deduplicated, single-word preferred)
-        ["colors"] = [
+        ["colors"] =
+        [
             // Grayscale
             "black", "white", "gray", "grey", "silver", "charcoal", "slate",
             // Reds
@@ -85,7 +78,8 @@ public class EmbeddingQueryExpansionService : IQueryExpansionService
         ],
 
         // Document/entity types from EntityTypeProfiles.cs
-        ["entities"] = [
+        ["entities"] =
+        [
             // Profile types
             "technical", "legal", "business", "academic", "scientific",
             // Entity categories
@@ -96,54 +90,69 @@ public class EmbeddingQueryExpansionService : IQueryExpansionService
         ],
 
         // Image types from prompt-templates.json
-        ["image_types"] = [
+        ["image_types"] =
+        [
             "photo", "photograph", "screenshot", "diagram", "chart", "artwork",
             "meme", "scanned", "icon", "logo", "illustration", "graphic"
         ],
 
         // Motion/animation signals from SIGNALS.md
-        ["motion"] = [
+        ["motion"] =
+        [
             "animated", "static", "moving", "still", "motion", "movement",
             "oscillating", "stationary", "rotating", "spinning", "panning"
         ],
 
         // Scene/setting types
-        ["scenes"] = [
+        ["scenes"] =
+        [
             "landscape", "portrait", "indoor", "outdoor", "nature", "urban", "rural",
             "beach", "mountain", "forest", "desert", "ocean", "sky", "sunset", "sunrise",
             "night", "day", "cloudy", "sunny", "city", "architecture"
         ],
 
         // Subject matter (deduplicated from entities)
-        ["subjects"] = [
+        ["subjects"] =
+        [
             "people", "crowd", "face", "animal", "pet", "dog", "cat", "bird", "wildlife",
             "food", "vehicle", "car", "abstract", "pattern", "texture", "object", "building"
         ],
 
         // Document tones/styles
-        ["tones"] = [
+        ["tones"] =
+        [
             "formal", "informal", "casual", "professional", "conversational",
             "serious", "neutral", "objective", "instructional", "descriptive", "analytical"
         ],
 
         // Sizes/dimensions
-        ["sizes"] = [
+        ["sizes"] =
+        [
             "large", "small", "tiny", "huge", "massive", "medium", "big", "little",
             "short", "long", "tall", "wide", "narrow", "thick", "thin"
         ],
 
         // Temporal descriptors
-        ["temporal"] = [
+        ["temporal"] =
+        [
             "recent", "old", "new", "ancient", "modern", "contemporary", "vintage", "retro", "classic",
             "fresh", "current", "outdated", "latest"
         ],
 
         // Quality descriptors
-        ["quality"] = [
+        ["quality"] =
+        [
             "high", "low", "good", "bad", "excellent", "poor", "sharp", "blurry",
             "clear", "grainy", "noisy", "clean", "crisp"
         ]
     };
+
+    private readonly IEmbeddingService _embedder;
+    private readonly ConcurrentDictionary<string, IReadOnlyList<string>> _expansionCache = new();
+    private readonly ILogger<EmbeddingQueryExpansionService> _logger;
+
+    // Pre-computed signal vocabulary with embeddings
+    private readonly ConcurrentDictionary<string, float[]> _vocabularyEmbeddings = new();
 
     public EmbeddingQueryExpansionService(
         IEmbeddingService embedder,
@@ -151,38 +160,6 @@ public class EmbeddingQueryExpansionService : IQueryExpansionService
     {
         _embedder = embedder;
         _logger = logger;
-    }
-
-    /// <summary>
-    /// Initialize vocabulary embeddings on first use.
-    /// </summary>
-    public async Task InitializeAsync(CancellationToken ct = default)
-    {
-        if (_vocabularyEmbeddings.Count > 0) return;
-
-        _logger.LogInformation("Initializing query expansion vocabulary...");
-
-        var allTerms = SignalVocabulary.Values.SelectMany(v => v).Distinct().ToList();
-
-        foreach (var term in allTerms)
-        {
-            if (ct.IsCancellationRequested) break;
-
-            try
-            {
-                var embedding = await _embedder.EmbedAsync(term, ct);
-                if (embedding != null)
-                {
-                    _vocabularyEmbeddings[term.ToLowerInvariant()] = embedding;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to embed term: {Term}", term);
-            }
-        }
-
-        _logger.LogInformation("Initialized {Count} vocabulary embeddings", _vocabularyEmbeddings.Count);
     }
 
     public async Task<IReadOnlyList<string>> ExpandTermAsync(
@@ -212,10 +189,7 @@ public class EmbeddingQueryExpansionService : IQueryExpansionService
         foreach (var (vocabTerm, vocabEmbedding) in _vocabularyEmbeddings)
         {
             var similarity = CosineSimilarity(termEmbedding, vocabEmbedding);
-            if (similarity >= minSimilarity && vocabTerm != normalizedTerm)
-            {
-                similarities.Add((vocabTerm, similarity));
-            }
+            if (similarity >= minSimilarity && vocabTerm != normalizedTerm) similarities.Add((vocabTerm, similarity));
         }
 
         // Take top expansions
@@ -268,10 +242,10 @@ public class EmbeddingQueryExpansionService : IQueryExpansionService
         var expandedText = string.Join(" ", allTerms);
 
         return new ExpandedQuery(
-            OriginalQuery: query,
-            OriginalTerms: terms,
-            Expansions: expansions,
-            ExpandedQueryText: expandedText);
+            query,
+            terms,
+            expansions,
+            expandedText);
     }
 
     public async Task WarmCacheAsync(IEnumerable<string> terms, CancellationToken ct = default)
@@ -283,6 +257,35 @@ public class EmbeddingQueryExpansionService : IQueryExpansionService
             if (ct.IsCancellationRequested) break;
             await ExpandTermAsync(term, ct: ct);
         }
+    }
+
+    /// <summary>
+    ///     Initialize vocabulary embeddings on first use.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        if (_vocabularyEmbeddings.Count > 0) return;
+
+        _logger.LogInformation("Initializing query expansion vocabulary...");
+
+        var allTerms = SignalVocabulary.Values.SelectMany(v => v).Distinct().ToList();
+
+        foreach (var term in allTerms)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            try
+            {
+                var embedding = await _embedder.EmbedAsync(term, ct);
+                if (embedding != null) _vocabularyEmbeddings[term.ToLowerInvariant()] = embedding;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to embed term: {Term}", term);
+            }
+        }
+
+        _logger.LogInformation("Initialized {Count} vocabulary embeddings", _vocabularyEmbeddings.Count);
     }
 
     private static string[] TokenizeQuery(string query)
@@ -299,7 +302,7 @@ public class EmbeddingQueryExpansionService : IQueryExpansionService
         if (a.Length != b.Length) return 0;
 
         double dotProduct = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];

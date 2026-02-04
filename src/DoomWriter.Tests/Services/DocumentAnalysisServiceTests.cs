@@ -119,7 +119,8 @@ public class DocumentAnalysisServiceTests
     [Fact]
     public async Task AnalyzeAsync_SegmentSalienceReflectsVocabularyRichness()
     {
-        var markdown = "# Title\n\nThe the the the the the the.\n\nDiverse varied rich complex nuanced articulate expressive prose writing content.";
+        var markdown =
+            "# Title\n\nThe the the the the the the.\n\nDiverse varied rich complex nuanced articulate expressive prose writing content.";
         DocumentSignals? result = null;
         _sut.AnalysisCompleted += (_, signals) => result = signals;
 
@@ -231,7 +232,8 @@ public class DocumentAnalysisServiceTests
     [Fact]
     public async Task AnalyzeAsync_InfersTopicsFromHeadings()
     {
-        var markdown = "# Machine Learning\n\nNeural networks are powerful.\n\n## Natural Language Processing\n\nNLP is used for text analysis.";
+        var markdown =
+            "# Machine Learning\n\nNeural networks are powerful.\n\n## Natural Language Processing\n\nNLP is used for text analysis.";
         DocumentSignals? result = null;
         _sut.AnalysisCompleted += (_, signals) => result = signals;
 

@@ -1,9 +1,9 @@
 namespace LucidRAG.LLM.Services.LoadBalancing;
 
 /// <summary>
-/// Selects the endpoint with the lowest EMA response time.
-/// Falls back to round-robin when no latency data is available.
-/// Allocation-free: single-pass for loop with inline round-robin fallback.
+///     Selects the endpoint with the lowest EMA response time.
+///     Falls back to round-robin when no latency data is available.
+///     Allocation-free: single-pass for loop with inline round-robin fallback.
 /// </summary>
 public sealed class FastestSelector : IEndpointSelector
 {

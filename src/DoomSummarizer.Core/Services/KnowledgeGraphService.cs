@@ -1,26 +1,28 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Self-assembling knowledge graph backed by DuckDB with HNSW vector search.
-/// Accumulates entities, relationships, and provenance across runs.
-/// Uses freshness-weighted scoring so recent information surfaces first.
-///
-/// Entity Profile Feature:
-/// Each document gets a 384-dim entity profile embedding that encodes:
-/// - Which entities appear (via their text embeddings)
-/// - How distinctive each entity is (Entity IDF - rare entities matter more)
-/// - How frequently each entity appears (TF in document)
-/// - How confident the NER was (confidence weighting)
-/// This enables O(log N) entity-based similarity search via HNSW.
+///     Self-assembling knowledge graph backed by DuckDB with HNSW vector search.
+///     Accumulates entities, relationships, and provenance across runs.
+///     Uses freshness-weighted scoring so recent information surfaces first.
+///     Entity Profile Feature:
+///     Each document gets a 384-dim entity profile embedding that encodes:
+///     - Which entities appear (via their text embeddings)
+///     - How distinctive each entity is (Entity IDF - rare entities matter more)
+///     - How frequently each entity appears (TF in document)
+///     - How confident the NER was (confidence weighting)
+///     This enables O(log N) entity-based similarity search via HNSW.
 /// </summary>
 public class KnowledgeGraphService
 {
-    private readonly DuckDbVectorStore _vectorStore;
-    private readonly IEntityGraphStore _entityStore;
     private readonly EntityProfileService? _entityProfileService;
+    private readonly IEntityGraphStore _entityStore;
+    private readonly DuckDbVectorStore _vectorStore;
 
     public KnowledgeGraphService(DuckDbVectorStore vectorStore, IEntityGraphStore entityStore)
     {
@@ -28,7 +30,8 @@ public class KnowledgeGraphService
         _entityStore = entityStore;
     }
 
-    public KnowledgeGraphService(DuckDbVectorStore vectorStore, IEntityGraphStore entityStore, EntityProfileService entityProfileService)
+    public KnowledgeGraphService(DuckDbVectorStore vectorStore, IEntityGraphStore entityStore,
+        EntityProfileService entityProfileService)
     {
         _vectorStore = vectorStore;
         _entityStore = entityStore;
@@ -36,7 +39,7 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Index item embeddings into DuckDB for HNSW similarity search.
+    ///     Index item embeddings into DuckDB for HNSW similarity search.
     /// </summary>
     public async Task IndexItemEmbeddingsAsync(
         List<ContentItem> items,
@@ -53,9 +56,9 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Ingest NER entities from analyzed articles into the knowledge graph.
-    /// Builds entity nodes, article→entity mentions, co-occurrence edges, and entity profiles.
-    /// Also stores entity text embeddings for efficient profile computation.
+    ///     Ingest NER entities from analyzed articles into the knowledge graph.
+    ///     Builds entity nodes, article→entity mentions, co-occurrence edges, and entity profiles.
+    ///     Also stores entity text embeddings for efficient profile computation.
     /// </summary>
     public async Task IngestEntitiesAsync(
         List<(ContentItem item, List<NerEntity> entities)> articleEntities,
@@ -71,17 +74,17 @@ public class KnowledgeGraphService
         // Batch compute entity text embeddings (for storage and profile computation)
         var entityTextEmbeddings = new Dictionary<string, float[]>(StringComparer.OrdinalIgnoreCase);
         if (_entityProfileService != null && allEntityNames.Count > 0)
-        {
             foreach (var name in allEntityNames)
             {
                 // EntityProfileService has access to EmbeddingService
                 // For now, embeddings will be computed on-demand during profile computation
                 // and cached in the entities table for future use
             }
-        }
 
         // First pass: upsert all entities and mentions
-        var itemEntityData = new List<(string itemId, List<(string entityId, string name, string type, float confidence, int mentions)> entities)>();
+        var itemEntityData =
+            new List<(string itemId, List<(string entityId, string name, string type, float confidence, int mentions)>
+                entities)>();
         var newEntityIds = new HashSet<string>(); // Track new entities for embedding storage
 
         foreach (var (item, entities) in articleEntities)
@@ -90,10 +93,8 @@ public class KnowledgeGraphService
 
             // Ensure the item is in the vector store (for article provenance lookups)
             if (item.Embedding != null)
-            {
                 await _vectorStore.UpsertItemEmbeddingAsync(
                     item.Id, item.Title, item.Source, item.Url, item.Embedding);
-            }
 
             // Deduplicate entities within this article (case-insensitive)
             var deduped = entities
@@ -121,37 +122,29 @@ public class KnowledgeGraphService
 
             // Build co-occurrence relationships (entities in the same article)
             for (var i = 0; i < entityIds.Count; i++)
-            {
-                for (var j = i + 1; j < entityIds.Count; j++)
-                {
-                    await _entityStore.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
-                }
-            }
+            for (var j = i + 1; j < entityIds.Count; j++)
+                await _entityStore.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
 
-            if (entityData.Count > 0)
-            {
-                itemEntityData.Add((item.Id, entityData));
-            }
+            if (entityData.Count > 0) itemEntityData.Add((item.Id, entityData));
         }
 
         // Second pass: compute and store entity embeddings + profiles
         if (_entityProfileService != null && itemEntityData.Count > 0)
-        {
             await ComputeAndStoreEntityProfilesAsync(itemEntityData, ct);
-        }
     }
 
     /// <summary>
-    /// Compute and store entity profiles for items that have entity mentions.
-    /// Uses TF × IDF × confidence × type weighting with:
-    /// - Saturating TF: 1 + log(mentions) to prevent boilerplate dominance
-    /// - Smoothed IDF: log((N+1)/(df+1)) + 1 for stable extremes
-    /// - Confidence floor: clamp(0.2, 1.0) so low-confidence entities don't vanish
-    /// - Type weights: ORG/PER get slight boost over LOC/MISC
-    /// Also caches entity text embeddings for future profile computations.
+    ///     Compute and store entity profiles for items that have entity mentions.
+    ///     Uses TF × IDF × confidence × type weighting with:
+    ///     - Saturating TF: 1 + log(mentions) to prevent boilerplate dominance
+    ///     - Smoothed IDF: log((N+1)/(df+1)) + 1 for stable extremes
+    ///     - Confidence floor: clamp(0.2, 1.0) so low-confidence entities don't vanish
+    ///     - Type weights: ORG/PER get slight boost over LOC/MISC
+    ///     Also caches entity text embeddings for future profile computations.
     /// </summary>
     private async Task ComputeAndStoreEntityProfilesAsync(
-        List<(string itemId, List<(string entityId, string name, string type, float confidence, int mentions)> entities)> itemEntityData,
+        List<(string itemId, List<(string entityId, string name, string type, float confidence, int mentions)> entities
+            )> itemEntityData,
         CancellationToken ct)
     {
         // Get global entity document counts for IDF computation
@@ -178,27 +171,19 @@ public class KnowledgeGraphService
             var (profile, topEntities) = await _entityProfileService!.ComputeProfileWithExplainAsync(
                 entityList, entityDocCounts, totalDocs, entityEmbeddings, newlyComputedEmbeddings);
 
-            if (profile.Length > 0)
-            {
-                await _entityStore.UpsertItemEntityProfileAsync(itemId, profile);
-            }
+            if (profile.Length > 0) await _entityStore.UpsertItemEntityProfileAsync(itemId, profile);
 
             // Add newly computed embeddings to cache for subsequent items in this batch
-            foreach (var (entityId, embedding) in newlyComputedEmbeddings)
-            {
-                entityEmbeddings[entityId] = embedding;
-            }
+            foreach (var (entityId, embedding) in newlyComputedEmbeddings) entityEmbeddings[entityId] = embedding;
         }
 
         // Store all newly computed entity embeddings back to the database
         if (newlyComputedEmbeddings.Count > 0)
-        {
             await _entityStore.UpdateEntityEmbeddingsBatchAsync(newlyComputedEmbeddings);
-        }
     }
 
     /// <summary>
-    /// Ingest linked page entities with lower confidence (one hop away).
+    ///     Ingest linked page entities with lower confidence (one hop away).
     /// </summary>
     public async Task IngestLinkedPageEntitiesAsync(
         ContentItem parentItem,
@@ -224,7 +209,7 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Find items similar to a query using HNSW vector search.
+    ///     Find items similar to a query using HNSW vector search.
     /// </summary>
     public async Task<List<(string itemId, string title, string? url, float similarity)>> FindSimilarAsync(
         float[] queryEmbedding, int topK = 10, float minSimilarity = 0.5f)
@@ -233,8 +218,8 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Find related items using entity profile HNSW similarity.
-    /// Computes an aggregate entity profile from the given item IDs, then finds similar items.
+    ///     Find related items using entity profile HNSW similarity.
+    ///     Computes an aggregate entity profile from the given item IDs, then finds similar items.
     /// </summary>
     public async Task<List<(string itemId, string title, float similarity)>> FindRelatedByEntityProfileAsync(
         List<string> itemIds, int topK = 5, float minSimilarity = 0.3f)
@@ -266,7 +251,7 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Check if the vector store has any entity profiles computed.
+    ///     Check if the vector store has any entity profiles computed.
     /// </summary>
     public async Task<bool> HasEntityProfilesAsync()
     {
@@ -274,7 +259,7 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Get entity document counts for IDF computation.
+    ///     Get entity document counts for IDF computation.
     /// </summary>
     public async Task<Dictionary<string, int>> GetEntityDocCountsAsync()
     {
@@ -282,7 +267,7 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Get total number of documents with entity mentions.
+    ///     Get total number of documents with entity mentions.
     /// </summary>
     public async Task<int> GetTotalDocsWithEntitiesAsync()
     {
@@ -290,8 +275,8 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Backfill entity profiles for existing KB items that have entity mentions but no profile.
-    /// Returns the number of items processed.
+    ///     Backfill entity profiles for existing KB items that have entity mentions but no profile.
+    ///     Returns the number of items processed.
     /// </summary>
     public async Task<int> BackfillEntityProfilesAsync(int batchSize = 50, CancellationToken ct = default)
     {
@@ -352,7 +337,7 @@ public class KnowledgeGraphService
     }
 
     /// <summary>
-    /// Display a mini knowledge graph as plain text output.
+    ///     Display a mini knowledge graph as plain text output.
     /// </summary>
     public async Task DisplayGraphAsync(int topN = 15, int? daysBack = null)
     {
@@ -360,15 +345,16 @@ public class KnowledgeGraphService
 
         if (entityCount == 0)
         {
-            System.Diagnostics.Debug.WriteLine("Knowledge graph empty. Entities are extracted on each run.");
+            Debug.WriteLine("Knowledge graph empty. Entities are extracted on each run.");
             return;
         }
 
         var entities = await _entityStore.GetTopEntitiesAsync(topN, daysBack: daysBack);
 
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine();
-        sb.AppendLine($"Knowledge Graph ({entityCount} entities, {relCount} edges, {mentionCount} mentions, {itemCount} items)");
+        sb.AppendLine(
+            $"Knowledge Graph ({entityCount} entities, {relCount} edges, {mentionCount} mentions, {itemCount} items)");
         sb.AppendLine(new string('=', 80));
 
         // Group entities by type
@@ -426,7 +412,7 @@ public class KnowledgeGraphService
             }
         }
 
-        System.Diagnostics.Debug.WriteLine(sb.ToString());
+        Debug.WriteLine(sb.ToString());
     }
 
     internal static string GenerateEntityId(string name, string type)
@@ -434,8 +420,8 @@ public class KnowledgeGraphService
         var normalized = name.Trim().ToLowerInvariant();
         var input = $"{type}:{normalized}";
         var hash = Convert.ToHexString(
-            System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+            SHA256.HashData(
+                Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
         return $"{type.ToLowerInvariant()}_{hash}";
     }
 

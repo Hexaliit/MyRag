@@ -1,27 +1,19 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.Summarizer.Core.Capabilities;
-using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 2: Keyframe extraction using codec I-frames + ImageSummarizer.
-/// Leverages FFmpeg to identify natural keyframes from the compressed stream,
-/// then chains to ImageSummarizer for CLIP embeddings, OCR, and analysis.
-///
-/// Optimization: Uses perceptual hash deduplication to skip visually similar
-/// frames before expensive ImageSummarizer analysis (20-40% reduction).
+///     Stage 2: Keyframe extraction using codec I-frames + ImageSummarizer.
+///     Leverages FFmpeg to identify natural keyframes from the compressed stream,
+///     then chains to ImageSummarizer for CLIP embeddings, OCR, and analysis.
+///     Optimization: Uses perceptual hash deduplication to skip visually similar
+///     frames before expensive ImageSummarizer analysis (20-40% reduction).
 /// </summary>
 public class KeyframeExtractionWave : IVideoWave
 {
-    private readonly FFmpegAnalysisService _ffmpegService;
-    private readonly KeyframeDeduplicationService? _deduplicationService;
-    private readonly BatchClipEmbeddingService? _batchClipService;
-    private readonly WaveOrchestrator? _imageOrchestrator;
-    private readonly ILogger<KeyframeExtractionWave> _logger;
-
     // Configuration
     private const int MaxKeyframesToProcess = 50; // Limit for long videos
     private const double MinKeyframeInterval = 2.0; // Minimum seconds between keyframes
@@ -29,10 +21,11 @@ public class KeyframeExtractionWave : IVideoWave
     private const int DeduplicationHammingThreshold = 10; // Lower = stricter matching
     private const int ThumbnailWidth = 128; // Low-res for fast deduplication
     private const int ClipBatchSize = 8; // Images per CLIP batch
-
-    public string Name => "keyframe_extraction";
-    public int Priority => 800; // After shot detection
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+    private readonly BatchClipEmbeddingService? _batchClipService;
+    private readonly KeyframeDeduplicationService? _deduplicationService;
+    private readonly FFmpegAnalysisService _ffmpegService;
+    private readonly WaveOrchestrator? _imageOrchestrator;
+    private readonly ILogger<KeyframeExtractionWave> _logger;
 
     public KeyframeExtractionWave(
         FFmpegAnalysisService ffmpegService,
@@ -48,8 +41,14 @@ public class KeyframeExtractionWave : IVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        context.Metadata != null && context.Shots.Count > 0;
+    public string Name => "keyframe_extraction";
+    public int Priority => 800; // After shot detection
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null && context.Shots.Count > 0;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -86,8 +85,8 @@ public class KeyframeExtractionWave : IVideoWave
                 keyframeTimestamps.Select(k => k.Timestamp),
                 thumbDir,
                 ct,
-                prefix: "thumb_",
-                width: ThumbnailWidth);
+                "thumb_",
+                ThumbnailWidth);
 
             _logger.LogInformation("Extracted {Count} thumbnails for deduplication", thumbnails.Count);
 
@@ -219,8 +218,8 @@ public class KeyframeExtractionWave : IVideoWave
     }
 
     /// <summary>
-    /// Select which keyframes to extract based on shots and I-frame positions.
-    /// Prioritizes: shot keyframes, codec I-frames aligned with shots, regular intervals.
+    ///     Select which keyframes to extract based on shots and I-frame positions.
+    ///     Prioritizes: shot keyframes, codec I-frames aligned with shots, regular intervals.
     /// </summary>
     private List<KeyframeSelection> SelectKeyframeTimestamps(VideoContext context, List<IFrameInfo> iframes)
     {
@@ -274,9 +273,9 @@ public class KeyframeExtractionWave : IVideoWave
     }
 
     /// <summary>
-    /// Run analysis on extracted keyframes.
-    /// OPTIMIZATION: First batch CLIP for all embeddings (single GPU pass),
-    /// then ImageSummarizer for OCR/vision (with CLIP disabled).
+    ///     Run analysis on extracted keyframes.
+    ///     OPTIMIZATION: First batch CLIP for all embeddings (single GPU pass),
+    ///     then ImageSummarizer for OCR/vision (with CLIP disabled).
     /// </summary>
     private async Task AnalyzeKeyframesAsync(
         VideoContext context,
@@ -297,19 +296,16 @@ public class KeyframeExtractionWave : IVideoWave
 
             // Create ephemeral capability atoms for this batch operation
             var backpressure = CapabilityAtoms.CreateBackpressureController(
-                minConcurrency: 1,
-                maxConcurrency: MaxParallelAnalysis,
-                targetLatency: TimeSpan.FromMilliseconds(500));
+                1,
+                MaxParallelAnalysis,
+                TimeSpan.FromMilliseconds(500));
             var estimator = CapabilityAtoms.CreateTimeEstimator();
 
             var embeddings = await _batchClipService.GenerateBatchEmbeddingsAsync(
                 frameIndexPaths, backpressure, estimator, ClipBatchSize, ct);
 
             // Store embeddings in context
-            foreach (var (frameIndex, embedding) in embeddings)
-            {
-                context.KeyframeEmbeddings[frameIndex] = embedding;
-            }
+            foreach (var (frameIndex, embedding) in embeddings) context.KeyframeEmbeddings[frameIndex] = embedding;
 
             var avgBatchTime = estimator.GetAverageDuration("clip_batch");
             _logger.LogInformation(
@@ -329,8 +325,8 @@ public class KeyframeExtractionWave : IVideoWave
     }
 
     /// <summary>
-    /// Run ImageSummarizer on keyframes for OCR, vision LLM, etc.
-    /// CLIP embedding is already done via batch, so this focuses on other waves.
+    ///     Run ImageSummarizer on keyframes for OCR, vision LLM, etc.
+    ///     CLIP embedding is already done via batch, so this focuses on other waves.
     /// </summary>
     private async Task AnalyzeKeyframesWithImageSummarizerAsync(
         VideoContext context,
@@ -364,23 +360,16 @@ public class KeyframeExtractionWave : IVideoWave
                     if (!context.KeyframeEmbeddings.ContainsKey(frameIndex))
                     {
                         var embedding = profile.GetValue<float[]>("vision.clip.embedding");
-                        if (embedding != null)
-                        {
-                            context.KeyframeEmbeddings[frameIndex] = embedding;
-                        }
+                        if (embedding != null) context.KeyframeEmbeddings[frameIndex] = embedding;
                     }
 
                     // Extract perceptual hash if available
                     var phash = profile.GetValue<string>("identity.phash");
-                    if (!string.IsNullOrEmpty(phash))
-                    {
-                        context.PerceptualHashes[frameIndex] = phash;
-                    }
+                    if (!string.IsNullOrEmpty(phash)) context.PerceptualHashes[frameIndex] = phash;
 
                     // Add OCR text to context (for TextTrack building)
                     var ocrText = profile.GetValue<string>("ocr.text");
                     if (!string.IsNullOrEmpty(ocrText))
-                    {
                         context.SetCached($"ocr.{frameIndex}", new KeyframeOcrResult
                         {
                             FrameIndex = frameIndex,
@@ -389,14 +378,10 @@ public class KeyframeExtractionWave : IVideoWave
                             Confidence = profile.GetValue<double?>("ocr.confidence") ?? 0.5,
                             BoundingBoxes = profile.GetValue<List<object>>("ocr.boxes")
                         });
-                    }
 
                     // Add caption to context (for evidence)
                     var caption = profile.GetValue<string>("vision.caption");
-                    if (!string.IsNullOrEmpty(caption))
-                    {
-                        context.SetCached($"caption.{frameIndex}", caption);
-                    }
+                    if (!string.IsNullOrEmpty(caption)) context.SetCached($"caption.{frameIndex}", caption);
 
                     // Store full profile for later use
                     context.SetCached($"image_profile.{frameIndex}", profile);
@@ -410,7 +395,7 @@ public class KeyframeExtractionWave : IVideoWave
                 }
 
                 Interlocked.Increment(ref processed);
-                var progress = 50 + (40.0 * processed / total);
+                var progress = 50 + 40.0 * processed / total;
                 context.ReportProgress($"Analyzing keyframe {processed}/{total}", progress);
             }
             finally
@@ -423,7 +408,7 @@ public class KeyframeExtractionWave : IVideoWave
     }
 
     /// <summary>
-    /// Update shot segments with keyframe paths and embeddings.
+    ///     Update shot segments with keyframe paths and embeddings.
     /// </summary>
     private void UpdateShotKeyframes(VideoContext context)
     {
@@ -434,17 +419,13 @@ public class KeyframeExtractionWave : IVideoWave
 
             // Check if we have a keyframe path
             if (context.Keyframes.TryGetValue(keyframeIndex, out var keyframePath))
-            {
                 // Note: ShotSegment is a record, so we'd need to create a new one
                 // For now, store mapping in context cache
                 context.SetCached($"shot_keyframe.{shot.Id}", keyframePath);
-            }
 
             // Get embedding for this keyframe
             if (context.KeyframeEmbeddings.TryGetValue(keyframeIndex, out var embedding))
-            {
                 context.SetCached($"shot_embedding.{shot.Id}", embedding);
-            }
         }
     }
 
@@ -457,7 +438,7 @@ public class KeyframeExtractionWave : IVideoWave
 }
 
 /// <summary>
-/// OCR result for a keyframe.
+///     OCR result for a keyframe.
 /// </summary>
 public record KeyframeOcrResult
 {

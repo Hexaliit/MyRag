@@ -4,13 +4,13 @@ using System.Text;
 namespace Mostlylucid.Summarizer.Core.Utilities;
 
 /// <summary>
-/// Unified content hashing utility using XxHash64 for fast, consistent hashing.
+///     Unified content hashing utility using XxHash64 for fast, consistent hashing.
 /// </summary>
 public static class ContentHasher
 {
     /// <summary>
-    /// Compute a fast content hash suitable for deduplication and cache keys.
-    /// Returns a 16-character lowercase hex string.
+    ///     Compute a fast content hash suitable for deduplication and cache keys.
+    ///     Returns a 16-character lowercase hex string.
     /// </summary>
     /// <param name="content">The content to hash.</param>
     /// <returns>16-character lowercase hex hash, or empty string for null/empty content.</returns>
@@ -28,7 +28,7 @@ public static class ContentHasher
     }
 
     /// <summary>
-    /// Compute a hash from a stream (for file content).
+    ///     Compute a hash from a stream (for file content).
     /// </summary>
     public static string ComputeHash(Stream stream)
     {
@@ -41,10 +41,7 @@ public static class ContentHasher
             var hasher = new XxHash64();
             var buffer = new byte[8192];
             int bytesRead;
-            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                hasher.Append(buffer.AsSpan(0, bytesRead));
-            }
+            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0) hasher.Append(buffer.AsSpan(0, bytesRead));
             var hash = hasher.GetHashAndReset();
 #if NET9_0_OR_GREATER
             return Convert.ToHexStringLower(hash);
@@ -60,7 +57,7 @@ public static class ContentHasher
     }
 
     /// <summary>
-    /// Compute hash from raw bytes.
+    ///     Compute hash from raw bytes.
     /// </summary>
     public static string ComputeHash(byte[] bytes)
     {
@@ -76,7 +73,7 @@ public static class ContentHasher
     }
 
     /// <summary>
-    /// Compute hash as UInt64 (useful for numeric IDs).
+    ///     Compute hash as UInt64 (useful for numeric IDs).
     /// </summary>
     public static ulong ComputeHashUInt64(string content)
     {
@@ -87,7 +84,7 @@ public static class ContentHasher
     }
 
     /// <summary>
-    /// Compute hash as UInt64 from bytes.
+    ///     Compute hash as UInt64 from bytes.
     /// </summary>
     public static ulong ComputeHashUInt64(byte[] bytes)
     {
@@ -98,8 +95,8 @@ public static class ContentHasher
     }
 
     /// <summary>
-    /// Generate a stable Guid from content string.
-    /// Useful for creating deterministic IDs from content.
+    ///     Generate a stable Guid from content string.
+    ///     Useful for creating deterministic IDs from content.
     /// </summary>
     public static Guid ComputeGuid(string content)
     {
@@ -108,7 +105,7 @@ public static class ContentHasher
 
         var bytes = Encoding.UTF8.GetBytes(content);
         // Compute two hashes with different seeds to get 16 bytes
-        var hash1 = XxHash64.HashToUInt64(bytes, 0);
+        var hash1 = XxHash64.HashToUInt64(bytes);
         var hash2 = XxHash64.HashToUInt64(bytes, 1);
 
         var guidBytes = new byte[16];

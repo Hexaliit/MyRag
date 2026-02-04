@@ -5,23 +5,14 @@ using VideoSummarizer.Core.Services;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Wave that downloads subtitles from OpenSubtitles and processes them.
-/// Creates utterances that can supplement or replace audio transcription.
+///     Wave that downloads subtitles from OpenSubtitles and processes them.
+///     Creates utterances that can supplement or replace audio transcription.
 /// </summary>
 public class SubtitleDownloadWave : IVideoWave
 {
+    private readonly ILogger<SubtitleDownloadWave> _logger;
     private readonly MediaMetadataService _metadataService;
     private readonly SubtitleProcessingService _subtitleProcessor;
-    private readonly ILogger<SubtitleDownloadWave> _logger;
-
-    public string Name => "SubtitleDownload";
-    public int Priority => 600; // Before transcription (500)
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Speech, "subtitles"];
-
-    /// <summary>
-    /// Languages to download subtitles for (ISO 639-1 codes).
-    /// </summary>
-    public List<string> Languages { get; set; } = ["en"];
 
     public SubtitleDownloadWave(
         MediaMetadataService metadataService,
@@ -32,6 +23,15 @@ public class SubtitleDownloadWave : IVideoWave
         _subtitleProcessor = subtitleProcessor;
         _logger = logger;
     }
+
+    /// <summary>
+    ///     Languages to download subtitles for (ISO 639-1 codes).
+    /// </summary>
+    public List<string> Languages { get; set; } = ["en"];
+
+    public string Name => "SubtitleDownload";
+    public int Priority => 600; // Before transcription (500)
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Speech, "subtitles"];
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -76,7 +76,6 @@ public class SubtitleDownloadWave : IVideoWave
         var videoId = context.Metadata?.Id ?? Guid.NewGuid();
 
         foreach (var subtitle in subtitles)
-        {
             try
             {
                 // Parse SRT file
@@ -103,7 +102,6 @@ public class SubtitleDownloadWave : IVideoWave
             {
                 _logger.LogError(ex, "Failed to process subtitle: {Path}", subtitle.FilePath);
             }
-        }
 
         // Store subtitle-derived utterances
         if (allUtterances.Count > 0)
@@ -111,10 +109,7 @@ public class SubtitleDownloadWave : IVideoWave
             context.SetCached("subtitle_utterances", allUtterances);
 
             // Also add to main utterances list (can be merged with transcription later)
-            foreach (var utterance in allUtterances)
-            {
-                context.Utterances.Add(utterance);
-            }
+            foreach (var utterance in allUtterances) context.Utterances.Add(utterance);
 
             _logger.LogInformation("Added {Count} utterances from subtitles", allUtterances.Count);
         }

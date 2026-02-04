@@ -8,14 +8,18 @@ Write-Host "`n=== ImageSummarizer MCP Tools Test ===`n" -ForegroundColor Cyan
 # Test 1: Check templates file
 Write-Host "[1] Checking output-templates.json..." -ForegroundColor Yellow
 $templatesFile = "src/Mostlylucid.ImageSummarizer.Cli/Config/output-templates.json"
-if (Test-Path $templatesFile) {
+if (Test-Path $templatesFile)
+{
     $templates = Get-Content $templatesFile | ConvertFrom-Json
-    Write-Host "SUCCESS: Found $($templates.templates.Count) templates" -ForegroundColor Green
+    Write-Host "SUCCESS: Found $( $templates.templates.Count ) templates" -ForegroundColor Green
     Write-Host "Templates:" -ForegroundColor Gray
-    foreach ($t in $templates.templates) {
-        Write-Host "  - $($t.name)" -ForegroundColor White
+    foreach ($t in $templates.templates)
+    {
+        Write-Host "  - $( $t.name )" -ForegroundColor White
     }
-} else {
+}
+else
+{
     Write-Host "FAIL: Templates file not found" -ForegroundColor Red
     exit 1
 }
@@ -23,9 +27,12 @@ if (Test-Path $templatesFile) {
 # Test 2: Build
 Write-Host "`n[2] Building project..." -ForegroundColor Yellow
 dotnet build src/Mostlylucid.ImageSummarizer.Cli/Mostlylucid.ImageSummarizer.Cli.csproj -v quiet
-if ($LASTEXITCODE -eq 0) {
+if ($LASTEXITCODE -eq 0)
+{
     Write-Host "SUCCESS: Build completed" -ForegroundColor Green
-} else {
+}
+else
+{
     Write-Host "FAIL: Build failed" -ForegroundColor Red
     exit 1
 }
@@ -33,9 +40,12 @@ if ($LASTEXITCODE -eq 0) {
 # Test 3: Check Config copied to output
 Write-Host "`n[3] Checking if Config folder copied to output..." -ForegroundColor Yellow
 $outputTemplates = "src/Mostlylucid.ImageSummarizer.Cli/bin/Debug/net10.0/Config/output-templates.json"
-if (Test-Path $outputTemplates) {
+if (Test-Path $outputTemplates)
+{
     Write-Host "SUCCESS: Templates copied to output directory" -ForegroundColor Green
-} else {
+}
+else
+{
     Write-Host "FAIL: Templates not in output directory" -ForegroundColor Red
     exit 1
 }
@@ -52,10 +62,13 @@ $output = Receive-Job $job
 Stop-Job $job
 Remove-Job $job
 
-if ($output -match "transport reading messages" -and $output -match "imagesummarizer") {
+if ($output -match "transport reading messages" -and $output -match "imagesummarizer")
+{
     Write-Host "SUCCESS: MCP server started successfully" -ForegroundColor Green
     Write-Host "  Server name: imagesummarizer" -ForegroundColor Gray
-} else {
+}
+else
+{
     Write-Host "FAIL: MCP server startup issue" -ForegroundColor Red
 }
 
@@ -66,29 +79,39 @@ Write-Host "  Using: $testGif" -ForegroundColor Gray
 
 $jsonResult = dotnet run --project src/Mostlylucid.ImageSummarizer.Cli/Mostlylucid.ImageSummarizer.Cli.csproj -- $testGif --pipeline simpleocr --output json 2>&1 | Out-String
 
-if ($jsonResult -match '"ledger"' -or $jsonResult -match '"identity"') {
+if ($jsonResult -match '"ledger"' -or $jsonResult -match '"identity"')
+{
     Write-Host "SUCCESS: Image analysis working" -ForegroundColor Green
 
     # Try to parse JSON
-    try {
+    try
+    {
         $data = $jsonResult | ConvertFrom-Json
         Write-Host "`n  Data available for MCP tools:" -ForegroundColor White
-        if ($data.ledger.identity) {
+        if ($data.ledger.identity)
+        {
             Write-Host "    - Identity data: YES" -ForegroundColor Green
         }
-        if ($data.ledger.motion) {
+        if ($data.ledger.motion)
+        {
             Write-Host "    - Motion data: YES (for summarize_animated_gif)" -ForegroundColor Green
         }
-        if ($data.ledger.text) {
+        if ($data.ledger.text)
+        {
             Write-Host "    - Text data: YES (for generate_caption)" -ForegroundColor Green
         }
-        if ($data.ledger.colors) {
+        if ($data.ledger.colors)
+        {
             Write-Host "    - Color data: YES (for templates)" -ForegroundColor Green
         }
-    } catch {
+    }
+    catch
+    {
         Write-Host "  (JSON parsing skipped - data present but format varies)" -ForegroundColor Gray
     }
-} else {
+}
+else
+{
     Write-Host "WARNING: No ledger data in output" -ForegroundColor Yellow
 }
 

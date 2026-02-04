@@ -2,7 +2,8 @@
 
 ## Wave-Signal Model
 
-The library uses a pipeline of **waves** that emit **signals**. Each wave is a specialized analyzer that runs based on priority and dependencies.
+The library uses a pipeline of **waves** that emit **signals**. Each wave is a specialized analyzer that runs based on
+priority and dependencies.
 
 ```
 Image → IdentityWave → ColorWave → QualityWave → OcrWave → MotionWave → VisionLlmWave → Signals
@@ -27,20 +28,20 @@ public record Signal
 
 ### Wave Priorities
 
-| Wave | Priority | Purpose |
-|------|----------|---------|
-| IdentityWave | 10 | Format, dimensions, animated detection |
-| ColorWave | 20 | Dominant colors, color grid, saturation |
-| QualityWave | 30 | Sharpness, blur detection, noise |
-| TextLikelinessWave | 40 | Heuristic text detection (no OCR) |
-| OcrWave | 50 | Tesseract OCR (if text-likely) |
-| MlOcrWave | 51 | Florence-2 ML OCR |
-| StructureWave | 52 | Document structure detection |
-| Florence2Wave | 55 | Local ONNX captions |
-| MotionWave | 60 | GIF motion analysis |
-| EmbeddingWave | 70 | CLIP embeddings |
-| VisionLlmWave | 80 | Vision LLM escalation |
-| ValidationWave | 90 | Cross-validation, confidence adjustment |
+| Wave               | Priority | Purpose                                 |
+|--------------------|----------|-----------------------------------------|
+| IdentityWave       | 10       | Format, dimensions, animated detection  |
+| ColorWave          | 20       | Dominant colors, color grid, saturation |
+| QualityWave        | 30       | Sharpness, blur detection, noise        |
+| TextLikelinessWave | 40       | Heuristic text detection (no OCR)       |
+| OcrWave            | 50       | Tesseract OCR (if text-likely)          |
+| MlOcrWave          | 51       | Florence-2 ML OCR                       |
+| StructureWave      | 52       | Document structure detection            |
+| Florence2Wave      | 55       | Local ONNX captions                     |
+| MotionWave         | 60       | GIF motion analysis                     |
+| EmbeddingWave      | 70       | CLIP embeddings                         |
+| VisionLlmWave      | 80       | Vision LLM escalation                   |
+| ValidationWave     | 90       | Cross-validation, confidence adjustment |
 
 ## Escalation Rules
 

@@ -8,28 +8,28 @@ async function delay(ms) {
     const browser = await puppeteer.launch({
         headless: false,
         args: ['--window-size=1400,900'],
-        defaultViewport: { width: 1400, height: 900 }
+        defaultViewport: {width: 1400, height: 900}
     });
 
     const page = await browser.newPage();
 
     // Login
     console.log('Logging in...');
-    await page.goto('http://localhost:5019/auth/login', { waitUntil: 'networkidle2' });
+    await page.goto('http://localhost:5019/auth/login', {waitUntil: 'networkidle2'});
     await page.type('input[name="Email"]', 'admin@lucidrag.local');
     await page.type('input[name="Password"]', 'Admin123!');
     await page.click('button[type="submit"]');
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+    await page.waitForNavigation({waitUntil: 'networkidle2'});
     console.log('Logged in');
 
     // Take screenshot of home/chat page
-    await page.screenshot({ path: 'test-ui-home.png', fullPage: true });
+    await page.screenshot({path: 'test-ui-home.png', fullPage: true});
     console.log('Screenshot: test-ui-home.png');
 
     // Go to explorer
-    await page.goto('http://localhost:5019/explorer', { waitUntil: 'networkidle2' });
+    await page.goto('http://localhost:5019/explorer', {waitUntil: 'networkidle2'});
     await delay(2000);
-    await page.screenshot({ path: 'test-ui-explorer.png', fullPage: true });
+    await page.screenshot({path: 'test-ui-explorer.png', fullPage: true});
     console.log('Screenshot: test-ui-explorer.png');
 
     // Count documents
@@ -40,14 +40,14 @@ async function delay(ms) {
     console.log(`Documents in explorer: ${docCount}`);
 
     // Try to type in chat
-    await page.goto('http://localhost:5019', { waitUntil: 'networkidle2' });
+    await page.goto('http://localhost:5019', {waitUntil: 'networkidle2'});
     await delay(1000);
 
     // Find chat input
     const chatInput = await page.$('textarea, input[type="text"]');
     if (chatInput) {
         await chatInput.type('What are these blog posts about?');
-        await page.screenshot({ path: 'test-ui-chat-input.png', fullPage: true });
+        await page.screenshot({path: 'test-ui-chat-input.png', fullPage: true});
         console.log('Screenshot: test-ui-chat-input.png');
     }
 

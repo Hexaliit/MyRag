@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.Decomposer.Orchestration;
 
 /// <summary>
-/// Executes the decomposition plan: prerequisites first, then parallel execution
-/// with cache checks, KB probing, and optional recursion.
-/// Does NOT execute queries itself  -  delegates to ISubQueryExecutor.
+///     Executes the decomposition plan: prerequisites first, then parallel execution
+///     with cache checks, KB probing, and optional recursion.
+///     Does NOT execute queries itself  -  delegates to ISubQueryExecutor.
 /// </summary>
 public class DecompositionOrchestrator
 {
@@ -27,7 +27,7 @@ public class DecompositionOrchestrator
     }
 
     /// <summary>
-    /// Execute a decomposition plan.
+    ///     Execute a decomposition plan.
     /// </summary>
     public async Task<AggregatedResult> ExecuteAsync(
         DecompositionResult plan,
@@ -94,7 +94,7 @@ public class DecompositionOrchestrator
                 // Tool chains are often sequential (find files → index → query)
                 // Check if this tool node depends on a previous result
                 if (node.ParentId != null && results.TryGetValue(node.ParentId, out var parentResult)
-                    && !parentResult.Success)
+                                          && !parentResult.Success)
                 {
                     results[node.Id] = new SubQueryResult
                     {
@@ -162,14 +162,12 @@ public class DecompositionOrchestrator
         CancellationToken ct)
     {
         if (node.ToolAction == null)
-        {
             return new SubQueryResult
             {
                 NodeId = node.Id,
                 Success = false,
                 Error = "Tool action node missing ToolAction"
             };
-        }
 
         // Check tool support
         var supported = await executor.SupportsToolAsync(node.ToolAction.Tool, ct);
@@ -259,9 +257,7 @@ public class DecompositionOrchestrator
 
             // 4. CACHE RESULT
             if (_cache != null && result.Success && node.Embedding != null)
-            {
                 await _cache.PutAsync(node.Embedding, node.TimeScope, result, ct);
-            }
 
             return result;
         }
@@ -280,7 +276,7 @@ public class DecompositionOrchestrator
 }
 
 /// <summary>
-/// Aggregated results from all sub-query executions.
+///     Aggregated results from all sub-query executions.
 /// </summary>
 public record AggregatedResult
 {

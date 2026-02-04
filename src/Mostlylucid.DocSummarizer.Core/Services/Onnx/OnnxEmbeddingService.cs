@@ -228,10 +228,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         // size, causing all items to read from the same hidden states — producing identical
         // embeddings for all inputs. Fall back to sequential processing in this case.
         var outputDims = outputTensor.Dimensions.ToArray();
-        if (outputDims.Length >= 1 && outputDims[0] != batchSize)
-        {
-            return EmbedSequential(texts);
-        }
+        if (outputDims.Length >= 1 && outputDims[0] != batchSize) return EmbedSequential(texts);
 
         // Mean pool each sample in the batch
         var embeddings = new float[batchSize][];
@@ -277,7 +274,10 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     ///     Synchronous single-text embedding. Requires prior InitializeAsync call.
     ///     Use when you need a Func&lt;string, float[]&gt; embedder after initialization.
     /// </summary>
-    public float[] Embed(string text) => EmbedSingleSync(text);
+    public float[] Embed(string text)
+    {
+        return EmbedSingleSync(text);
+    }
 
     /// <summary>
     ///     Internal single embedding (synchronous, no init check)

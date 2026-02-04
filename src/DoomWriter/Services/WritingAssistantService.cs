@@ -1,29 +1,25 @@
 using System.Text;
-using DoomSummarizer.Models;
-using DoomSummarizer.Services;
+using System.Text.Json;
 using DoomWriter.Models;
 using Mostlylucid.DocSummarizer.Services;
+using OllamaService = DoomSummarizer.Services.OllamaService;
 
 namespace DoomWriter.Services;
 
 /// <summary>
-/// AI writing assistant using Ollama for intelligent text generation.
-/// Uses DoomSummarizer.Core's long-form generation techniques:
-/// running summary, entity continuity, negative prompts, drift detection.
+///     AI writing assistant using Ollama for intelligent text generation.
+///     Uses DoomSummarizer.Core's long-form generation techniques:
+///     running summary, entity continuity, negative prompts, drift detection.
 /// </summary>
 public class WritingAssistantService
 {
-    private readonly DoomSummarizer.Services.OllamaService _ollama;
-    private readonly IEmbeddingService _embedding;
     private readonly CorpusService _corpus;
+    private readonly IEmbeddingService _embedding;
+    private readonly OllamaService _ollama;
     private readonly WriterSettingsService _settings;
 
-    public event EventHandler<string>? GenerationStarted;
-    public event EventHandler<string>? GenerationCompleted;
-    public event EventHandler<string>? GenerationFailed;
-
     public WritingAssistantService(
-        DoomSummarizer.Services.OllamaService ollama,
+        OllamaService ollama,
         IEmbeddingService embedding,
         CorpusService corpus,
         WriterSettingsService settings)
@@ -34,9 +30,13 @@ public class WritingAssistantService
         _settings = settings;
     }
 
+    public event EventHandler<string>? GenerationStarted;
+    public event EventHandler<string>? GenerationCompleted;
+    public event EventHandler<string>? GenerationFailed;
+
     /// <summary>
-    /// Generate the next paragraph based on document context.
-    /// Uses running summary + negative prompts + entity continuity + corpus evidence.
+    ///     Generate the next paragraph based on document context.
+    ///     Uses running summary + negative prompts + entity continuity + corpus evidence.
     /// </summary>
     public async Task<string> GenerateNextParagraphAsync(
         DocumentSignals signals,
@@ -54,9 +54,9 @@ public class WritingAssistantService
 
             var result = await _ollama.GenerateAsync(
                 prompt,
-                systemPrompt: "You are a skilled writer continuing a markdown document. Write exactly one paragraph that flows naturally from the preceding text. Match the document's tone and style. Do not repeat information already covered. Output ONLY the paragraph text, no meta-commentary.",
-                temperature: 0.7,
-                ct: ct);
+                "You are a skilled writer continuing a markdown document. Write exactly one paragraph that flows naturally from the preceding text. Match the document's tone and style. Do not repeat information already covered. Output ONLY the paragraph text, no meta-commentary.",
+                0.7,
+                ct);
 
             var cleaned = CleanGeneratedText(result);
             GenerationCompleted?.Invoke(this, cleaned);
@@ -70,7 +70,7 @@ public class WritingAssistantService
     }
 
     /// <summary>
-    /// Expand selected text with more detail.
+    ///     Expand selected text with more detail.
     /// </summary>
     public async Task<string> ExpandTextAsync(
         string selectedText,
@@ -84,21 +84,21 @@ public class WritingAssistantService
         {
             var context = BuildContext(signals, fullContent, 0);
             var prompt = $"""
-                DOCUMENT CONTEXT:
-                {context.RunningSummary}
+                          DOCUMENT CONTEXT:
+                          {context.RunningSummary}
 
-                SELECTED TEXT TO EXPAND:
-                {selectedText}
+                          SELECTED TEXT TO EXPAND:
+                          {selectedText}
 
-                Write an expanded version of the selected text. Add detail, examples, or explanation.
-                Keep the same tone. Output ONLY the expanded text.
-                """;
+                          Write an expanded version of the selected text. Add detail, examples, or explanation.
+                          Keep the same tone. Output ONLY the expanded text.
+                          """;
 
             var result = await _ollama.GenerateAsync(
                 prompt,
-                systemPrompt: "You are expanding a section of a markdown document. Add depth and detail while maintaining the original meaning and style.",
-                temperature: 0.6,
-                ct: ct);
+                "You are expanding a section of a markdown document. Add depth and detail while maintaining the original meaning and style.",
+                0.6,
+                ct);
 
             var cleaned = CleanGeneratedText(result);
             GenerationCompleted?.Invoke(this, cleaned);
@@ -112,7 +112,7 @@ public class WritingAssistantService
     }
 
     /// <summary>
-    /// Rewrite selected text with alternative phrasing.
+    ///     Rewrite selected text with alternative phrasing.
     /// </summary>
     public async Task<string> RewriteTextAsync(
         string selectedText,
@@ -125,18 +125,18 @@ public class WritingAssistantService
         try
         {
             var prompt = $"""
-                ORIGINAL TEXT:
-                {selectedText}
+                          ORIGINAL TEXT:
+                          {selectedText}
 
-                Rewrite this text with alternative phrasing. Keep the same meaning but improve clarity and flow.
-                Output ONLY the rewritten text.
-                """;
+                          Rewrite this text with alternative phrasing. Keep the same meaning but improve clarity and flow.
+                          Output ONLY the rewritten text.
+                          """;
 
             var result = await _ollama.GenerateAsync(
                 prompt,
-                systemPrompt: "You are rewriting a passage from a markdown document. Maintain meaning while improving style and clarity.",
-                temperature: 0.7,
-                ct: ct);
+                "You are rewriting a passage from a markdown document. Maintain meaning while improving style and clarity.",
+                0.7,
+                ct);
 
             var cleaned = CleanGeneratedText(result);
             GenerationCompleted?.Invoke(this, cleaned);
@@ -150,7 +150,7 @@ public class WritingAssistantService
     }
 
     /// <summary>
-    /// Simplify selected text — reduce complexity while preserving meaning.
+    ///     Simplify selected text — reduce complexity while preserving meaning.
     /// </summary>
     public async Task<string> SimplifyTextAsync(
         string selectedText,
@@ -161,18 +161,18 @@ public class WritingAssistantService
         try
         {
             var prompt = $"""
-                ORIGINAL TEXT:
-                {selectedText}
+                          ORIGINAL TEXT:
+                          {selectedText}
 
-                Simplify this text. Use shorter sentences and plainer language.
-                Keep the core meaning. Output ONLY the simplified text.
-                """;
+                          Simplify this text. Use shorter sentences and plainer language.
+                          Keep the core meaning. Output ONLY the simplified text.
+                          """;
 
             var result = await _ollama.GenerateAsync(
                 prompt,
-                systemPrompt: "You are simplifying a passage. Make it easier to read without losing meaning.",
-                temperature: 0.4,
-                ct: ct);
+                "You are simplifying a passage. Make it easier to read without losing meaning.",
+                0.4,
+                ct);
 
             var cleaned = CleanGeneratedText(result);
             GenerationCompleted?.Invoke(this, cleaned);
@@ -186,8 +186,8 @@ public class WritingAssistantService
     }
 
     /// <summary>
-    /// Grammar check using sentinel (small/fast) model.
-    /// Returns corrected text or empty string if no issues found.
+    ///     Grammar check using sentinel (small/fast) model.
+    ///     Returns corrected text or empty string if no issues found.
     /// </summary>
     public async Task<GrammarCheckResult> CheckGrammarAsync(
         string text,
@@ -196,21 +196,21 @@ public class WritingAssistantService
         try
         {
             var prompt = $$"""
-                Check the following text for grammar, spelling, and style issues.
-                If there are issues, respond with a JSON object:
-                {"has_issues": true, "corrected": "the corrected text", "issues": ["issue 1", "issue 2"]}
-                If there are no issues, respond with:
-                {"has_issues": false}
+                           Check the following text for grammar, spelling, and style issues.
+                           If there are issues, respond with a JSON object:
+                           {"has_issues": true, "corrected": "the corrected text", "issues": ["issue 1", "issue 2"]}
+                           If there are no issues, respond with:
+                           {"has_issues": false}
 
-                TEXT:
-                {{text}}
-                """;
+                           TEXT:
+                           {{text}}
+                           """;
 
             var result = await _ollama.SentinelGenerateAsync(
                 prompt,
-                systemPrompt: "You are a precise grammar checker. Respond only with the requested JSON format.",
-                temperature: 0.1,
-                ct: ct);
+                "You are a precise grammar checker. Respond only with the requested JSON format.",
+                0.1,
+                ct);
 
             return ParseGrammarResult(result, text);
         }
@@ -229,14 +229,13 @@ public class WritingAssistantService
 
         // Find current section heading
         HeadingItem? currentHeading = null;
-        for (int i = signals.Headings.Count - 1; i >= 0; i--)
-        {
+        for (var i = signals.Headings.Count - 1; i >= 0; i--)
             if (signals.Headings[i].CharOffset <= cursorPosition)
             {
                 currentHeading = signals.Headings[i];
                 break;
             }
-        }
+
         context.CurrentSection = currentHeading?.Text ?? "";
 
         // Previous 2 paragraphs (immediate context)
@@ -258,6 +257,7 @@ public class WritingAssistantService
             if (heading.CharOffset >= cursorPosition) break;
             summaryBuilder.AppendLine($"- [{heading.Text}]");
         }
+
         context.RunningSummary = summaryBuilder.ToString();
 
         // Negative prompts (what's already covered — entity names that have been mentioned enough)
@@ -290,15 +290,12 @@ public class WritingAssistantService
 
             if (string.IsNullOrEmpty(query)) return "";
 
-            var matches = await _corpus.SearchAsync(query, topK: 5);
+            var matches = await _corpus.SearchAsync(query, 5);
             if (matches.Count == 0) return "";
 
             var sb = new StringBuilder();
             sb.AppendLine("RELEVANT EVIDENCE FROM YOUR CORPUS:");
-            foreach (var match in matches.Take(3))
-            {
-                sb.AppendLine($"[From \"{match.Title}\"]: {match.Text}");
-            }
+            foreach (var match in matches.Take(3)) sb.AppendLine($"[From \"{match.Title}\"]: {match.Text}");
             return sb.ToString();
         }
         catch
@@ -366,13 +363,11 @@ public class WritingAssistantService
         // Remove "Here's the next paragraph:" preamble
         var prefixes = new[] { "Here's ", "Here is ", "Next paragraph:", "The next paragraph:" };
         foreach (var prefix in prefixes)
-        {
             if (cleaned.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 cleaned = cleaned[prefix.Length..].TrimStart('\n', '\r', ' ');
                 break;
             }
-        }
 
         return cleaned;
     }
@@ -381,7 +376,7 @@ public class WritingAssistantService
     {
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
             var hasIssues = root.GetProperty("has_issues").GetBoolean();
@@ -394,10 +389,8 @@ public class WritingAssistantService
 
             var issues = new List<string>();
             if (root.TryGetProperty("issues", out var issuesProp))
-            {
                 foreach (var issue in issuesProp.EnumerateArray())
                     issues.Add(issue.GetString() ?? "");
-            }
 
             return new GrammarCheckResult
             {

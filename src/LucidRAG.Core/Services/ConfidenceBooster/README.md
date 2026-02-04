@@ -8,7 +8,8 @@
 
 ## Overview
 
-ConfidenceBooster is a general-purpose background learning system that identifies low-confidence signals in processed documents and uses targeted LLM queries to improve them.
+ConfidenceBooster is a general-purpose background learning system that identifies low-confidence signals in processed
+documents and uses targeted LLM queries to improve them.
 
 **The Two-Path Architecture:**
 
@@ -33,29 +34,29 @@ SLOW PATH (Background Coordinator):
 ### Core Components
 
 1. **`IArtifact`** - Base interface for bounded artifacts
-   - `ImageCropArtifact` - Cropped images for object recognition/OCR
-   - `AudioSegmentArtifact` - Audio clips for transcription refinement
-   - `TextWindowArtifact` - Text excerpts for OCR/entity extraction
-   - `DataSampleArtifact` - Sample records for schema inference
+    - `ImageCropArtifact` - Cropped images for object recognition/OCR
+    - `AudioSegmentArtifact` - Audio clips for transcription refinement
+    - `TextWindowArtifact` - Text excerpts for OCR/entity extraction
+    - `DataSampleArtifact` - Sample records for schema inference
 
 2. **`IConfidenceBooster<TArtifact>`** - Generic booster interface
-   - `ExtractArtifactsAsync` - Find low-confidence signals, extract artifacts
-   - `BoostBatchAsync` - Query LLM to refine artifacts
-   - `UpdateSignalLedgerAsync` - Persist boosted signals
+    - `ExtractArtifactsAsync` - Find low-confidence signals, extract artifacts
+    - `BoostBatchAsync` - Query LLM to refine artifacts
+    - `UpdateSignalLedgerAsync` - Persist boosted signals
 
 3. **`BaseConfidenceBooster<TArtifact>`** - Common LLM orchestration
-   - Handles LLM invocation, JSON parsing, error handling
-   - Domain-specific implementations override prompts and extraction
+    - Handles LLM invocation, JSON parsing, error handling
+    - Domain-specific implementations override prompts and extraction
 
 4. **`ConfidenceBoosterCoordinator`** - Background orchestration
-   - Scans for documents needing boost
-   - Routes to appropriate domain-specific booster
-   - Manages cost control (max artifacts, rate limiting)
+    - Scans for documents needing boost
+    - Routes to appropriate domain-specific booster
+    - Manages cost control (max artifacts, rate limiting)
 
 5. **`ConfidenceBoosterBackgroundService`** - Hosted service
-   - Runs boost cycles every 5 minutes
-   - Processes queued documents
-   - Logs metrics (tokens, success rate)
+    - Runs boost cycles every 5 minutes
+    - Processes queued documents
+    - Logs metrics (tokens, success rate)
 
 ---
 
@@ -66,6 +67,7 @@ SLOW PATH (Background Coordinator):
 **Use case:** Refine object detection, OCR, or classification with low confidence
 
 **Example:**
+
 ```csharp
 // Original signal from ImageSummarizer
 {
@@ -85,6 +87,7 @@ SLOW PATH (Background Coordinator):
 ```
 
 **Prompt:**
+
 ```
 Task: Object Recognition
 
@@ -105,6 +108,7 @@ Please analyze this image crop and provide:
 **Use case:** Refine unclear Whisper transcriptions
 
 **Example:**
+
 ```csharp
 // Original segment from Whisper
 {
@@ -124,6 +128,7 @@ Please analyze this image crop and provide:
 ```
 
 **Prompt:**
+
 ```
 Task: Transcription Refinement
 
@@ -143,6 +148,7 @@ After: "...which can factor large numbers efficiently."
 **Use case:** Refine OCR errors, extract entities from garbled text
 
 **Example:**
+
 ```csharp
 // Original OCR from PDF
 {
@@ -167,6 +173,7 @@ After: "...which can factor large numbers efficiently."
 **Use case:** Refine type inference, detect semantic meaning
 
 **Example:**
+
 ```csharp
 // Original type inference
 {
@@ -228,6 +235,7 @@ builder.Services.AddConfidenceBooster(config =>
 5. **Cycle Frequency** (every 5 minutes): Control background overhead
 
 **Example cost calculation:**
+
 - 100 documents processed
 - 5 artifacts per document = 500 LLM calls
 - 500 tokens per call = 250,000 tokens total
@@ -317,6 +325,7 @@ services.AddScoped<VideoConfidenceBooster>();
 ## Monitoring and Metrics
 
 Background service logs:
+
 - Documents scanned
 - Artifacts extracted
 - LLM success rate
@@ -324,6 +333,7 @@ Background service logs:
 - Processing time
 
 **Example log output:**
+
 ```
 [12:05:23] Boost cycle complete: processed 8 documents
 [12:05:23] Summary:
@@ -373,23 +383,23 @@ LucidRAG.Core/Services/ConfidenceBooster/
 ## Next Steps
 
 1. **Implement remaining boosters:**
-   - DocumentConfidenceBooster (OCR refinement, entity extraction)
-   - DataConfidenceBooster (type inference, format detection)
+    - DocumentConfidenceBooster (OCR refinement, entity extraction)
+    - DataConfidenceBooster (type inference, format detection)
 
 2. **Add actual implementations:**
-   - Image crop extraction (using SkiaSharp/ImageSharp)
-   - Audio segment extraction (using AudioSegmentExtractor)
-   - Signal repository persistence (EF Core)
+    - Image crop extraction (using SkiaSharp/ImageSharp)
+    - Audio segment extraction (using AudioSegmentExtractor)
+    - Signal repository persistence (EF Core)
 
 3. **LLM service integration:**
-   - Implement ILlmService using Ollama or Claude API
-   - Add vision support for ImageConfidenceBooster
-   - Add audio support for AudioConfidenceBooster (if LLM supports)
+    - Implement ILlmService using Ollama or Claude API
+    - Add vision support for ImageConfidenceBooster
+    - Add audio support for AudioConfidenceBooster (if LLM supports)
 
 4. **Testing:**
-   - Unit tests for artifact extraction
-   - Integration tests for LLM prompts
-   - End-to-end tests for coordinator
+    - Unit tests for artifact extraction
+    - Integration tests for LLM prompts
+    - End-to-end tests for coordinator
 
 ---
 

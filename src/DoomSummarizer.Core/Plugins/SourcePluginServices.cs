@@ -4,8 +4,8 @@ using Mostlylucid.DocSummarizer.Resilience;
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// Service bag injected into plugins during initialization.
-/// Provides shared infrastructure without coupling to the host application.
+///     Service bag injected into plugins during initialization.
+///     Provides shared infrastructure without coupling to the host application.
 /// </summary>
 public record SourcePluginServices
 {

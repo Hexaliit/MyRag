@@ -1,15 +1,14 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Mostlylucid.DocSummarizer.Services;
-using Pgvector;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using Mostlylucid.DocSummarizer.Services;
+using Npgsql;
+using Pgvector;
 
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Manages semantic embeddings for extracted features in pgvector.
-/// Enables similarity queries like "yellow" → "gold", "amber", "lemon".
+///     Manages semantic embeddings for extracted features in pgvector.
+///     Enables similarity queries like "yellow" → "gold", "amber", "lemon".
 /// </summary>
 public class FeatureEmbeddingService(
     RagDocumentsDbContext db,
@@ -17,7 +16,7 @@ public class FeatureEmbeddingService(
     ILogger<FeatureEmbeddingService> logger) : IFeatureEmbeddingService
 {
     /// <summary>
-    /// Store or update a feature's embedding.
+    ///     Store or update a feature's embedding.
     /// </summary>
     public async Task<Guid> UpsertFeatureAsync(
         string featureText,
@@ -30,9 +29,9 @@ public class FeatureEmbeddingService(
         // Check for existing feature
         var existing = await db.Set<FeatureEmbedding>()
             .FirstOrDefaultAsync(f =>
-                f.NormalizedText == normalized &&
-                f.FeatureType == featureType &&
-                f.CollectionId == collectionId,
+                    f.NormalizedText == normalized &&
+                    f.FeatureType == featureType &&
+                    f.CollectionId == collectionId,
                 ct);
 
         if (existing != null)
@@ -68,7 +67,7 @@ public class FeatureEmbeddingService(
     }
 
     /// <summary>
-    /// Batch upsert multiple features efficiently.
+    ///     Batch upsert multiple features efficiently.
     /// </summary>
     public async Task<int> UpsertFeaturesAsync(
         IEnumerable<(string Text, string Type)> features,
@@ -80,7 +79,7 @@ public class FeatureEmbeddingService(
 
         // Get unique features to process
         var uniqueFeatures = featureList
-            .Select(f => (Text: f.Text, Type: f.Type, Normalized: NormalizeText(f.Text)))
+            .Select(f => (f.Text, f.Type, Normalized: NormalizeText(f.Text)))
             .DistinctBy(f => (f.Normalized, f.Type))
             .ToList();
 
@@ -88,14 +87,13 @@ public class FeatureEmbeddingService(
         var normalizedTexts = uniqueFeatures.Select(f => f.Normalized).ToList();
         var existing = await db.Set<FeatureEmbedding>()
             .Where(f => normalizedTexts.Contains(f.NormalizedText) &&
-                       f.CollectionId == collectionId)
+                        f.CollectionId == collectionId)
             .ToDictionaryAsync(f => (f.NormalizedText, f.FeatureType), ct);
 
         var toInsert = new List<FeatureEmbedding>();
         var textsToEmbed = new List<(string Text, string Type, string Normalized)>();
 
         foreach (var feature in uniqueFeatures)
-        {
             if (existing.TryGetValue((feature.Normalized, feature.Type), out var existingFeature))
             {
                 existingFeature.OccurrenceCount++;
@@ -105,7 +103,6 @@ public class FeatureEmbeddingService(
             {
                 textsToEmbed.Add(feature);
             }
-        }
 
         // Batch embed new features
         if (textsToEmbed.Count > 0)
@@ -113,7 +110,7 @@ public class FeatureEmbeddingService(
             var texts = textsToEmbed.Select(f => f.Text).ToList();
             var embeddings = await embeddingService.EmbedBatchAsync(texts, ct);
 
-            for (int i = 0; i < textsToEmbed.Count; i++)
+            for (var i = 0; i < textsToEmbed.Count; i++)
             {
                 var feature = textsToEmbed[i];
                 toInsert.Add(new FeatureEmbedding
@@ -142,7 +139,7 @@ public class FeatureEmbeddingService(
     }
 
     /// <summary>
-    /// Find similar features using pgvector cosine similarity.
+    ///     Find similar features using pgvector cosine similarity.
     /// </summary>
     public async Task<List<SimilarFeature>> FindSimilarAsync(
         string queryText,
@@ -184,14 +181,11 @@ public class FeatureEmbeddingService(
 
         // Execute using raw connection
         var connectionString = db.Database.GetConnectionString();
-        await using var connection = new Npgsql.NpgsqlConnection(connectionString);
+        await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(ct);
 
-        await using var command = new Npgsql.NpgsqlCommand(sql, connection);
-        for (int i = 0; i < parameters.Count; i++)
-        {
-            command.Parameters.AddWithValue(parameters[i]);
-        }
+        await using var command = new NpgsqlCommand(sql, connection);
+        for (var i = 0; i < parameters.Count; i++) command.Parameters.AddWithValue(parameters[i]);
 
         var results = new List<SimilarFeature>();
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -202,7 +196,6 @@ public class FeatureEmbeddingService(
             var similarity = 1.0 - distance;
 
             if (similarity >= minSimilarity)
-            {
                 results.Add(new SimilarFeature(
                     reader.GetGuid(0),
                     reader.GetString(1),
@@ -210,14 +203,13 @@ public class FeatureEmbeddingService(
                     similarity,
                     reader.GetInt32(3),
                     reader.GetInt32(4)));
-            }
         }
 
         return results.Take(topK).ToList();
     }
 
     /// <summary>
-    /// Find similar features to an existing feature by ID.
+    ///     Find similar features to an existing feature by ID.
     /// </summary>
     public async Task<List<SimilarFeature>> FindSimilarToFeatureAsync(
         Guid featureId,
@@ -237,13 +229,13 @@ public class FeatureEmbeddingService(
             topK + 1, // +1 to exclude self
             sameTypeOnly ? feature.FeatureType : null,
             feature.CollectionId,
-            minSimilarity: 0.0, // Return all, let caller filter
+            0.0, // Return all, let caller filter
             ct);
     }
 
     /// <summary>
-    /// Expand a query using similar features.
-    /// Useful for query expansion: "car" → ["car", "automobile", "vehicle"]
+    ///     Expand a query using similar features.
+    ///     Useful for query expansion: "car" → ["car", "automobile", "vehicle"]
     /// </summary>
     public async Task<List<string>> ExpandQueryAsync(
         string queryText,
@@ -253,7 +245,7 @@ public class FeatureEmbeddingService(
     {
         var similar = await FindSimilarAsync(
             queryText,
-            topK: maxExpansions + 1,
+            maxExpansions + 1,
             minSimilarity: minSimilarity,
             ct: ct);
 
@@ -267,7 +259,7 @@ public class FeatureEmbeddingService(
     }
 
     /// <summary>
-    /// Get feature statistics for a collection.
+    ///     Get feature statistics for a collection.
     /// </summary>
     public async Task<FeatureStats> GetStatsAsync(
         Guid? collectionId = null,
@@ -301,16 +293,28 @@ public class FeatureEmbeddingService(
     }
 
     private static string NormalizeText(string text)
-        => text.ToLowerInvariant().Trim();
+    {
+        return text.ToLowerInvariant().Trim();
+    }
 }
 
 public interface IFeatureEmbeddingService
 {
-    Task<Guid> UpsertFeatureAsync(string featureText, string featureType, Guid? collectionId = null, CancellationToken ct = default);
-    Task<int> UpsertFeaturesAsync(IEnumerable<(string Text, string Type)> features, Guid? collectionId = null, CancellationToken ct = default);
-    Task<List<SimilarFeature>> FindSimilarAsync(string queryText, int topK = 10, string? featureType = null, Guid? collectionId = null, double minSimilarity = 0.5, CancellationToken ct = default);
-    Task<List<SimilarFeature>> FindSimilarToFeatureAsync(Guid featureId, int topK = 10, bool sameTypeOnly = false, CancellationToken ct = default);
-    Task<List<string>> ExpandQueryAsync(string queryText, int maxExpansions = 5, double minSimilarity = 0.7, CancellationToken ct = default);
+    Task<Guid> UpsertFeatureAsync(string featureText, string featureType, Guid? collectionId = null,
+        CancellationToken ct = default);
+
+    Task<int> UpsertFeaturesAsync(IEnumerable<(string Text, string Type)> features, Guid? collectionId = null,
+        CancellationToken ct = default);
+
+    Task<List<SimilarFeature>> FindSimilarAsync(string queryText, int topK = 10, string? featureType = null,
+        Guid? collectionId = null, double minSimilarity = 0.5, CancellationToken ct = default);
+
+    Task<List<SimilarFeature>> FindSimilarToFeatureAsync(Guid featureId, int topK = 10, bool sameTypeOnly = false,
+        CancellationToken ct = default);
+
+    Task<List<string>> ExpandQueryAsync(string queryText, int maxExpansions = 5, double minSimilarity = 0.7,
+        CancellationToken ct = default);
+
     Task<FeatureStats> GetStatsAsync(Guid? collectionId = null, CancellationToken ct = default);
 }
 

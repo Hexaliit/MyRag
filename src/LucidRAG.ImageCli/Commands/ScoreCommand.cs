@@ -114,7 +114,7 @@ public static class ScoreCommand
         }
 
         // Build service provider for escalation service
-        var services = Program.BuildServiceProvider(config, false);
+        var services = Program.BuildServiceProvider(config);
         var escalationService = services.GetRequiredService<EscalationService>();
 
         // Analyze image
@@ -123,8 +123,7 @@ public static class ScoreCommand
             {
                 // Run basic analysis
                 var result = await escalationService.AnalyzeWithEscalationAsync(
-                    imagePath,
-                    false);
+                    imagePath);
 
                 if (result.Profile == null)
                 {

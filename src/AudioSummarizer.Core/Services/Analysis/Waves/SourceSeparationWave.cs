@@ -5,27 +5,23 @@ using AudioSummarizer.Core.Services.SourceSeparation;
 namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
-/// Source Separation Wave - Separates audio into stems (vocals, drums, bass, other).
-/// Priority: 55 (runs after content classification, before transcription)
-/// Only runs for music or mixed content.
-///
-/// Signals:
-/// - source_separation.success: Whether separation succeeded
-/// - source_separation.vocals_path: Path to extracted vocals WAV
-/// - source_separation.drums_path: Path to extracted drums WAV
-/// - source_separation.bass_path: Path to extracted bass WAV
-/// - source_separation.other_path: Path to extracted other/accompaniment WAV
-/// - source_separation.instrumentals_path: Path to combined instrumentals WAV
-/// - source_separation.processing_time_ms: Processing time in milliseconds
+///     Source Separation Wave - Separates audio into stems (vocals, drums, bass, other).
+///     Priority: 55 (runs after content classification, before transcription)
+///     Only runs for music or mixed content.
+///     Signals:
+///     - source_separation.success: Whether separation succeeded
+///     - source_separation.vocals_path: Path to extracted vocals WAV
+///     - source_separation.drums_path: Path to extracted drums WAV
+///     - source_separation.bass_path: Path to extracted bass WAV
+///     - source_separation.other_path: Path to extracted other/accompaniment WAV
+///     - source_separation.instrumentals_path: Path to combined instrumentals WAV
+///     - source_separation.processing_time_ms: Processing time in milliseconds
 /// </summary>
 public sealed class SourceSeparationWave : IAudioWave
 {
-    private readonly ISourceSeparationService _separationService;
     private readonly AudioConfig _config;
     private readonly ILogger<SourceSeparationWave> _logger;
-
-    public string Name => "SourceSeparationWave";
-    public int Priority => 55; // After content classification (70), before transcription (60)
+    private readonly ISourceSeparationService _separationService;
 
     public SourceSeparationWave(
         ISourceSeparationService separationService,
@@ -36,6 +32,9 @@ public sealed class SourceSeparationWave : IAudioWave
         _config = config.Value;
         _logger = logger;
     }
+
+    public string Name => "SourceSeparationWave";
+    public int Priority => 55; // After content classification (70), before transcription (60)
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {
@@ -66,13 +65,11 @@ public sealed class SourceSeparationWave : IAudioWave
 
         // Also check music likelihood
         if (context.Signals.TryGetValue("audio.music_likelihood", out var musicSignal))
-        {
             if (musicSignal.Value is double likelihood && likelihood > 0.3)
             {
                 _logger.LogDebug("Running source separation (music likelihood: {Likelihood:F2})", likelihood);
                 return true;
             }
-        }
 
         return false;
     }
@@ -133,7 +130,8 @@ public sealed class SourceSeparationWave : IAudioWave
                 }
 
                 signals.Add(CreateSignal("source_separation.stem_count", result.Stems.Count));
-                signals.Add(CreateSignal("source_separation.processing_time_ms", result.ProcessingTime.TotalMilliseconds));
+                signals.Add(CreateSignal("source_separation.processing_time_ms",
+                    result.ProcessingTime.TotalMilliseconds));
 
                 _logger.LogInformation(
                     "Source separation completed: {StemCount} stems extracted in {Time:F1}s",

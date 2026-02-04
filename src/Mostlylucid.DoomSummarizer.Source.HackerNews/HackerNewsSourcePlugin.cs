@@ -5,8 +5,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Sources.HackerNews;
 
 /// <summary>
-/// Standalone HackerNews source plugin for DoomSummarizer.
-/// Fetches top, best, new, ask, show, and job stories from the HN Firebase API.
+///     Standalone HackerNews source plugin for DoomSummarizer.
+///     Fetches top, best, new, ask, show, and job stories from the HN Firebase API.
 /// </summary>
 public sealed class HackerNewsSourcePlugin : ISourcePlugin
 {

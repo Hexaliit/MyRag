@@ -25,15 +25,15 @@ normalize:
   name: normalize
   priority: 1000
   enabled: true
-  tags: [metadata, audio]
+  tags: [ metadata, audio ]
   lane: io
 
   listens:
-    required: []
-    optional: []
+    required: [ ]
+    optional: [ ]
 
   emits:
-    on_start: [wave.started.normalize]
+    on_start: [ wave.started.normalize ]
     on_complete:
       - key: video.normalized
         type: bool
@@ -51,7 +51,7 @@ normalize:
         type: string
       - key: audio.extracted_path
         type: string
-    on_failure: [wave.failed.normalize]
+    on_failure: [ wave.failed.normalize ]
 
   config:
     audio_sample_rate: 16000
@@ -66,15 +66,15 @@ ffmpeg_shot_detection:
   name: ffmpeg_shot_detection
   priority: 900
   enabled: true
-  tags: [shot, visual]
+  tags: [ shot, visual ]
   lane: gpu
 
   listens:
-    required: [video.normalized]
-    optional: []
+    required: [ video.normalized ]
+    optional: [ ]
 
   emits:
-    on_start: [wave.started.ffmpeg_shot_detection]
+    on_start: [ wave.started.ffmpeg_shot_detection ]
     on_complete:
       - key: shots.detected
         type: bool
@@ -86,7 +86,7 @@ ffmpeg_shot_detection:
         type: string
       - key: shots.detection_time_ms
         type: long
-    on_failure: [wave.failed.ffmpeg_shot_detection]
+    on_failure: [ wave.failed.ffmpeg_shot_detection ]
 
   config:
     scene_threshold: 0.3  # 0.0-1.0, higher = fewer cuts detected
@@ -102,7 +102,7 @@ ffmpeg_shot_detection:
         when:
           - signal: shots.count
             condition: "> 500"
-        skip_when: []
+        skip_when: [ ]
 
 # =============================================================================
 # PHASE 3: KEYFRAME PIPELINE (Priority 850-790)
@@ -111,53 +111,53 @@ iframe_detection:
   name: iframe_detection
   priority: 850
   enabled: true
-  tags: [visual, shot]
+  tags: [ visual, shot ]
   lane: io
 
   listens:
-    required: [shots.detected]
-    optional: []
+    required: [ shots.detected ]
+    optional: [ ]
 
   emits:
-    on_start: [wave.started.iframe_detection]
+    on_start: [ wave.started.iframe_detection ]
     on_complete:
       - key: keyframes.iframes_detected
         type: bool
       - key: keyframes.iframes_count
         type: int
-    on_failure: [wave.failed.iframe_detection]
+    on_failure: [ wave.failed.iframe_detection ]
 
   cache:
     emits:
       - key: iframes
         type: List<IFrameInfo>
-    uses: []
+    uses: [ ]
 
 keyframe_selection:
   name: keyframe_selection
   priority: 840
   enabled: true
-  tags: [visual, shot]
+  tags: [ visual, shot ]
   lane: cpu
 
   listens:
-    required: [shots.detected, keyframes.iframes_detected]
-    optional: []
+    required: [ shots.detected, keyframes.iframes_detected ]
+    optional: [ ]
 
   emits:
-    on_start: [wave.started.keyframe_selection]
+    on_start: [ wave.started.keyframe_selection ]
     on_complete:
       - key: keyframes.selected
         type: bool
       - key: keyframes.selected_count
         type: int
-    on_failure: [wave.failed.keyframe_selection]
+    on_failure: [ wave.failed.keyframe_selection ]
 
   cache:
     emits:
       - key: keyframe_selections
         type: List<KeyframeSelection>
-    uses: [iframes]
+    uses: [ iframes ]
 
   config:
     max_keyframes: 50
@@ -169,25 +169,25 @@ thumbnail_extraction:
   name: thumbnail_extraction
   priority: 830
   enabled: true
-  tags: [visual]
+  tags: [ visual ]
   lane: io
 
   listens:
-    required: [keyframes.selected]
-    optional: []
+    required: [ keyframes.selected ]
+    optional: [ ]
 
   emits:
-    on_start: [wave.started.thumbnail_extraction]
+    on_start: [ wave.started.thumbnail_extraction ]
     on_complete:
       - key: keyframes.thumbnails_extracted
         type: int
-    on_failure: [wave.failed.thumbnail_extraction]
+    on_failure: [ wave.failed.thumbnail_extraction ]
 
   cache:
     emits:
       - key: thumbnails
         type: Dictionary<double, string>
-    uses: [keyframe_selections]
+    uses: [ keyframe_selections ]
 
   config:
     thumbnail_width: 128
@@ -197,21 +197,21 @@ keyframe_deduplication:
   name: keyframe_deduplication
   priority: 820
   enabled: true
-  tags: [visual]
+  tags: [ visual ]
   lane: cpu
 
   listens:
-    required: [keyframes.thumbnails_extracted]
-    optional: []
+    required: [ keyframes.thumbnails_extracted ]
+    optional: [ ]
 
   emits:
-    on_start: [wave.started.keyframe_deduplication]
+    on_start: [ wave.started.keyframe_deduplication ]
     on_complete:
       - key: keyframes.deduplicated
         type: int
       - key: keyframes.duplicates_skipped
         type: int
-    on_failure: [wave.failed.keyframe_deduplication]
+    on_failure: [ wave.failed.keyframe_deduplication ]
 
   cache:
     emits:
@@ -219,7 +219,7 @@ keyframe_deduplication:
         type: HashSet<double>
       - key: dhash_values
         type: Dictionary<int, string>
-    uses: [thumbnails, keyframe_selections]
+    uses: [ thumbnails, keyframe_selections ]
 
   config:
     hamming_threshold: 10  # Lower = stricter matching (0-64 range)
@@ -229,41 +229,41 @@ fullres_extraction:
   name: fullres_extraction
   priority: 810
   enabled: true
-  tags: [visual]
+  tags: [ visual ]
   lane: io
 
   listens:
-    required: [keyframes.deduplicated]
-    optional: [keyframes.selected]
+    required: [ keyframes.deduplicated ]
+    optional: [ keyframes.selected ]
 
   emits:
-    on_start: [wave.started.fullres_extraction]
+    on_start: [ wave.started.fullres_extraction ]
     on_complete:
       - key: keyframes.extracted
         type: bool
       - key: keyframes.count
         type: int
-    on_failure: [wave.failed.fullres_extraction]
+    on_failure: [ wave.failed.fullres_extraction ]
 
   cache:
     emits:
       - key: extracted_frames
         type: Dictionary<double, string>
-    uses: [unique_timestamps, keyframe_selections]
+    uses: [ unique_timestamps, keyframe_selections ]
 
 clip_embedding:
   name: clip_embedding
   priority: 800
   enabled: true
-  tags: [visual]
+  tags: [ visual ]
   lane: gpu
 
   listens:
-    required: [keyframes.extracted]
-    optional: []
+    required: [ keyframes.extracted ]
+    optional: [ ]
 
   emits:
-    on_start: [wave.started.clip_embedding]
+    on_start: [ wave.started.clip_embedding ]
     on_complete:
       - key: clip.embeddings_ready
         type: bool
@@ -275,11 +275,11 @@ clip_embedding:
         type: long
       - key: clip.avg_time_per_frame_ms
         type: long
-    on_failure: [wave.failed.clip_embedding]
+    on_failure: [ wave.failed.clip_embedding ]
 
   cache:
-    emits: []
-    uses: [extracted_frames]
+    emits: [ ]
+    uses: [ extracted_frames ]
 
   config:
     batch_size: 8
@@ -299,15 +299,15 @@ image_analysis:
   name: image_analysis
   priority: 790
   enabled: true
-  tags: [visual, ocr]
+  tags: [ visual, ocr ]
   lane: gpu
 
   listens:
-    required: [keyframes.extracted]
-    optional: [clip.embeddings_ready]
+    required: [ keyframes.extracted ]
+    optional: [ clip.embeddings_ready ]
 
   emits:
-    on_start: [wave.started.image_analysis]
+    on_start: [ wave.started.image_analysis ]
     on_complete:
       - key: keyframes.analyzed
         type: int
@@ -315,7 +315,7 @@ image_analysis:
         type: int
       - key: captions.generated
         type: int
-    on_failure: [wave.failed.image_analysis]
+    on_failure: [ wave.failed.image_analysis ]
 
   config:
     max_parallel_analysis: 2
@@ -338,12 +338,12 @@ shot_thumbnail:
   name: shot_thumbnail
   priority: 785
   enabled: true
-  tags: [visual, shot]
+  tags: [ visual, shot ]
   lane: io
 
   listens:
-    required: [shots.detected]
-    optional: [keyframes.extracted]
+    required: [ shots.detected ]
+    optional: [ keyframes.extracted ]
 
   emits:
     on_complete:
@@ -360,12 +360,12 @@ title_credits_detection:
   name: title_credits_detection
   priority: 780
   enabled: true
-  tags: [visual, credits]
+  tags: [ visual, credits ]
   lane: cpu
 
   listens:
-    required: [shots.detected]
-    optional: []
+    required: [ shots.detected ]
+    optional: [ ]
 
   emits:
     on_complete:
@@ -388,12 +388,12 @@ subtitle_extraction:
   name: subtitle_extraction
   priority: 750
   enabled: true
-  tags: [speech, text]
+  tags: [ speech, text ]
   lane: io
 
   listens:
-    required: [video.normalized]
-    optional: []
+    required: [ video.normalized ]
+    optional: [ ]
 
   emits:
     on_complete:
@@ -405,19 +405,19 @@ subtitle_extraction:
         type: string
 
   config:
-    preferred_languages: [eng, en, und]
+    preferred_languages: [ eng, en, und ]
     extract_all_tracks: false
 
 chapter_extraction:
   name: chapter_extraction
   priority: 740
   enabled: true
-  tags: [metadata, scene]
+  tags: [ metadata, scene ]
   lane: io
 
   listens:
-    required: [video.normalized]
-    optional: []
+    required: [ video.normalized ]
+    optional: [ ]
 
   emits:
     on_complete:
@@ -433,15 +433,15 @@ transcription:
   name: transcription
   priority: 500
   enabled: true
-  tags: [speech, audio]
+  tags: [ speech, audio ]
   lane: gpu
 
   listens:
-    required: [audio.extracted_path]
-    optional: [subtitles.extracted]
+    required: [ audio.extracted_path ]
+    optional: [ subtitles.extracted ]
 
   emits:
-    on_start: [wave.started.transcription]
+    on_start: [ wave.started.transcription ]
     on_complete:
       - key: transcription.complete
         type: bool
@@ -455,7 +455,7 @@ transcription:
         type: string
       - key: diarization.speaker_count
         type: int
-    on_failure: [wave.failed.transcription]
+    on_failure: [ wave.failed.transcription ]
 
   config:
     model: whisper-large-v3
@@ -481,15 +481,15 @@ scene_clustering:
   name: scene_clustering
   priority: 400
   enabled: true
-  tags: [scene, visual]
+  tags: [ scene, visual ]
   lane: cpu
 
   listens:
-    required: [shots.detected]
-    optional: [clip.embeddings_ready, chapters.extracted, transcription.complete]
+    required: [ shots.detected ]
+    optional: [ clip.embeddings_ready, chapters.extracted, transcription.complete ]
 
   emits:
-    on_start: [wave.started.scene_clustering]
+    on_start: [ wave.started.scene_clustering ]
     on_complete:
       - key: scenes.created
         type: bool
@@ -499,7 +499,7 @@ scene_clustering:
         type: double
       - key: scene.clustering_method
         type: string
-    on_failure: [wave.failed.scene_clustering]
+    on_failure: [ wave.failed.scene_clustering ]
 
   config:
     similarity_threshold: 0.7
@@ -514,11 +514,11 @@ evidence_generation:
   name: evidence_generation
   priority: 300
   enabled: true
-  tags: [scene, shot]
+  tags: [ scene, shot ]
   lane: cpu
 
   listens:
-    required: []  # Can run with just shots or scenes
+    required: [ ]  # Can run with just shots or scenes
     optional:
       - scenes.created
       - shots.detected
@@ -526,7 +526,7 @@ evidence_generation:
       - keyframes.extracted
 
   emits:
-    on_start: [wave.started.evidence_generation]
+    on_start: [ wave.started.evidence_generation ]
     on_complete:
       - key: evidence.generated
         type: bool
@@ -540,7 +540,7 @@ evidence_generation:
         type: int
       - key: evidence.utterance_count
         type: int
-    on_failure: [wave.failed.evidence_generation]
+    on_failure: [ wave.failed.evidence_generation ]
 
   config:
     create_scene_evidence: true

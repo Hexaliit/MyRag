@@ -1,6 +1,7 @@
 # MCP (Model Context Protocol) Server
 
-DoomSummarizer can run as an MCP server so AI agents can query your local knowledge base (KB), explore the entity graph, and ingest new URLs using structured tools.
+DoomSummarizer can run as an MCP server so AI agents can query your local knowledge base (KB), explore the entity graph,
+and ingest new URLs using structured tools.
 
 ## Starting the server
 
@@ -10,7 +11,8 @@ Run:
 doomsummarizer --mcp
 ```
 
-This starts a **stdio-based** MCP server (the MCP client launches the process and communicates over stdin/stdout). It uses the same local SQLite database and ONNX embedding model as the CLI.
+This starts a **stdio-based** MCP server (the MCP client launches the process and communicates over stdin/stdout). It
+uses the same local SQLite database and ONNX embedding model as the CLI.
 
 ## Configuration
 
@@ -41,6 +43,7 @@ This starts a **stdio-based** MCP server (the MCP client launches the process an
 ```
 
 Notes:
+
 - On Windows, `command` can be `doomsummarizer.exe` (or the full path to it).
 - The MCP process will use your normal DoomSummarizer config and data directory (where `doom.db` lives).
 
@@ -50,7 +53,8 @@ All tools return JSON.
 
 ### Search
 
-- `search_kb` — Full relevance pipeline: **Lucene pre-filter (LLM-generated query) → BM25F + global IDF → embeddings → PRF refinement → RRF**; returns ranked item IDs + metadata.
+- `search_kb` — Full relevance pipeline: **Lucene pre-filter (LLM-generated query) → BM25F + global IDF → embeddings →
+  PRF refinement → RRF**; returns ranked item IDs + metadata.
 - `keyword_search` — Fast keyword-only Lucene search (no embeddings).
 - `semantic_search` — Pure embedding similarity search (cosine).
 
@@ -98,5 +102,6 @@ All tools return JSON.
 ## Operational notes
 
 - If embeddings are not set up, some tools will fall back to keyword-only behavior.
-- Treat MCP ingestion as “trusted input”: avoid ingesting internal URLs into a shared KB unless you intend to share the database.
+- Treat MCP ingestion as “trusted input”: avoid ingesting internal URLs into a shared KB unless you intend to share the
+  database.
 

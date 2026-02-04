@@ -1,50 +1,50 @@
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
-/// Represents the current tenant context for a request.
-/// Contains all tenant-specific configuration needed for data isolation.
+///     Represents the current tenant context for a request.
+///     Contains all tenant-specific configuration needed for data isolation.
 /// </summary>
 public class TenantContext
 {
     /// <summary>
-    /// Unique tenant identifier (e.g., "acme", "contoso").
+    ///     Unique tenant identifier (e.g., "acme", "contoso").
     /// </summary>
     public required string TenantId { get; init; }
 
     /// <summary>
-    /// PostgreSQL schema name for this tenant's data.
-    /// Format: "tenant_{tenantId}"
+    ///     PostgreSQL schema name for this tenant's data.
+    ///     Format: "tenant_{tenantId}"
     /// </summary>
     public required string SchemaName { get; init; }
 
     /// <summary>
-    /// Qdrant collection name for this tenant's vectors.
-    /// Format: "tenant_{tenantId}_vectors"
+    ///     Qdrant collection name for this tenant's vectors.
+    ///     Format: "tenant_{tenantId}_vectors"
     /// </summary>
     public required string QdrantCollection { get; init; }
 
     /// <summary>
-    /// Display name for the tenant.
+    ///     Display name for the tenant.
     /// </summary>
     public string? DisplayName { get; init; }
 
     /// <summary>
-    /// Whether this tenant is active.
+    ///     Whether this tenant is active.
     /// </summary>
     public bool IsActive { get; init; } = true;
 
     /// <summary>
-    /// Tenant-specific settings (JSON).
+    ///     Tenant-specific settings (JSON).
     /// </summary>
     public string? Settings { get; init; }
 
     /// <summary>
-    /// When this tenant was created.
+    ///     When this tenant was created.
     /// </summary>
     public DateTimeOffset CreatedAt { get; init; }
 
     /// <summary>
-    /// Create a tenant context from a tenant ID.
+    ///     Create a tenant context from a tenant ID.
     /// </summary>
     public static TenantContext FromTenantId(string tenantId, string? displayName = null)
     {
@@ -60,7 +60,7 @@ public class TenantContext
     }
 
     /// <summary>
-    /// Sanitize tenant ID for use in schema/collection names.
+    ///     Sanitize tenant ID for use in schema/collection names.
     /// </summary>
     private static string SanitizeTenantId(string tenantId)
     {
@@ -75,18 +75,18 @@ public class TenantContext
 // ITenantResolver interface is in the web project (uses HttpContext)
 
 /// <summary>
-/// Provides access to the current tenant context.
+///     Provides access to the current tenant context.
 /// </summary>
 public interface ITenantAccessor
 {
     /// <summary>
-    /// The current tenant context, or null if not in a tenant context.
+    ///     The current tenant context, or null if not in a tenant context.
     /// </summary>
     TenantContext? Current { get; set; }
 }
 
 /// <summary>
-/// Scoped service that holds the current tenant context.
+///     Scoped service that holds the current tenant context.
 /// </summary>
 public class TenantAccessor : ITenantAccessor
 {
@@ -94,27 +94,27 @@ public class TenantAccessor : ITenantAccessor
 }
 
 /// <summary>
-/// Constants for multi-tenancy.
+///     Constants for multi-tenancy.
 /// </summary>
 public static class TenantConstants
 {
     /// <summary>
-    /// The default/system tenant for non-tenant-specific operations.
+    ///     The default/system tenant for non-tenant-specific operations.
     /// </summary>
     public const string DefaultTenantId = "default";
 
     /// <summary>
-    /// HTTP header for tenant ID override (for API clients).
+    ///     HTTP header for tenant ID override (for API clients).
     /// </summary>
     public const string TenantIdHeader = "X-Tenant-Id";
 
     /// <summary>
-    /// Query parameter for tenant ID override.
+    ///     Query parameter for tenant ID override.
     /// </summary>
     public const string TenantIdQueryParam = "tenantId";
 
     /// <summary>
-    /// The public schema name (shared across tenants).
+    ///     The public schema name (shared across tenants).
     /// </summary>
     public const string PublicSchema = "public";
 }

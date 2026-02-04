@@ -3,22 +3,15 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// In-memory per-session LFU cache that promotes frequently-relevant segments
-/// and evicts stale ones. Used by InteractiveAskLoop to carry context across
-/// conversation turns.
+///     In-memory per-session LFU cache that promotes frequently-relevant segments
+///     and evicts stale ones. Used by InteractiveAskLoop to carry context across
+///     conversation turns.
 /// </summary>
 public sealed class SalientSegmentCache
 {
-    private readonly Dictionary<string, CachedSegment> _segments = new();
     private readonly int _capacity;
+    private readonly Dictionary<string, CachedSegment> _segments = new();
     private int _totalEvicted;
-
-    /// <summary>
-    /// Prompt-level salience index: maps prompt embeddings to their resolved
-    /// salient segment sets. Avoids re-computing N cosine similarities when
-    /// a similar prompt has already been resolved.
-    /// </summary>
-    public PromptSalienceIndex PromptIndex { get; }
 
     public SalientSegmentCache(int capacity = 50, int promptIndexCapacity = 30, float promptHitThreshold = 0.85f)
     {
@@ -26,18 +19,22 @@ public sealed class SalientSegmentCache
         PromptIndex = new PromptSalienceIndex(promptIndexCapacity, promptHitThreshold);
     }
 
-    public sealed class CachedSegment
-    {
-        public required ContentItem Item { get; init; }
-        public int AccessCount { get; set; }
-        public int TurnAdded { get; init; }
-        public int LastAccessedTurn { get; set; }
-        public float LastSalience { get; set; }
-    }
+    /// <summary>
+    ///     Prompt-level salience index: maps prompt embeddings to their resolved
+    ///     salient segment sets. Avoids re-computing N cosine similarities when
+    ///     a similar prompt has already been resolved.
+    /// </summary>
+    public PromptSalienceIndex PromptIndex { get; }
 
     /// <summary>
-    /// Add new segments from retrieval results. Existing segments get their
-    /// turn updated but are not replaced.
+    ///     Cache statistics for diagnostics.
+    /// </summary>
+    public (int count, int capacity, int evicted) Stats
+        => (_segments.Count, _capacity, _totalEvicted);
+
+    /// <summary>
+    ///     Add new segments from retrieval results. Existing segments get their
+    ///     turn updated but are not replaced.
     /// </summary>
     public void AddRange(IEnumerable<ContentItem> items, int currentTurn)
     {
@@ -46,11 +43,8 @@ public sealed class SalientSegmentCache
             if (string.IsNullOrEmpty(item.Id)) continue;
 
             if (_segments.TryGetValue(item.Id, out var existing))
-            {
                 existing.LastAccessedTurn = currentTurn;
-            }
             else
-            {
                 _segments[item.Id] = new CachedSegment
                 {
                     Item = item,
@@ -59,15 +53,14 @@ public sealed class SalientSegmentCache
                     LastAccessedTurn = currentTurn,
                     LastSalience = 0f
                 };
-            }
         }
     }
 
     /// <summary>
-    /// Get segments salient to the current query. Uses the PromptSalienceIndex
-    /// as a fast path: if a similar prompt was already resolved, its cached
-    /// segment set is returned directly (saving N cosine computations).
-    /// Falls back to full cosine scan on cache miss.
+    ///     Get segments salient to the current query. Uses the PromptSalienceIndex
+    ///     as a fast path: if a similar prompt was already resolved, its cached
+    ///     segment set is returned directly (saving N cosine computations).
+    ///     Falls back to full cosine scan on cache miss.
     /// </summary>
     public List<ContentItem> GetSalient(
         float[] queryEmbedding, int currentTurn,
@@ -82,14 +75,13 @@ public sealed class SalientSegmentCache
         {
             var items = new List<ContentItem>();
             foreach (var id in cachedIds)
-            {
                 if (_segments.TryGetValue(id, out var seg))
                 {
                     seg.AccessCount++;
                     seg.LastAccessedTurn = currentTurn;
                     items.Add(seg.Item);
                 }
-            }
+
             // Use cached result if at least half the original IDs are still valid
             if (items.Count >= Math.Max(1, cachedIds.Count / 2))
                 return items.Take(maxItems).ToList();
@@ -130,9 +122,9 @@ public sealed class SalientSegmentCache
     }
 
     /// <summary>
-    /// Evict stale and low-frequency segments.
-    /// Phase 1: Remove segments not accessed in the last <paramref name="staleTurns"/> turns.
-    /// Phase 2: If still over capacity, remove lowest AccessCount segments.
+    ///     Evict stale and low-frequency segments.
+    ///     Phase 1: Remove segments not accessed in the last <paramref name="staleTurns" /> turns.
+    ///     Phase 2: If still over capacity, remove lowest AccessCount segments.
     /// </summary>
     public void Evict(int currentTurn, int staleTurns = 5)
     {
@@ -170,14 +162,19 @@ public sealed class SalientSegmentCache
     }
 
     /// <summary>
-    /// Get all cached segment IDs (for diagnostics).
+    ///     Get all cached segment IDs (for diagnostics).
     /// </summary>
     public IReadOnlyList<string> GetAllIds()
-        => _segments.Keys.ToList();
+    {
+        return _segments.Keys.ToList();
+    }
 
-    /// <summary>
-    /// Cache statistics for diagnostics.
-    /// </summary>
-    public (int count, int capacity, int evicted) Stats
-        => (_segments.Count, _capacity, _totalEvicted);
+    public sealed class CachedSegment
+    {
+        public required ContentItem Item { get; init; }
+        public int AccessCount { get; set; }
+        public int TurnAdded { get; init; }
+        public int LastAccessedTurn { get; set; }
+        public float LastSalience { get; set; }
+    }
 }

@@ -3,8 +3,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Models.LongFormGeneration;
 
 /// <summary>
-/// A segment from the evidence corpus with its source article metadata.
-/// Wraps an ArticleSegment with article-level context for evidence assignment.
+///     A segment from the evidence corpus with its source article metadata.
+///     Wraps an ArticleSegment with article-level context for evidence assignment.
 /// </summary>
 public class EvidenceSegment
 {
@@ -15,8 +15,8 @@ public class EvidenceSegment
     public DateTimeOffset FetchedAt { get; init; }
 
     /// <summary>
-    /// Content type weight: 1.0 for tech docs, 0.2 for bio/about content.
-    /// Used to downweight personal/promotional content in technical articles.
+    ///     Content type weight: 1.0 for tech docs, 0.2 for bio/about content.
+    ///     Used to downweight personal/promotional content in technical articles.
     /// </summary>
     public float ContentTypeWeight { get; init; } = 1.0f;
 
@@ -28,7 +28,7 @@ public class EvidenceSegment
 }
 
 /// <summary>
-/// Summary-level metadata for a source article in the corpus.
+///     Summary-level metadata for a source article in the corpus.
 /// </summary>
 public class ArticleSummary
 {
@@ -41,7 +41,7 @@ public class ArticleSummary
 }
 
 /// <summary>
-/// An entity extracted from the evidence corpus via regex/NER.
+///     An entity extracted from the evidence corpus via regex/NER.
 /// </summary>
 public class TrackedEntity
 {
@@ -52,9 +52,9 @@ public class TrackedEntity
 }
 
 /// <summary>
-/// The full evidence corpus built from processed articles.
-/// Contains all segments with embeddings, global theme vector, URL whitelist,
-/// and entity registry for downstream validation.
+///     The full evidence corpus built from processed articles.
+///     Contains all segments with embeddings, global theme vector, URL whitelist,
+///     and entity registry for downstream validation.
 /// </summary>
 public class EvidenceCorpus
 {

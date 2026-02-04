@@ -1,3 +1,4 @@
+using System.Reflection;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services;
@@ -5,24 +6,24 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Shared collection for all tests that use EmbeddingFactory/ONNX model.
-/// Prevents file contention on model.onnx.tmp during parallel test execution in CI.
+///     Shared collection for all tests that use EmbeddingFactory/ONNX model.
+///     Prevents file contention on model.onnx.tmp during parallel test execution in CI.
 /// </summary>
 [CollectionDefinition("EmbeddingTests")]
 public class EmbeddingTestsCollection;
 
 /// <summary>
-/// Tests for PersonalCorpusService: self-disclosure detection, fact indexing,
-/// entity retrieval, gap-filling, and forgetting.
+///     Tests for PersonalCorpusService: self-disclosure detection, fact indexing,
+///     entity retrieval, gap-filling, and forgetting.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class PersonalCorpusServiceTests : IAsyncLifetime
 {
-    private string _dbPath = null!;
-    private StorageService _storage = null!;
-    private IEmbeddingService _embedding = null!;
     private PersonalCorpusService _corpus = null!;
+    private string _dbPath = null!;
+    private IEmbeddingService _embedding = null!;
+    private StorageService _storage = null!;
 
     public async Task InitializeAsync()
     {
@@ -34,15 +35,21 @@ public class PersonalCorpusServiceTests : IAsyncLifetime
         // No NER or KnowledgeGraph in unit tests — those require ONNX models
         // No Ollama — tests exercise the rule-based fallback path
         _corpus = new PersonalCorpusService(
-            _storage, _embedding, ner: null, knowledgeGraph: null,
-            ollama: null, ollamaAvailable: false);
+            _storage, _embedding, null, null,
+            null, false);
     }
 
     public async Task DisposeAsync()
     {
         (_embedding as IDisposable)?.Dispose();
         await _storage.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+        }
     }
 
     // --- Self-disclosure detection (rule-based fallback) ---
@@ -219,9 +226,12 @@ public class PersonalCorpusServiceTests : IAsyncLifetime
             Content = "Weather in London is rainy",
             CreatedAt = DateTimeOffset.UtcNow,
             FetchedAt = DateTimeOffset.UtcNow,
-            Tags = [],
+            Tags = []
         };
-        regularItem = regularItem with { Embedding = await _embedding.EmbedAsync("London weather", CancellationToken.None) };
+        regularItem = regularItem with
+        {
+            Embedding = await _embedding.EmbedAsync("London weather", CancellationToken.None)
+        };
         await _storage.SaveItemAsync(regularItem);
 
         // Query without source filter — personal items should be excluded
@@ -273,17 +283,17 @@ public class PersonalCorpusServiceTests : IAsyncLifetime
 }
 
 /// <summary>
-/// Full lifecycle integration tests: simulate a user teaching the system about
-/// themselves across multiple "turns", then verify it remembers everything.
+///     Full lifecycle integration tests: simulate a user teaching the system about
+///     themselves across multiple "turns", then verify it remembers everything.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class PersonalCorpusLifecycleTests : IAsyncLifetime
 {
-    private string _dbPath = null!;
-    private StorageService _storage = null!;
-    private IEmbeddingService _embedding = null!;
     private PersonalCorpusService _corpus = null!;
+    private string _dbPath = null!;
+    private IEmbeddingService _embedding = null!;
+    private StorageService _storage = null!;
 
     public async Task InitializeAsync()
     {
@@ -293,20 +303,26 @@ public class PersonalCorpusLifecycleTests : IAsyncLifetime
         _embedding = await EmbeddingFactory.CreateAsync();
 
         _corpus = new PersonalCorpusService(
-            _storage, _embedding, ner: null, knowledgeGraph: null,
-            ollama: null, ollamaAvailable: false);
+            _storage, _embedding, null, null,
+            null, false);
     }
 
     public async Task DisposeAsync()
     {
         (_embedding as IDisposable)?.Dispose();
         await _storage.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+        }
     }
 
     /// <summary>
-    /// Simulate the full InteractiveAskLoop background flow:
-    /// for each user message, detect name, detect facts, index.
+    ///     Simulate the full InteractiveAskLoop background flow:
+    ///     for each user message, detect name, detect facts, index.
     /// </summary>
     private async Task SimulateTurn(string question)
     {
@@ -494,16 +510,16 @@ public class PersonalCorpusLifecycleTests : IAsyncLifetime
 }
 
 /// <summary>
-/// Tests for named personal corpus: name detection, migration, and disambiguation.
+///     Tests for named personal corpus: name detection, migration, and disambiguation.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class NamedCorpusTests : IAsyncLifetime
 {
-    private string _dbPath = null!;
-    private StorageService _storage = null!;
-    private IEmbeddingService _embedding = null!;
     private PersonalCorpusService _corpus = null!;
+    private string _dbPath = null!;
+    private IEmbeddingService _embedding = null!;
+    private StorageService _storage = null!;
 
     public async Task InitializeAsync()
     {
@@ -513,15 +529,21 @@ public class NamedCorpusTests : IAsyncLifetime
         _embedding = await EmbeddingFactory.CreateAsync();
 
         _corpus = new PersonalCorpusService(
-            _storage, _embedding, ner: null, knowledgeGraph: null,
-            ollama: null, ollamaAvailable: false);
+            _storage, _embedding, null, null,
+            null, false);
     }
 
     public async Task DisposeAsync()
     {
         (_embedding as IDisposable)?.Dispose();
         await _storage.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+        }
     }
 
     [Fact]
@@ -548,12 +570,12 @@ public class NamedCorpusTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("I'm a backend developer")]     // Role, not name
-    [InlineData("I'm happy to help")]            // Adjective, not name
-    [InlineData("My name is")]                   // Incomplete
-    [InlineData("What's the weather?")]          // No name
-    [InlineData("I am looking for help")]        // Verb, not name
-    [InlineData("I'm based in London")]          // Location disclosure, not name
+    [InlineData("I'm a backend developer")] // Role, not name
+    [InlineData("I'm happy to help")] // Adjective, not name
+    [InlineData("My name is")] // Incomplete
+    [InlineData("What's the weather?")] // No name
+    [InlineData("I am looking for help")] // Verb, not name
+    [InlineData("I'm based in London")] // Location disclosure, not name
     public async Task DetectAndSetName_RejectsNonNames(string input)
     {
         var name = await _corpus.DetectAndSetNameAsync(input, CancellationToken.None);
@@ -642,17 +664,17 @@ public class NamedCorpusTests : IAsyncLifetime
 }
 
 /// <summary>
-/// Tests for ConversationSentinel gap-filling from personal corpus.
+///     Tests for ConversationSentinel gap-filling from personal corpus.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class PersonalGapFillingTests : IAsyncLifetime
 {
-    private string _dbPath = null!;
-    private StorageService _storage = null!;
-    private IEmbeddingService _embedding = null!;
     private PersonalCorpusService _corpus = null!;
+    private string _dbPath = null!;
+    private IEmbeddingService _embedding = null!;
     private ConversationSentinel _sentinel = null!;
+    private StorageService _storage = null!;
 
     public async Task InitializeAsync()
     {
@@ -662,8 +684,8 @@ public class PersonalGapFillingTests : IAsyncLifetime
         _embedding = await EmbeddingFactory.CreateAsync();
 
         _corpus = new PersonalCorpusService(
-            _storage, _embedding, ner: null, knowledgeGraph: null,
-            ollama: null, ollamaAvailable: false);
+            _storage, _embedding, null, null,
+            null, false);
 
         _sentinel = new ConversationSentinel(null, _embedding, false);
     }
@@ -672,7 +694,13 @@ public class PersonalGapFillingTests : IAsyncLifetime
     {
         (_embedding as IDisposable)?.Dispose();
         await _storage.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+        }
     }
 
     [Fact]
@@ -715,7 +743,7 @@ public class PersonalGapFillingTests : IAsyncLifetime
         // Use reflection to test the private static method
         var method = typeof(ConversationSentinel).GetMethod(
             "HasLocationGap",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
         method.Should().NotBeNull("HasLocationGap should exist");
 
         var result = (bool)method!.Invoke(null, [query])!;
@@ -733,7 +761,7 @@ public class PersonalGapFillingTests : IAsyncLifetime
     {
         var method = typeof(ConversationSentinel).GetMethod(
             "HasOrgGap",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
         method.Should().NotBeNull("HasOrgGap should exist");
 
         var result = (bool)method!.Invoke(null, [query])!;
@@ -751,7 +779,7 @@ public class PersonalGapFillingTests : IAsyncLifetime
     {
         var method = typeof(ConversationSentinel).GetMethod(
             "HasTechGap",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Static);
         method.Should().NotBeNull("HasTechGap should exist");
 
         var result = (bool)method!.Invoke(null, [query])!;
@@ -760,7 +788,7 @@ public class PersonalGapFillingTests : IAsyncLifetime
 }
 
 /// <summary>
-/// Tests for ConversationSentinelResult.PersonalContext field.
+///     Tests for ConversationSentinelResult.PersonalContext field.
 /// </summary>
 public class ConversationSentinelResultTests
 {
@@ -769,7 +797,7 @@ public class ConversationSentinelResultTests
     {
         var result = new ConversationSentinelResult
         {
-            ResolvedQuery = "test",
+            ResolvedQuery = "test"
         };
 
         result.PersonalContext.Should().BeNull();
@@ -781,7 +809,7 @@ public class ConversationSentinelResultTests
         var result = new ConversationSentinelResult
         {
             ResolvedQuery = "test",
-            PersonalContext = "User is in London; Works at Anthropic",
+            PersonalContext = "User is in London; Works at Anthropic"
         };
 
         result.PersonalContext.Should().Be("User is in London; Works at Anthropic");

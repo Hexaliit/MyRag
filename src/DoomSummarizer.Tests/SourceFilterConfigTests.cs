@@ -1,10 +1,11 @@
 using System.Text.Json;
 using DoomSummarizer.Models;
+using DoomSummarizer.Services;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for SourceFilterConfig serialization and default values.
+///     Tests for SourceFilterConfig serialization and default values.
 /// </summary>
 public class SourceFilterConfigTests
 {
@@ -60,7 +61,7 @@ public class SourceFilterConfigTests
     [Fact]
     public void QueryMatch_StoresAllFields()
     {
-        var match = new DoomSummarizer.Services.QueryMatch
+        var match = new QueryMatch
         {
             QueryId = 42,
             QueryText = "funny onion story",

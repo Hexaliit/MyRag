@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Extracts content references (URLs, file paths, DOIs) from the query.
-/// Uses TextRecognizerService.ExtractUrls() for URL detection + additional patterns.
-/// Each reference becomes a ContentReference node  -  fetched directly, not searched.
+///     Extracts content references (URLs, file paths, DOIs) from the query.
+///     Uses TextRecognizerService.ExtractUrls() for URL detection + additional patterns.
+///     Each reference becomes a ContentReference node  -  fetched directly, not searched.
 /// </summary>
 public partial class ReferenceExtractor : IQueryAnalyzer
 {
@@ -120,10 +120,8 @@ public partial class ReferenceExtractor : IQueryAnalyzer
         }
 
         if (references.Count > existing.References.Count)
-        {
             _logger?.LogDebug("Extracted {Count} references from query: {Query}",
                 references.Count - existing.References.Count, query);
-        }
 
         return Task.FromResult(existing with
         {
@@ -133,9 +131,9 @@ public partial class ReferenceExtractor : IQueryAnalyzer
     }
 
     /// <summary>
-    /// Extract URLs from text. Uses a simple regex since the full
-    /// TextRecognizerService requires DoomSummarizer.Core reference.
-    /// When integrated, the adapter will use TextRecognizerService.ExtractUrls() instead.
+    ///     Extract URLs from text. Uses a simple regex since the full
+    ///     TextRecognizerService requires DoomSummarizer.Core reference.
+    ///     When integrated, the adapter will use TextRecognizerService.ExtractUrls() instead.
     /// </summary>
     internal static List<string> ExtractUrls(string text)
     {
@@ -147,6 +145,7 @@ public partial class ReferenceExtractor : IQueryAnalyzer
             if (!urls.Contains(url))
                 urls.Add(url);
         }
+
         return urls;
     }
 
@@ -156,7 +155,8 @@ public partial class ReferenceExtractor : IQueryAnalyzer
     [GeneratedRegex(@"(?:https?://doi\.org/)?10\.\d{4,}/[^\s<>""')\]]+", RegexOptions.IgnoreCase)]
     private static partial Regex DoiPattern();
 
-    [GeneratedRegex(@"(?:[A-Za-z]:\\[^\s<>""']+|/(?:home|usr|var|tmp|etc|opt)/[^\s<>""']+|~/[^\s<>""']+)", RegexOptions.None)]
+    [GeneratedRegex(@"(?:[A-Za-z]:\\[^\s<>""']+|/(?:home|usr|var|tmp|etc|opt)/[^\s<>""']+|~/[^\s<>""']+)",
+        RegexOptions.None)]
     private static partial Regex FilePathPattern();
 
     [GeneratedRegex(@"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#\d+", RegexOptions.None)]

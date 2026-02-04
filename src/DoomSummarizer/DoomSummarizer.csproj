@@ -67,62 +67,62 @@
 
     <!-- Enable test access to internal members -->
     <ItemGroup>
-        <InternalsVisibleTo Include="DoomSummarizer.Tests" />
+        <InternalsVisibleTo Include="DoomSummarizer.Tests"/>
     </ItemGroup>
 
     <!-- CLI-only dependencies (always included) -->
     <ItemGroup>
-        <PackageReference Include="Spectre.Console" Version="0.54.0" />
-        <PackageReference Include="Spectre.Console.Cli" Version="0.53.1" />
+        <PackageReference Include="Spectre.Console" Version="0.54.0"/>
+        <PackageReference Include="Spectre.Console.Cli" Version="0.53.1"/>
 
         <!-- Playwright for JS-rendered sites (browser downloaded via setup, not embedded) -->
-        <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
+        <PackageReference Include="Microsoft.Playwright" Version="1.58.0"/>
 
         <!-- MCP server for AI agent integration -->
-        <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
+        <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2"/>
     </ItemGroup>
 
     <!-- Complete-only: email delivery, console image display -->
     <ItemGroup Condition="'$(CompleteBuild)' == 'true'">
-        <PackageReference Include="MailKit" Version="4.14.1" />
-        <PackageReference Include="SendGrid" Version="9.29.3" />
-        <PackageReference Include="mostlylucid.consoleimage" Version="4.5.1" />
-        <PackageReference Include="mostlylucid.consoleimage.player" Version="4.5.1" />
+        <PackageReference Include="MailKit" Version="4.14.1"/>
+        <PackageReference Include="SendGrid" Version="9.29.3"/>
+        <PackageReference Include="mostlylucid.consoleimage" Version="4.5.1"/>
+        <PackageReference Include="mostlylucid.consoleimage.player" Version="4.5.1"/>
     </ItemGroup>
 
     <!-- Core references (always included) -->
     <ItemGroup>
-        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
     </ItemGroup>
 
     <!-- LLamaSharp: local GGUF inference (complete builds, or opt-in with -p:IncludeLLamaSharp=true) -->
     <ItemGroup Condition="'$(IncludeLLamaSharp)' == 'true'">
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.LLamaSharp\Mostlylucid.DocSummarizer.LLamaSharp.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.LLamaSharp\Mostlylucid.DocSummarizer.LLamaSharp.csproj"/>
     </ItemGroup>
 
     <!-- Complete-only: audio transcription, YouTube, subtitles -->
     <ItemGroup Condition="'$(CompleteBuild)' == 'true'">
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj" />
-        <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj"/>
+        <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj"/>
     </ItemGroup>
 
     <!-- Exclude complete-only source files from slim builds -->
     <ItemGroup Condition="'$(CompleteBuild)' != 'true'">
-        <Compile Remove="Services\ImageService.cs" />
-        <Compile Remove="Services\EmailService.cs" />
-        <Compile Remove="Commands\ScrollCommand.Animation.cs" />
+        <Compile Remove="Services\ImageService.cs"/>
+        <Compile Remove="Services\EmailService.cs"/>
+        <Compile Remove="Commands\ScrollCommand.Animation.cs"/>
     </ItemGroup>
 
     <!-- Embed default config, prompt templates, starter lens files, and manual manifest -->
     <ItemGroup>
-        <EmbeddedResource Include="Resources\default-config.json" />
-        <EmbeddedResource Include="Resources\sources.yaml" />
-        <EmbeddedResource Include="Resources\prompts\*.txt" />
-        <EmbeddedResource Include="Resources\lenses\*.lens.yaml" />
-        <EmbeddedResource Include="Resources\manual.manifest.yaml" />
+        <EmbeddedResource Include="Resources\default-config.json"/>
+        <EmbeddedResource Include="Resources\sources.yaml"/>
+        <EmbeddedResource Include="Resources\prompts\*.txt"/>
+        <EmbeddedResource Include="Resources\lenses\*.lens.yaml"/>
+        <EmbeddedResource Include="Resources\manual.manifest.yaml"/>
     </ItemGroup>
 
 

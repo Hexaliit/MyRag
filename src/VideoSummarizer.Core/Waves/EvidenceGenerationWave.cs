@@ -1,33 +1,36 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Models;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 5: Evidence generation for RAG retrieval.
-/// Creates VideoEvidence pointers with embeddings for semantic search.
-/// Each evidence points to a specific moment in the video with context.
+///     Stage 5: Evidence generation for RAG retrieval.
+///     Creates VideoEvidence pointers with embeddings for semantic search.
+///     Each evidence points to a specific moment in the video with context.
 /// </summary>
 public class EvidenceGenerationWave : IVideoWave
 {
     private readonly ILogger<EvidenceGenerationWave> _logger;
-
-    public string Name => "evidence_generation";
-    public int Priority => 300; // After scene clustering
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Scene, VideoSignalTags.Shot];
 
     public EvidenceGenerationWave(ILogger<EvidenceGenerationWave> logger)
     {
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        context.Metadata != null &&
-        (context.Scenes.Count > 0 || context.Shots.Count > 0 || context.Utterances.Count > 0);
+    public string Name => "evidence_generation";
+    public int Priority => 300; // After scene clustering
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Scene, VideoSignalTags.Shot];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null &&
+               (context.Scenes.Count > 0 || context.Shots.Count > 0 || context.Utterances.Count > 0);
+    }
 
     public Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         context.ReportProgress("Generating evidence", 0);
 
         // Emit wave started signal
@@ -274,23 +277,17 @@ public class EvidenceGenerationWave : IVideoWave
     }
 
     /// <summary>
-    /// Build text content for a scene from utterances and text tracks.
+    ///     Build text content for a scene from utterances and text tracks.
     /// </summary>
     private static string BuildSceneTextContent(VideoContext context, SceneSegment scene)
     {
         var parts = new List<string>();
 
         // Add label if available
-        if (!string.IsNullOrEmpty(scene.Label))
-        {
-            parts.Add($"Scene: {scene.Label}");
-        }
+        if (!string.IsNullOrEmpty(scene.Label)) parts.Add($"Scene: {scene.Label}");
 
         // Add key terms
-        if (scene.KeyTerms.Count > 0)
-        {
-            parts.Add($"Topics: {string.Join(", ", scene.KeyTerms)}");
-        }
+        if (scene.KeyTerms.Count > 0) parts.Add($"Topics: {string.Join(", ", scene.KeyTerms)}");
 
         // Add utterances in this scene
         var utterances = context.Utterances
@@ -299,10 +296,7 @@ public class EvidenceGenerationWave : IVideoWave
             .Select(u => u.Text)
             .ToList();
 
-        if (utterances.Count > 0)
-        {
-            parts.Add($"Speech: {string.Join(" ", utterances)}");
-        }
+        if (utterances.Count > 0) parts.Add($"Speech: {string.Join(" ", utterances)}");
 
         // Add text tracks in this scene
         var textTracks = context.TextTracks
@@ -311,10 +305,7 @@ public class EvidenceGenerationWave : IVideoWave
             .Distinct()
             .ToList();
 
-        if (textTracks.Count > 0)
-        {
-            parts.Add($"On-screen: {string.Join("; ", textTracks)}");
-        }
+        if (textTracks.Count > 0) parts.Add($"On-screen: {string.Join("; ", textTracks)}");
 
         return string.Join("\n", parts);
     }

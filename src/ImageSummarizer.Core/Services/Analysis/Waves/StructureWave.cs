@@ -1,37 +1,30 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr;
-
+using SixLabors.ImageSharp;
 // Use explicit namespace to avoid confusion
-using OcrTextRegion = Mostlylucid.DocSummarizer.Images.Services.Ocr.OcrTextRegion;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Structure Wave - Detects document structure (headings, paragraphs, lists) from OCR output.
-/// Priority: 52 (runs after OCR waves, before Vision LLM)
-///
-/// Emits granular signals for each detected element:
-/// - structure.title.*
-/// - structure.heading.*
-/// - structure.paragraph.*
-/// - structure.list_item.*
-/// - structure.caption.*
-///
-/// Also emits summary signals:
-/// - structure.detected (bool)
-/// - structure.heading_count (int)
-/// - structure.markdown (string)
+///     Structure Wave - Detects document structure (headings, paragraphs, lists) from OCR output.
+///     Priority: 52 (runs after OCR waves, before Vision LLM)
+///     Emits granular signals for each detected element:
+///     - structure.title.*
+///     - structure.heading.*
+///     - structure.paragraph.*
+///     - structure.list_item.*
+///     - structure.caption.*
+///     Also emits summary signals:
+///     - structure.detected (bool)
+///     - structure.heading_count (int)
+///     - structure.markdown (string)
 /// </summary>
 public class StructureWave : IAnalysisWave
 {
-    private readonly DocumentStructureAnalyzer _structureAnalyzer;
-    private readonly IOcrEngine? _ocrEngine;
     private readonly ILogger<StructureWave>? _logger;
-
-    public string Name => "StructureWave";
-    public int Priority => 52; // After OCR (50), before Florence2 (55)
-    public IReadOnlyList<string> Tags => new[] { "structure", "markdown", "headings" };
+    private readonly IOcrEngine? _ocrEngine;
+    private readonly DocumentStructureAnalyzer _structureAnalyzer;
 
     public StructureWave(
         IOcrEngine? ocrEngine = null,
@@ -41,6 +34,10 @@ public class StructureWave : IAnalysisWave
         _structureAnalyzer = new DocumentStructureAnalyzer(logger as ILogger<DocumentStructureAnalyzer>);
         _logger = logger;
     }
+
+    public string Name => "StructureWave";
+    public int Priority => 52; // After OCR (50), before Florence2 (55)
+    public IReadOnlyList<string> Tags => new[] { "structure", "markdown", "headings" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -74,13 +71,13 @@ public class StructureWave : IAnalysisWave
             if (width == 0 || height == 0)
             {
                 // Try to get from image directly
-                using var img = await SixLabors.ImageSharp.Image.LoadAsync(imagePath, ct);
+                using var img = await Image.LoadAsync(imagePath, ct);
                 width = img.Width;
                 height = img.Height;
             }
 
             // Get OCR regions (prefer cached, otherwise run OCR)
-            var regions = context.GetCached<List<Mostlylucid.DocSummarizer.Images.Services.Ocr.OcrTextRegion>>("ocr.regions");
+            var regions = context.GetCached<List<Ocr.OcrTextRegion>>("ocr.regions");
 
             if (regions == null && _ocrEngine != null)
             {
@@ -207,7 +204,6 @@ public class StructureWave : IAnalysisWave
 
                 // For headings, emit level signal
                 if (element.Type is StructureType.Title or StructureType.Heading && element.HeadingLevel.HasValue)
-                {
                     signals.Add(new Signal
                     {
                         Key = $"{prefix}.level",
@@ -216,7 +212,6 @@ public class StructureWave : IAnalysisWave
                         Source = Name,
                         Tags = new List<string> { "structure", "heading", "level" }
                     });
-                }
 
                 // Position signal
                 signals.Add(new Signal
@@ -275,7 +270,6 @@ public class StructureWave : IAnalysisWave
                 .ToList();
 
             if (outline.Count > 0)
-            {
                 signals.Add(new Signal
                 {
                     Key = "structure.outline",
@@ -284,7 +278,6 @@ public class StructureWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "structure", "outline", "toc" }
                 });
-            }
 
             _logger?.LogInformation(
                 "Structure detected: {Headings} headings, {Paragraphs} paragraphs, {ListItems} list items",

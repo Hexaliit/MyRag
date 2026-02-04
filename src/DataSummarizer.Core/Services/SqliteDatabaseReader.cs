@@ -6,8 +6,8 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services;
 
 /// <summary>
-/// Database reader implementation for SQLite files.
-/// Extracts schema, relationships (foreign keys), and data.
+///     Database reader implementation for SQLite files.
+///     Extracts schema, relationships (foreign keys), and data.
 /// </summary>
 public class SqliteDatabaseReader : IDatabaseReader
 {
@@ -62,7 +62,8 @@ public class SqliteDatabaseReader : IDatabaseReader
             schema.Indexes.AddRange(indexes);
         }
 
-        _logger?.LogInformation("Schema extracted: {TableCount} tables, {RelationshipCount} relationships, {TotalRows:N0} total rows",
+        _logger?.LogInformation(
+            "Schema extracted: {TableCount} tables, {RelationshipCount} relationships, {TotalRows:N0} total rows",
             schema.Tables.Count, schema.Relationships.Count, schema.TotalRowCount);
 
         return schema;
@@ -97,9 +98,7 @@ public class SqliteDatabaseReader : IDatabaseReader
             await using var columnReader = await columnCmd.ExecuteReaderAsync(ct);
 
             while (await columnReader.ReadAsync(ct))
-            {
                 tableData.Columns.Add(columnReader.GetString(1)); // name is at index 1
-            }
 
             // Read rows
             var limitClause = maxRowsPerTable > 0 ? $" LIMIT {maxRowsPerTable}" : "";
@@ -110,11 +109,12 @@ public class SqliteDatabaseReader : IDatabaseReader
             while (await dataReader.ReadAsync(ct))
             {
                 var row = new Dictionary<string, object?>();
-                for (int i = 0; i < dataReader.FieldCount; i++)
+                for (var i = 0; i < dataReader.FieldCount; i++)
                 {
                     var columnName = dataReader.GetName(i);
                     row[columnName] = dataReader.IsDBNull(i) ? null : dataReader.GetValue(i);
                 }
+
                 tableData.Rows.Add(row);
             }
 
@@ -139,11 +139,12 @@ public class SqliteDatabaseReader : IDatabaseReader
         while (await reader.ReadAsync(ct))
         {
             var row = new Dictionary<string, object?>();
-            for (int i = 0; i < reader.FieldCount; i++)
+            for (var i = 0; i < reader.FieldCount; i++)
             {
                 var columnName = reader.GetName(i);
                 row[columnName] = reader.IsDBNull(i) ? null : reader.GetValue(i);
             }
+
             yield return row;
         }
     }
@@ -152,19 +153,16 @@ public class SqliteDatabaseReader : IDatabaseReader
     {
         var tables = new List<string>();
         const string query = """
-            SELECT name FROM sqlite_master
-            WHERE type='table'
-            AND name NOT LIKE 'sqlite_%'
-            ORDER BY name
-            """;
+                             SELECT name FROM sqlite_master
+                             WHERE type='table'
+                             AND name NOT LIKE 'sqlite_%'
+                             ORDER BY name
+                             """;
 
         await using var cmd = new SqliteCommand(query, connection);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
 
-        while (await reader.ReadAsync(ct))
-        {
-            tables.Add(reader.GetString(0));
-        }
+        while (await reader.ReadAsync(ct)) tables.Add(reader.GetString(0));
 
         return tables;
     }
@@ -274,7 +272,8 @@ public class SqliteDatabaseReader : IDatabaseReader
         {
             var indexName = indexListReader.GetString(1);
             var isUnique = indexListReader.GetInt32(2) != 0;
-            var origin = indexListReader.GetString(3); // 'c' = CREATE INDEX, 'u' = UNIQUE constraint, 'pk' = PRIMARY KEY
+            var origin =
+                indexListReader.GetString(3); // 'c' = CREATE INDEX, 'u' = UNIQUE constraint, 'pk' = PRIMARY KEY
 
             indexNames.Add((indexName, isUnique, origin));
         }
@@ -287,10 +286,7 @@ public class SqliteDatabaseReader : IDatabaseReader
             await using var indexInfoCmd = new SqliteCommand(indexInfoQuery, connection);
             await using var indexInfoReader = await indexInfoCmd.ExecuteReaderAsync(ct);
 
-            while (await indexInfoReader.ReadAsync(ct))
-            {
-                columns.Add(indexInfoReader.GetString(2)); // name is at index 2
-            }
+            while (await indexInfoReader.ReadAsync(ct)) columns.Add(indexInfoReader.GetString(2)); // name is at index 2
 
             indexes.Add(new IndexInfo
             {

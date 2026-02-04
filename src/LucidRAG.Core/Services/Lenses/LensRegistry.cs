@@ -1,22 +1,18 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using LucidRAG.Lenses;
 
 namespace LucidRAG.Services.Lenses;
 
 /// <summary>
-/// Manages the collection of loaded lens packages.
-/// Singleton service initialized on application startup.
+///     Manages the collection of loaded lens packages.
+///     Singleton service initialized on application startup.
 /// </summary>
 public class LensRegistry : ILensRegistry
 {
-    private readonly ILensLoader _loader;
     private readonly IConfiguration _config;
+    private readonly ILensLoader _loader;
     private readonly ILogger<LensRegistry> _logger;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private volatile List<LensPackage> _lenses = new();
-
-    public IReadOnlyList<LensPackage> AvailableLenses => _lenses;
 
     public LensRegistry(ILensLoader loader, IConfiguration config, ILogger<LensRegistry> logger)
     {
@@ -24,6 +20,8 @@ public class LensRegistry : ILensRegistry
         _config = config;
         _logger = logger;
     }
+
+    public IReadOnlyList<LensPackage> AvailableLenses => _lenses;
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -33,10 +31,7 @@ public class LensRegistry : ILensRegistry
             var lensDirectory = _config["Lenses:Directory"] ?? "./lenses";
 
             // Make path absolute if relative
-            if (!Path.IsPathRooted(lensDirectory))
-            {
-                lensDirectory = Path.GetFullPath(lensDirectory);
-            }
+            if (!Path.IsPathRooted(lensDirectory)) lensDirectory = Path.GetFullPath(lensDirectory);
 
             _logger.LogInformation("Loading lenses from directory: {Directory}", lensDirectory);
 
@@ -52,10 +47,8 @@ public class LensRegistry : ILensRegistry
             _logger.LogInformation("Lens registry initialized with {Count} lens(es)", _lenses.Count);
 
             foreach (var lens in _lenses)
-            {
                 _logger.LogDebug("  - {LensId} ({LensName}) v{Version} [priority: {Priority}]",
                     lens.Manifest.Id, lens.Manifest.Name, lens.Manifest.Version, lens.Manifest.Priority);
-            }
         }
         finally
         {
@@ -89,7 +82,8 @@ public class LensRegistry : ILensRegistry
         if (_lenses.Count > 0)
             return _lenses[0];
 
-        throw new InvalidOperationException("No lenses available in registry. Ensure lens packages are properly configured.");
+        throw new InvalidOperationException(
+            "No lenses available in registry. Ensure lens packages are properly configured.");
     }
 
     public async Task ReloadAsync(CancellationToken ct = default)
@@ -99,32 +93,32 @@ public class LensRegistry : ILensRegistry
     }
 
     /// <summary>
-    /// Creates a minimal default lens for fallback scenarios.
+    ///     Creates a minimal default lens for fallback scenarios.
     /// </summary>
     private static LensPackage CreateDefaultLens()
     {
         return new LensPackage
         {
             Manifest = new LensManifest(
-                Id: "default",
-                Name: "Default",
-                Description: "Standard response formatting",
-                Version: "1.0.0",
-                Author: "LucidRAG",
-                Priority: 0,
-                Scoring: new LensScoringConfig(
-                    DenseWeight: 0.3,
-                    Bm25Weight: 0.3,
-                    SalienceWeight: 0.2,
-                    FreshnessWeight: 0.2
+                "default",
+                "Default",
+                "Standard response formatting",
+                "1.0.0",
+                "LucidRAG",
+                0,
+                new LensScoringConfig(
+                    0.3,
+                    0.3,
+                    0.2,
+                    0.2
                 ),
-                Templates: new LensTemplatesConfig(
-                    SystemPrompt: "system-prompt",
-                    Citation: "citation",
-                    Response: null
+                new LensTemplatesConfig(
+                    "system-prompt",
+                    "citation",
+                    null
                 ),
-                Styles: null,
-                Settings: null
+                null,
+                null
             ),
             BasePath = "",
             SystemPromptTemplate = "You are a helpful assistant. Answer the question using only the evidence provided.",

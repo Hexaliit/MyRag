@@ -4,8 +4,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts <see cref="RedditFetcher"/> to the <see cref="ISourcePlugin"/> contract.
-/// Handles "reddit" and "reddit:subreddit" patterns.
+///     Adapts <see cref="RedditFetcher" /> to the <see cref="ISourcePlugin" /> contract.
+///     Handles "reddit" and "reddit:subreddit" patterns.
 /// </summary>
 public sealed class RedditPlugin : ISourcePlugin
 {
@@ -33,10 +33,7 @@ public sealed class RedditPlugin : ISourcePlugin
         var redditConfig = context.Config?.Sources.Reddit ?? new RedditConfig();
 
         // Override subreddit if specified as sub-parameter (e.g. "reddit:csharp")
-        if (context.SubParams.Count > 0)
-        {
-            redditConfig = redditConfig with { Subreddits = [context.SubParams[0]] };
-        }
+        if (context.SubParams.Count > 0) redditConfig = redditConfig with { Subreddits = [context.SubParams[0]] };
 
         var fetcher = new RedditFetcher(_httpClient);
         return await fetcher.FetchAsync(redditConfig, context.Limit, context.Progress);

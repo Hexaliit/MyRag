@@ -11,7 +11,7 @@ mime_types:
 
 priority: 50    # Only handles Gutenberg ZIP archives; .txt files go to MarkdownReader
 
-dependencies: []
+dependencies: [ ]
 
 capabilities:
   tables: false

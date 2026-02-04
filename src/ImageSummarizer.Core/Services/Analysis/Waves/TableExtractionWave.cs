@@ -2,29 +2,20 @@ using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
-using Mostlylucid.DocSummarizer.Images.Services.Layout;
 using Mostlylucid.DocSummarizer.Images.Services.Vision;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Table Extraction Wave - Converts extracted table images to CSV using Vision LLM.
-/// Runs after LayoutRoutingWave, processes table images and outputs structured CSV
-/// for downstream DataSummarizer profiling.
-///
-/// Priority: 62 (after LayoutRoutingWave at 63)
+///     Table Extraction Wave - Converts extracted table images to CSV using Vision LLM.
+///     Runs after LayoutRoutingWave, processes table images and outputs structured CSV
+///     for downstream DataSummarizer profiling.
+///     Priority: 62 (after LayoutRoutingWave at 63)
 /// </summary>
 public class TableExtractionWave : IAnalysisWave
 {
-    private readonly VisionLlmService _visionService;
-    private readonly ILogger<TableExtractionWave>? _logger;
-    private readonly string _outputDirectory;
-
-    public string Name => "TableExtractionWave";
-    public int Priority => 62; // After LayoutRoutingWave (63)
-    public IReadOnlyList<string> Tags => new[] { "table", "extraction", "csv", SignalTags.Content };
-
-    private const string TableExtractionPrompt = @"You are a precise table extraction assistant. Analyze this image of a table and extract ALL data into CSV format.
+    private const string TableExtractionPrompt =
+        @"You are a precise table extraction assistant. Analyze this image of a table and extract ALL data into CSV format.
 
 RULES:
 1. Output ONLY valid CSV data - no explanations, no markdown, no extra text
@@ -38,6 +29,10 @@ RULES:
 
 Output the CSV data now:";
 
+    private readonly ILogger<TableExtractionWave>? _logger;
+    private readonly string _outputDirectory;
+    private readonly VisionLlmService _visionService;
+
     public TableExtractionWave(
         VisionLlmService visionService,
         ILogger<TableExtractionWave>? logger = null)
@@ -47,6 +42,10 @@ Output the CSV data now:";
         _outputDirectory = Path.Combine(Path.GetTempPath(), "lucidrag", "extracted_tables");
         Directory.CreateDirectory(_outputDirectory);
     }
+
+    public string Name => "TableExtractionWave";
+    public int Priority => 62; // After LayoutRoutingWave (63)
+    public IReadOnlyList<string> Tags => new[] { "table", "extraction", "csv", SignalTags.Content };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -75,7 +74,7 @@ Output the CSV data now:";
         var extractedCsvPaths = new List<string>();
         var tableResults = new List<TableExtractionResult>();
 
-        for (int i = 0; i < tableImagePaths.Count; i++)
+        for (var i = 0; i < tableImagePaths.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -206,7 +205,7 @@ Output the CSV data now:";
     }
 
     /// <summary>
-    /// Extract a single table image to CSV using Vision LLM.
+    ///     Extract a single table image to CSV using Vision LLM.
     /// </summary>
     private async Task<TableExtractionResult> ExtractTableToCsvAsync(
         string tableImagePath,
@@ -219,35 +218,29 @@ Output the CSV data now:";
             ct: ct);
 
         if (!result.Success || string.IsNullOrWhiteSpace(result.Caption))
-        {
             return new TableExtractionResult
             {
                 Success = false,
                 Error = result.Error ?? "Vision LLM returned empty response"
             };
-        }
 
         // Parse and validate the CSV response
         var csvContent = CleanCsvResponse(result.Caption);
         if (string.IsNullOrWhiteSpace(csvContent))
-        {
             return new TableExtractionResult
             {
                 Success = false,
                 Error = "Could not extract valid CSV from response"
             };
-        }
 
         // Count rows and columns
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length == 0)
-        {
             return new TableExtractionResult
             {
                 Success = false,
                 Error = "No rows in extracted CSV"
             };
-        }
 
         var columnCount = CountCsvColumns(lines[0]);
         var rowCount = lines.Length - 1; // Exclude header
@@ -273,7 +266,7 @@ Output the CSV data now:";
     }
 
     /// <summary>
-    /// Clean up the LLM response to extract valid CSV content.
+    ///     Clean up the LLM response to extract valid CSV content.
     /// </summary>
     private static string CleanCsvResponse(string response)
     {
@@ -289,21 +282,16 @@ Output the CSV data now:";
             if (endOfFirstLine > 0)
                 cleaned = cleaned[(endOfFirstLine + 1)..];
         }
-        if (cleaned.EndsWith("```"))
-        {
-            cleaned = cleaned[..^3];
-        }
+
+        if (cleaned.EndsWith("```")) cleaned = cleaned[..^3];
 
         // Remove "csv" language identifier if present
-        if (cleaned.StartsWith("csv", StringComparison.OrdinalIgnoreCase))
-        {
-            cleaned = cleaned[3..].TrimStart();
-        }
+        if (cleaned.StartsWith("csv", StringComparison.OrdinalIgnoreCase)) cleaned = cleaned[3..].TrimStart();
 
         // Remove any preamble text before the actual CSV
         var lines = cleaned.Split('\n');
         var csvStartIndex = 0;
-        for (int i = 0; i < Math.Min(5, lines.Length); i++)
+        for (var i = 0; i < Math.Min(5, lines.Length); i++)
         {
             var line = lines[i].Trim();
             // Look for first line that looks like CSV (contains comma and no colon at start)
@@ -314,16 +302,13 @@ Output the CSV data now:";
             }
         }
 
-        if (csvStartIndex > 0)
-        {
-            cleaned = string.Join('\n', lines.Skip(csvStartIndex));
-        }
+        if (csvStartIndex > 0) cleaned = string.Join('\n', lines.Skip(csvStartIndex));
 
         return cleaned.Trim();
     }
 
     /// <summary>
-    /// Count CSV columns handling quoted fields properly.
+    ///     Count CSV columns handling quoted fields properly.
     /// </summary>
     private static int CountCsvColumns(string headerLine)
     {
@@ -331,18 +316,16 @@ Output the CSV data now:";
         var inQuotes = false;
 
         foreach (var c in headerLine)
-        {
             if (c == '"')
                 inQuotes = !inQuotes;
             else if (c == ',' && !inQuotes)
                 count++;
-        }
 
         return count + 1; // Number of commas + 1 = number of columns
     }
 
     /// <summary>
-    /// Calculate extraction confidence based on CSV consistency.
+    ///     Calculate extraction confidence based on CSV consistency.
     /// </summary>
     private static double CalculateExtractionConfidence(string[] lines, int expectedColumns)
     {
@@ -373,7 +356,7 @@ Output the CSV data now:";
 }
 
 /// <summary>
-/// Result of a table extraction operation.
+///     Result of a table extraction operation.
 /// </summary>
 public record TableExtractionResult
 {

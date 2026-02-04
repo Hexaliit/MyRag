@@ -11,14 +11,14 @@ public class CodeSummarizerServiceTests
     public async Task SummarizeCodeAsync_CSharp_ReturnsStructuralSummary()
     {
         var code = """
-            public class UserService
-            {
-                public async Task<User> GetUserAsync(int id)
-                {
-                    return await _db.Users.FindAsync(id);
-                }
-            }
-            """;
+                   public class UserService
+                   {
+                       public async Task<User> GetUserAsync(int id)
+                       {
+                           return await _db.Users.FindAsync(id);
+                       }
+                   }
+                   """;
 
         var result = await _service.SummarizeCodeAsync(code, "csharp");
 
@@ -33,11 +33,11 @@ public class CodeSummarizerServiceTests
     public async Task SummarizeCodeAsync_Python_ReturnsDescription()
     {
         var code = """
-            def fibonacci(n):
-                if n <= 1:
-                    return n
-                return fibonacci(n-1) + fibonacci(n-2)
-            """;
+                   def fibonacci(n):
+                       if n <= 1:
+                           return n
+                       return fibonacci(n-1) + fibonacci(n-2)
+                   """;
 
         var result = await _service.SummarizeCodeAsync(code, "python");
 
@@ -59,11 +59,11 @@ public class CodeSummarizerServiceTests
     public async Task SummarizeMermaidAsync_Flowchart_ReturnsParsedDescription()
     {
         var mermaid = """
-            graph TD
-                A[Start] --> B{Decision}
-                B -->|Yes| C[Process]
-                B -->|No| D[End]
-            """;
+                      graph TD
+                          A[Start] --> B{Decision}
+                          B -->|Yes| C[Process]
+                          B -->|No| D[End]
+                      """;
 
         var result = await _service.SummarizeMermaidAsync(mermaid);
 
@@ -107,13 +107,13 @@ public class CodeSummarizerServiceTests
     public void SummarizeCodeSync_ReturnsWithoutAsync()
     {
         var code = """
-            class Animal:
-                def __init__(self, name):
-                    self.name = name
+                   class Animal:
+                       def __init__(self, name):
+                           self.name = name
 
-                def speak(self):
-                    pass
-            """;
+                       def speak(self):
+                           pass
+                   """;
 
         var result = _service.SummarizeCodeSync(code, "python");
 

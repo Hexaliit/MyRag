@@ -17,16 +17,6 @@ namespace Mostlylucid.DocSummarizer.LLamaSharp.Services;
 /// </summary>
 public sealed class LLamaSharpLlmService : ILlmService, IDisposable
 {
-    private readonly LLamaSharpConfig _config;
-    private readonly LLamaSharpModelDownloader _downloader;
-
-    // Lazy-loaded models (loaded on first use, kept for session)
-    private LLamaWeights? _synthesisWeights;
-    private LLamaWeights? _sentinelWeights;
-    private ModelParams? _synthesisParams;
-    private ModelParams? _sentinelParams;
-    private readonly SemaphoreSlim _loadLock = new(1, 1);
-
     // Ensure native logging is suppressed exactly once (llama.cpp is extremely verbose)
     private static int _loggingConfigured;
 
@@ -40,6 +30,16 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
         PropertyNameCaseInsensitive = true
     };
 
+    private readonly LLamaSharpConfig _config;
+    private readonly LLamaSharpModelDownloader _downloader;
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
+    private ModelParams? _sentinelParams;
+    private LLamaWeights? _sentinelWeights;
+    private ModelParams? _synthesisParams;
+
+    // Lazy-loaded models (loaded on first use, kept for session)
+    private LLamaWeights? _synthesisWeights;
+
     public LLamaSharpLlmService(LLamaSharpConfig config, LLamaSharpModelDownloader downloader)
     {
         _config = config;
@@ -47,24 +47,11 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
         SuppressNativeLogging();
     }
 
-    /// <summary>
-    ///     Configure native backend and suppress llama.cpp debug output.
-    ///     Called once before any model loading.
-    ///     Prefers CUDA GPU acceleration when available, with automatic CPU fallback.
-    ///     Without log suppression, every StatelessExecutor call dumps dozens of lines
-    ///     of model metadata, tensor info, and memory allocation details to stderr.
-    /// </summary>
-    private static void SuppressNativeLogging()
+    public void Dispose()
     {
-        if (Interlocked.CompareExchange(ref _loggingConfigured, 1, 0) == 0)
-        {
-            // Configure backend selection before any native API calls.
-            // WithCuda() prefers CUDA when the Backend.Cuda12 package is present;
-            // auto-fallback (enabled by default) drops to CPU if no NVIDIA GPU is found.
-            NativeLibraryConfig.All.WithCuda();
-
-            NativeLogConfig.llama_log_set((_, _) => { });
-        }
+        _sentinelWeights?.Dispose();
+        _synthesisWeights?.Dispose();
+        _loadLock.Dispose();
     }
 
     /// <inheritdoc />
@@ -83,7 +70,8 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
         var systemPrompt = options?.SystemPrompt ?? "";
         if (options?.JsonMode ?? false)
         {
-            const string jsonInstruction = "Respond with valid JSON only. No markdown, no code blocks, just the JSON object.";
+            const string jsonInstruction =
+                "Respond with valid JSON only. No markdown, no code blocks, just the JSON object.";
             systemPrompt = string.IsNullOrEmpty(systemPrompt)
                 ? jsonInstruction
                 : $"{systemPrompt}\n\n{jsonInstruction}";
@@ -103,19 +91,16 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
                 Temperature = temperature,
                 TopP = 0.9f,
                 MinP = 0.05f,
-                RepeatPenalty = 1.1f,
+                RepeatPenalty = 1.1f
             },
             // Stop on end-of-turn tokens from all supported model families
             AntiPrompts = isSentinel
                 ? ["```", "\n\n\n", ..EndOfTurnTokens]
-                : ["\n\n\n", ..EndOfTurnTokens],
+                : ["\n\n\n", ..EndOfTurnTokens]
         };
 
         var sb = new StringBuilder();
-        await foreach (var token in executor.InferAsync(formattedPrompt, inferenceParams, ct))
-        {
-            sb.Append(token);
-        }
+        await foreach (var token in executor.InferAsync(formattedPrompt, inferenceParams, ct)) sb.Append(token);
 
         return CleanResponse(sb.ToString());
     }
@@ -134,7 +119,8 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
         var systemPrompt = options?.SystemPrompt ?? "";
         if (options?.JsonMode ?? false)
         {
-            const string jsonInstruction = "Respond with valid JSON only. No markdown, no code blocks, just the JSON object.";
+            const string jsonInstruction =
+                "Respond with valid JSON only. No markdown, no code blocks, just the JSON object.";
             systemPrompt = string.IsNullOrEmpty(systemPrompt)
                 ? jsonInstruction
                 : $"{systemPrompt}\n\n{jsonInstruction}";
@@ -151,11 +137,11 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
                 Temperature = temperature,
                 TopP = 0.9f,
                 MinP = 0.05f,
-                RepeatPenalty = 1.1f,
+                RepeatPenalty = 1.1f
             },
             AntiPrompts = isSentinel
                 ? ["```", "\n\n\n", ..EndOfTurnTokens]
-                : ["\n\n\n", ..EndOfTurnTokens],
+                : ["\n\n\n", ..EndOfTurnTokens]
         };
 
         await foreach (var token in executor.InferAsync(formattedPrompt, inferenceParams, ct))
@@ -163,20 +149,20 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
             // Skip end-of-turn tokens in streaming output
             var isEot = false;
             foreach (var eot in EndOfTurnTokens)
-            {
                 if (token.Contains(eot, StringComparison.Ordinal))
                 {
                     isEot = true;
                     break;
                 }
-            }
+
             if (!isEot)
                 yield return token;
         }
     }
 
     /// <inheritdoc />
-    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null, CancellationToken ct = default)
+    public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null,
+        CancellationToken ct = default)
         where T : class
     {
         var jsonOptions = new LlmOptions
@@ -186,7 +172,7 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
             MaxTokens = options?.MaxTokens ?? 1024,
             SystemPrompt = options?.SystemPrompt,
             JsonMode = true,
-            Role = options?.Role ?? "sentinel",
+            Role = options?.Role ?? "sentinel"
         };
 
         var result = await GenerateAsync(prompt, jsonOptions, ct);
@@ -228,7 +214,29 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
 
     /// <inheritdoc />
     public Task<int> GetContextWindowAsync(CancellationToken ct = default)
-        => Task.FromResult((int)_config.ContextSize);
+    {
+        return Task.FromResult((int)_config.ContextSize);
+    }
+
+    /// <summary>
+    ///     Configure native backend and suppress llama.cpp debug output.
+    ///     Called once before any model loading.
+    ///     Prefers CUDA GPU acceleration when available, with automatic CPU fallback.
+    ///     Without log suppression, every StatelessExecutor call dumps dozens of lines
+    ///     of model metadata, tensor info, and memory allocation details to stderr.
+    /// </summary>
+    private static void SuppressNativeLogging()
+    {
+        if (Interlocked.CompareExchange(ref _loggingConfigured, 1, 0) == 0)
+        {
+            // Configure backend selection before any native API calls.
+            // WithCuda() prefers CUDA when the Backend.Cuda12 package is present;
+            // auto-fallback (enabled by default) drops to CPU if no NVIDIA GPU is found.
+            NativeLibraryConfig.All.WithCuda();
+
+            NativeLogConfig.llama_log_set((_, _) => { });
+        }
+    }
 
     /// <summary>
     ///     Ensure the model for the given role is loaded. Downloads if necessary.
@@ -259,7 +267,7 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
             {
                 ContextSize = sentinel ? 4096u : _config.ContextSize,
                 GpuLayerCount = _config.GpuLayerCount,
-                BatchSize = (uint)_config.BatchSize,
+                BatchSize = (uint)_config.BatchSize
             };
 
             weights = await LLamaWeights.LoadFromFileAsync(modelParams, ct);
@@ -311,6 +319,7 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
                 sb.AppendLine(systemPrompt);
                 sb.AppendLine();
             }
+
             sb.Append(userPrompt);
             return sb.ToString();
         }
@@ -324,19 +333,9 @@ public sealed class LLamaSharpLlmService : ILlmService, IDisposable
         var result = raw.Trim();
         // Models may emit their end-of-turn marker before the anti-prompt catches it
         foreach (var eot in EndOfTurnTokens)
-        {
             if (result.EndsWith(eot, StringComparison.Ordinal))
-            {
                 result = result[..^eot.Length].TrimEnd();
-            }
-        }
-        return result;
-    }
 
-    public void Dispose()
-    {
-        _sentinelWeights?.Dispose();
-        _synthesisWeights?.Dispose();
-        _loadLock.Dispose();
+        return result;
     }
 }

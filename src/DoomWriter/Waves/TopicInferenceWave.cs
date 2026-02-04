@@ -1,12 +1,12 @@
-using Mostlylucid.Summarizer.Core.Analysis;
 using DoomWriter.Models;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace DoomWriter.Waves;
 
 /// <summary>
-/// Infers document topics from headings and segment salience.
-/// Fast lane — uses heading text as topic proxy for nearby segments.
-/// Lower priority — runs after headings and segments are extracted.
+///     Infers document topics from headings and segment salience.
+///     Fast lane — uses heading text as topic proxy for nearby segments.
+///     Lower priority — runs after headings and segments are extracted.
 /// </summary>
 public sealed class TopicInferenceWave : ITypedAnalysisWave<string>
 {
@@ -16,8 +16,10 @@ public sealed class TopicInferenceWave : ITypedAnalysisWave<string>
     public IReadOnlyList<string> Tags => [SignalTags.Topic, SignalTags.Semantic];
     public bool Enabled { get; set; } = true;
 
-    public bool ShouldRun(string content, AnalysisContext context) =>
-        context.HasCached("headings") && context.HasCached("segments");
+    public bool ShouldRun(string content, AnalysisContext context)
+    {
+        return context.HasCached("headings") && context.HasCached("segments");
+    }
 
     public Task<IEnumerable<Signal>> AnalyzeAsync(
         string markdown, AnalysisContext context, CancellationToken ct = default)
@@ -27,7 +29,7 @@ public sealed class TopicInferenceWave : ITypedAnalysisWave<string>
 
         var topics = new List<TopicScore>();
 
-        for (int i = 0; i < headings.Count; i++)
+        for (var i = 0; i < headings.Count; i++)
         {
             var heading = headings[i];
             var nextHeadingOffset = i + 1 < headings.Count ? headings[i + 1].CharOffset : int.MaxValue;
@@ -36,14 +38,12 @@ public sealed class TopicInferenceWave : ITypedAnalysisWave<string>
                 s.CharOffset >= heading.CharOffset && s.CharOffset < nextHeadingOffset).ToList();
 
             if (sectionSegments.Count > 0)
-            {
                 topics.Add(new TopicScore
                 {
                     Topic = heading.Text,
                     Score = sectionSegments.Average(s => s.Salience),
                     SectionIndex = i
                 });
-            }
         }
 
         var dominantTopic = topics.Count > 0

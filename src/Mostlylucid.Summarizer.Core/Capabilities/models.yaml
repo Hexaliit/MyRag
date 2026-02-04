@@ -168,26 +168,26 @@ models:
 # Maps wave/service names to their required models
 components:
   ClipEmbeddingWave:
-    models: [clip-vit-b32]
-    fallback_chain: [ImageAnalysisWave]
+    models: [ clip-vit-b32 ]
+    fallback_chain: [ ImageAnalysisWave ]
 
   TranscriptionWave:
-    models: [whisper-base]
-    optional_models: [bert-base-ner]
+    models: [ whisper-base ]
+    optional_models: [ bert-base-ner ]
 
   SpeakerDiarizationWave:
-    models: [ecapa-tdnn]
+    models: [ ecapa-tdnn ]
 
   TextOcrWave:
-    models: [paddleocr-det, paddleocr-rec]
-    fallback_chain: [trocr-base]
+    models: [ paddleocr-det, paddleocr-rec ]
+    fallback_chain: [ trocr-base ]
 
   ImageAnalysisWave:
-    models: [clip-vit-b32]
-    optional_models: [florence-2-base]
+    models: [ clip-vit-b32 ]
+    optional_models: [ florence-2-base ]
 
   EmbeddingService:
-    models: [all-minilm-l6-v2]
+    models: [ all-minilm-l6-v2 ]
 
   OnnxNerService:
-    models: [bert-base-ner]
+    models: [ bert-base-ner ]

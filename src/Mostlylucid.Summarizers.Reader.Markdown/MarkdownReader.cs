@@ -7,12 +7,13 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizers.Reader.Markdown;
 
 /// <summary>
-/// Reader for Markdown and plain text files.
-/// Handles YAML front matter extraction, heading-aware structure preservation,
-/// and .md/.mdx/.markdown/.txt extensions.
+///     Reader for Markdown and plain text files.
+///     Handles YAML front matter extraction, heading-aware structure preservation,
+///     and .md/.mdx/.markdown/.txt extensions.
 /// </summary>
 public partial class MarkdownReader : IDocumentReader
 {
+    private static readonly string[] _extensions = [".md", ".mdx", ".markdown", ".txt"];
     private readonly ILogger<MarkdownReader> _logger;
 
     public MarkdownReader(ILogger<MarkdownReader> logger)
@@ -21,17 +22,18 @@ public partial class MarkdownReader : IDocumentReader
     }
 
     public string ReaderName => "markdown";
-    private static readonly string[] _extensions = [".md", ".mdx", ".markdown", ".txt"];
     public IReadOnlyList<string> SupportedExtensions => _extensions;
     public int Priority => 100;
 
-    public async Task<ReaderResult> ReadAsync(string filePath, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(string filePath, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, ct);
         return ProcessContent(content, filePath);
     }
 
-    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         using var reader = new StreamReader(stream, Encoding.UTF8);
         var content = await reader.ReadToEndAsync(ct);

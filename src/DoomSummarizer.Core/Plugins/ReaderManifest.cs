@@ -3,9 +3,9 @@ using YamlDotNet.Serialization;
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// YAML manifest shipped with each reader package.
-/// Declares the reader's capabilities, extensions, and configuration options.
-/// Loaded from embedded resource "reader.yaml" during plugin initialization.
+///     YAML manifest shipped with each reader package.
+///     Declares the reader's capabilities, extensions, and configuration options.
+///     Loaded from embedded resource "reader.yaml" during plugin initialization.
 /// </summary>
 public class ReaderManifest
 {
@@ -51,7 +51,7 @@ public class ReaderManifest
 }
 
 /// <summary>
-/// Capabilities a reader can declare in its manifest.
+///     Capabilities a reader can declare in its manifest.
 /// </summary>
 public class ReaderCapabilities
 {

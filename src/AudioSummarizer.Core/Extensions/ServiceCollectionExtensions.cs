@@ -12,22 +12,19 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 namespace AudioSummarizer.Core.Extensions;
 
 /// <summary>
-/// Service collection extensions for AudioSummarizer
+///     Service collection extensions for AudioSummarizer
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Register AudioSummarizer services
+    ///     Register AudioSummarizer services
     /// </summary>
     public static IServiceCollection AddAudioSummarizer(
         this IServiceCollection services,
         Action<AudioConfig>? configure = null)
     {
         // Configuration
-        if (configure != null)
-        {
-            services.Configure(configure);
-        }
+        if (configure != null) services.Configure(configure);
 
         // Core services
         services.AddSingleton<AudioWaveOrchestrator>();
@@ -65,15 +62,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISourceSeparationService, DemucsSourceSeparationService>();
 
         // Register waves (in priority order)
-        services.AddSingleton<IAudioWave, IdentityWave>();           // Phase 1: Priority 100
-        services.AddSingleton<IAudioWave, FingerprintWave>();        // Phase 2: Priority 90
-        services.AddSingleton<IAudioWave, ContentClassifierWave>();  // Phase 3.5: Priority 70
-        services.AddSingleton<IAudioWave, MusicAnalysisWave>();      // Phase 3.6: Priority 65
-        services.AddSingleton<IAudioWave, SourceSeparationWave>();   // Phase 3.7: Priority 55 (Demucs)
-        services.AddSingleton<IAudioWave, TranscriptionWave>();      // Phase 3: Priority 60
+        services.AddSingleton<IAudioWave, IdentityWave>(); // Phase 1: Priority 100
+        services.AddSingleton<IAudioWave, FingerprintWave>(); // Phase 2: Priority 90
+        services.AddSingleton<IAudioWave, ContentClassifierWave>(); // Phase 3.5: Priority 70
+        services.AddSingleton<IAudioWave, MusicAnalysisWave>(); // Phase 3.6: Priority 65
+        services.AddSingleton<IAudioWave, SourceSeparationWave>(); // Phase 3.7: Priority 55 (Demucs)
+        services.AddSingleton<IAudioWave, TranscriptionWave>(); // Phase 3: Priority 60
         services.AddSingleton<IAudioWave, SpeakerDiarizationWave>(); // Phase 5: Priority 50
-        services.AddSingleton<IAudioWave, VoiceEmbeddingWave>();     // Phase 4: Priority 30
-        services.AddSingleton<IAudioWave, EmbeddingStorageWave>();  // Phase 4b: Priority 20 (storage)
+        services.AddSingleton<IAudioWave, VoiceEmbeddingWave>(); // Phase 4: Priority 30
+        services.AddSingleton<IAudioWave, EmbeddingStorageWave>(); // Phase 4b: Priority 20 (storage)
 
         // Register the pipeline for unified pipeline registry
         services.AddSingleton<AudioPipeline>();
@@ -83,7 +80,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Register AudioSummarizer services with IConfiguration
+    ///     Register AudioSummarizer services with IConfiguration
     /// </summary>
     public static IServiceCollection AddAudioSummarizer(
         this IServiceCollection services,

@@ -14,15 +14,15 @@ using Xunit.Abstractions;
 namespace Mostlylucid.DocSummarizer.Images.Tests.Services;
 
 /// <summary>
-/// Tests for EscalationService feedback storage functionality.
+///     Tests for EscalationService feedback storage functionality.
 /// </summary>
 public class EscalationServiceFeedbackTests : IDisposable
 {
-    private readonly ITestOutputHelper _output;
-    private readonly string _testDir;
     private readonly Mock<IImageAnalyzer> _imageAnalyzerMock;
-    private readonly Mock<ISignalDatabase> _signalDbMock;
     private readonly Mock<ILogger<EscalationService>> _loggerMock;
+    private readonly ITestOutputHelper _output;
+    private readonly Mock<ISignalDatabase> _signalDbMock;
+    private readonly string _testDir;
 
     public EscalationServiceFeedbackTests(ITestOutputHelper output)
     {
@@ -38,10 +38,14 @@ public class EscalationServiceFeedbackTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_testDir))
-        {
-            try { Directory.Delete(_testDir, true); }
-            catch { /* ignore cleanup errors */ }
-        }
+            try
+            {
+                Directory.Delete(_testDir, true);
+            }
+            catch
+            {
+                /* ignore cleanup errors */
+            }
     }
 
     [Fact]
@@ -74,19 +78,19 @@ public class EscalationServiceFeedbackTests : IDisposable
         await service.StoreFeedbackAsync(
             imagePath,
             profile,
-            llmCaption: "Original caption",
-            wasCorrect: true);
+            "Original caption",
+            true);
 
         // Assert
         _signalDbMock.Verify(db => db.StoreFeedbackAsync(
-            It.IsAny<string>(),
-            "caption_correct",
-            "Original caption",
-            null,
-            0.1,
-            It.IsAny<string?>(),
-            It.IsAny<long?>(),
-            It.IsAny<CancellationToken>()),
+                It.IsAny<string>(),
+                "caption_correct",
+                "Original caption",
+                null,
+                0.1,
+                It.IsAny<string?>(),
+                It.IsAny<long?>(),
+                It.IsAny<CancellationToken>()),
             Times.Once);
 
         _output.WriteLine("Correct feedback stored to SignalDatabase");
@@ -122,20 +126,20 @@ public class EscalationServiceFeedbackTests : IDisposable
         await service.StoreFeedbackAsync(
             imagePath,
             profile,
-            llmCaption: "Wrong caption",
-            wasCorrect: false,
-            userCorrection: "Corrected caption");
+            "Wrong caption",
+            false,
+            "Corrected caption");
 
         // Assert
         _signalDbMock.Verify(db => db.StoreFeedbackAsync(
-            It.IsAny<string>(),
-            "caption_incorrect",
-            "Wrong caption",
-            "Corrected caption",
-            -0.1,
-            It.IsAny<string?>(),
-            It.IsAny<long?>(),
-            It.IsAny<CancellationToken>()),
+                It.IsAny<string>(),
+                "caption_incorrect",
+                "Wrong caption",
+                "Corrected caption",
+                -0.1,
+                It.IsAny<string?>(),
+                It.IsAny<long?>(),
+                It.IsAny<CancellationToken>()),
             Times.Once);
 
         _output.WriteLine("Incorrect feedback with correction stored");
@@ -150,7 +154,7 @@ public class EscalationServiceFeedbackTests : IDisposable
             _imageAnalyzerMock.Object,
             visionServiceMock,
             _loggerMock.Object,
-            signalDatabase: null);
+            null);
 
         var imagePath = CreateTestImage("nodb.png", 200, 200);
         var profile = CreateTestProfile();
@@ -159,19 +163,19 @@ public class EscalationServiceFeedbackTests : IDisposable
         await service.StoreFeedbackAsync(
             imagePath,
             profile,
-            llmCaption: "Test caption",
-            wasCorrect: true);
+            "Test caption",
+            true);
 
         // Assert - Should complete without error
         _signalDbMock.Verify(db => db.StoreFeedbackAsync(
-            It.IsAny<string>(),
-            It.IsAny<string>(),
-            It.IsAny<string?>(),
-            It.IsAny<string?>(),
-            It.IsAny<double?>(),
-            It.IsAny<string?>(),
-            It.IsAny<long?>(),
-            It.IsAny<CancellationToken>()),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<double?>(),
+                It.IsAny<string?>(),
+                It.IsAny<long?>(),
+                It.IsAny<CancellationToken>()),
             Times.Never);
 
         _output.WriteLine("Feedback logged without database");
@@ -207,8 +211,8 @@ public class EscalationServiceFeedbackTests : IDisposable
         var act = async () => await service.StoreFeedbackAsync(
             imagePath,
             profile,
-            llmCaption: "Test",
-            wasCorrect: true);
+            "Test",
+            true);
 
         // Assert
         await act.Should().NotThrowAsync("should handle database errors gracefully");
@@ -242,8 +246,8 @@ public class EscalationServiceFeedbackTests : IDisposable
                 It.IsAny<string?>(),
                 It.IsAny<long?>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<string, string, string?, string?, double?, string?, long?, CancellationToken>(
-                (sha256, _, _, _, _, _, _, _) => capturedSha256 = sha256)
+            .Callback<string, string, string?, string?, double?, string?, long?, CancellationToken>((sha256, _, _, _, _,
+                _, _, _) => capturedSha256 = sha256)
             .Returns(Task.CompletedTask);
 
         // Act

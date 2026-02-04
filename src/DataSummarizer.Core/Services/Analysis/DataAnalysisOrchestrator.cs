@@ -7,13 +7,13 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis;
 
 /// <summary>
-/// Orchestrates data analysis waves in priority order.
+///     Orchestrates data analysis waves in priority order.
 /// </summary>
 public class DataAnalysisOrchestrator
 {
-    private readonly IEnumerable<IDataAnalysisWave> _waves;
-    private readonly DataProcessorOptions _options;
     private readonly ILogger<DataAnalysisOrchestrator> _logger;
+    private readonly DataProcessorOptions _options;
+    private readonly IEnumerable<IDataAnalysisWave> _waves;
 
     public DataAnalysisOrchestrator(
         IEnumerable<IDataAnalysisWave> waves,
@@ -26,7 +26,7 @@ public class DataAnalysisOrchestrator
     }
 
     /// <summary>
-    /// Analyze a data file by running all enabled waves in priority order.
+    ///     Analyze a data file by running all enabled waves in priority order.
     /// </summary>
     public async Task<DynamicDataProfile> AnalyzeAsync(DataFile file, CancellationToken ct = default)
     {
@@ -100,7 +100,7 @@ public class DataAnalysisOrchestrator
     }
 
     /// <summary>
-    /// Get list of registered wave names.
+    ///     Get list of registered wave names.
     /// </summary>
     public IEnumerable<string> GetWaveNames()
     {
@@ -108,7 +108,7 @@ public class DataAnalysisOrchestrator
     }
 
     /// <summary>
-    /// Get waves by tag.
+    ///     Get waves by tag.
     /// </summary>
     public IEnumerable<IDataAnalysisWave> GetWavesByTag(string tag)
     {

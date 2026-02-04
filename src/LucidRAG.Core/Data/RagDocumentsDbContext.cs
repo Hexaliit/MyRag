@@ -1,8 +1,7 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using LucidRAG.Entities;
 using LucidRAG.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace LucidRAG.Data;
 
@@ -52,14 +51,10 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
 
         // Apply DateTimeOffset converters for SQLite compatibility
         if (Database.IsSqlite())
-        {
             ApplySqliteDateTimeOffsetConverters(modelBuilder);
-        }
         else
-        {
             // Enable pgvector extension for PostgreSQL
             modelBuilder.HasPostgresExtension("vector");
-        }
 
         var isSqlite = Database.IsSqlite();
 
@@ -291,7 +286,7 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.HasIndex(e => e.EntityId);
             entity.HasIndex(e => e.ArtifactType);
             entity.HasIndex(e => e.ContentHash);
-            entity.HasIndex(e => e.SegmentHash);  // Fast lookup for RAG text hydration
+            entity.HasIndex(e => e.SegmentHash); // Fast lookup for RAG text hydration
             entity.HasIndex(e => new { e.EntityId, e.ArtifactType });
 
             // GIN index on JSONB metadata for efficient signal filtering
@@ -300,10 +295,8 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             // - "high salience segments" -> WHERE (metadata->>'salienceScore')::float > 0.8
             // - "introduction sections" -> WHERE metadata->>'sectionTitle' ILIKE '%introduction%'
             if (!isSqlite)
-            {
                 entity.HasIndex(e => e.Metadata)
                     .HasMethod("gin");
-            }
 
             entity.HasOne(e => e.Entity)
                 .WithMany(e => e.EvidenceArtifacts)
@@ -363,10 +356,7 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.Property(e => e.Location).HasMaxLength(2048).IsRequired();
             entity.Property(e => e.FilePattern).HasMaxLength(256);
             entity.Property(e => e.Credentials).HasMaxLength(4096);
-            if (!isSqlite)
-            {
-                entity.Property(e => e.Options).HasColumnType("jsonb");
-            }
+            if (!isSqlite) entity.Property(e => e.Options).HasColumnType("jsonb");
 
             // Indexes
             entity.HasIndex(e => e.SourceType);
@@ -385,10 +375,7 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.ToTable("ingestion_jobs");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Status).HasMaxLength(32).IsRequired();
-            if (!isSqlite)
-            {
-                entity.Property(e => e.Errors).HasColumnType("jsonb");
-            }
+            if (!isSqlite) entity.Property(e => e.Errors).HasColumnType("jsonb");
 
             // Indexes
             entity.HasIndex(e => e.SourceId);
@@ -487,14 +474,10 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
 
             // pgvector column - only for PostgreSQL
             if (isSqlite)
-            {
                 // SQLite doesn't support pgvector - ignore the Vector property entirely
                 entity.Ignore(e => e.Embedding);
-            }
             else
-            {
                 entity.Property(e => e.Embedding).HasColumnType("vector(384)");
-            }
 
             if (!isSqlite) entity.Property(e => e.Metadata).HasColumnType("jsonb");
 
@@ -549,18 +532,10 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             v => v.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(v.Value) : null);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            foreach (var property in entityType.GetProperties())
-            {
-                if (property.ClrType == typeof(DateTimeOffset))
-                {
-                    property.SetValueConverter(dateTimeOffsetConverter);
-                }
-                else if (property.ClrType == typeof(DateTimeOffset?))
-                {
-                    property.SetValueConverter(nullableDateTimeOffsetConverter);
-                }
-            }
-        }
+        foreach (var property in entityType.GetProperties())
+            if (property.ClrType == typeof(DateTimeOffset))
+                property.SetValueConverter(dateTimeOffsetConverter);
+            else if (property.ClrType == typeof(DateTimeOffset?))
+                property.SetValueConverter(nullableDateTimeOffsetConverter);
     }
 }

@@ -1,7 +1,7 @@
 namespace DoomSummarizer.Plugins.Subtitles;
 
 /// <summary>
-/// Detected chapter boundary within a subtitle stream.
+///     Detected chapter boundary within a subtitle stream.
 /// </summary>
 public record SubtitleChapter(
     TimeSpan StartTime,
@@ -9,8 +9,8 @@ public record SubtitleChapter(
     int StartIndex);
 
 /// <summary>
-/// Detects chapter-like boundaries in subtitle streams using gap analysis
-/// and marker detection (e.g., [Music], [Applause], all-caps titles).
+///     Detects chapter-like boundaries in subtitle streams using gap analysis
+///     and marker detection (e.g., [Music], [Applause], all-caps titles).
 /// </summary>
 public static class ChapterDetector
 {
@@ -26,7 +26,7 @@ public static class ChapterDetector
     private static readonly string[] SubstringMarkers = ["[music", "[applause", "[laughter", "♪", "♫"];
 
     /// <summary>
-    /// Detect chapter boundaries from subtitle entries using gap and marker heuristics.
+    ///     Detect chapter boundaries from subtitle entries using gap and marker heuristics.
     /// </summary>
     public static List<SubtitleChapter> DetectChapters(
         IReadOnlyList<SubtitleEntry> entries,
@@ -78,10 +78,8 @@ public static class ChapterDetector
 
         // Slow path: substring match for partial markers like "[Music] and talking"
         foreach (var marker in SubstringMarkers)
-        {
             if (trimmed.Contains(marker.AsSpan(), StringComparison.OrdinalIgnoreCase))
                 return true;
-        }
 
         return false;
     }
@@ -130,25 +128,25 @@ public static class ChapterDetector
         {
             var text = entries[i].Text.Trim();
             if (!string.IsNullOrEmpty(text) && !IsSectionMarker(text))
-            {
                 return text.Length > 60 ? string.Concat(text.AsSpan(0, 57), "...") : text;
-            }
         }
 
         return $"Section at {entries[startIndex].StartTime:hh\\:mm\\:ss}";
     }
 
     /// <summary>
-    /// Format a TimeSpan as a timestamp string (H:MM:SS or M:SS).
+    ///     Format a TimeSpan as a timestamp string (H:MM:SS or M:SS).
     /// </summary>
     public static string FormatTimestamp(TimeSpan ts)
-        => ts.TotalHours >= 1
+    {
+        return ts.TotalHours >= 1
             ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
             : $"{ts.Minutes}:{ts.Seconds:D2}";
+    }
 }
 
 /// <summary>
-/// Normalized subtitle entry with timing and cleaned text.
+///     Normalized subtitle entry with timing and cleaned text.
 /// </summary>
 public record SubtitleEntry(
     TimeSpan StartTime,

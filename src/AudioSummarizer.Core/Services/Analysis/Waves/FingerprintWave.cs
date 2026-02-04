@@ -5,21 +5,18 @@ using AudioSummarizer.Core.Services.Fingerprinting;
 namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
-/// Fingerprint Wave - Generates perceptual audio fingerprints for deduplication and similarity detection.
-/// Priority: 90 (runs after IdentityWave but before acoustic profiling)
-/// Signals:
-/// - audio.fingerprint.type: Fingerprint algorithm (spectral_peaks, chromaprint)
-/// - audio.fingerprint.hash: Fingerprint hash (hex string)
-/// - audio.fingerprint.provider: Provider that generated the fingerprint
+///     Fingerprint Wave - Generates perceptual audio fingerprints for deduplication and similarity detection.
+///     Priority: 90 (runs after IdentityWave but before acoustic profiling)
+///     Signals:
+///     - audio.fingerprint.type: Fingerprint algorithm (spectral_peaks, chromaprint)
+///     - audio.fingerprint.hash: Fingerprint hash (hex string)
+///     - audio.fingerprint.provider: Provider that generated the fingerprint
 /// </summary>
 public sealed class FingerprintWave : IAudioWave
 {
-    private readonly IFingerprintService _fingerprintService;
     private readonly AudioConfig _config;
+    private readonly IFingerprintService _fingerprintService;
     private readonly ILogger<FingerprintWave> _logger;
-
-    public string Name => "FingerprintWave";
-    public int Priority => 90;
 
     public FingerprintWave(
         IFingerprintService fingerprintService,
@@ -30,6 +27,9 @@ public sealed class FingerprintWave : IAudioWave
         _config = config.Value;
         _logger = logger;
     }
+
+    public string Name => "FingerprintWave";
+    public int Priority => 90;
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {
@@ -79,7 +79,6 @@ public sealed class FingerprintWave : IAudioWave
 
             // Store raw fingerprint data if available (for similarity comparison)
             if (fingerprint.RawData != null)
-            {
                 signals.Add(new Signal
                 {
                     Name = "audio.fingerprint.raw_data_size",
@@ -87,7 +86,6 @@ public sealed class FingerprintWave : IAudioWave
                     Type = SignalType.Metadata,
                     Source = Name
                 });
-            }
 
             _logger.LogInformation(
                 "Generated {Type} fingerprint: {Hash} ({Provider})",

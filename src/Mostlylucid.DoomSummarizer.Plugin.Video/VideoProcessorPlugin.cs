@@ -7,17 +7,6 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Video;
 
 public class VideoProcessorPlugin : IProcessorPlugin, ICliPlugin
 {
-    public ProcessorPluginMetadata Metadata { get; } = new()
-    {
-        Name = "video",
-        DisplayName = "Video Analyzer",
-        Description = "Shot detection, scene segmentation, and transcription for video files",
-        Version = "1.0.0",
-        SupportedExtensions = [".mp4", ".mkv", ".avi", ".webm", ".mov", ".wmv"],
-        MinActivationWords = 0,
-        DocumentTypes = ["video"]
-    };
-
     public PluginCliMetadata CliMetadata { get; } = new()
     {
         CommandName = "video",
@@ -42,12 +31,25 @@ public class VideoProcessorPlugin : IProcessorPlugin, ICliPlugin
         });
     }
 
+    public ProcessorPluginMetadata Metadata { get; } = new()
+    {
+        Name = "video",
+        DisplayName = "Video Analyzer",
+        Description = "Shot detection, scene segmentation, and transcription for video files",
+        Version = "1.0.0",
+        SupportedExtensions = [".mp4", ".mkv", ".avi", ".webm", ".mov", ".wmv"],
+        MinActivationWords = 0,
+        DocumentTypes = ["video"]
+    };
+
     public IReadOnlyList<IDocumentReader> Readers => [];
     public IReadOnlyList<IDocumentSplitter> Splitters => [];
     public IReadOnlyList<TemplateDefinition> Templates => [];
 
     public Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default)
-        => Task.CompletedTask;
+    {
+        return Task.CompletedTask;
+    }
 
     public bool CanProcess(string markdown, ProcessingContext context)
     {
@@ -57,5 +59,7 @@ public class VideoProcessorPlugin : IProcessorPlugin, ICliPlugin
     }
 
     public Task<ProcessorResult> ProcessAsync(string markdown, ProcessorOptions options, CancellationToken ct = default)
-        => throw new NotSupportedException("Video processing uses IPipeline. Use CLI commands for direct video analysis.");
+    {
+        throw new NotSupportedException("Video processing uses IPipeline. Use CLI commands for direct video analysis.");
+    }
 }

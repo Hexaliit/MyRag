@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text.Json;
 using AudioSummarizer.Core.Services.Analysis;
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Models;
@@ -5,19 +7,15 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 3: Speech transcription by chaining to AudioSummarizer.
-/// Uses AudioSummarizer's wave orchestrator for Whisper transcription,
-/// speaker diarization, and audio fingerprinting.
-/// Falls back gracefully if subtitles already provide sufficient coverage.
+///     Stage 3: Speech transcription by chaining to AudioSummarizer.
+///     Uses AudioSummarizer's wave orchestrator for Whisper transcription,
+///     speaker diarization, and audio fingerprinting.
+///     Falls back gracefully if subtitles already provide sufficient coverage.
 /// </summary>
 public class TranscriptionWave : IVideoWave
 {
     private readonly AudioWaveOrchestrator? _audioOrchestrator;
     private readonly ILogger<TranscriptionWave> _logger;
-
-    public string Name => "transcription";
-    public int Priority => 500; // After chapter extraction
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Speech, VideoSignalTags.Audio];
 
     public TranscriptionWave(
         ILogger<TranscriptionWave> logger,
@@ -26,6 +24,10 @@ public class TranscriptionWave : IVideoWave
         _audioOrchestrator = audioOrchestrator;
         _logger = logger;
     }
+
+    public string Name => "transcription";
+    public int Priority => 500; // After chapter extraction
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Speech, VideoSignalTags.Audio];
 
     public bool ShouldRun(VideoContext context)
     {
@@ -64,7 +66,7 @@ public class TranscriptionWave : IVideoWave
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         context.ReportProgress("Transcribing audio", 0);
 
         // Emit wave started signal
@@ -161,7 +163,6 @@ public class TranscriptionWave : IVideoWave
         if (speakers != null)
         {
             foreach (var speaker in speakers)
-            {
                 context.Speakers.Add(new Speaker
                 {
                     Id = speaker.Id,
@@ -172,7 +173,6 @@ public class TranscriptionWave : IVideoWave
                     UtteranceCount = speaker.UtteranceCount,
                     Confidence = speaker.Confidence
                 });
-            }
 
             context.AddSignal(new VideoSignal
             {
@@ -185,7 +185,6 @@ public class TranscriptionWave : IVideoWave
 
         // Link utterances to speakers if diarization data is available
         if (speakerSegments != null && context.Utterances.Count > 0)
-        {
             foreach (var utterance in context.Utterances)
             {
                 // Find overlapping speaker segment
@@ -195,18 +194,14 @@ public class TranscriptionWave : IVideoWave
                         s.EndTime > utterance.StartTime);
 
                 if (speakerSegment != null)
-                {
                     // Update utterance's speaker ID
                     // Note: Utterance is a record, so we'd store mapping in cache
                     context.SetCached($"utterance_speaker.{utterance.Id}", speakerSegment.SpeakerId);
-                }
             }
-        }
 
         // Extract other audio signals
         var audioFingerprint = audioProfile.GetValue<string>("fingerprint.hash");
         if (!string.IsNullOrEmpty(audioFingerprint))
-        {
             context.AddSignal(new VideoSignal
             {
                 Key = "audio.fingerprint",
@@ -214,11 +209,9 @@ public class TranscriptionWave : IVideoWave
                 Source = Name,
                 Tags = [VideoSignalTags.Audio]
             });
-        }
 
         var contentType = audioProfile.GetValue<string>("content.type"); // speech, music, mixed
         if (!string.IsNullOrEmpty(contentType))
-        {
             context.AddSignal(new VideoSignal
             {
                 Key = "audio.content_type",
@@ -226,7 +219,6 @@ public class TranscriptionWave : IVideoWave
                 Source = Name,
                 Tags = [VideoSignalTags.Audio]
             });
-        }
 
         // Add summary signals
         var totalWords = context.Utterances
@@ -300,26 +292,22 @@ public class TranscriptionWave : IVideoWave
     }
 
     /// <summary>
-    /// Parse transcript segments from AudioSummarizer's JSON format.
-    /// AudioSummarizer stores segments as JSON in "transcription.full_data" with keys: start, end, text, confidence
+    ///     Parse transcript segments from AudioSummarizer's JSON format.
+    ///     AudioSummarizer stores segments as JSON in "transcription.full_data" with keys: start, end, text, confidence
     /// </summary>
     private List<TranscriptSegment> ParseTranscriptSegments(string? fullDataJson, string? defaultLanguage)
     {
         var segments = new List<TranscriptSegment>();
 
-        if (string.IsNullOrEmpty(fullDataJson))
-        {
-            return segments;
-        }
+        if (string.IsNullOrEmpty(fullDataJson)) return segments;
 
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(fullDataJson);
+            using var doc = JsonDocument.Parse(fullDataJson);
             var root = doc.RootElement;
 
             if (root.TryGetProperty("segments", out var segmentsElement) &&
-                segmentsElement.ValueKind == System.Text.Json.JsonValueKind.Array)
-            {
+                segmentsElement.ValueKind == JsonValueKind.Array)
                 foreach (var seg in segmentsElement.EnumerateArray())
                 {
                     var segment = new TranscriptSegment
@@ -327,7 +315,8 @@ public class TranscriptionWave : IVideoWave
                         StartTime = seg.TryGetProperty("start", out var start) ? start.GetDouble() : 0,
                         EndTime = seg.TryGetProperty("end", out var end) ? end.GetDouble() : 0,
                         Text = seg.TryGetProperty("text", out var text) ? text.GetString() : null,
-                        Confidence = seg.TryGetProperty("confidence", out var conf) && conf.ValueKind == System.Text.Json.JsonValueKind.Number
+                        Confidence = seg.TryGetProperty("confidence", out var conf) &&
+                                     conf.ValueKind == JsonValueKind.Number
                             ? conf.GetDouble()
                             : 0.7,
                         Language = defaultLanguage
@@ -335,9 +324,8 @@ public class TranscriptionWave : IVideoWave
 
                     segments.Add(segment);
                 }
-            }
         }
-        catch (System.Text.Json.JsonException ex)
+        catch (JsonException ex)
         {
             _logger.LogWarning(ex, "Failed to parse transcript full_data JSON");
         }
@@ -347,7 +335,7 @@ public class TranscriptionWave : IVideoWave
 }
 
 /// <summary>
-/// Transcript segment from AudioSummarizer.
+///     Transcript segment from AudioSummarizer.
 /// </summary>
 public record TranscriptSegment
 {
@@ -359,7 +347,7 @@ public record TranscriptSegment
 }
 
 /// <summary>
-/// Speaker information from diarization.
+///     Speaker information from diarization.
 /// </summary>
 public record SpeakerInfo
 {
@@ -372,7 +360,7 @@ public record SpeakerInfo
 }
 
 /// <summary>
-/// Speaker segment from diarization.
+///     Speaker segment from diarization.
 /// </summary>
 public record SpeakerSegment
 {

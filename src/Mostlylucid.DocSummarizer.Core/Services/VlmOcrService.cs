@@ -7,19 +7,16 @@ using Mostlylucid.DocSummarizer.Core.Services;
 namespace Mostlylucid.DocSummarizer.Services;
 
 /// <summary>
-/// Service for performing VLM-based OCR using Ollama vision models.
-/// Converts document images to structured Markdown.
+///     Service for performing VLM-based OCR using Ollama vision models.
+///     Converts document images to structured Markdown.
 /// </summary>
 public class VlmOcrService : IVlmOcrService
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<VlmOcrService>? _logger;
-    private readonly string _visionModel;
-
     /// <summary>
-    /// System prompt for OCR extraction.
+    ///     System prompt for OCR extraction.
     /// </summary>
-    private const string OcrSystemPrompt = @"You are an expert document OCR system. Your task is to extract ALL text from this document image and convert it to clean, well-structured Markdown.
+    private const string OcrSystemPrompt =
+        @"You are an expert document OCR system. Your task is to extract ALL text from this document image and convert it to clean, well-structured Markdown.
 
 Guidelines:
 1. Preserve the document structure: headings, paragraphs, lists, tables
@@ -36,6 +33,10 @@ Guidelines:
 
 Output ONLY the Markdown content. Do not include explanations or preamble.";
 
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<VlmOcrService>? _logger;
+    private readonly string _visionModel;
+
     public VlmOcrService(
         VlmOcrConfig config,
         ILogger<VlmOcrService>? logger = null)
@@ -51,7 +52,7 @@ Output ONLY the Markdown content. Do not include explanations or preamble.";
     }
 
     /// <summary>
-    /// Perform OCR on an image file and return structured Markdown.
+    ///     Perform OCR on an image file and return structured Markdown.
     /// </summary>
     public async Task<VlmOcrResult> OcrImageToMarkdownAsync(
         string imagePath,
@@ -76,7 +77,7 @@ Output ONLY the Markdown content. Do not include explanations or preamble.";
                 Options = new OllamaVisionOptions
                 {
                     Temperature = 0.1, // Low temperature for accurate transcription
-                    NumPredict = 8192  // Allow long outputs for full documents
+                    NumPredict = 8192 // Allow long outputs for full documents
                 }
             };
 
@@ -97,13 +98,11 @@ Output ONLY the Markdown content. Do not include explanations or preamble.";
             var result = await response.Content.ReadFromJsonAsync<OllamaVisionResponse>(ct);
 
             if (result == null || string.IsNullOrWhiteSpace(result.Response))
-            {
                 return new VlmOcrResult
                 {
                     Success = false,
                     Error = "No response from vision model"
                 };
-            }
 
             var markdown = CleanMarkdownOutput(result.Response);
 
@@ -138,7 +137,7 @@ Output ONLY the Markdown content. Do not include explanations or preamble.";
     }
 
     /// <summary>
-    /// Check if the VLM service is available.
+    ///     Check if the VLM service is available.
     /// </summary>
     public async Task<bool> IsAvailableAsync(CancellationToken ct = default)
     {
@@ -159,7 +158,7 @@ Output ONLY the Markdown content. Do not include explanations or preamble.";
     }
 
     /// <summary>
-    /// Clean up markdown output from the model.
+    ///     Clean up markdown output from the model.
     /// </summary>
     private static string CleanMarkdownOutput(string response)
     {
@@ -167,28 +166,18 @@ Output ONLY the Markdown content. Do not include explanations or preamble.";
 
         // Remove markdown code blocks if model wrapped output
         if (result.StartsWith("```markdown", StringComparison.OrdinalIgnoreCase))
-        {
             result = result[11..];
-        }
         else if (result.StartsWith("```md", StringComparison.OrdinalIgnoreCase))
-        {
             result = result[5..];
-        }
-        else if (result.StartsWith("```"))
-        {
-            result = result[3..];
-        }
+        else if (result.StartsWith("```")) result = result[3..];
 
-        if (result.EndsWith("```"))
-        {
-            result = result[..^3];
-        }
+        if (result.EndsWith("```")) result = result[..^3];
 
         return result.Trim();
     }
 
     /// <summary>
-    /// Estimate OCR confidence based on output characteristics.
+    ///     Estimate OCR confidence based on output characteristics.
     /// </summary>
     private static double EstimateConfidence(string markdown)
     {
@@ -216,7 +205,7 @@ Output ONLY the Markdown content. Do not include explanations or preamble.";
 }
 
 /// <summary>
-/// Interface for VLM OCR services.
+///     Interface for VLM OCR services.
 /// </summary>
 public interface IVlmOcrService
 {
@@ -227,51 +216,39 @@ public interface IVlmOcrService
 // Ollama Vision API models
 internal class OllamaVisionRequest
 {
-    [JsonPropertyName("model")]
-    public string Model { get; set; } = "";
+    [JsonPropertyName("model")] public string Model { get; set; } = "";
 
-    [JsonPropertyName("prompt")]
-    public string Prompt { get; set; } = "";
+    [JsonPropertyName("prompt")] public string Prompt { get; set; } = "";
 
-    [JsonPropertyName("images")]
-    public string[] Images { get; set; } = [];
+    [JsonPropertyName("images")] public string[] Images { get; set; } = [];
 
-    [JsonPropertyName("stream")]
-    public bool Stream { get; set; }
+    [JsonPropertyName("stream")] public bool Stream { get; set; }
 
-    [JsonPropertyName("options")]
-    public OllamaVisionOptions? Options { get; set; }
+    [JsonPropertyName("options")] public OllamaVisionOptions? Options { get; set; }
 }
 
 internal class OllamaVisionOptions
 {
-    [JsonPropertyName("temperature")]
-    public double Temperature { get; set; }
+    [JsonPropertyName("temperature")] public double Temperature { get; set; }
 
-    [JsonPropertyName("num_predict")]
-    public int NumPredict { get; set; }
+    [JsonPropertyName("num_predict")] public int NumPredict { get; set; }
 }
 
 internal class OllamaVisionResponse
 {
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
+    [JsonPropertyName("model")] public string? Model { get; set; }
 
-    [JsonPropertyName("response")]
-    public string? Response { get; set; }
+    [JsonPropertyName("response")] public string? Response { get; set; }
 
-    [JsonPropertyName("done")]
-    public bool Done { get; set; }
+    [JsonPropertyName("done")] public bool Done { get; set; }
 }
 
 internal class VlmOcrTagsResponse
 {
-    [JsonPropertyName("models")]
-    public List<VlmOcrTagModel>? Models { get; set; }
+    [JsonPropertyName("models")] public List<VlmOcrTagModel>? Models { get; set; }
 }
 
 internal class VlmOcrTagModel
 {
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    [JsonPropertyName("name")] public string? Name { get; set; }
 }

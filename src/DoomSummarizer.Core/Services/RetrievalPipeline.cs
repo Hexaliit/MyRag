@@ -1,30 +1,29 @@
+using System.Diagnostics;
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Unified retrieval and scoring pipeline. All DoomSummarizer retrieval flows
-/// through this class — KB search (AskCommand), local scroll, web scroll, and MCP tools.
-///
-/// Two entry points:
-/// - SearchAsync: Full pipeline (candidate retrieval + scoring) for KB/local queries
-/// - ScoreItemsAsync: Scoring-only for pre-fetched items (web-mode, MCP tools)
-///
-/// Both share the same 5-signal RRF scoring (+ optional Lucene FTS signal)
-/// with PRF centroid refinement, outlier penalty, and embedding dedup.
-/// BM25 keyword matching is handled exclusively by Lucene at the retrieval layer.
+///     Unified retrieval and scoring pipeline. All DoomSummarizer retrieval flows
+///     through this class — KB search (AskCommand), local scroll, web scroll, and MCP tools.
+///     Two entry points:
+///     - SearchAsync: Full pipeline (candidate retrieval + scoring) for KB/local queries
+///     - ScoreItemsAsync: Scoring-only for pre-fetched items (web-mode, MCP tools)
+///     Both share the same 5-signal RRF scoring (+ optional Lucene FTS signal)
+///     with PRF centroid refinement, outlier penalty, and embedding dedup.
+///     BM25 keyword matching is handled exclusively by Lucene at the retrieval layer.
 /// </summary>
 public sealed class RetrievalPipeline
 {
+    private readonly SemaphoreSlim _anchorLock = new(1, 1);
     private readonly IEmbeddingService _embedding;
-    private readonly StorageService _storage;
     private readonly IEntityGraphStore? _entityStore;
+    private readonly StorageService _storage;
 
     // Cached quality anchor embeddings (computed once, reused across all ScoreItemsAsync calls)
     private float[]? _highQualityAnchor;
     private float[]? _lowQualityAnchor;
-    private readonly SemaphoreSlim _anchorLock = new(1, 1);
 
     public RetrievalPipeline(
         IEmbeddingService embedding,
@@ -37,8 +36,8 @@ public sealed class RetrievalPipeline
     }
 
     /// <summary>
-    /// Execute the full retrieval pipeline: Lucene FTS + embedding HNSW + entity profile HNSW,
-    /// fused via 5-signal RRF (+ optional Lucene FTS signal) with PRF centroid refinement and outlier penalty.
+    ///     Execute the full retrieval pipeline: Lucene FTS + embedding HNSW + entity profile HNSW,
+    ///     fused via 5-signal RRF (+ optional Lucene FTS signal) with PRF centroid refinement and outlier penalty.
     /// </summary>
     public async Task<RetrievalResult> SearchAsync(
         string query,
@@ -48,7 +47,7 @@ public sealed class RetrievalPipeline
         if (string.IsNullOrWhiteSpace(query))
             return RetrievalResult.Empty;
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         // Detect query type for adaptive RRF weights
         var queryType = options.QueryType ?? QueryTypeDetector.Detect(query);
@@ -106,7 +105,6 @@ public sealed class RetrievalPipeline
 
         // Layer 3: Entity profile HNSW search (when entity profiles exist)
         if (options.UseEntityProfiles && _entityStore != null && options.QueryEntities?.Count >= 2)
-        {
             try
             {
                 var hasProfiles = await _entityStore.HasEntityProfilesAsync();
@@ -126,7 +124,7 @@ public sealed class RetrievalPipeline
                     if (queryEntityProfile.Length > 0)
                     {
                         var entityResults = await _entityStore.FindRelatedByEntityProfileAsync(
-                            queryEntityProfile, topK: options.TopK, minSimilarity: 0.25f);
+                            queryEntityProfile, options.TopK, 0.25f);
 
                         foreach (var (itemId, _, _) in entityResults)
                             entityProfileIds.Add(itemId);
@@ -137,7 +135,6 @@ public sealed class RetrievalPipeline
             {
                 // Entity profile search is best-effort
             }
-        }
 
         // --- Fuse candidate IDs ---
         var luceneIds = luceneResults.Select(r => r.Id).ToHashSet();
@@ -151,7 +148,7 @@ public sealed class RetrievalPipeline
             // Fallback: load recent items directly
             var fallbackItems = options.SourceFilters is { Count: > 0 }
                 ? await _storage.GetRecentItemsAsync(365, options.SourceFilters)
-                : await _storage.GetRecentItemsAsync(days: 30);
+                : await _storage.GetRecentItemsAsync(30);
 
             var fallbackContent = fallbackItems
                 .Where(s => !string.IsNullOrEmpty(s.Summary) || !string.IsNullOrEmpty(s.Title))
@@ -189,7 +186,7 @@ public sealed class RetrievalPipeline
             TextRelevanceScores = luceneScoreLookup,
             UseOutlierPenalty = !options.RelaxScoringGates,
             UseEmbeddingDedup = options.UseEmbeddingDedup,
-            RelaxScoringGates = options.RelaxScoringGates,
+            RelaxScoringGates = options.RelaxScoringGates
         }, ct);
 
         // Apply minimum relevance filter and take topK
@@ -203,26 +200,23 @@ public sealed class RetrievalPipeline
         // (e.g., vague query "What is this?"), return the top-scored items
         // regardless of the MinRelevance threshold.
         if (finalItems.Count == 0 && options.IsKnowledgeBase && scoringResult.Items.Count > 0)
-        {
             finalItems = scoringResult.Items
                 .Take(options.TopK)
                 .ToList();
-        }
 
         sw.Stop();
         return new RetrievalResult(finalItems, scoringResult.QueryType, sw.Elapsed);
     }
 
     /// <summary>
-    /// Score pre-fetched items through the 5-signal RRF pipeline (+ optional Lucene FTS signal).
-    /// This is the single scoring path for ALL DoomSummarizer retrieval:
-    /// - SearchAsync calls this after candidate retrieval (KB/local mode, with Lucene FTS scores)
-    /// - ScrollCommand calls this after web fetching (web mode, no Lucene scores)
-    /// - DoomScrollerTools calls this for MCP tool queries
-    ///
-    /// Pipeline: keyword profiles → embeddings → quality anchors →
-    /// Phase 1 ScoreFast → PRF centroid → Phase 2 ScoreFull →
-    /// outlier penalty → embedding dedup.
+    ///     Score pre-fetched items through the 5-signal RRF pipeline (+ optional Lucene FTS signal).
+    ///     This is the single scoring path for ALL DoomSummarizer retrieval:
+    ///     - SearchAsync calls this after candidate retrieval (KB/local mode, with Lucene FTS scores)
+    ///     - ScrollCommand calls this after web fetching (web mode, no Lucene scores)
+    ///     - DoomScrollerTools calls this for MCP tool queries
+    ///     Pipeline: keyword profiles → embeddings → quality anchors →
+    ///     Phase 1 ScoreFast → PRF centroid → Phase 2 ScoreFull →
+    ///     outlier penalty → embedding dedup.
     /// </summary>
     public async Task<ScoringResult> ScoreItemsAsync(
         List<ContentItem> items,
@@ -241,13 +235,11 @@ public sealed class RetrievalPipeline
 
         // Compute keyword profiles for items that don't have them
         foreach (var item in items)
-        {
             if (string.IsNullOrEmpty(item.Keywords))
             {
                 var profile = DocumentProfileService.ExtractProfile(item.Title, item.Content ?? "");
                 item.Keywords = profile.KeywordsText;
             }
-        }
 
         // Compute embeddings for items that need them
         var itemsNeedingEmbedding = items.Where(i => i.Embedding == null).ToList();
@@ -285,11 +277,11 @@ public sealed class RetrievalPipeline
         if (items.Count > 5)
         {
             querySimScores = new Dictionary<string, double>(items.Count);
-            items = scorer.ScoreFast(items, options.Query, discardRatio: phase1Discard,
-                queryEmbedding: options.QueryEmbedding,
-                textRelevanceScores: options.TextRelevanceScores,
-                querySimOut: querySimScores,
-                gateThreshold: phase1Gate);
+            items = scorer.ScoreFast(items, options.Query, phase1Discard,
+                options.QueryEmbedding,
+                options.TextRelevanceScores,
+                querySimScores,
+                phase1Gate);
         }
 
         // PRF centroid refinement: blend query embedding with top-5 centroid.
@@ -298,14 +290,15 @@ public sealed class RetrievalPipeline
         // high in Phase 1 (freshness/authority) poison the centroid, causing Phase 2's
         // QuerySim signal to show uniform similarity across all items — destroying
         // the embedding signal's ability to discriminate on-topic vs off-topic content.
-        float[]? refinedQueryEmbedding = options.QueryEmbedding;
+        var refinedQueryEmbedding = options.QueryEmbedding;
         if (items.Count >= 5)
         {
             var prfCandidates = items
                 .Where(i => i.Embedding != null &&
                             (querySimScores != null
                                 ? querySimScores.GetValueOrDefault(i.Id) >= prfThreshold
-                                : VectorMath.CosineSimilarity(i.Embedding, options.QueryEmbedding) >= (float)prfThreshold))
+                                : VectorMath.CosineSimilarity(i.Embedding, options.QueryEmbedding) >=
+                                  (float)prfThreshold))
                 .ToList();
 
             refinedQueryEmbedding = prfCandidates.Count >= 3
@@ -317,10 +310,10 @@ public sealed class RetrievalPipeline
         // Pass the original (non-PRF) query embedding as gateEmbedding so the hard gate
         // filters on topical alignment with the actual query, not the PRF centroid.
         items = scorer.ScoreFull(items, options.Query, refinedQueryEmbedding,
-            vibeEmbedding: vibeEmbedding,
-            gateEmbedding: options.QueryEmbedding,
-            textRelevanceScores: options.TextRelevanceScores,
-            gateThreshold: phase2Gate);
+            vibeEmbedding,
+            options.QueryEmbedding,
+            options.TextRelevanceScores,
+            phase2Gate);
 
         // Outlier penalty (skip for Roundup queries where diverse topics are expected,
         // and skip for relaxed-gate file collections where all segments are from same source)
@@ -333,18 +326,15 @@ public sealed class RetrievalPipeline
         }
 
         // Embedding-based dedup (cosine threshold 0.90)
-        if (options.UseEmbeddingDedup)
-        {
-            items = DeduplicateByEmbedding(items, threshold: 0.90f);
-        }
+        if (options.UseEmbeddingDedup) items = DeduplicateByEmbedding(items);
 
         return new ScoringResult(items, queryType, refinedQueryEmbedding);
     }
 
     /// <summary>
-    /// Deduplicate items by embedding cosine similarity. Keeps the highest-scored item
-    /// when similar content is found (threshold 0.90 = near-identical meaning).
-    /// Complements URL/title dedup for KB queries where same content appears at different URLs.
+    ///     Deduplicate items by embedding cosine similarity. Keeps the highest-scored item
+    ///     when similar content is found (threshold 0.90 = near-identical meaning).
+    ///     Complements URL/title dedup for KB queries where same content appears at different URLs.
     /// </summary>
     private static List<ContentItem> DeduplicateByEmbedding(List<ContentItem> items, float threshold = 0.90f)
     {
@@ -383,8 +373,8 @@ public sealed class RetrievalPipeline
     }
 
     /// <summary>
-    /// Lazily compute and cache quality anchor embeddings.
-    /// Both anchors are embedded in a single batch call on first use.
+    ///     Lazily compute and cache quality anchor embeddings.
+    ///     Both anchors are embedded in a single batch call on first use.
     /// </summary>
     private async Task EnsureQualityAnchorsAsync(CancellationToken ct)
     {
@@ -409,7 +399,7 @@ public sealed class RetrievalPipeline
 }
 
 /// <summary>
-/// Options for configuring the retrieval pipeline.
+///     Options for configuring the retrieval pipeline.
 /// </summary>
 public record RetrievalOptions
 {
@@ -417,7 +407,10 @@ public record RetrievalOptions
     public IReadOnlyList<string>? SourceFilters { get; init; }
 
     /// <summary>Convenience: single source filter. Use SourceFilters for multiple.</summary>
-    public string? SourceFilter { init => SourceFilters = value != null ? [value] : null; }
+    public string? SourceFilter
+    {
+        init => SourceFilters = value != null ? [value] : null;
+    }
 
     /// <summary>Collection name for Lucene index directory.</summary>
     public string? CollectionName { get; init; }
@@ -441,27 +434,27 @@ public record RetrievalOptions
     public QueryType? QueryType { get; init; }
 
     /// <summary>
-    /// Whether source items are KB (crawl/page) where authority/freshness provide zero discrimination.
-    /// When true, uses ForKnowledgeBase() scorer weights.
+    ///     Whether source items are KB (crawl/page) where authority/freshness provide zero discrimination.
+    ///     When true, uses ForKnowledgeBase() scorer weights.
     /// </summary>
     public bool IsKnowledgeBase { get; init; } = true;
 
     /// <summary>
-    /// Entity names extracted from the query (e.g., by Sentinel or NER).
-    /// When at least 2 entities are present, entity profile HNSW search is enabled.
+    ///     Entity names extracted from the query (e.g., by Sentinel or NER).
+    ///     When at least 2 entities are present, entity profile HNSW search is enabled.
     /// </summary>
     public List<string>? QueryEntities { get; init; }
 
     /// <summary>
-    /// Relax scoring gates for file collections where all segments come from the same
-    /// document(s). Lowers Phase 1/Phase 2 cosine similarity thresholds and disables
-    /// outlier penalty, allowing broad queries to retrieve more narrative content.
+    ///     Relax scoring gates for file collections where all segments come from the same
+    ///     document(s). Lowers Phase 1/Phase 2 cosine similarity thresholds and disables
+    ///     outlier penalty, allowing broad queries to retrieve more narrative content.
     /// </summary>
     public bool RelaxScoringGates { get; init; }
 }
 
 /// <summary>
-/// Result from the retrieval pipeline, including scored items, detected query type, and timing.
+///     Result from the retrieval pipeline, including scored items, detected query type, and timing.
 /// </summary>
 public record RetrievalResult(
     List<ContentItem> Items,
@@ -472,8 +465,8 @@ public record RetrievalResult(
 }
 
 /// <summary>
-/// Options for the scoring-only pipeline (ScoreItemsAsync).
-/// Used when items are already fetched (web-mode, MCP tools) and just need scoring.
+///     Options for the scoring-only pipeline (ScoreItemsAsync).
+///     Used when items are already fetched (web-mode, MCP tools) and just need scoring.
 /// </summary>
 public record ScoringOptions
 {
@@ -484,14 +477,14 @@ public record ScoringOptions
     public required float[] QueryEmbedding { get; init; }
 
     /// <summary>
-    /// Vibe text to embed for vibe alignment scoring (e.g., "analytical, serious, data-driven").
-    /// Null = no vibe signal (neutral).
+    ///     Vibe text to embed for vibe alignment scoring (e.g., "analytical, serious, data-driven").
+    ///     Null = no vibe signal (neutral).
     /// </summary>
     public string? VibeText { get; init; }
 
     /// <summary>
-    /// Whether source items are KB (crawl/page) where authority/freshness provide zero discrimination.
-    /// When true, uses ForKnowledgeBase() scorer weights.
+    ///     Whether source items are KB (crawl/page) where authority/freshness provide zero discrimination.
+    ///     When true, uses ForKnowledgeBase() scorer weights.
     /// </summary>
     public bool IsKnowledgeBase { get; init; }
 
@@ -499,9 +492,9 @@ public record ScoringOptions
     public QueryType? QueryType { get; init; }
 
     /// <summary>
-    /// Pre-computed text relevance scores (e.g., Lucene FTS scores).
-    /// When provided, included as an RRF signal for keyword precision.
-    /// KB mode passes Lucene scores from retrieval; web mode may be null.
+    ///     Pre-computed text relevance scores (e.g., Lucene FTS scores).
+    ///     When provided, included as an RRF signal for keyword precision.
+    ///     KB mode passes Lucene scores from retrieval; web mode may be null.
     /// </summary>
     public Dictionary<string, double>? TextRelevanceScores { get; init; }
 
@@ -512,24 +505,24 @@ public record ScoringOptions
     public bool UseEmbeddingDedup { get; init; } = true;
 
     /// <summary>
-    /// Relax scoring gates for file collections where all segments come from the same
-    /// document(s). Lowers Phase 1/Phase 2 cosine similarity thresholds, reduces discard
-    /// ratio, and disables outlier penalty for broad queries over narrative content.
+    ///     Relax scoring gates for file collections where all segments come from the same
+    ///     document(s). Lowers Phase 1/Phase 2 cosine similarity thresholds, reduces discard
+    ///     ratio, and disables outlier penalty for broad queries over narrative content.
     /// </summary>
     public bool RelaxScoringGates { get; init; }
 
     /// <summary>
-    /// Override the Phase 1 hard gate threshold (cosine similarity minimum).
-    /// When null, uses the default (0.30 for strict, 0.10 for relaxed).
-    /// Broad queries (news/roundup) can set a lower threshold (e.g., 0.20) to avoid
-    /// over-filtering topically diverse results.
+    ///     Override the Phase 1 hard gate threshold (cosine similarity minimum).
+    ///     When null, uses the default (0.30 for strict, 0.10 for relaxed).
+    ///     Broad queries (news/roundup) can set a lower threshold (e.g., 0.20) to avoid
+    ///     over-filtering topically diverse results.
     /// </summary>
     public float? Phase1GateOverride { get; init; }
 }
 
 /// <summary>
-/// Result from the scoring pipeline (ScoreItemsAsync).
-/// Contains scored items, detected query type, and the PRF-refined embedding.
+///     Result from the scoring pipeline (ScoreItemsAsync).
+///     Contains scored items, detected query type, and the PRF-refined embedding.
 /// </summary>
 public record ScoringResult(
     List<ContentItem> Items,

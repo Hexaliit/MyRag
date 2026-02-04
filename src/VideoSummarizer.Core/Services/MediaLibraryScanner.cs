@@ -4,17 +4,17 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Scans media library directories and discovers video files.
+///     Scans media library directories and discovers video files.
 /// </summary>
 public class MediaLibraryScanner
 {
-    private readonly MediaFilenameParser _filenameParser;
-    private readonly ILogger<MediaLibraryScanner> _logger;
-
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".m4v", ".mpeg", ".mpg", ".m2ts", ".ts"
     };
+
+    private readonly MediaFilenameParser _filenameParser;
+    private readonly ILogger<MediaLibraryScanner> _logger;
 
     public MediaLibraryScanner(
         MediaFilenameParser filenameParser,
@@ -25,7 +25,12 @@ public class MediaLibraryScanner
     }
 
     /// <summary>
-    /// Scan a media library and discover all video files.
+    ///     Get all supported video extensions.
+    /// </summary>
+    public static IReadOnlySet<string> SupportedExtensions => VideoExtensions;
+
+    /// <summary>
+    ///     Scan a media library and discover all video files.
     /// </summary>
     public async Task<LibraryScanResult> ScanAsync(
         MediaLibrary library,
@@ -100,10 +105,7 @@ public class MediaLibraryScanner
                 try
                 {
                     var mediaFile = await ProcessFileAsync(filePath, library, ct);
-                    if (mediaFile != null)
-                    {
-                        mediaFiles.Add(mediaFile);
-                    }
+                    if (mediaFile != null) mediaFiles.Add(mediaFile);
                 }
                 catch (Exception ex)
                 {
@@ -113,12 +115,10 @@ public class MediaLibraryScanner
 
                 processedCount++;
                 if (processedCount % 100 == 0 || processedCount == allFiles.Count)
-                {
                     progress?.Report(new ScanProgress(
                         processedCount,
                         allFiles.Count,
                         $"Scanned {processedCount}/{allFiles.Count} files"));
-                }
             }
 
             result = result with
@@ -148,7 +148,7 @@ public class MediaLibraryScanner
     }
 
     /// <summary>
-    /// Process a single file and create MediaFile record.
+    ///     Process a single file and create MediaFile record.
     /// </summary>
     private async Task<MediaFile?> ProcessFileAsync(
         string filePath,
@@ -156,10 +156,7 @@ public class MediaLibraryScanner
         CancellationToken ct)
     {
         var fileInfo = new FileInfo(filePath);
-        if (!fileInfo.Exists)
-        {
-            return null;
-        }
+        if (!fileInfo.Exists) return null;
 
         // Parse filename to extract title, year, etc.
         var parsed = _filenameParser.Parse(filePath);
@@ -185,17 +182,12 @@ public class MediaLibraryScanner
     }
 
     /// <summary>
-    /// Check if a file looks like a video file based on extension.
+    ///     Check if a file looks like a video file based on extension.
     /// </summary>
     public static bool IsVideoFile(string filePath)
     {
         return VideoExtensions.Contains(Path.GetExtension(filePath));
     }
-
-    /// <summary>
-    /// Get all supported video extensions.
-    /// </summary>
-    public static IReadOnlySet<string> SupportedExtensions => VideoExtensions;
 }
 
 public record ScanProgress(int Processed, int Total, string Message)

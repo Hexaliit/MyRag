@@ -1,21 +1,21 @@
 namespace AudioSummarizer.Core.Models;
 
 /// <summary>
-/// Complete audio characterization profile containing all extracted signals.
-/// Follows the "Constrained Fuzziness" philosophy: deterministic substrate + probabilistic proposers.
+///     Complete audio characterization profile containing all extracted signals.
+///     Follows the "Constrained Fuzziness" philosophy: deterministic substrate + probabilistic proposers.
 /// </summary>
 public sealed class AudioProfile
 {
-    private readonly Dictionary<string, Signal> _signals = new();
     private readonly object _lock = new();
+    private readonly Dictionary<string, Signal> _signals = new();
 
     /// <summary>
-    /// Path to the audio file being analyzed
+    ///     Path to the audio file being analyzed
     /// </summary>
     public required string AudioPath { get; init; }
 
     /// <summary>
-    /// All signals extracted from the audio file
+    ///     All signals extracted from the audio file
     /// </summary>
     public IReadOnlyDictionary<string, Signal> Signals
     {
@@ -29,22 +29,22 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Processing errors encountered during analysis
+    ///     Processing errors encountered during analysis
     /// </summary>
     public List<string> Errors { get; } = new();
 
     /// <summary>
-    /// When the profile was created
+    ///     When the profile was created
     /// </summary>
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>
-    /// Total processing time in milliseconds
+    ///     Total processing time in milliseconds
     /// </summary>
     public long ProcessingTimeMs { get; set; }
 
     /// <summary>
-    /// Add a signal to the profile
+    ///     Add a signal to the profile
     /// </summary>
     public void AddSignal(Signal signal)
     {
@@ -57,9 +57,10 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Add a signal with simplified parameters
+    ///     Add a signal with simplified parameters
     /// </summary>
-    public void AddSignal(string name, object value, double? confidence = null, SignalType type = SignalType.Metadata, string? source = null)
+    public void AddSignal(string name, object value, double? confidence = null, SignalType type = SignalType.Metadata,
+        string? source = null)
     {
         var signal = new Signal
         {
@@ -73,18 +74,15 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Add multiple signals at once
+    ///     Add multiple signals at once
     /// </summary>
     public void AddSignals(IEnumerable<Signal> signals)
     {
-        foreach (var signal in signals)
-        {
-            AddSignal(signal);
-        }
+        foreach (var signal in signals) AddSignal(signal);
     }
 
     /// <summary>
-    /// Get a signal value by name
+    ///     Get a signal value by name
     /// </summary>
     public T? GetValue<T>(string name)
     {
@@ -92,10 +90,7 @@ public sealed class AudioProfile
         {
             if (_signals.TryGetValue(name, out var signal))
             {
-                if (signal.Value is T typedValue)
-                {
-                    return typedValue;
-                }
+                if (signal.Value is T typedValue) return typedValue;
 
                 // Try to convert
                 try
@@ -113,7 +108,7 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Check if a signal exists
+    ///     Check if a signal exists
     /// </summary>
     public bool HasSignal(string name)
     {
@@ -124,7 +119,7 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Get all signals of a specific type
+    ///     Get all signals of a specific type
     /// </summary>
     public IEnumerable<Signal> GetSignalsByType(SignalType type)
     {
@@ -137,7 +132,7 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Get all signals from a specific source
+    ///     Get all signals from a specific source
     /// </summary>
     public IEnumerable<Signal> GetSignalsBySource(string source)
     {
@@ -150,7 +145,7 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Convert profile to JSON for storage as EvidenceTypes.SignalDump
+    ///     Convert profile to JSON for storage as EvidenceTypes.SignalDump
     /// </summary>
     public string ToJson()
     {
@@ -162,7 +157,7 @@ public sealed class AudioProfile
     }
 
     /// <summary>
-    /// Get a formatted summary of the profile
+    ///     Get a formatted summary of the profile
     /// </summary>
     public string GetSummary()
     {

@@ -54,7 +54,7 @@ config:
     - config_key: "subtitles.download.enabled"
       skip_if_false: true
     - config_key: "subtitles.download.languages"
-      default: ["en"]
+      default: [ "en" ]
     - config_key: "subtitles.download.hearing_impaired"
       default: false
 

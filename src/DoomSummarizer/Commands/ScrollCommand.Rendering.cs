@@ -7,14 +7,14 @@ using Spectre.Console;
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Spectre Console markup rendering utilities: word wrap, markdown conversion, visible length,
-/// and deterministic sources section.
+///     Spectre Console markup rendering utilities: word wrap, markdown conversion, visible length,
+///     and deterministic sources section.
 /// </summary>
 public sealed partial class ScrollCommand
 {
     /// <summary>
-    /// Render a compact "Sources Used" panel showing the top documents
-    /// with their most salient excerpt. Deterministic — no LLM involved.
+    ///     Render a compact "Sources Used" panel showing the top documents
+    ///     with their most salient excerpt. Deterministic — no LLM involved.
     /// </summary>
     private static void RenderSourcesUsed(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> analyzedItems,
@@ -59,18 +59,19 @@ public sealed partial class ScrollCommand
             var excerptSource = !string.IsNullOrEmpty(item.summary) && item.summary != item.title
                 ? item.summary
                 : contentItem?.Content ?? item.summary;
-            var excerpt = ExtractLeadExcerpt(excerptSource, maxChars: 120);
+            var excerpt = ExtractLeadExcerpt(excerptSource, 120);
 
             // Domain from URL
             var domain = GetDomainFromUrl(item.url);
-            var sourceLabel = !string.IsNullOrEmpty(domain) ? domain : (contentItem?.Source ?? "web");
+            var sourceLabel = !string.IsNullOrEmpty(domain) ? domain : contentItem?.Source ?? "web";
 
             var refSuffix = refCount > 1 ? $" ({refCount} refs)" : "";
             sourceParts.Add($"[cyan]{Markup.Escape(FormattingHelpers.Truncate(item.title, 70))}[/]");
             // Show full URL if available, otherwise just domain
             if (!string.IsNullOrEmpty(item.url))
                 sourceParts.Add($"  [link={Markup.Escape(item.url)}][dim underline]{Markup.Escape(item.url)}[/][/]");
-            sourceParts.Add($"  [dim]{Markup.Escape(sourceLabel)}[/] [grey]|[/] [dim]{item.relevance:F2}{refSuffix}[/]");
+            sourceParts.Add(
+                $"  [dim]{Markup.Escape(sourceLabel)}[/] [grey]|[/] [dim]{item.relevance:F2}{refSuffix}[/]");
             if (!string.IsNullOrEmpty(excerpt))
                 sourceParts.Add($"  [grey]{Markup.Escape(excerpt)}[/]");
             sourceParts.Add("");
@@ -103,7 +104,7 @@ public sealed partial class ScrollCommand
     }
 
     /// <summary>
-    /// Extract the lead sentence or first N characters as an excerpt.
+    ///     Extract the lead sentence or first N characters as an excerpt.
     /// </summary>
     private static string ExtractLeadExcerpt(string text, int maxChars)
     {
@@ -132,7 +133,7 @@ public sealed partial class ScrollCommand
     }
 
     /// <summary>
-    /// Extract domain name from a URL for display.
+    ///     Extract domain name from a URL for display.
     /// </summary>
     private static string GetDomainFromUrl(string? url)
     {
@@ -146,18 +147,21 @@ public sealed partial class ScrollCommand
                 host = host[4..];
             return host;
         }
-        catch { return ""; }
+        catch
+        {
+            return "";
+        }
     }
 
     /// <summary>
-    /// Word-wrap Spectre markup text to a max visible width.
-    /// Uses token-based approach: markup tags are atomic (never split).
+    ///     Word-wrap Spectre markup text to a max visible width.
+    ///     Uses token-based approach: markup tags are atomic (never split).
     /// </summary>
     internal static string WordWrapMarkup(string text, int maxWidth)
     {
         if (maxWidth <= 0 || string.IsNullOrEmpty(text)) return text;
 
-        var result = new System.Text.StringBuilder();
+        var result = new StringBuilder();
         foreach (var rawLine in text.Split('\n'))
         {
             var line = rawLine.TrimEnd('\r');
@@ -171,7 +175,7 @@ public sealed partial class ScrollCommand
 
             // Tokenize line into segments: markup tags (atomic) and visible text words
             var tokens = TokenizeMarkupLine(line);
-            var currentLine = new System.Text.StringBuilder();
+            var currentLine = new StringBuilder();
             var currentVisible = 0;
 
             foreach (var (token, isTag) in tokens)
@@ -213,9 +217,9 @@ public sealed partial class ScrollCommand
     }
 
     /// <summary>
-    /// Split a Spectre markup line into tokens: (text, isTag) pairs.
-    /// Tags like [bold cyan] are single atomic tokens. Text between tags
-    /// is split at word boundaries so wrapping can occur.
+    ///     Split a Spectre markup line into tokens: (text, isTag) pairs.
+    ///     Tags like [bold cyan] are single atomic tokens. Text between tags
+    ///     is split at word boundaries so wrapping can occur.
     /// </summary>
     private static List<(string token, bool isTag)> TokenizeMarkupLine(string line)
     {
@@ -246,10 +250,7 @@ public sealed partial class ScrollCommand
 
             // Visible text — collect up to next tag or space (for word-boundary wrapping)
             var start = i;
-            while (i < line.Length && line[i] != '[')
-            {
-                i++;
-            }
+            while (i < line.Length && line[i] != '[') i++;
 
             if (i > start)
             {
@@ -257,14 +258,13 @@ public sealed partial class ScrollCommand
                 var segment = line[start..i];
                 var wordStart = 0;
                 for (var j = 0; j < segment.Length; j++)
-                {
                     if (segment[j] == ' ' && j > wordStart)
                     {
                         tokens.Add((segment[wordStart..j], false));
                         tokens.Add((" ", false));
                         wordStart = j + 1;
                     }
-                }
+
                 if (wordStart < segment.Length)
                     tokens.Add((segment[wordStart..], false));
             }
@@ -274,7 +274,7 @@ public sealed partial class ScrollCommand
     }
 
     /// <summary>
-    /// Count visible characters in a Spectre markup string (excluding [tags]).
+    ///     Count visible characters in a Spectre markup string (excluding [tags]).
     /// </summary>
     private static int VisibleLength(string markup)
     {
@@ -298,15 +298,17 @@ public sealed partial class ScrollCommand
                     continue;
                 }
             }
+
             count++;
             i++;
         }
+
         return count;
     }
 
     /// <summary>
-    /// Convert markdown to Spectre.Console markup for rich console rendering.
-    /// Handles headings, bold, italic, links, bullets, and horizontal rules.
+    ///     Convert markdown to Spectre.Console markup for rich console rendering.
+    ///     Handles headings, bold, italic, links, bullets, and horizontal rules.
     /// </summary>
     internal static string MarkdownToSpectre(string markdown)
     {
@@ -314,7 +316,7 @@ public sealed partial class ScrollCommand
             return "";
 
         var lines = markdown.Split('\n');
-        var result = new System.Text.StringBuilder();
+        var result = new StringBuilder();
 
         foreach (var rawLine in lines)
         {
@@ -334,12 +336,14 @@ public sealed partial class ScrollCommand
                 result.AppendLine($"[bold cyan]{text}[/]");
                 continue;
             }
+
             if (line.StartsWith("## "))
             {
                 var text = Markup.Escape(line[3..].Trim());
                 result.AppendLine($"[bold underline yellow]{text}[/]");
                 continue;
             }
+
             if (line.StartsWith("# "))
             {
                 var text = Markup.Escape(line[2..].Trim());
@@ -365,9 +369,9 @@ public sealed partial class ScrollCommand
     }
 
     /// <summary>
-    /// Process inline markdown: **bold**, *italic*, [links](url), `code`.
-    /// Uses placeholder tokens so markdown patterns are processed on raw text
-    /// (with their content escaped), then remaining literal text is escaped afterward.
+    ///     Process inline markdown: **bold**, *italic*, [links](url), `code`.
+    ///     Uses placeholder tokens so markdown patterns are processed on raw text
+    ///     (with their content escaped), then remaining literal text is escaped afterward.
     /// </summary>
     private static string FormatInlineMarkdown(string text)
     {
@@ -375,6 +379,7 @@ public sealed partial class ScrollCommand
             return "";
 
         var replacements = new List<string>();
+
         string Store(string spectreMarkup)
         {
             var idx = replacements.Count;
@@ -391,7 +396,8 @@ public sealed partial class ScrollCommand
 
         // Links: [text](url) → [cyan underline]text[/] [dim](url)[/]
         text = MarkdownLinkCapturePattern().Replace(text,
-            m => Store($"[cyan underline]{Markup.Escape(m.Groups[1].Value)}[/] [dim]({Markup.Escape(m.Groups[2].Value)})[/]"));
+            m => Store(
+                $"[cyan underline]{Markup.Escape(m.Groups[1].Value)}[/] [dim]({Markup.Escape(m.Groups[2].Value)})[/]"));
 
         // Bold: **text** → [bold]text[/]
         text = BoldPattern().Replace(text,

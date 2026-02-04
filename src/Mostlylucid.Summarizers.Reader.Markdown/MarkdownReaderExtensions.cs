@@ -4,12 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Mostlylucid.Summarizers.Reader.Markdown;
 
 /// <summary>
-/// DI registration for the Markdown reader.
+///     DI registration for the Markdown reader.
 /// </summary>
 public static class MarkdownReaderExtensions
 {
     /// <summary>
-    /// Register the Markdown/text document reader.
+    ///     Register the Markdown/text document reader.
     /// </summary>
     public static IServiceCollection AddMarkdownReader(this IServiceCollection services)
     {

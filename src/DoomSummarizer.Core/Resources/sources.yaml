@@ -7,35 +7,35 @@ sources:
     type: google_news_rss
     description: Google News RSS search (no API key)
     search: true
-    scope: [general, world, business, technology, science, health, entertainment, sports]
+    scope: [ general, world, business, technology, science, health, entertainment, sports ]
     region: global
 
   duckduckgo:
     type: duckduckgo
     description: DuckDuckGo HTML search (no API key)
     search: true
-    scope: [general]
+    scope: [ general ]
     region: global
 
   google_search:
     type: google_search
     description: Google Custom Search API (requires API key + CX)
     search: true
-    scope: [general]
+    scope: [ general ]
     region: global
 
   google_places:
     type: google_places
     description: Google Places Text Search (requires API key)
     search: true
-    scope: [local, business]
+    scope: [ local, business ]
     region: global
 
   # -- Major news RSS feeds --
   bbc:
     type: rss
     description: BBC News
-    scope: [world, politics, business, technology, science, health, entertainment, sports]
+    scope: [ world, politics, business, technology, science, health, entertainment, sports ]
     region: UK
     feeds:
       default:
@@ -128,19 +128,19 @@ sources:
   hn:
     type: hackernews
     description: Hacker News
-    scope: [technology, programming, ai, startups]
+    scope: [ technology, programming, ai, startups ]
     region: global
 
   reddit:
     type: reddit
     description: Reddit
-    scope: [general, technology, entertainment, politics]
+    scope: [ general, technology, entertainment, politics ]
     region: global
 
   ars:
     type: rss
     description: Ars Technica
-    scope: [technology, science, gaming, policy]
+    scope: [ technology, science, gaming, policy ]
     region: US
     feeds:
       default:
@@ -151,7 +151,7 @@ sources:
   verge:
     type: rss
     description: The Verge
-    scope: [technology, entertainment, science]
+    scope: [ technology, entertainment, science ]
     region: US
     feeds:
       default:
@@ -160,7 +160,7 @@ sources:
   lobsters:
     type: rss
     description: Lobsters
-    scope: [programming, technology]
+    scope: [ programming, technology ]
     region: global
     feeds:
       default:
@@ -169,7 +169,7 @@ sources:
   devto:
     type: rss
     description: Dev.to
-    scope: [programming, technology]
+    scope: [ programming, technology ]
     region: global
     feeds:
       default:
@@ -178,7 +178,7 @@ sources:
   techcrunch:
     type: rss
     description: TechCrunch
-    scope: [technology, startups, business]
+    scope: [ technology, startups, business ]
     region: US
     feeds:
       default:
@@ -187,7 +187,7 @@ sources:
   wired:
     type: rss
     description: Wired
-    scope: [technology, science, culture]
+    scope: [ technology, science, culture ]
     region: US
     feeds:
       default:
@@ -196,7 +196,7 @@ sources:
   theregister:
     type: rss
     description: The Register
-    scope: [technology, security, enterprise]
+    scope: [ technology, security, enterprise ]
     region: UK
     feeds:
       default:
@@ -273,7 +273,7 @@ sources:
     type: api
     description: "UK Parliament Hansard debates, divisions (votes), and written statements"
     search: true
-    scope: [politics, uk, government, legislation]
+    scope: [ politics, uk, government, legislation ]
     region: UK
     # Sub-params: debates, divisions, statements, answers
     # Examples: -s parliament, -s parliament:debates, -s parliament:divisions
@@ -281,7 +281,7 @@ sources:
   ukpolice:
     type: api
     description: "UK Police crime data (street-level crime, forces, outcomes)"
-    scope: [crime, safety, uk]
+    scope: [ crime, safety, uk ]
     region: UK
     # Sub-params: crime:LAT,LNG, forces, outcomes:LAT,LNG
     # Examples: -s ukpolice, -s ukpolice:crime:51.5074,-0.1278, -s ukpolice:forces
@@ -289,7 +289,7 @@ sources:
   ukflood:
     type: api
     description: "Environment Agency flood warnings, river levels, and rainfall monitoring"
-    scope: [environment, weather, flooding, uk]
+    scope: [ environment, weather, flooding, uk ]
     region: UK
     # Sub-params: warnings, levels, rainfall, stations
     # Examples: -s ukflood, -s ukflood:warnings, -s ukflood:levels
@@ -299,138 +299,138 @@ sources:
 # "rss" sources use the category-specific feed if available
 routing:
   technology:
-    sources: [hn, reddit, google_news, bbc, ars, verge, lobsters, devto, theregister, arxiv]
+    sources: [ hn, reddit, google_news, bbc, ars, verge, lobsters, devto, theregister, arxiv ]
     bbc_category: technology
     google_news_topic: TECHNOLOGY
 
   programming:
-    sources: [hn, reddit, lobsters, devto, google_news, arxiv]
+    sources: [ hn, reddit, lobsters, devto, google_news, arxiv ]
     google_news_topic: TECHNOLOGY
 
   health:
-    sources: [google_news, bbc, guardian, cnn, npr, sciencedaily, factcheck, arxiv]
+    sources: [ google_news, bbc, guardian, cnn, npr, sciencedaily, factcheck, arxiv ]
     bbc_category: health
     google_news_topic: HEALTH
 
   pharma:
-    sources: [google_news, bbc, guardian, cnn, npr, factcheck]
+    sources: [ google_news, bbc, guardian, cnn, npr, factcheck ]
     bbc_category: health
     google_news_topic: HEALTH
 
   science:
-    sources: [google_news, bbc, guardian, ars, sciencedaily, phys, npr, spaceflight, arxiv]
+    sources: [ google_news, bbc, guardian, ars, sciencedaily, phys, npr, spaceflight, arxiv ]
     bbc_category: science
     google_news_topic: SCIENCE
 
   environment:
-    sources: [ukflood, google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
+    sources: [ ukflood, google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters ]
     bbc_category: environment
     google_news_topic: SCIENCE
 
   climate:
-    sources: [ukflood, google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters]
+    sources: [ ukflood, google_news, guardian, bbc, npr, carbonbrief, sciencedaily, reuters ]
     bbc_category: environment
     google_news_topic: SCIENCE
 
   business:
-    sources: [google_news, bbc, guardian, reuters, cnn, npr]
+    sources: [ google_news, bbc, guardian, reuters, cnn, npr ]
     bbc_category: business
     google_news_topic: BUSINESS
 
   finance:
-    sources: [google_news, bbc, guardian, reuters, cnn, npr]
+    sources: [ google_news, bbc, guardian, reuters, cnn, npr ]
     bbc_category: business
     google_news_topic: BUSINESS
 
   politics:
-    sources: [parliament, google_news, bbc, guardian, reuters, cnn, npr, factcheck]
+    sources: [ parliament, google_news, bbc, guardian, reuters, cnn, npr, factcheck ]
     bbc_category: politics
     google_news_topic: NATION
 
   world:
-    sources: [google_news, bbc, guardian, reuters, cnn, npr, earthquake, wikipedia]
+    sources: [ google_news, bbc, guardian, reuters, cnn, npr, earthquake, wikipedia ]
     bbc_category: world
     google_news_topic: WORLD
 
   entertainment:
-    sources: [google_news, bbc, guardian, npr, theonion]
+    sources: [ google_news, bbc, guardian, npr, theonion ]
     bbc_category: entertainment
     google_news_topic: ENTERTAINMENT
 
   humor:
-    sources: [theonion, babylonbee, google_news, reddit]
+    sources: [ theonion, babylonbee, google_news, reddit ]
     google_news_topic: ENTERTAINMENT
 
   satire:
-    sources: [theonion, babylonbee, google_news]
+    sources: [ theonion, babylonbee, google_news ]
     google_news_topic: ENTERTAINMENT
 
   sports:
-    sources: [google_news, bbc, guardian, npr]
+    sources: [ google_news, bbc, guardian, npr ]
     bbc_category: sport
     google_news_topic: SPORTS
 
   ai:
-    sources: [hn, google_news, bbc, verge, techcrunch, reddit, theregister, ars, arxiv]
+    sources: [ hn, google_news, bbc, verge, techcrunch, reddit, theregister, ars, arxiv ]
     bbc_category: technology
     google_news_topic: TECHNOLOGY
 
   security:
-    sources: [hn, google_news, ars, bbc, theregister, arxiv]
+    sources: [ hn, google_news, ars, bbc, theregister, arxiv ]
     bbc_category: technology
     google_news_topic: TECHNOLOGY
 
   space:
-    sources: [spaceflight, google_news, bbc, ars, reddit, phys, arxiv]
+    sources: [ spaceflight, google_news, bbc, ars, reddit, phys, arxiv ]
     google_news_topic: SCIENCE
 
   disaster:
-    sources: [earthquake, ukflood, google_news, bbc, guardian, reuters, cnn, npr]
+    sources: [ earthquake, ukflood, google_news, bbc, guardian, reuters, cnn, npr ]
     bbc_category: world
     google_news_topic: WORLD
 
   factcheck:
-    sources: [factcheck, google_news]
+    sources: [ factcheck, google_news ]
 
   # UK-specific topics - prefer specialist UK Government APIs
   uk_politics:
-    sources: [parliament, bbc, guardian, google_news, factcheck]
+    sources: [ parliament, bbc, guardian, google_news, factcheck ]
     bbc_category: politics
 
   crime:
-    sources: [ukpolice, google_news, bbc, guardian]
+    sources: [ ukpolice, google_news, bbc, guardian ]
     bbc_category: politics
 
   flooding:
-    sources: [ukflood, bbc, guardian, google_news]
+    sources: [ ukflood, bbc, guardian, google_news ]
     bbc_category: environment
 
   uk:
-    sources: [parliament, ukpolice, ukflood, bbc, guardian, theregister, google_news]
+    sources: [ parliament, ukpolice, ukflood, bbc, guardian, theregister, google_news ]
 
   # Default routing for any unrecognized topic
   default:
-    sources: [google_news, duckduckgo, bbc, guardian, npr, wikipedia]
+    sources: [ google_news, duckduckgo, bbc, guardian, npr, wikipedia ]
 
 # Topic detection keywords - maps keywords to routing categories
 topic_keywords:
-  health: [health, medical, medicine, hospital, clinical, therapy, treatment, disease, cancer, diabetes, mental health, nhs, cdc]
-  science: [science, research, study, discovery, physics, chemistry, biology, nasa, experiment, quantum, genome]
-  environment: [climate, climate change, environment, emissions, carbon, renewable, sustainability, pollution, fossil fuel, green energy, deforestation, biodiversity, conservation, net zero, greenhouse, paris agreement, cop, ipcc, warming, sea level]
-  business: [business, economy, market, stock, trade, company, startup, investment, finance, banking, revenue]
-  finance: [finance, stock, crypto, bitcoin, trading, investor, wall street, nasdaq]
-  politics: [politics, election, government, policy, legislation, congress, parliament, vote, democrat, republican, hansard, commons, lords, mp, minister, prime minister, cabinet, whitehall, westminster]
-  world: [war, conflict, international, diplomatic, treaty, united nations, nato, geopolitical]
-  entertainment: [movie, film, music, celebrity, award, oscar, grammy, streaming, netflix, disney, snl, saturday night live, tv, television, show, host, sitcom, comedy, talk show, late night, reality tv, actor, actress, concert, broadway, podcast, comedian, standup, series, premiere, season, episode, theater, theatre, performance, talent, audition, red carpet, box office, trailer, blockbuster, hbo, hulu, amazon prime, apple tv]
-  sports: [sport, football, soccer, basketball, tennis, cricket, olympics, championship, league, nfl, nba]
-  technology: [tech, software, hardware, computer, programming, code, developer, api, cloud]
-  ai: [ai, artificial intelligence, llm, chatgpt, openai, deepseek, machine learning, neural, gpt, claude]
-  pharma: [pharmaceutical, pharma, drug approval, fda, clinical trial, biotech, medication, drug, vaccine, drug pricing, prescription]
-  space: [space, spacex, nasa, rocket, launch, satellite, orbit, astronaut, iss, mars, moon, starship]
-  disaster: [earthquake, tsunami, volcano, hurricane, tornado, flood, wildfire, disaster, seismic, magnitude]
-  humor: [funny, humor, satire, satirical, comedy, parody, joke, onion, meme, hilarious, laughing, stand-up, roast, sketch, improv, prank]
-  factcheck: [fact check, misinformation, disinformation, false claim, debunk, hoax, fake news, verify, snopes, politifact]
-  uk_politics: [uk parliament, hansard, house of commons, house of lords, mp, prime minister, cabinet, westminster, whitehall, devolution, pmqs, backbench]
-  crime: [crime, police, theft, robbery, burglary, assault, anti-social, criminal, offence, arrest, custody, crime rate, neighbourhood policing, metropolitan police]
-  flooding: [flood, flooding, river level, flood warning, flood alert, rainfall, environment agency, tidal, storm surge, surface water, flood risk]
-  uk: [uk, united kingdom, britain, british, england, scotland, wales, northern ireland]
+  health: [ health, medical, medicine, hospital, clinical, therapy, treatment, disease, cancer, diabetes, mental health, nhs, cdc ]
+  science: [ science, research, study, discovery, physics, chemistry, biology, nasa, experiment, quantum, genome ]
+  environment: [ climate, climate change, environment, emissions, carbon, renewable, sustainability, pollution, fossil fuel, green energy, deforestation, biodiversity, conservation, net zero, greenhouse, paris agreement, cop, ipcc, warming, sea level ]
+  business: [ business, economy, market, stock, trade, company, startup, investment, finance, banking, revenue ]
+  finance: [ finance, stock, crypto, bitcoin, trading, investor, wall street, nasdaq ]
+  politics: [ politics, election, government, policy, legislation, congress, parliament, vote, democrat, republican, hansard, commons, lords, mp, minister, prime minister, cabinet, whitehall, westminster ]
+  world: [ war, conflict, international, diplomatic, treaty, united nations, nato, geopolitical ]
+  entertainment: [ movie, film, music, celebrity, award, oscar, grammy, streaming, netflix, disney, snl, saturday night live, tv, television, show, host, sitcom, comedy, talk show, late night, reality tv, actor, actress, concert, broadway, podcast, comedian, standup, series, premiere, season, episode, theater, theatre, performance, talent, audition, red carpet, box office, trailer, blockbuster, hbo, hulu, amazon prime, apple tv ]
+  sports: [ sport, football, soccer, basketball, tennis, cricket, olympics, championship, league, nfl, nba ]
+  technology: [ tech, software, hardware, computer, programming, code, developer, api, cloud ]
+  ai: [ ai, artificial intelligence, llm, chatgpt, openai, deepseek, machine learning, neural, gpt, claude ]
+  pharma: [ pharmaceutical, pharma, drug approval, fda, clinical trial, biotech, medication, drug, vaccine, drug pricing, prescription ]
+  space: [ space, spacex, nasa, rocket, launch, satellite, orbit, astronaut, iss, mars, moon, starship ]
+  disaster: [ earthquake, tsunami, volcano, hurricane, tornado, flood, wildfire, disaster, seismic, magnitude ]
+  humor: [ funny, humor, satire, satirical, comedy, parody, joke, onion, meme, hilarious, laughing, stand-up, roast, sketch, improv, prank ]
+  factcheck: [ fact check, misinformation, disinformation, false claim, debunk, hoax, fake news, verify, snopes, politifact ]
+  uk_politics: [ uk parliament, hansard, house of commons, house of lords, mp, prime minister, cabinet, westminster, whitehall, devolution, pmqs, backbench ]
+  crime: [ crime, police, theft, robbery, burglary, assault, anti-social, criminal, offence, arrest, custody, crime rate, neighbourhood policing, metropolitan police ]
+  flooding: [ flood, flooding, river level, flood warning, flood alert, rainfall, environment agency, tidal, storm surge, surface water, flood risk ]
+  uk: [ uk, united kingdom, britain, british, england, scotland, wales, northern ireland ]

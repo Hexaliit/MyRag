@@ -20,32 +20,32 @@ scope:
 
 # Trigger conditions - when should this wave run?
 triggers:
-  signals:                       # Run when ANY of these signals exist
+  signals: # Run when ANY of these signals exist
     - "video.normalized"
-  requires:                      # Run only when ALL of these are satisfied
+  requires: # Run only when ALL of these are satisfied
     - signal: "video.duration"
       condition: "> 0"
-  skip_when:                     # Skip if ANY of these signals exist
+  skip_when: # Skip if ANY of these signals exist
     - signal: "wave.skipped.{name}"
 
 # Signal emissions - what signals does this wave produce?
 emits:
-  on_start:                      # Emitted when wave begins
+  on_start: # Emitted when wave begins
     - "face_tracking.started"
 
-  on_complete:                   # Emitted when wave succeeds
+  on_complete: # Emitted when wave succeeds
     - key: "face_tracking.identities"
       type: "List<FaceIdentity>"
       description: "Detected face identities"
 
-  on_failure:                    # Emitted when wave fails
+  on_failure: # Emitted when wave fails
     - "face_tracking.failed"
 
 # Dependencies - signals this wave reads from other waves
 listens:
-  required:                      # Must exist before wave can run
+  required: # Must exist before wave can run
     - "video.keyframes"
-  optional:                      # May use if available
+  optional: # May use if available
     - "face_detection.faces"
 
 # Tags for filtering/grouping
@@ -59,40 +59,40 @@ tags:
 
 priority_tiers:
   1000: "Normalize - NormalizeWave (FFmpeg preprocessing)"
-  990:  "Metadata - ExternalMetadataWave (TMDB/OMDB lookup)"
-  900:  "Shots - ShotDetectionWave (scene boundary detection)"
-  800:  "Keyframes - KeyframeExtractionWave (extract representative frames)"
-  790:  "Thumbnails - ShotThumbnailWave (generate shot thumbnails)"
-  785:  "Titles - TitleCreditsDetectionWave (detect title/credit sequences)"
-  780:  "Credits OCR - EnhancedCreditsOcrWave (extract names from credits)"
-  750:  "Subtitles - SubtitleExtractionWave (extract embedded subtitles)"
-  740:  "Chapters - ChapterExtractionWave (extract chapter markers)"
-  650:  "Face Tracking - FaceTrackingWave (track faces across frames)"
-  600:  "Subtitle Download - SubtitleDownloadWave (download external subtitles)"
-  500:  "Transcription - TranscriptionWave (audio transcription)"
-  400:  "Scenes - SceneClusteringWave (cluster shots into scenes)"
-  300:  "Evidence - EvidenceGenerationWave (generate artifacts)"
-  200:  "Artifacts - ArtifactGenerationWave (generate files for DocSummarizer)"
+  990: "Metadata - ExternalMetadataWave (TMDB/OMDB lookup)"
+  900: "Shots - ShotDetectionWave (scene boundary detection)"
+  800: "Keyframes - KeyframeExtractionWave (extract representative frames)"
+  790: "Thumbnails - ShotThumbnailWave (generate shot thumbnails)"
+  785: "Titles - TitleCreditsDetectionWave (detect title/credit sequences)"
+  780: "Credits OCR - EnhancedCreditsOcrWave (extract names from credits)"
+  750: "Subtitles - SubtitleExtractionWave (extract embedded subtitles)"
+  740: "Chapters - ChapterExtractionWave (extract chapter markers)"
+  650: "Face Tracking - FaceTrackingWave (track faces across frames)"
+  600: "Subtitle Download - SubtitleDownloadWave (download external subtitles)"
+  500: "Transcription - TranscriptionWave (audio transcription)"
+  400: "Scenes - SceneClusteringWave (cluster shots into scenes)"
+  300: "Evidence - EvidenceGenerationWave (generate artifacts)"
+  200: "Artifacts - ArtifactGenerationWave (generate files for DocSummarizer)"
 
 # ============================================================================
 # SIGNAL NAMESPACES
 # ============================================================================
 
 signal_namespaces:
-  video:       "Video metadata (duration, fps, resolution, codec)"
-  shots:       "Shot detection (boundaries, types, keyframes)"
-  scenes:      "Scene clustering (grouped shots, labels)"
-  keyframes:   "Keyframe extraction (paths, embeddings)"
-  faces:       "Face detection (bounding boxes, embeddings)"
+  video: "Video metadata (duration, fps, resolution, codec)"
+  shots: "Shot detection (boundaries, types, keyframes)"
+  scenes: "Scene clustering (grouped shots, labels)"
+  keyframes: "Keyframe extraction (paths, embeddings)"
+  faces: "Face detection (bounding boxes, embeddings)"
   face_tracking: "Face tracking (identities, tracks, appearances)"
-  subtitles:   "Subtitle processing (entries, utterances)"
-  transcript:  "Audio transcription (utterances, speakers)"
-  ocr:         "On-screen text (text tracks, OCR results)"
-  metadata:    "External metadata (TMDB, OMDB, cast)"
-  chapters:    "Chapter information (markers, titles)"
-  artifacts:   "Generated artifacts (frames, text files)"
-  unified:     "Unified identity (cross-modal links)"
-  wave:        "Wave lifecycle (started, completed, failed)"
+  subtitles: "Subtitle processing (entries, utterances)"
+  transcript: "Audio transcription (utterances, speakers)"
+  ocr: "On-screen text (text tracks, OCR results)"
+  metadata: "External metadata (TMDB, OMDB, cast)"
+  chapters: "Chapter information (markers, titles)"
+  artifacts: "Generated artifacts (frames, text files)"
+  unified: "Unified identity (cross-modal links)"
+  wave: "Wave lifecycle (started, completed, failed)"
 
 # ============================================================================
 # AVAILABLE VIDEO WAVES
@@ -101,90 +101,90 @@ signal_namespaces:
 available_waves:
   - name: NormalizeWave
     priority: 1000
-    emits: [video.normalized, video.temp_path]
-    tags: [preprocessing]
+    emits: [ video.normalized, video.temp_path ]
+    tags: [ preprocessing ]
     file: waves/normalize.wave.yaml
 
   - name: ExternalMetadataWave
     priority: 990
-    emits: [metadata.tmdb, metadata.omdb, metadata.cast]
-    tags: [metadata]
+    emits: [ metadata.tmdb, metadata.omdb, metadata.cast ]
+    tags: [ metadata ]
     file: waves/external-metadata.wave.yaml
 
   - name: ShotDetectionWave
     priority: 900
-    emits: [shots.boundaries, shots.count, shots.types]
-    tags: [visual, shots]
+    emits: [ shots.boundaries, shots.count, shots.types ]
+    tags: [ visual, shots ]
     file: waves/shot-detection.wave.yaml
 
   - name: KeyframeExtractionWave
     priority: 800
-    emits: [keyframes.paths, keyframes.embeddings]
-    tags: [visual, keyframes]
+    emits: [ keyframes.paths, keyframes.embeddings ]
+    tags: [ visual, keyframes ]
     file: waves/keyframe-extraction.wave.yaml
 
   - name: ShotThumbnailWave
     priority: 790
-    emits: [shots.thumbnails]
-    tags: [visual, thumbnails]
+    emits: [ shots.thumbnails ]
+    tags: [ visual, thumbnails ]
     file: waves/shot-thumbnail.wave.yaml
 
   - name: TitleCreditsDetectionWave
     priority: 785
-    emits: [title.detected, credits.detected, credits.range]
-    tags: [visual, credits]
+    emits: [ title.detected, credits.detected, credits.range ]
+    tags: [ visual, credits ]
     file: waves/title-credits.wave.yaml
 
   - name: EnhancedCreditsOcrWave
     priority: 780
-    emits: [credits.names, credits.roles]
-    tags: [visual, ocr, credits]
+    emits: [ credits.names, credits.roles ]
+    tags: [ visual, ocr, credits ]
     file: waves/credits-ocr.wave.yaml
 
   - name: SubtitleExtractionWave
     priority: 750
-    emits: [subtitles.embedded, subtitles.languages]
-    tags: [speech, subtitles]
+    emits: [ subtitles.embedded, subtitles.languages ]
+    tags: [ speech, subtitles ]
     file: waves/subtitle-extraction.wave.yaml
 
   - name: ChapterExtractionWave
     priority: 740
-    emits: [chapters.markers, chapters.titles]
-    tags: [metadata, chapters]
+    emits: [ chapters.markers, chapters.titles ]
+    tags: [ metadata, chapters ]
     file: waves/chapter-extraction.wave.yaml
 
   - name: FaceTrackingWave
     priority: 650
-    emits: [face_tracking.identities, face_tracking.tracks, face_tracking.appearances]
-    tags: [visual, faces]
+    emits: [ face_tracking.identities, face_tracking.tracks, face_tracking.appearances ]
+    tags: [ visual, faces ]
     file: waves/face-tracking.wave.yaml
 
   - name: SubtitleDownloadWave
     priority: 600
-    emits: [subtitles.downloaded, subtitles.utterances]
-    tags: [speech, subtitles]
+    emits: [ subtitles.downloaded, subtitles.utterances ]
+    tags: [ speech, subtitles ]
     file: waves/subtitle-download.wave.yaml
 
   - name: TranscriptionWave
     priority: 500
-    emits: [transcript.utterances, transcript.speakers, transcript.language]
-    tags: [speech, transcription]
+    emits: [ transcript.utterances, transcript.speakers, transcript.language ]
+    tags: [ speech, transcription ]
     file: waves/transcription.wave.yaml
 
   - name: SceneClusteringWave
     priority: 400
-    emits: [scenes.clusters, scenes.labels, scenes.centroids]
-    tags: [visual, scenes]
+    emits: [ scenes.clusters, scenes.labels, scenes.centroids ]
+    tags: [ visual, scenes ]
     file: waves/scene-clustering.wave.yaml
 
   - name: EvidenceGenerationWave
     priority: 300
-    emits: [evidence.chunks, evidence.pointers]
-    tags: [indexing, evidence]
+    emits: [ evidence.chunks, evidence.pointers ]
+    tags: [ indexing, evidence ]
     file: waves/evidence-generation.wave.yaml
 
   - name: ArtifactGenerationWave
     priority: 200
-    emits: [artifacts.collection, artifacts.markdown]
-    tags: [indexing, artifacts]
+    emits: [ artifacts.collection, artifacts.markdown ]
+    tags: [ indexing, artifacts ]
     file: waves/artifact-generation.wave.yaml

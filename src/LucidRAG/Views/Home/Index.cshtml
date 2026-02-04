@@ -214,7 +214,8 @@
                                                 <details class="mb-2 text-xs opacity-70">
                                                     <summary class="cursor-pointer hover:opacity-100 select-none">
                                                         <span class="font-mono">
-                                                            <span x-text="msg.segmentCount"></span> segments in <span x-text="msg.searchTimeMs"></span>ms
+                                                            <span x-text="msg.segmentCount"></span> segments in <span
+                                                                x-text="msg.searchTimeMs"></span>ms
                                                         </span>
                                                     </summary>
                                                     <div class="mt-1 p-2 bg-base-300/30 rounded prose prose-xs"
@@ -267,11 +268,14 @@
                                                 <div class="flex items-center gap-2">
                                                     <span class="loading loading-dots loading-xs"></span>
                                                     <span class="text-sm font-medium">
-                                                        <span x-show="selectedDocIds.size > 0" x-text="'Searching ' + selectedDocIds.size + ' documents...'"></span>
+                                                        <span x-show="selectedDocIds.size > 0"
+                                                              x-text="'Searching ' + selectedDocIds.size + ' documents...'"></span>
                                                         <span x-show="selectedDocIds.size === 0">Searching all documents...</span>
                                                     </span>
                                                 </div>
-                                                <div x-show="streamingThinking" class="text-xs opacity-70 italic mt-1 max-w-md truncate" x-text="streamingThinking"></div>
+                                                <div x-show="streamingThinking"
+                                                     class="text-xs opacity-70 italic mt-1 max-w-md truncate"
+                                                     x-text="streamingThinking"></div>
                                             </div>
                                         </div>
                                     </div>
@@ -632,8 +636,10 @@
                                             <div class="card bg-base-200 shadow-sm mb-4">
                                                 <div class="card-body p-3">
                                                     <div class="flex items-center gap-2 mb-3">
-                                                        <svg class="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
-                                                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                                                        <svg class="w-5 h-5 text-purple-500" fill="currentColor"
+                                                             viewBox="0 0 24 24">
+                                                            <path
+                                                                d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                                                         </svg>
                                                         <span class="font-semibold">Source Separation</span>
                                                         <span class="badge badge-sm badge-secondary">Demucs</span>
@@ -675,10 +681,12 @@
                                                                     <button class="btn btn-xs btn-circle btn-ghost"
                                                                             x-data="{ playing: false }"
                                                                             @@click="toggleAudioPlay($el, ev.id)">
-                                                                        <svg x-show="!playing" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                        <svg x-show="!playing" class="w-4 h-4"
+                                                                             fill="currentColor" viewBox="0 0 24 24">
                                                                             <path d="M8 5v14l11-7z"/>
                                                                         </svg>
-                                                                        <svg x-show="playing" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                        <svg x-show="playing" class="w-4 h-4"
+                                                                             fill="currentColor" viewBox="0 0 24 24">
                                                                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
                                                                         </svg>
                                                                     </button>
@@ -764,22 +772,27 @@
                                                     <div class="card-body p-3">
                                                         <div class="flex items-center justify-between">
                                                             <div class="flex items-center gap-2">
-                                                                <span class="badge badge-info badge-sm" x-text="getSignalCategory(signal.key)"></span>
-                                                                <span class="font-mono text-sm font-semibold" x-text="signal.key"></span>
+                                                                <span class="badge badge-info badge-sm"
+                                                                      x-text="getSignalCategory(signal.key)"></span>
+                                                                <span class="font-mono text-sm font-semibold"
+                                                                      x-text="signal.key"></span>
                                                             </div>
                                                             <template x-if="signal.confidence">
                                                                 <span class="text-xs opacity-50">
-                                                                    Confidence: <span x-text="(signal.confidence * 100).toFixed(0) + '%'"></span>
+                                                                    Confidence: <span
+                                                                        x-text="(signal.confidence * 100).toFixed(0) + '%'"></span>
                                                                 </span>
                                                             </template>
                                                         </div>
                                                         <div class="mt-2 text-sm">
                                                             <template x-if="typeof signal.value === 'object'">
-                                                                <pre class="bg-base-300 p-2 rounded text-xs overflow-x-auto max-h-40"
-                                                                     x-text="JSON.stringify(signal.value, null, 2)"></pre>
+                                                                <pre
+                                                                    class="bg-base-300 p-2 rounded text-xs overflow-x-auto max-h-40"
+                                                                    x-text="JSON.stringify(signal.value, null, 2)"></pre>
                                                             </template>
                                                             <template x-if="typeof signal.value !== 'object'">
-                                                                <p class="opacity-70" x-text="signal.value || '(no value)'"></p>
+                                                                <p class="opacity-70"
+                                                                   x-text="signal.value || '(no value)'"></p>
                                                             </template>
                                                         </div>
                                                         <template x-if="signal.source">
@@ -795,7 +808,8 @@
                                             x-if="!documentDetails.signals || documentDetails.signals.length === 0">
                                             <div class="text-center py-8 opacity-50">
                                                 <p>No signals extracted yet.</p>
-                                                <p class="text-xs mt-1">Signals are generated during document processing.</p>
+                                                <p class="text-xs mt-1">Signals are generated during document
+                                                    processing.</p>
                                             </div>
                                         </template>
                                     </div>

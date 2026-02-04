@@ -1,12 +1,12 @@
 using System.Text.RegularExpressions;
-using Mostlylucid.Summarizer.Core.Analysis;
 using DoomWriter.Models;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace DoomWriter.Waves;
 
 /// <summary>
-/// Extracts markdown headings (H1-H6) for TOC display.
-/// Fast lane, high priority — other waves depend on heading structure.
+///     Extracts markdown headings (H1-H6) for TOC display.
+///     Fast lane, high priority — other waves depend on heading structure.
 /// </summary>
 public sealed partial class HeadingExtractionWave : ITypedAnalysisWave<string>
 {
@@ -16,8 +16,10 @@ public sealed partial class HeadingExtractionWave : ITypedAnalysisWave<string>
     public IReadOnlyList<string> Tags => [SignalTags.Structure];
     public bool Enabled { get; set; } = true;
 
-    public bool ShouldRun(string content, AnalysisContext context) =>
-        !string.IsNullOrWhiteSpace(content);
+    public bool ShouldRun(string content, AnalysisContext context)
+    {
+        return !string.IsNullOrWhiteSpace(content);
+    }
 
     public Task<IEnumerable<Signal>> AnalyzeAsync(
         string markdown, AnalysisContext context, CancellationToken ct = default)
@@ -26,12 +28,11 @@ public sealed partial class HeadingExtractionWave : ITypedAnalysisWave<string>
         var lines = markdown.Split('\n');
         var charOffset = 0;
 
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i].TrimEnd('\r');
             var match = HeadingRegex().Match(line);
             if (match.Success)
-            {
                 headings.Add(new HeadingItem
                 {
                     Level = match.Groups[1].Value.Length,
@@ -39,7 +40,6 @@ public sealed partial class HeadingExtractionWave : ITypedAnalysisWave<string>
                     LineNumber = i + 1,
                     CharOffset = charOffset
                 });
-            }
             charOffset += lines[i].Length + 1;
         }
 

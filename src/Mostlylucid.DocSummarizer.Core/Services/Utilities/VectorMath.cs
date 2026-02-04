@@ -4,16 +4,16 @@ using System.Runtime.CompilerServices;
 namespace Mostlylucid.DocSummarizer.Services.Utilities;
 
 /// <summary>
-/// High-performance vector math using <see cref="TensorPrimitives"/> (System.Numerics.Tensors).
-/// Automatically selects the best hardware intrinsics (AVX2, AVX-512, ARM NEON) at runtime.
-/// Unified implementation shared across DoomSummarizer, DocSummarizer, ImageSummarizer, and LucidRAG.
+///     High-performance vector math using <see cref="TensorPrimitives" /> (System.Numerics.Tensors).
+///     Automatically selects the best hardware intrinsics (AVX2, AVX-512, ARM NEON) at runtime.
+///     Unified implementation shared across DoomSummarizer, DocSummarizer, ImageSummarizer, and LucidRAG.
 /// </summary>
 public static class VectorMath
 {
     /// <summary>
-    /// Compute cosine similarity between two vectors (float precision).
-    /// Uses <see cref="TensorPrimitives.CosineSimilarity"/> for hardware-accelerated computation.
-    /// Returns value between -1 and 1, where 1 = identical direction.
+    ///     Compute cosine similarity between two vectors (float precision).
+    ///     Uses <see cref="TensorPrimitives.CosineSimilarity" /> for hardware-accelerated computation.
+    ///     Returns value between -1 and 1, where 1 = identical direction.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float CosineSimilarityFloat(float[] a, float[] b)
@@ -23,15 +23,17 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// Compute cosine similarity between two vectors.
-    /// Returns double for backward compatibility with callers expecting double precision.
+    ///     Compute cosine similarity between two vectors.
+    ///     Returns double for backward compatibility with callers expecting double precision.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double CosineSimilarity(float[] a, float[] b)
-        => CosineSimilarityFloat(a, b);
+    {
+        return CosineSimilarityFloat(a, b);
+    }
 
     /// <summary>
-    /// Compute cosine similarity between two vectors (double precision).
+    ///     Compute cosine similarity between two vectors (double precision).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double CosineSimilarity(double[] a, double[] b)
@@ -51,15 +53,17 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// Cosine similarity optimized for L2-normalized vectors (just dot product).
-    /// Use when you know both vectors are already unit-length.
+    ///     Cosine similarity optimized for L2-normalized vectors (just dot product).
+    ///     Use when you know both vectors are already unit-length.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float CosineSimilarityNormalized(float[] a, float[] b)
-        => DotProduct(a, b);
+    {
+        return DotProduct(a, b);
+    }
 
     /// <summary>
-    /// Compute dot product using hardware-accelerated <see cref="TensorPrimitives.Dot"/>.
+    ///     Compute dot product using hardware-accelerated <see cref="TensorPrimitives.Dot" />.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float DotProduct(float[] a, float[] b)
@@ -69,7 +73,7 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// Compute the L2 norm (magnitude) of a vector using hardware-accelerated <see cref="TensorPrimitives.Norm"/>.
+    ///     Compute the L2 norm (magnitude) of a vector using hardware-accelerated <see cref="TensorPrimitives.Norm" />.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float L2Norm(float[] v)
@@ -79,7 +83,7 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// L2-normalize a vector in-place using hardware-accelerated operations.
+    ///     L2-normalize a vector in-place using hardware-accelerated operations.
     /// </summary>
     public static void L2Normalize(float[] vector)
     {
@@ -89,13 +93,16 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// Normalize a vector to unit length in-place.
-    /// Alias for <see cref="L2Normalize"/> for backward compatibility.
+    ///     Normalize a vector to unit length in-place.
+    ///     Alias for <see cref="L2Normalize" /> for backward compatibility.
     /// </summary>
-    public static void NormalizeInPlace(float[] v) => L2Normalize(v);
+    public static void NormalizeInPlace(float[] v)
+    {
+        L2Normalize(v);
+    }
 
     /// <summary>
-    /// Normalize a vector to unit length, returning a new array.
+    ///     Normalize a vector to unit length, returning a new array.
     /// </summary>
     public static float[] Normalize(float[] v)
     {
@@ -106,8 +113,8 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// Add a scaled source vector to a target vector in-place: target[i] += source[i] * scale.
-    /// Uses <see cref="TensorPrimitives"/> for hardware-accelerated multiply-add.
+    ///     Add a scaled source vector to a target vector in-place: target[i] += source[i] * scale.
+    ///     Uses <see cref="TensorPrimitives" /> for hardware-accelerated multiply-add.
     /// </summary>
     public static void AddScaled(float[] target, float[] source, float scale)
     {
@@ -115,26 +122,26 @@ public static class VectorMath
         var targetSpan = target.AsSpan(0, len);
         var sourceSpan = (ReadOnlySpan<float>)source.AsSpan(0, len);
 
-        Span<float> temp = len <= 512 ? stackalloc float[len] : new float[len];
+        var temp = len <= 512 ? stackalloc float[len] : new float[len];
         TensorPrimitives.Multiply(sourceSpan, scale, temp);
-        TensorPrimitives.Add(targetSpan, (ReadOnlySpan<float>)temp, targetSpan);
+        TensorPrimitives.Add(targetSpan, temp, targetSpan);
     }
 
     /// <summary>
-    /// Compute the Euclidean (L2) distance between two vectors.
+    ///     Compute the Euclidean (L2) distance between two vectors.
     /// </summary>
     public static double EuclideanDistance(float[] a, float[] b)
     {
         if (a.Length != b.Length || a.Length == 0)
             return double.MaxValue;
 
-        Span<float> diff = a.Length <= 512 ? stackalloc float[a.Length] : new float[a.Length];
+        var diff = a.Length <= 512 ? stackalloc float[a.Length] : new float[a.Length];
         TensorPrimitives.Subtract((ReadOnlySpan<float>)a, (ReadOnlySpan<float>)b, diff);
         return TensorPrimitives.Norm(diff);
     }
 
     /// <summary>
-    /// Compute the centroid (average) of multiple vectors.
+    ///     Compute the centroid (average) of multiple vectors.
     /// </summary>
     public static float[] ComputeCentroid(IEnumerable<float[]> vectors)
     {
@@ -153,7 +160,7 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// Compute weighted average of vectors.
+    ///     Compute weighted average of vectors.
     /// </summary>
     public static float[] WeightedAverage(IEnumerable<(float[] Vector, double Weight)> weightedVectors)
     {
@@ -178,7 +185,7 @@ public static class VectorMath
     }
 
     /// <summary>
-    /// Find top-K most similar vectors to query using cosine similarity.
+    ///     Find top-K most similar vectors to query using cosine similarity.
     /// </summary>
     public static List<(int Index, double Similarity)> TopKBySimilarity(
         float[] query,

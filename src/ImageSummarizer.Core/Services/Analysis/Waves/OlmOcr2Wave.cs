@@ -11,19 +11,15 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// OlmOCR-2 wave (OpenAI-compatible VLM).
-/// Runs as the final OCR escalation just before VisionLlmWave.
-/// Priority: 51 (right before VisionLlmWave at 50).
+///     OlmOCR-2 wave (OpenAI-compatible VLM).
+///     Runs as the final OCR escalation just before VisionLlmWave.
+///     Priority: 51 (right before VisionLlmWave at 50).
 /// </summary>
 public class OlmOcr2Wave : IAnalysisWave
 {
     private readonly OcrConfig _config;
     private readonly HttpClient _httpClient;
     private readonly ILogger<OlmOcr2Wave>? _logger;
-
-    public string Name => "OlmOcr2Wave";
-    public int Priority => 51;
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "olmocr2" };
 
     public OlmOcr2Wave(
         IOptions<ImageConfig> imageConfig,
@@ -39,11 +35,13 @@ public class OlmOcr2Wave : IAnalysisWave
         };
 
         if (!string.IsNullOrWhiteSpace(_config.OlmOcr2ApiKey))
-        {
             _httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", _config.OlmOcr2ApiKey);
-        }
     }
+
+    public string Name => "OlmOcr2Wave";
+    public int Priority => 51;
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "olmocr2" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -178,7 +176,6 @@ public class OlmOcr2Wave : IAnalysisWave
 
             var existingContent = context.GetValue<string>("content.extracted_text");
             if (string.IsNullOrWhiteSpace(existingContent))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.extracted_text",
@@ -187,10 +184,8 @@ public class OlmOcr2Wave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "text" }
                 });
-            }
 
             if (!string.IsNullOrWhiteSpace(cleanedMarkdown))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.extracted_markdown",
@@ -199,7 +194,6 @@ public class OlmOcr2Wave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "markdown" }
                 });
-            }
 
             // Emit timing signal for benchmark
             sw.Stop();
@@ -267,13 +261,6 @@ public class OlmOcr2Wave : IAnalysisWave
         return result?.Message?.Content?.Trim() ?? string.Empty;
     }
 
-    // Ollama native API response format
-    private record OllamaChatResponse(
-        [property: JsonPropertyName("message")] OllamaMessage? Message);
-
-    private record OllamaMessage(
-        [property: JsonPropertyName("content")] string Content);
-
     private static string StripCodeFences(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -310,4 +297,12 @@ public class OlmOcr2Wave : IAnalysisWave
         return text.Trim();
     }
 
+    // Ollama native API response format
+    private record OllamaChatResponse(
+        [property: JsonPropertyName("message")]
+        OllamaMessage? Message);
+
+    private record OllamaMessage(
+        [property: JsonPropertyName("content")]
+        string Content);
 }

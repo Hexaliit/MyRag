@@ -1,16 +1,15 @@
-using Microsoft.Extensions.DependencyInjection;
 using LucidRAG.Core.Services.ConfidenceBooster;
 using LucidRAG.Core.Services.ConfidenceBooster.Domain;
 
 namespace LucidRAG.Core.Extensions;
 
 /// <summary>
-/// Service registration for ConfidenceBooster system.
+///     Service registration for ConfidenceBooster system.
 /// </summary>
 public static class ConfidenceBoosterServiceExtensions
 {
     /// <summary>
-    /// Add ConfidenceBooster services to the service collection.
+    ///     Add ConfidenceBooster services to the service collection.
     /// </summary>
     public static IServiceCollection AddConfidenceBooster(
         this IServiceCollection services,
@@ -31,10 +30,7 @@ public static class ConfidenceBoosterServiceExtensions
         // services.AddScoped<DataConfidenceBooster>();  // Add when implemented
 
         // Background worker (if enabled)
-        if (config.Enabled)
-        {
-            services.AddHostedService<ConfidenceBoosterBackgroundService>();
-        }
+        if (config.Enabled) services.AddHostedService<ConfidenceBoosterBackgroundService>();
 
         return services;
     }

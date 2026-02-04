@@ -2,7 +2,9 @@
 
 ## Overview
 
-The image analysis pipeline integrates **vision LLMs** (Claude, Ollama) with **OCR technologies** (Tesseract, Florence-2) to provide comprehensive text extraction and image understanding. The system uses intelligent routing to determine when to use fast local OCR versus expensive vision LLM analysis.
+The image analysis pipeline integrates **vision LLMs** (Claude, Ollama) with **OCR technologies** (Tesseract,
+Florence-2) to provide comprehensive text extraction and image understanding. The system uses intelligent routing to
+determine when to use fast local OCR versus expensive vision LLM analysis.
 
 ## Architecture
 
@@ -73,6 +75,7 @@ graph TB
 **Technology**: OpenCV MSER text detection (~5-20ms)
 
 **Routing Logic**:
+
 ```csharp
 // Text coverage analysis
 double textCoverage = detector.TextAreaRatio;  // 0.0 - 1.0
@@ -97,7 +100,8 @@ if (isAnimated && frameCount > 1)
 }
 ```
 
-**Key Insight**: Animated GIFs benefit from multi-frame OCR. Florence-2 now processes ALL unique frames in parallel with text deduplication, but Tesseract temporal voting provides additional accuracy for subtitle text.
+**Key Insight**: Animated GIFs benefit from multi-frame OCR. Florence-2 now processes ALL unique frames in parallel with
+text deduplication, but Tesseract temporal voting provides additional accuracy for subtitle text.
 
 ### 2. OCR Technologies
 
@@ -109,6 +113,7 @@ if (isAnimated && frameCount > 1)
 **Use Case**: First-pass OCR, static images, quick screening
 
 **Strengths**:
+
 - ✅ Very fast (~200-500ms per frame)
 - ✅ No API costs
 - ✅ Good for static images
@@ -117,10 +122,12 @@ if (isAnimated && frameCount > 1)
 - ✅ **Processes ALL unique frames with text deduplication (85% Levenshtein threshold)**
 
 **Limitations**:
+
 - ⚠️ Less accurate than Tesseract for clean document text
 - ⚠️ No per-word bounding boxes (full image OCR only)
 
 **Example**:
+
 ```csharp
 var florence2Service = new Florence2CaptionService(config, colorAnalyzer, logger);
 var result = await florence2Service.ExtractTextAsync(imagePath);
@@ -133,12 +140,14 @@ if (result.Success)
 ```
 
 **Output** (aed.gif example - 15 frames):
+
 ```
 Text: "I do not think it means what you think it means."
 Duration: 523ms
 Frames processed: 10 (parallel)
 Unique text chunks: 2
 ```
+
 *Florence-2 now processes ALL unique frames in parallel, capturing complete subtitle text.*
 
 #### Tesseract OCR (Traditional OCR)
@@ -148,17 +157,20 @@ Unique text chunks: 2
 **Use Case**: Clean text, documents, screenshots
 
 **Strengths**:
+
 - ✅ Excellent accuracy for clean text
 - ✅ Multi-language support
 - ✅ Confidence scores per word
 - ✅ Bounding box coordinates
 
 **Limitations**:
+
 - ❌ Struggles with stylized fonts
 - ❌ Poor on low-resolution text
 - ❌ Requires preprocessing for optimal results
 
 **Example**:
+
 ```csharp
 var ocrEngine = new TesseractOcrEngine();
 var regions = ocrEngine.ExtractTextWithCoordinates(imagePath);
@@ -175,12 +187,14 @@ foreach (var region in regions)
 **Purpose**: Extract text from animated GIFs using temporal voting across multiple frames.
 
 **Technology**:
+
 - Frame deduplication (text-content-based using Levenshtein distance)
 - Frame stabilization (ORB feature detection + homography)
 - Temporal median filtering
 - Character-level voting across frames
 
 **Pipeline**:
+
 ```
 1. Frame Extraction → Extract all frames from GIF
 2. Text-Content Deduplication → Compare OCR text, keep only text changes
@@ -192,6 +206,7 @@ foreach (var region in regions)
 ```
 
 **Example Configuration**:
+
 ```csharp
 services.Configure<ImageConfig>(config =>
 {
@@ -211,6 +226,7 @@ services.Configure<ImageConfig>(config =>
 ```
 
 **Output Signals**:
+
 ```
 ocr.frames.extracted: 15              # Total frames in GIF
 ocr.frames.deduplicated: true         # Deduplication applied
@@ -230,6 +246,7 @@ ocr.voting.agreement_score: 0.87      # How many frames agreed
 **Key Innovation**: Text-region filmstrip technology
 
 **How It Works**:
+
 ```csharp
 // 1. Detect text regions using OpenCV (from AutoRoutingWave cache)
 var textRegions = context.GetCached<List<Rectangle>>("ocr.opencv.text_regions");
@@ -245,6 +262,7 @@ var caption = await visionLlmService.AnalyzeImageAsync(filmstrip);
 ```
 
 **Text-Region Filmstrip**:
+
 - Instead of sending full 500x300 frames → Send only 80x30 text regions
 - 10 frames with text → Single 800x30 filmstrip
 - Dramatically reduces token usage
@@ -253,6 +271,7 @@ var caption = await visionLlmService.AnalyzeImageAsync(filmstrip);
 **Example**:
 
 **Before** (full frame):
+
 ```
 ┌─────────────────────────────┐
 │                             │  500x300 pixels
@@ -263,6 +282,7 @@ var caption = await visionLlmService.AnalyzeImageAsync(filmstrip);
 ```
 
 **After** (text-region filmstrip):
+
 ```
 ┌────────┬────────┬────────┬────────┐
 │  You   │  keep  │ using  │  that  │  Each region: 80x30 pixels
@@ -271,6 +291,7 @@ var caption = await visionLlmService.AnalyzeImageAsync(filmstrip);
 ```
 
 **Implementation**:
+
 ```csharp
 private async Task<string> CreateTextRegionFilmstrip(
     string gifPath,
@@ -315,6 +336,7 @@ private async Task<string> CreateTextRegionFilmstrip(
 **Purpose**: Automatically escalate to vision LLM when OCR fails or produces low-quality results.
 
 **Escalation Conditions**:
+
 ```csharp
 // 1. No text found by any OCR
 if (string.IsNullOrWhiteSpace(extractedText))
@@ -342,6 +364,7 @@ if (context.GetValue<bool>("ocr.quality.should_escalate"))
 ```
 
 **Florence-2 Fallback** (NEW):
+
 ```csharp
 // If Tesseract finds no text in animated GIF, try Florence-2
 if (isAnimated && string.IsNullOrWhiteSpace(tesseractText))
@@ -363,6 +386,7 @@ if (isAnimated && string.IsNullOrWhiteSpace(tesseractText))
 ```
 
 **Complete Flow**:
+
 ```
 1. Tesseract OCR → Extract text
 2. If no text found AND animated GIF → Try Florence-2
@@ -376,16 +400,19 @@ if (isAnimated && string.IsNullOrWhiteSpace(tesseractText))
 ### Path 1: FAST Route (Static Images, Low Text)
 
 **Characteristics**:
+
 - Text coverage < 10%
 - Static image or simple GIF
 - Caption-level text only
 
 **Waves Executed**:
+
 ```
 IdentityWave → ColorWave → AutoRoutingWave → Florence2Wave → VisionLlmWave (if needed)
 ```
 
 **Skipped Waves**:
+
 - ❌ OcrWave (Tesseract) - Florence-2 sufficient
 - ❌ AdvancedOcrWave - No multi-frame processing needed
 - ❌ OcrVerificationWave - Quick path
@@ -396,17 +423,20 @@ IdentityWave → ColorWave → AutoRoutingWave → Florence2Wave → VisionLlmWa
 ### Path 2: BALANCED Route (Medium Text)
 
 **Characteristics**:
+
 - Text coverage 10-25%
 - May be animated
 - Moderate text complexity
 
 **Waves Executed**:
+
 ```
 IdentityWave → ColorWave → AutoRoutingWave → Florence2Wave →
 OcrWave → OcrQualityWave → VisionLlmWave (if needed)
 ```
 
 **Special Handling for Animated GIFs**:
+
 ```
 + AdvancedOcrWave (multi-frame voting)
 ```
@@ -417,17 +447,20 @@ OcrWave → OcrQualityWave → VisionLlmWave (if needed)
 ### Path 3: QUALITY Route (High Text / Documents)
 
 **Characteristics**:
+
 - Text coverage > 25%
 - Document scans, complex layouts
 - Accuracy critical
 
 **Waves Executed**:
+
 ```
 IdentityWave → ColorWave → AutoRoutingWave → Florence2Wave →
 OcrWave → AdvancedOcrWave → OcrQualityWave → VisionLlmWave
 ```
 
 **All phases enabled**:
+
 - ✅ Super-resolution (for Quality/Ultra modes)
 - ✅ Frame stabilization
 - ✅ Temporal voting
@@ -442,12 +475,14 @@ OcrWave → AdvancedOcrWave → OcrQualityWave → VisionLlmWave
 **Purpose**: Extract text from scanned documents with comprehensive error correction.
 
 **Characteristics**:
+
 - Full page text extraction (not just subtitles)
 - Multi-language support via Tesseract
 - Spell check with custom dictionaries
 - Error correction loops for quality
 
 **Pipeline**:
+
 ```
 1. Document Detection → Identify document type (scan, PDF, screenshot)
 2. Layout Analysis → Detect columns, headers, paragraphs
@@ -464,6 +499,7 @@ OcrWave → AdvancedOcrWave → OcrQualityWave → VisionLlmWave
 ```
 
 **Configuration**:
+
 ```csharp
 services.Configure<ImageConfig>(config =>
 {
@@ -487,6 +523,7 @@ services.Configure<ImageConfig>(config =>
 ```
 
 **Error Correction Patterns**:
+
 ```csharp
 // Common OCR errors automatically corrected
 var errorPatterns = new Dictionary<string, string>
@@ -510,6 +547,7 @@ var errorPatterns = new Dictionary<string, string>
 ```
 
 **Spell Check Integration**:
+
 ```csharp
 // OcrQualityWave performs spell checking
 var result = await ocrQualityWave.AnalyzeAsync(imagePath, context);
@@ -532,18 +570,21 @@ if (spellCheckScore < 0.5)
 **Example Output**:
 
 **Before Correction**:
+
 ```
 Th1s is a 5canned d0cument with c0mm0n 0CR err0rs.
 The text has been misread in severa1 p1aces.
 ```
 
 **After Correction**:
+
 ```
 This is a scanned document with common OCR errors.
 The text has been misread in several places.
 ```
 
 **Signals Emitted**:
+
 ```
 [OcrWave]
   ocr.text: "Th1s is a 5canned d0cument..."
@@ -563,6 +604,7 @@ The text has been misread in several places.
 ```
 
 **Use Cases**:
+
 - 📄 **Document Digitization**: Scanned PDFs, photos of documents
 - 📚 **Book OCR**: Historical texts, library digitization
 - 🗂️ **Form Processing**: Invoices, receipts, forms
@@ -574,6 +616,7 @@ The text has been misread in several places.
 **Purpose**: Process complex multi-content documents by segmenting the page and analyzing each region in parallel.
 
 **Use Case**: Documents with mixed content types:
+
 - 📰 **Magazine layouts** - Text columns + images + captions
 - 📊 **Reports with charts** - Tables, graphs, diagrams, text
 - 🏫 **Textbooks** - Text blocks + figures + equations
@@ -581,6 +624,7 @@ The text has been misread in several places.
 - 🖼️ **Illustrated documents** - Technical manuals, catalogs
 
 **Problem**: Traditional OCR treats the whole page as one block:
+
 - Mixed content types (text, images, diagrams) need different processing
 - Column order gets confused
 - Images embedded in text are ignored
@@ -624,6 +668,7 @@ graph TB
 **Pipeline**:
 
 **Stage 1: Layout Analysis**
+
 ```csharp
 // Detect document layout using OpenCV
 var layoutAnalyzer = new DocumentLayoutAnalyzer();
@@ -639,6 +684,7 @@ var layout = await layoutAnalyzer.AnalyzeAsync(imagePath);
 ```
 
 **Stage 2: Segment Classification**
+
 ```csharp
 public enum SegmentType
 {
@@ -666,6 +712,7 @@ public class DocumentSegment
 ```
 
 **Stage 3: Parallel Processing**
+
 ```csharp
 // Process segments in parallel based on type
 var tasks = new List<Task<SegmentResult>>();
@@ -692,6 +739,7 @@ var results = await Task.WhenAll(tasks);
 **Stage 4: Segment-Specific Processing**
 
 **Text Blocks**:
+
 ```csharp
 // Standard Tesseract OCR with spell check
 private async Task<SegmentResult> ProcessTextBlockAsync(DocumentSegment segment)
@@ -710,6 +758,7 @@ private async Task<SegmentResult> ProcessTextBlockAsync(DocumentSegment segment)
 ```
 
 **Images/Charts**:
+
 ```csharp
 // Vision LLM for rich captions
 private async Task<SegmentResult> ProcessImageAsync(DocumentSegment segment)
@@ -746,6 +795,7 @@ private async Task<SegmentResult> ProcessImageAsync(DocumentSegment segment)
 ```
 
 **Tables**:
+
 ```csharp
 // Table structure extraction
 private async Task<SegmentResult> ProcessTableAsync(DocumentSegment segment)
@@ -785,6 +835,7 @@ private async Task<SegmentResult> ProcessTableAsync(DocumentSegment segment)
 ```
 
 **Stage 5: Layout Reconstruction**
+
 ```csharp
 // Reconstruct document in reading order
 private string ReconstructDocument(List<SegmentResult> results, DocumentLayout layout)
@@ -832,6 +883,7 @@ private string ReconstructDocument(List<SegmentResult> results, DocumentLayout l
 ```
 
 **Configuration**:
+
 ```csharp
 services.Configure<ImageConfig>(config =>
 {
@@ -865,6 +917,7 @@ services.Configure<ImageConfig>(config =>
 **Input**: Magazine article with 2 columns, 1 chart, 1 image
 
 **Segments Detected**:
+
 ```
 1. Header (text): "AI Revolution in Healthcare"
 2. Text Block 1 (column 1): "Artificial intelligence is transforming..."
@@ -876,6 +929,7 @@ services.Configure<ImageConfig>(config =>
 ```
 
 **Processing** (parallel):
+
 ```
 Thread 1: OCR Text Block 1 → 1.2s
 Thread 2: OCR Text Block 2 → 1.1s
@@ -887,6 +941,7 @@ Total time: 2.8s (vs 7.7s sequential)
 ```
 
 **Reconstructed Output** (Markdown):
+
 ```markdown
 # AI Revolution in Healthcare
 
@@ -914,6 +969,7 @@ and covers the period 2022-2025.
 ```
 
 **Signals Emitted**:
+
 ```
 [ComplexModeWave]
   complex.segments_detected: 7
@@ -946,14 +1002,15 @@ and covers the period 2022-2025.
 
 **Performance Characteristics**:
 
-| Document Type | Segments | Sequential | Parallel | Speedup |
-|--------------|----------|------------|----------|---------|
-| Magazine (1 page) | 7 | 7.7s | 2.8s | 2.7× |
-| Textbook (1 page) | 12 | 15.2s | 4.1s | 3.7× |
-| Report with charts | 8 | 18.4s | 5.3s | 3.5× |
-| Newspaper (1 page) | 15 | 12.8s | 3.9s | 3.3× |
+| Document Type      | Segments | Sequential | Parallel | Speedup |
+|--------------------|----------|------------|----------|---------|
+| Magazine (1 page)  | 7        | 7.7s       | 2.8s     | 2.7×    |
+| Textbook (1 page)  | 12       | 15.2s      | 4.1s     | 3.7×    |
+| Report with charts | 8        | 18.4s      | 5.3s     | 3.5×    |
+| Newspaper (1 page) | 15       | 12.8s      | 3.9s     | 3.3×    |
 
 **Cost Optimization**:
+
 ```csharp
 // Strategy 1: Use Florence-2 for simple images, LLM for charts
 config.ComplexMode.Images.PreferVisionLlm = false;  // Florence-2 first
@@ -968,6 +1025,7 @@ config.ComplexMode.EnableSegmentCaching = true;  // Same layout = reuse
 ```
 
 **Use Cases**:
+
 - 📰 **News/Magazine Processing**: Multi-column articles with images
 - 📊 **Report Analysis**: Business reports with charts and tables
 - 📚 **Textbook Digitization**: Mixed text, equations, diagrams, figures
@@ -977,6 +1035,7 @@ config.ComplexMode.EnableSegmentCaching = true;  // Same layout = reuse
 - 🎓 **Academic Papers**: Research papers with figures and tables
 
 **Advantages**:
+
 - ✅ **3-4× faster** than sequential processing
 - ✅ **Better accuracy** - Each segment gets optimal processing
 - ✅ **Rich captions** - Vision LLM describes charts/images
@@ -985,6 +1044,7 @@ config.ComplexMode.EnableSegmentCaching = true;  // Same layout = reuse
 - ✅ **Mixed content** - Text, images, charts handled separately
 
 **Limitations**:
+
 - ❌ **Higher API costs** - More Vision LLM calls for images/charts
 - ❌ **More complex** - Layout detection can fail on unusual formats
 - ❌ **Memory intensive** - Holds multiple segments in memory
@@ -1031,31 +1091,37 @@ graph LR
 ```
 
 **Stage 1: Text Detection** (AutoRoutingWave)
+
 - OpenCV MSER detects text regions
 - Cache results for downstream waves
 - Determine if OCR is needed
 
 **Stage 2: Deduplication** (AdvancedOcrWave)
+
 - Compare OCR text between frames (Levenshtein distance)
 - Keep only frames with text changes
 - Reduces 93 frames → 2-3 unique text frames
 
 **Stage 3: Temporal Voting** (AdvancedOcrWave)
+
 - OCR each unique frame
 - Vote on each character position
 - Combine results with confidence scores
 
 **Stage 4: Quality Check** (OcrQualityWave)
+
 - Spell check against dictionary
 - Detect garbled output
 - Trigger escalation if needed
 
 **Stage 5: Florence-2 Fallback** (EscalationService)
+
 - If Tesseract found nothing → Try Florence-2
 - Florence-2 better at stylized fonts
 - Still only one frame, but complements Tesseract
 
 **Stage 6: Vision LLM** (VisionLlmWave)
+
 - If still poor quality → Create text-region filmstrip
 - Send only text areas (not full frames)
 - LLM sees all subtitle text in one request
@@ -1067,34 +1133,34 @@ graph LR
 **Processing**:
 
 1. **AutoRoutingWave**:
-   - Detects text coverage: 8.2% (caption tier)
-   - Route: FAST (but animated GIF exemption applies)
-   - Caches text regions for reuse
+    - Detects text coverage: 8.2% (caption tier)
+    - Route: FAST (but animated GIF exemption applies)
+    - Caches text regions for reuse
 
 2. **Florence2Wave**:
-   - Processes middle frame only
-   - Extracts: "I do not think it means what you think it mean."
-   - ⚠️ Missing final 's' (only one frame visible)
+    - Processes middle frame only
+    - Extracts: "I do not think it means what you think it mean."
+    - ⚠️ Missing final 's' (only one frame visible)
 
 3. **AdvancedOcrWave**:
-   - Extracts all 15 frames
-   - Deduplication: 15 → 3 unique text frames
-   - Temporal voting on each character
-   - Result: "You keep using that word..." (partial, Tesseract struggles)
+    - Extracts all 15 frames
+    - Deduplication: 15 → 3 unique text frames
+    - Temporal voting on each character
+    - Result: "You keep using that word..." (partial, Tesseract struggles)
 
 4. **OcrQualityWave**:
-   - Spell check: 60% quality
-   - Emits signal: `ocr.quality.should_escalate = true`
+    - Spell check: 60% quality
+    - Emits signal: `ocr.quality.should_escalate = true`
 
 5. **EscalationService**:
-   - Low quality detected
-   - Florence-2 already ran (has text)
-   - Escalates to Vision LLM
+    - Low quality detected
+    - Florence-2 already ran (has text)
+    - Escalates to Vision LLM
 
 6. **VisionLlmWave**:
-   - Creates text-region filmstrip (3 frames, text areas only)
-   - Sends to Claude/GPT-4V
-   - Full result: "I do not think it means what you think it means." ✅
+    - Creates text-region filmstrip (3 frames, text areas only)
+    - Sends to Claude/GPT-4V
+    - Full result: "I do not think it means what you think it means." ✅
 
 ## Configuration
 
@@ -1115,18 +1181,18 @@ config.Ocr.ApplyQualityModePresets();  // Sets phase toggles
 
 **Preset Differences**:
 
-| Feature | Fast | Balanced | Quality | Ultra |
-|---------|------|----------|---------|-------|
-| Frame Stabilization | ✅ | ✅ | ✅ | ✅ |
-| Background Subtraction | ❌ | ✅ | ✅ | ✅ |
-| Edge Consensus | ❌ | ✅ | ✅ | ✅ |
-| Temporal Median | ✅ | ✅ | ✅ | ✅ |
-| Super-Resolution | ❌ | ❌ | ✅ (Classical) | ✅ (ONNX) |
-| Text Detection (EAST/CRAFT) | ❌ | ✅ | ✅ | ✅ |
-| Temporal Voting | ✅ | ✅ | ✅ | ✅ |
-| Post-Correction | ❌ | ✅ | ✅ | ✅ |
-| Max Voting Frames | 5 | 8 | 10 | 15 |
-| Early Exit Threshold | 0.90 | 0.95 | 0.98 | 1.0 (disabled) |
+| Feature                     | Fast | Balanced | Quality       | Ultra          |
+|-----------------------------|------|----------|---------------|----------------|
+| Frame Stabilization         | ✅    | ✅        | ✅             | ✅              |
+| Background Subtraction      | ❌    | ✅        | ✅             | ✅              |
+| Edge Consensus              | ❌    | ✅        | ✅             | ✅              |
+| Temporal Median             | ✅    | ✅        | ✅             | ✅              |
+| Super-Resolution            | ❌    | ❌        | ✅ (Classical) | ✅ (ONNX)       |
+| Text Detection (EAST/CRAFT) | ❌    | ✅        | ✅             | ✅              |
+| Temporal Voting             | ✅    | ✅        | ✅             | ✅              |
+| Post-Correction             | ❌    | ✅        | ✅             | ✅              |
+| Max Voting Frames           | 5    | 8        | 10            | 15             |
+| Early Exit Threshold        | 0.90 | 0.95     | 0.98          | 1.0 (disabled) |
 
 ### Pipeline Configuration
 
@@ -1301,16 +1367,17 @@ var totalDuration = profile.AnalysisDurationMs;
 
 ### OCR Technology Comparison
 
-| Technology | Speed | Accuracy | Cost | Best For |
-|-----------|-------|----------|------|----------|
-| **Florence-2** | ~200-500ms | Good | $0 (local) | Static images, first pass |
-| **Tesseract** | ~100ms/frame | Excellent (clean text) | $0 (local) | Documents, screenshots |
-| **AdvancedOcr** | ~2-5s | Excellent (GIFs) | $0 (local) | Animated subtitles |
-| **Vision LLM** | ~1-3s | Excellent (any) | $$$ | Stylized text, validation |
+| Technology      | Speed        | Accuracy               | Cost       | Best For                  |
+|-----------------|--------------|------------------------|------------|---------------------------|
+| **Florence-2**  | ~200-500ms   | Good                   | $0 (local) | Static images, first pass |
+| **Tesseract**   | ~100ms/frame | Excellent (clean text) | $0 (local) | Documents, screenshots    |
+| **AdvancedOcr** | ~2-5s        | Excellent (GIFs)       | $0 (local) | Animated subtitles        |
+| **Vision LLM**  | ~1-3s        | Excellent (any)        | $$$        | Stylized text, validation |
 
 ### Typical Processing Times
 
 **Static Image (photo.jpg)**:
+
 ```
 Florence-2:        387ms
 Route: FAST
@@ -1319,6 +1386,7 @@ Cost: $0
 ```
 
 **Animated GIF - Simple (cat_wag.gif, 31 frames)**:
+
 ```
 Florence-2:        421ms
 AdvancedOcr:      1,847ms (deduplication: 31 → 6 frames)
@@ -1328,6 +1396,7 @@ Cost: $0
 ```
 
 **Animated GIF - Subtitles (aed.gif, 15 frames)**:
+
 ```
 Florence-2:        387ms (fallback)
 AdvancedOcr:      2,134ms (deduplication: 15 → 3 frames)
@@ -1339,6 +1408,7 @@ Cost: ~$0.02 (Claude Sonnet)
 ```
 
 **Document Scan (document.gif, 200 frames)**:
+
 ```
 AdvancedOcr:     12,456ms (deduplication: 200 → 8 frames)
 Super-resolution: 3,211ms
@@ -1355,6 +1425,7 @@ Cost: ~$0.03
 **Symptoms**: `ocr.text` is empty, `ocr.quality.no_text_detected = true`
 
 **Diagnosis**:
+
 ```csharp
 // Check routing decision
 var route = profile.GetValue<string>("route.selected");
@@ -1376,6 +1447,7 @@ if (!string.IsNullOrEmpty(florenceText))
 ```
 
 **Solution**:
+
 ```csharp
 // Force OCR for animated GIFs
 config.Ocr.UseAdvancedPipeline = true;
@@ -1395,6 +1467,7 @@ var profile = await orchestrator.AnalyzeAsync(
 **Symptoms**: Garbled text, low confidence scores
 
 **Diagnosis**:
+
 ```csharp
 // Check quality signals
 var spellCheckScore = profile.GetValue<double>("ocr.quality.spell_check_score");
@@ -1415,6 +1488,7 @@ if (agreementScore < 0.6)
 ```
 
 **Solution**:
+
 ```csharp
 // Increase quality mode
 config.Ocr.QualityMode = OcrQualityMode.Quality;  // or Ultra
@@ -1434,6 +1508,7 @@ config.Escalation.OcrConfidenceThreshold = 0.95;  // Higher threshold = more esc
 **Symptoms**: High API costs, slow processing
 
 **Diagnosis**:
+
 ```csharp
 // Check escalation rate
 var totalImages = 100;
@@ -1459,6 +1534,7 @@ foreach (var group in reasons)
 ```
 
 **Solution**:
+
 ```csharp
 // Raise confidence threshold
 config.Escalation.OcrConfidenceThreshold = 0.90;  // Only escalate if < 90%

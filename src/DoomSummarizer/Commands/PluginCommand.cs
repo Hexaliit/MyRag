@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using DoomSummarizer.Plugins;
 using DoomSummarizer.Plugins.Runtime;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -7,27 +6,13 @@ using Spectre.Console.Cli;
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Manage runtime source and output plugins.
-/// Supports shorthand names (e.g. "source-imap") and arbitrary NuGet packages.
+///     Manage runtime source and output plugins.
+///     Supports shorthand names (e.g. "source-imap") and arbitrary NuGet packages.
 /// </summary>
 public sealed class PluginCommand : AsyncCommand<PluginCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [Description("Action: install, uninstall, list, enable, disable, shorthands")]
-        [CommandArgument(0, "<action>")]
-        public string Action { get; set; } = "list";
-
-        [Description("Plugin shorthand or NuGet package ID (e.g. source-imap, Acme.CustomSource)")]
-        [CommandArgument(1, "[package]")]
-        public string? Package { get; set; }
-
-        [Description("Specific version to install (default: latest)")]
-        [CommandOption("--version|-v")]
-        public string? Version { get; set; }
-    }
-
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
+        CancellationToken cancellationToken)
     {
         var action = settings.Action.ToLowerInvariant();
 
@@ -36,8 +21,8 @@ public sealed class PluginCommand : AsyncCommand<PluginCommand.Settings>
             "list" or "ls" => ListPlugins(),
             "install" or "add" => await InstallPlugin(settings),
             "uninstall" or "remove" or "rm" => UninstallPlugin(settings),
-            "enable" => TogglePlugin(settings, enable: true),
-            "disable" => TogglePlugin(settings, enable: false),
+            "enable" => TogglePlugin(settings, true),
+            "disable" => TogglePlugin(settings, false),
             "shorthands" or "names" => ListShorthands(),
             _ => ShowHelp(action)
         };
@@ -85,7 +70,8 @@ public sealed class PluginCommand : AsyncCommand<PluginCommand.Settings>
         {
             AnsiConsole.MarkupLine("[grey]No runtime plugins installed.[/]");
             AnsiConsole.MarkupLine("Install with: [cyan]doomsummarizer plugin install source-imap[/]");
-            AnsiConsole.MarkupLine("Or any NuGet package: [cyan]doomsummarizer plugin install Acme.CustomSource --version 1.0.0[/]");
+            AnsiConsole.MarkupLine(
+                "Or any NuGet package: [cyan]doomsummarizer plugin install Acme.CustomSource --version 1.0.0[/]");
             return 0;
         }
 
@@ -118,7 +104,8 @@ public sealed class PluginCommand : AsyncCommand<PluginCommand.Settings>
         if (string.IsNullOrEmpty(settings.Package))
         {
             AnsiConsole.MarkupLine("[red]Usage: plugin install <package> [--version <ver>][/]");
-            AnsiConsole.MarkupLine("[grey]Package can be a shorthand (source-imap) or full NuGet ID (Acme.CustomSource)[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]Package can be a shorthand (source-imap) or full NuGet ID (Acme.CustomSource)[/]");
             return 1;
         }
 
@@ -174,14 +161,13 @@ public sealed class PluginCommand : AsyncCommand<PluginCommand.Settings>
             .AddColumn("[cyan]NuGet Package ID[/]");
 
         foreach (var (shorthand, packageId) in PluginManager.Shorthands.OrderBy(kv => kv.Key))
-        {
             table.AddRow($"[green]{Markup.Escape(shorthand)}[/]", Markup.Escape(packageId));
-        }
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]Install via shorthand:[/] doomsummarizer plugin install source-imap");
-        AnsiConsole.MarkupLine("[grey]Install arbitrary pkg:[/] doomsummarizer plugin install Acme.CustomSource --version 2.1.0");
+        AnsiConsole.MarkupLine(
+            "[grey]Install arbitrary pkg:[/] doomsummarizer plugin install Acme.CustomSource --version 2.1.0");
 
         return 0;
     }
@@ -200,5 +186,20 @@ public sealed class PluginCommand : AsyncCommand<PluginCommand.Settings>
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]<package> can be a shorthand (source-imap) or full NuGet ID (Acme.Foo)[/]");
         return 1;
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [Description("Action: install, uninstall, list, enable, disable, shorthands")]
+        [CommandArgument(0, "<action>")]
+        public string Action { get; set; } = "list";
+
+        [Description("Plugin shorthand or NuGet package ID (e.g. source-imap, Acme.CustomSource)")]
+        [CommandArgument(1, "[package]")]
+        public string? Package { get; set; }
+
+        [Description("Specific version to install (default: latest)")]
+        [CommandOption("--version|-v")]
+        public string? Version { get; set; }
     }
 }

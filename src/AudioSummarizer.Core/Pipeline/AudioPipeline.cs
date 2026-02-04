@@ -1,9 +1,7 @@
-using System.Text.Json;
 using AudioSummarizer.Core.Models;
 using AudioSummarizer.Core.Services;
 using AudioSummarizer.Core.Services.Analysis;
 using AudioSummarizer.Core.Services.Voice;
-using Microsoft.Extensions.Logging;
 using Mostlylucid.GraphRag.Extraction;
 using Mostlylucid.Summarizer.Core.FileAnalysis;
 using Mostlylucid.Summarizer.Core.Pipeline;
@@ -11,22 +9,22 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 namespace AudioSummarizer.Core.Pipeline;
 
 /// <summary>
-/// Pipeline implementation for audio files (MP3, WAV, M4A, FLAC, etc.).
-/// Wraps the AudioWaveOrchestrator for transcription, speaker analysis, and acoustic profiling.
-/// Extracts entities from transcripts and music tags for GraphRAG integration.
+///     Pipeline implementation for audio files (MP3, WAV, M4A, FLAC, etc.).
+///     Wraps the AudioWaveOrchestrator for transcription, speaker analysis, and acoustic profiling.
+///     Extracts entities from transcripts and music tags for GraphRAG integration.
 /// </summary>
 public class AudioPipeline : PipelineBase
 {
-    private readonly IFileSummarizer _fileSummarizer;
-    private readonly AudioWaveOrchestrator _orchestrator;
-    private readonly ILogger<AudioPipeline> _logger;
-    private OnnxNerService? _nerService;
-    private bool _nerInitialized;
-
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".opus"
     };
+
+    private readonly IFileSummarizer _fileSummarizer;
+    private readonly ILogger<AudioPipeline> _logger;
+    private readonly AudioWaveOrchestrator _orchestrator;
+    private bool _nerInitialized;
+    private OnnxNerService? _nerService;
 
     public AudioPipeline(
         AudioWaveOrchestrator orchestrator,
@@ -37,6 +35,15 @@ public class AudioPipeline : PipelineBase
         _fileSummarizer = fileSummarizer;
         _logger = logger;
     }
+
+    /// <inheritdoc />
+    public override string PipelineId => "audio";
+
+    /// <inheritdoc />
+    public override string Name => "Audio Pipeline";
+
+    /// <inheritdoc />
+    public override IReadOnlySet<string> SupportedExtensions => AudioExtensions;
 
     private async Task EnsureNerInitializedAsync(CancellationToken ct)
     {
@@ -72,15 +79,6 @@ public class AudioPipeline : PipelineBase
 
         _nerInitialized = true;
     }
-
-    /// <inheritdoc />
-    public override string PipelineId => "audio";
-
-    /// <inheritdoc />
-    public override string Name => "Audio Pipeline";
-
-    /// <inheritdoc />
-    public override IReadOnlySet<string> SupportedExtensions => AudioExtensions;
 
     /// <inheritdoc />
     protected override async Task<IReadOnlyList<ContentChunk>> ProcessCoreAsync(
@@ -160,26 +158,21 @@ public class AudioPipeline : PipelineBase
 
         // Extract entities from transcription text using NER
         if (!string.IsNullOrWhiteSpace(transcriptionText) && _nerService != null)
-        {
             try
             {
                 var nerEntities = await _nerService.ExtractSpansAsync(transcriptionText);
                 _logger.LogDebug("NER extracted {Count} entities from transcript", nerEntities.Count);
 
                 foreach (var entity in nerEntities)
-                {
                     if (!allEntities.Contains(entity.Text, StringComparer.OrdinalIgnoreCase))
-                    {
                         allEntities.Add(entity.Text);
-                    }
-                }
+
                 graphMetadata["ner_entity_count"] = nerEntities.Count;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to extract entities from transcript");
             }
-        }
 
         // Add speaker information if available
         var speakerCount = profile.GetValue<int?>("speaker.count");
@@ -187,10 +180,7 @@ public class AudioPipeline : PipelineBase
         {
             graphMetadata["content.speaker_count"] = speakerCount;
             // Add speaker IDs to entities for relationship building
-            for (int i = 0; i < speakerCount.Value; i++)
-            {
-                allEntities.Add($"Speaker_{i + 1}");
-            }
+            for (var i = 0; i < speakerCount.Value; i++) allEntities.Add($"Speaker_{i + 1}");
         }
 
         // Add music analysis SIGNALS for graph features
@@ -248,10 +238,7 @@ public class AudioPipeline : PipelineBase
 
         // Add fingerprint for deduplication/similarity
         var fingerprintHash = profile.GetValue<string>("audio.fingerprint.hash");
-        if (!string.IsNullOrEmpty(fingerprintHash))
-        {
-            graphMetadata["content.fingerprint"] = fingerprintHash;
-        }
+        if (!string.IsNullOrEmpty(fingerprintHash)) graphMetadata["content.fingerprint"] = fingerprintHash;
 
         // Add acoustic features for similarity matching
         var duration = profile.GetValue<double?>("audio.duration_seconds");
@@ -269,10 +256,7 @@ public class AudioPipeline : PipelineBase
         if (chunks.Count > 0)
         {
             var mainChunk = chunks[0];
-            foreach (var (key2, value) in graphMetadata)
-            {
-                mainChunk.Metadata[key2] = value;
-            }
+            foreach (var (key2, value) in graphMetadata) mainChunk.Metadata[key2] = value;
         }
         else
         {
@@ -313,7 +297,7 @@ public class AudioPipeline : PipelineBase
     }
 
     /// <summary>
-    /// Generate SRT and WebVTT formats with speaker diarization merged in.
+    ///     Generate SRT and WebVTT formats with speaker diarization merged in.
     /// </summary>
     private (string? Srt, string? Vtt) GenerateSrtWithDiarization(AudioProfile profile, string? transcriptionJson)
     {
@@ -323,10 +307,11 @@ public class AudioPipeline : PipelineBase
         try
         {
             // Parse transcript segments from JSON
-            var transcriptData = JsonSerializer.Deserialize<TranscriptJsonData>(transcriptionJson, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var transcriptData = JsonSerializer.Deserialize<TranscriptJsonData>(transcriptionJson,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
 
             if (transcriptData?.Segments == null || transcriptData.Segments.Count == 0)
                 return (null, null);
@@ -344,10 +329,11 @@ public class AudioPipeline : PipelineBase
             var speakerTurnsJson = profile.GetValue<string>("speaker.turns");
             if (!string.IsNullOrWhiteSpace(speakerTurnsJson))
             {
-                var turnsData = JsonSerializer.Deserialize<List<SpeakerTurnJsonData>>(speakerTurnsJson, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var turnsData = JsonSerializer.Deserialize<List<SpeakerTurnJsonData>>(speakerTurnsJson,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
 
                 speakerTurns = turnsData?.Select(t => new SpeakerTurn
                 {
@@ -360,8 +346,8 @@ public class AudioPipeline : PipelineBase
 
             // Generate SRT and VTT using the formatter
             var formatter = new SrtFormatter();
-            var srt = formatter.FormatToSrt(segments, speakerTurns, includeSpeakerLabels: speakerTurns?.Count > 0);
-            var vtt = formatter.FormatToWebVtt(segments, speakerTurns, includeSpeakerLabels: speakerTurns?.Count > 0);
+            var srt = formatter.FormatToSrt(segments, speakerTurns, speakerTurns?.Count > 0);
+            var vtt = formatter.FormatToWebVtt(segments, speakerTurns, speakerTurns?.Count > 0);
 
             return (srt, vtt);
         }

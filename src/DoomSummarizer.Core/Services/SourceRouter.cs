@@ -7,16 +7,16 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// YAML-driven source routing. Detects topics from query keywords
-/// and returns the appropriate sources, BBC category, and Google News topic.
-/// Supports semantic embedding-based fuzzy topic matching when EmbeddingService is available.
+///     YAML-driven source routing. Detects topics from query keywords
+///     and returns the appropriate sources, BBC category, and Google News topic.
+///     Supports semantic embedding-based fuzzy topic matching when EmbeddingService is available.
 /// </summary>
 public class SourceRouter
 {
-    private readonly SourceRoutingConfig _config;
-    private Dictionary<string, float[]>? _topicEmbeddings;
-    private IEmbeddingService? _embedding;
     private const float SemanticThreshold = 0.35f;
+    private readonly SourceRoutingConfig _config;
+    private IEmbeddingService? _embedding;
+    private Dictionary<string, float[]>? _topicEmbeddings;
 
     public SourceRouter(SourceRoutingConfig config)
     {
@@ -24,7 +24,22 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Load sources config from embedded YAML resource.
+    ///     All configured source names.
+    /// </summary>
+    public IEnumerable<string> AllSources => _config.Sources.Keys;
+
+    /// <summary>
+    ///     All routing categories.
+    /// </summary>
+    public IEnumerable<string> AllTopics => _config.Routing.Keys;
+
+    /// <summary>
+    ///     Whether semantic embeddings are initialized.
+    /// </summary>
+    public bool HasEmbeddings => _topicEmbeddings != null;
+
+    /// <summary>
+    ///     Load sources config from embedded YAML resource.
     /// </summary>
     public static SourceRouter Load()
     {
@@ -49,8 +64,8 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Initialize semantic embeddings for all topic keywords.
-    /// Call this once after embedding service is available to enable fuzzy topic matching.
+    ///     Initialize semantic embeddings for all topic keywords.
+    ///     Call this once after embedding service is available to enable fuzzy topic matching.
     /// </summary>
     public async Task InitializeEmbeddingsAsync(IEmbeddingService embedding)
     {
@@ -66,9 +81,9 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Detect the best routing category for a query.
-    /// Uses semantic embedding similarity when available, falls back to keyword matching.
-    /// Returns the category name (e.g., "health", "technology") or "default".
+    ///     Detect the best routing category for a query.
+    ///     Uses semantic embedding similarity when available, falls back to keyword matching.
+    ///     Returns the category name (e.g., "health", "technology") or "default".
     /// </summary>
     public async Task<string> DetectTopicAsync(string query)
     {
@@ -85,8 +100,8 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Detect topic using semantic embedding similarity.
-    /// Embeds the query and finds the topic with highest cosine similarity.
+    ///     Detect topic using semantic embedding similarity.
+    ///     Embeds the query and finds the topic with highest cosine similarity.
     /// </summary>
     internal async Task<string> DetectTopicSemanticAsync(string query)
     {
@@ -112,7 +127,7 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Detect topic using exact keyword matching.
+    ///     Detect topic using exact keyword matching.
     /// </summary>
     internal string DetectTopicKeyword(string query)
     {
@@ -145,7 +160,7 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Get the routing result for a query: which sources to use, BBC category, Google News topic.
+    ///     Get the routing result for a query: which sources to use, BBC category, Google News topic.
     /// </summary>
     public async Task<RoutingResult> RouteAsync(string query)
     {
@@ -154,9 +169,9 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Filter sources to only those whose scope matches the detected topic.
-    /// Returns sources that explicitly include the topic in their scope,
-    /// plus search sources (which work for any topic).
+    ///     Filter sources to only those whose scope matches the detected topic.
+    ///     Returns sources that explicitly include the topic in their scope,
+    ///     plus search sources (which work for any topic).
     /// </summary>
     public List<string> FilterSourcesByScope(List<string> sources, string topic)
     {
@@ -183,16 +198,14 @@ public class SourceRouter
             // Include if scope is null (legacy, assume general) or matches topic
             if (source.Scope == null || source.Scope.Count == 0 ||
                 source.Scope.Any(s => s.Equals(topic, StringComparison.OrdinalIgnoreCase)))
-            {
                 filtered.Add(sourceName);
-            }
         }
 
         return filtered;
     }
 
     /// <summary>
-    /// Route by a specific topic name.
+    ///     Route by a specific topic name.
     /// </summary>
     public RoutingResult RouteByTopic(string topic, string? query = null)
     {
@@ -211,8 +224,8 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Get the feed URLs for a source + category combination.
-    /// E.g., GetFeeds("bbc", "health") returns the BBC health RSS feed URL.
+    ///     Get the feed URLs for a source + category combination.
+    ///     E.g., GetFeeds("bbc", "health") returns the BBC health RSS feed URL.
     /// </summary>
     public List<string> GetFeeds(string sourceName, string? category = null)
     {
@@ -230,29 +243,16 @@ public class SourceRouter
     }
 
     /// <summary>
-    /// Get the source definition by name.
+    ///     Get the source definition by name.
     /// </summary>
-    public SourceDefinition? GetSource(string name) =>
-        _config.Sources.GetValueOrDefault(name);
-
-    /// <summary>
-    /// All configured source names.
-    /// </summary>
-    public IEnumerable<string> AllSources => _config.Sources.Keys;
-
-    /// <summary>
-    /// All routing categories.
-    /// </summary>
-    public IEnumerable<string> AllTopics => _config.Routing.Keys;
-
-    /// <summary>
-    /// Whether semantic embeddings are initialized.
-    /// </summary>
-    public bool HasEmbeddings => _topicEmbeddings != null;
+    public SourceDefinition? GetSource(string name)
+    {
+        return _config.Sources.GetValueOrDefault(name);
+    }
 }
 
 /// <summary>
-/// Result of routing a query to sources.
+///     Result of routing a query to sources.
 /// </summary>
 public record RoutingResult
 {

@@ -186,6 +186,36 @@ public sealed class PostgresImageSignatureStore : IImageSignatureStore, IAsyncDi
             _cacheSize, _slidingExpiration.TotalHours);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        await _flushTimer.DisposeAsync();
+        await FlushPendingWritesAsync(CancellationToken.None);
+
+        _cache.Dispose();
+        _flushLock.Dispose();
+        _initLock.Dispose();
+
+        GC.SuppressFinalize(this);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        _flushTimer.Dispose();
+        FlushPendingWritesAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        _cache.Dispose();
+        _flushLock.Dispose();
+        _initLock.Dispose();
+
+        GC.SuppressFinalize(this);
+    }
+
     public async Task<StoredImageSignature?> GetByContentHashAsync(string contentHash, CancellationToken ct = default)
     {
         // Fast path: check cache
@@ -256,7 +286,6 @@ public sealed class PostgresImageSignatureStore : IImageSignatureStore, IAsyncDi
         // Check cache first
         var missing = new List<string>();
         foreach (var hash in hashList)
-        {
             if (_cache.TryGetValue(hash, out StoredImageSignature? cached) && cached != null)
             {
                 result[hash] = cached;
@@ -267,7 +296,6 @@ public sealed class PostgresImageSignatureStore : IImageSignatureStore, IAsyncDi
                 missing.Add(hash);
                 Interlocked.Increment(ref _totalMisses);
             }
-        }
 
         if (missing.Count == 0) return result;
 
@@ -436,36 +464,6 @@ public sealed class PostgresImageSignatureStore : IImageSignatureStore, IAsyncDi
         }
 
         _logger.LogInformation("Cache warmup: loaded {Count} signatures", loaded);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed) return;
-        _disposed = true;
-
-        await _flushTimer.DisposeAsync();
-        await FlushPendingWritesAsync(CancellationToken.None);
-
-        _cache.Dispose();
-        _flushLock.Dispose();
-        _initLock.Dispose();
-
-        GC.SuppressFinalize(this);
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-
-        _flushTimer.Dispose();
-        FlushPendingWritesAsync(CancellationToken.None).GetAwaiter().GetResult();
-
-        _cache.Dispose();
-        _flushLock.Dispose();
-        _initLock.Dispose();
-
-        GC.SuppressFinalize(this);
     }
 
     private void CacheSignature(StoredImageSignature sig)

@@ -38,7 +38,8 @@
                         <mi:MaterialIcon Kind="ContentSaveEditOutline" />
                     </Button>
 
-                    <Border Width="1" Height="20" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    <Border Width="1" Height="20"
+                            Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                             Margin="6,0" />
 
                     <ToggleButton Classes="toolbar-icon-btn"
@@ -73,7 +74,8 @@
                         <mi:MaterialIcon Kind="CogOutline" />
                     </Button>
 
-                    <Border Width="1" Height="20" Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    <Border Width="1" Height="20"
+                            Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                             Margin="4,0" />
 
                     <StackPanel Orientation="Horizontal" Spacing="4">
@@ -151,7 +153,8 @@
                         <Run Text="entities: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                         <Run Text="{Binding EntityCount}" />
                     </TextBlock>
-                    <TextBlock Classes="status-text" IsVisible="{Binding DominantTopic, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Classes="status-text"
+                               IsVisible="{Binding DominantTopic, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                         <Run Text="topic: " Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                         <Run Text="{Binding DominantTopic}" />
                     </TextBlock>

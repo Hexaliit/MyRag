@@ -198,18 +198,18 @@ public class CliConfig
     public bool Verbose { get; set; }
 
     /// <summary>
-    /// Enable OCR benchmarking to compare all OCR systems.
+    ///     Enable OCR benchmarking to compare all OCR systems.
     /// </summary>
     public bool EnableOcrBenchmark { get; set; }
 
     /// <summary>
-    /// Output path for OCR benchmark report.
+    ///     Output path for OCR benchmark report.
     /// </summary>
     public string OcrBenchmarkOutputPath { get; set; } = "./OCR Test.md";
 
     /// <summary>
-    /// Enable source separation (Demucs) for music files.
-    /// Extracts vocals, drums, bass, other stems. Requires ~210MB model download.
+    ///     Enable source separation (Demucs) for music files.
+    ///     Extracts vocals, drums, bass, other stems. Requires ~210MB model download.
     /// </summary>
     public bool EnableSourceSeparation { get; set; }
 }

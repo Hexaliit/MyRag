@@ -2,7 +2,8 @@
 
 **Signal-based image intelligence with 22-wave ML pipeline and unified IPipeline integration.**
 
-Deterministic image profiling with optional OCR, motion analysis, embeddings, and constrained vision captions. Part of the LucidRAG unified pipeline architecture.
+Deterministic image profiling with optional OCR, motion analysis, embeddings, and constrained vision captions. Part of
+the LucidRAG unified pipeline architecture.
 
 NuGet: `Mostlylucid.LucidRAG.ImageSummarizer`
 
@@ -83,6 +84,7 @@ public class ImagePipeline : PipelineBase
 ```
 
 **Benefits:**
+
 - Auto-routing by file extension via `IPipelineRegistry`
 - Standardized `ContentChunk` output across all pipelines (Document, Image, Data)
 - Unified progress reporting and cancellation
@@ -99,31 +101,31 @@ services.AddDocSummarizerImages(opt =>
 });
 ```
 
-| Profile | Waves Executed | Speed | Use Case |
-|---------|---------------|-------|----------|
-| Fast | 5-8 waves | ~100ms | Triage, type detection |
-| Balanced | 12-15 waves | ~500ms | General analysis, screenshots |
-| Quality | 20+ waves | ~2-5s | Complex images, GIFs with motion |
+| Profile  | Waves Executed | Speed  | Use Case                         |
+|----------|----------------|--------|----------------------------------|
+| Fast     | 5-8 waves      | ~100ms | Triage, type detection           |
+| Balanced | 12-15 waves    | ~500ms | General analysis, screenshots    |
+| Quality  | 20+ waves      | ~2-5s  | Complex images, GIFs with motion |
 
 ## 22-Wave Signal Catalog
 
-| Wave | Signals Emitted | Purpose |
-|------|----------------|---------|
-| StructureWave | dimensions, aspect_ratio, file_size | Metadata |
-| ColorWave | dominant_colors, brightness, contrast | Visual properties |
-| OcrWave | ocr.text, ocr.confidence, ocr.word_count | Text extraction |
-| MlOcrWave | ml_ocr.text, text_regions | ML-based text detection |
-| Florence2Wave | florence2.caption, florence2.ocr | Vision foundation model |
-| VisionLlmWave | llm.caption, llm.description | LLM escalation |
-| MotionWave | motion.intensity, motion.type, motion.direction | Optical flow |
-| FaceDetectionWave | faces.count, faces.locations | Face detection |
-| SceneDetectionWave | scene.type, scene.confidence | Indoor/outdoor/meme |
-| ClipEmbeddingWave | clip.embedding | Semantic search vectors |
-| TextDetectionWave | text_regions.bbox, text_regions.confidence | EAST detection |
-| OcrQualityWave | ocr.quality_score, needs_escalation | Validation |
-| ContradictionWave | contradictions.found, contradictions.details | Consistency |
-| AutoRoutingWave | routing.decision, routing.reason | Pipeline selection |
-| *...and 8 more* | | |
+| Wave               | Signals Emitted                                 | Purpose                 |
+|--------------------|-------------------------------------------------|-------------------------|
+| StructureWave      | dimensions, aspect_ratio, file_size             | Metadata                |
+| ColorWave          | dominant_colors, brightness, contrast           | Visual properties       |
+| OcrWave            | ocr.text, ocr.confidence, ocr.word_count        | Text extraction         |
+| MlOcrWave          | ml_ocr.text, text_regions                       | ML-based text detection |
+| Florence2Wave      | florence2.caption, florence2.ocr                | Vision foundation model |
+| VisionLlmWave      | llm.caption, llm.description                    | LLM escalation          |
+| MotionWave         | motion.intensity, motion.type, motion.direction | Optical flow            |
+| FaceDetectionWave  | faces.count, faces.locations                    | Face detection          |
+| SceneDetectionWave | scene.type, scene.confidence                    | Indoor/outdoor/meme     |
+| ClipEmbeddingWave  | clip.embedding                                  | Semantic search vectors |
+| TextDetectionWave  | text_regions.bbox, text_regions.confidence      | EAST detection          |
+| OcrQualityWave     | ocr.quality_score, needs_escalation             | Validation              |
+| ContradictionWave  | contradictions.found, contradictions.details    | Consistency             |
+| AutoRoutingWave    | routing.decision, routing.reason                | Pipeline selection      |
+| *...and 8 more*    |                                                 |                         |
 
 ## Filmstrip Optimization
 
@@ -138,6 +140,7 @@ var stripPath = profile.GetValue<string>("filmstrip.text_only_path");
 ```
 
 **Performance:**
+
 - **Before**: 10 frames × ~150 tokens each = 1500 tokens, ~27 seconds
 - **After**: Single strip × ~50 tokens = 50 tokens, ~2-3 seconds
 

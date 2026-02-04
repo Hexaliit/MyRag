@@ -1,8 +1,6 @@
-using AudioSummarizer.Core.Config;
 using AudioSummarizer.Core.Extensions;
 using AudioSummarizer.Core.Models;
 using AudioSummarizer.Core.Services.Analysis;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -10,8 +8,8 @@ namespace AudioSummarizer.Tests.Integration;
 
 public class AudioWaveOrchestratorTests : IDisposable
 {
-    private readonly ServiceProvider _serviceProvider;
     private readonly AudioWaveOrchestrator _orchestrator;
+    private readonly ServiceProvider _serviceProvider;
     private readonly string _testAudioPath;
 
     public AudioWaveOrchestratorTests()
@@ -37,15 +35,18 @@ public class AudioWaveOrchestratorTests : IDisposable
         _testAudioPath = Path.Combine(AppContext.BaseDirectory, "TestData", "sample.wav");
     }
 
+    public void Dispose()
+    {
+        _serviceProvider?.Dispose();
+    }
+
     [Fact]
     public async Task AnalyzeAsync_WithValidAudio_ExecutesAllEnabledWaves()
     {
         // Arrange
         if (!File.Exists(_testAudioPath))
-        {
             // Skip if test file missing
             return;
-        }
 
         // Act
         var profile = await _orchestrator.AnalyzeAsync(_testAudioPath, CancellationToken.None);
@@ -60,10 +61,7 @@ public class AudioWaveOrchestratorTests : IDisposable
     public async Task AnalyzeAsync_ExecutesWavesInPriorityOrder()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         // Act
         var profile = await _orchestrator.AnalyzeAsync(_testAudioPath, CancellationToken.None);
@@ -84,10 +82,7 @@ public class AudioWaveOrchestratorTests : IDisposable
     public async Task AnalyzeAsync_PropagatesSignalsBetweenWaves()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         // Act
         var profile = await _orchestrator.AnalyzeAsync(_testAudioPath, CancellationToken.None);
@@ -105,10 +100,7 @@ public class AudioWaveOrchestratorTests : IDisposable
     public async Task AnalyzeAsync_CapturesAllSignalTypes()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         // Act
         var profile = await _orchestrator.AnalyzeAsync(_testAudioPath, CancellationToken.None);
@@ -116,9 +108,9 @@ public class AudioWaveOrchestratorTests : IDisposable
         // Assert - Should have signals of different types
         var signalTypes = profile.Signals.Values.Select(s => s.Type).Distinct().ToList();
 
-        signalTypes.Should().Contain(SignalType.Identity);     // Hash, fingerprint
-        signalTypes.Should().Contain(SignalType.Metadata);     // File properties
-        signalTypes.Should().Contain(SignalType.Acoustic);     // ZCR, spectral features
+        signalTypes.Should().Contain(SignalType.Identity); // Hash, fingerprint
+        signalTypes.Should().Contain(SignalType.Metadata); // File properties
+        signalTypes.Should().Contain(SignalType.Acoustic); // ZCR, spectral features
         signalTypes.Should().Contain(SignalType.Classification); // Content type
     }
 
@@ -137,10 +129,7 @@ public class AudioWaveOrchestratorTests : IDisposable
     public async Task AnalyzeAsync_SignalsHaveTimestamps()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var beforeAnalysis = DateTimeOffset.UtcNow;
 
@@ -161,10 +150,7 @@ public class AudioWaveOrchestratorTests : IDisposable
     public async Task AnalyzeAsync_SignalsHaveSourceAttribution()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         // Act
         var profile = await _orchestrator.AnalyzeAsync(_testAudioPath, CancellationToken.None);
@@ -181,10 +167,7 @@ public class AudioWaveOrchestratorTests : IDisposable
     public async Task AnalyzeAsync_CancellationToken_ReturnsPartialResults()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100)); // Short timeout
 
@@ -199,10 +182,5 @@ public class AudioWaveOrchestratorTests : IDisposable
         {
             // Cancellation is acceptable (includes TaskCanceledException)
         }
-    }
-
-    public void Dispose()
-    {
-        _serviceProvider?.Dispose();
     }
 }

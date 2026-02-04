@@ -1,4 +1,3 @@
-using System.Reflection;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
@@ -13,38 +12,23 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Mostlylucid.DoomSummarizer.Plugin.Books;
 
 /// <summary>
-/// Book Summarizer plugin — provides hierarchical splitting and chapter-aware
-/// summarization for novels, plays, anthologies, and long documents.
-/// Also contributes CLI commands: books split, books detect.
+///     Book Summarizer plugin — provides hierarchical splitting and chapter-aware
+///     summarization for novels, plays, anthologies, and long documents.
+///     Also contributes CLI commands: books split, books detect.
 /// </summary>
 public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
 {
+    private readonly List<TemplateDefinition> _templates = [];
     private ILogger<BookProcessorPlugin>? _logger;
     private HierarchicalBookSplitter? _splitter;
-    private readonly List<TemplateDefinition> _templates = [];
-
-    public ProcessorPluginMetadata Metadata { get; } = new()
-    {
-        Name = "books",
-        DisplayName = "Book Summarizer",
-        Description = "Hierarchical splitting and chapter-aware summarization for books, plays, and long documents",
-        Version = "1.0.0",
-        SupportedExtensions = [".pdf", ".docx", ".txt", ".md", ".zip"],
-        MinActivationWords = 5000,
-        DocumentTypes = [
-            BookTypeDetector.Fiction, BookTypeDetector.NonFiction,
-            BookTypeDetector.Academic, BookTypeDetector.Technical,
-            BookTypeDetector.Anthology, BookTypeDetector.Play,
-            BookTypeDetector.Collection
-        ]
-    };
 
     // ICliPlugin
     public PluginCliMetadata CliMetadata { get; } = new()
     {
         CommandName = "books",
         Description = "Book analysis: type detection, chapter splitting, structure visualization",
-        Examples = [
+        Examples =
+        [
             "books split novel.pdf",
             "books detect manuscript.docx",
             "books split --pattern play hamlet.txt"
@@ -65,6 +49,23 @@ public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
                 .WithExample("books", "detect", "manuscript.pdf");
         });
     }
+
+    public ProcessorPluginMetadata Metadata { get; } = new()
+    {
+        Name = "books",
+        DisplayName = "Book Summarizer",
+        Description = "Hierarchical splitting and chapter-aware summarization for books, plays, and long documents",
+        Version = "1.0.0",
+        SupportedExtensions = [".pdf", ".docx", ".txt", ".md", ".zip"],
+        MinActivationWords = 5000,
+        DocumentTypes =
+        [
+            BookTypeDetector.Fiction, BookTypeDetector.NonFiction,
+            BookTypeDetector.Academic, BookTypeDetector.Technical,
+            BookTypeDetector.Anthology, BookTypeDetector.Play,
+            BookTypeDetector.Collection
+        ]
+    };
 
     // IProcessorPlugin
     public IReadOnlyList<IDocumentReader> Readers { get; } = [];
@@ -103,7 +104,8 @@ public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
                detection.Type != BookTypeDetector.Unknown;
     }
 
-    public async Task<ProcessorResult> ProcessAsync(string markdown, ProcessorOptions options, CancellationToken ct = default)
+    public async Task<ProcessorResult> ProcessAsync(string markdown, ProcessorOptions options,
+        CancellationToken ct = default)
     {
         if (_splitter == null)
             throw new InvalidOperationException("Plugin not initialized. Call InitializeAsync first.");
@@ -145,8 +147,8 @@ public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
     }
 
     /// <summary>
-    /// Compute structural weights based on position within the document.
-    /// Opening/closing chapters, abstracts, climax sections get boosted.
+    ///     Compute structural weights based on position within the document.
+    ///     Opening/closing chapters, abstracts, climax sections get boosted.
     /// </summary>
     private static StructuralWeights ComputeStructuralWeights(DocumentNode tree, BookTypeResult detection)
     {
@@ -163,9 +165,13 @@ public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
 
             // First and last chapters get structural importance
             if (i == 0)
+            {
                 nodeWeights[path] = 1.3;
+            }
             else if (i == tree.Children.Count - 1)
+            {
                 nodeWeights[path] = 1.3;
+            }
             // Climax heuristic: 70-80% through
             else if (tree.Children.Count >= 5)
             {
@@ -244,7 +250,6 @@ public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
         foreach (var resourceName in assembly.GetManifestResourceNames()
                      .Where(n => n.StartsWith(prefix, StringComparison.Ordinal)
                                  && n.EndsWith(".yaml", StringComparison.Ordinal)))
-        {
             try
             {
                 using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -269,6 +274,5 @@ public class BookProcessorPlugin : IProcessorPlugin, ICliPlugin
             {
                 // Skip invalid template files
             }
-        }
     }
 }

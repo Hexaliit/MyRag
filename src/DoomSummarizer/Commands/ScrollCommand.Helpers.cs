@@ -1,36 +1,46 @@
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using Mostlylucid.DocSummarizer.Resilience;
 using Mostlylucid.DocSummarizer.Services;
 using Spectre.Console;
 
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Helper utilities: vibe logic, URL handling, domain filtering, source weights,
-/// markdown stripping, in-corpus PageRank, FTS5 backfill.
+///     Helper utilities: vibe logic, URL handling, domain filtering, source weights,
+///     markdown stripping, in-corpus PageRank, FTS5 backfill.
 /// </summary>
 public partial class ScrollCommand
 {
     /// <summary>
-    /// Prepend vibe-appropriate qualifiers to a search query
-    /// so search results better match the desired sentiment.
+    ///     Prepend vibe-appropriate qualifiers to a search query
+    ///     so search results better match the desired sentiment.
     /// </summary>
     internal static readonly HashSet<string> PredefinedVibes =
-        new(["doom", "hopeful", "snarky", "funny", "upbeat", "friendly", "toon", "neutral"], StringComparer.OrdinalIgnoreCase);
+        new(["doom", "hopeful", "snarky", "funny", "upbeat", "friendly", "toon", "neutral"],
+            StringComparer.OrdinalIgnoreCase);
+
+    // ─── Search API rotation ───
 
     /// <summary>
-    /// Returns true if the vibe is custom arbitrary text rather than a predefined vibe.
+    ///     Session-level round-robin counter for distributing search queries across
+    ///     available API services. Avoids hammering a single provider.
     /// </summary>
-    internal static bool IsCustomVibe(string vibe) =>
-        !PredefinedVibes.Contains(vibe);
+    private static int _searchApiRotation;
 
     /// <summary>
-    /// Qualify a search query using a resolved <see cref="Models.Vibe"/>.
-    /// Uses the vibe's SearchQualifier when available, falling back to the name-based lookup.
+    ///     Returns true if the vibe is custom arbitrary text rather than a predefined vibe.
     /// </summary>
-    internal static string QualifySearchQuery(string query, Models.Vibe resolvedVibe)
+    internal static bool IsCustomVibe(string vibe)
+    {
+        return !PredefinedVibes.Contains(vibe);
+    }
+
+    /// <summary>
+    ///     Qualify a search query using a resolved <see cref="Models.Vibe" />.
+    ///     Uses the vibe's SearchQualifier when available, falling back to the name-based lookup.
+    /// </summary>
+    internal static string QualifySearchQuery(string query, Vibe resolvedVibe)
     {
         if (!string.IsNullOrEmpty(resolvedVibe.SearchQualifier))
             return $"{resolvedVibe.SearchQualifier} {query}";
@@ -38,10 +48,10 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Get representative text from a resolved <see cref="Models.Vibe"/>.
-    /// Uses the vibe's RepresentativeText when available, falling back to the name-based lookup.
+    ///     Get representative text from a resolved <see cref="Models.Vibe" />.
+    ///     Uses the vibe's RepresentativeText when available, falling back to the name-based lookup.
     /// </summary>
-    internal static string GetVibeRepresentativeText(Models.Vibe resolvedVibe)
+    internal static string GetVibeRepresentativeText(Vibe resolvedVibe)
     {
         return resolvedVibe.RepresentativeText ?? GetVibeRepresentativeText(resolvedVibe.Name);
     }
@@ -65,9 +75,9 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Compute max cosine similarity between an item embedding and multiple query embeddings.
-    /// For composite queries, items are scored against the BEST matching subquery.
-    /// Falls back to single-query similarity when no subquery embeddings provided.
+    ///     Compute max cosine similarity between an item embedding and multiple query embeddings.
+    ///     For composite queries, items are scored against the BEST matching subquery.
+    ///     Falls back to single-query similarity when no subquery embeddings provided.
     /// </summary>
     internal static float ComputeMaxQuerySimilarity(
         float[]? itemEmbedding,
@@ -85,6 +95,7 @@ public partial class ScrollCommand
                 var sim = VectorMath.CosineSimilarity(itemEmbedding, sqEmbed);
                 if (sim > maxSim) maxSim = sim;
             }
+
             return maxSim;
         }
 
@@ -96,15 +107,17 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Get representative text for a vibe to use as an embedding target
-    /// for cosine-similarity-based sentiment scoring.
+    ///     Get representative text for a vibe to use as an embedding target
+    ///     for cosine-similarity-based sentiment scoring.
     /// </summary>
     internal static string GetVibeRepresentativeText(string vibe)
     {
         return vibe.ToLowerInvariant() switch
         {
-            "doom" => "security vulnerability breach layoffs downturn recession failure risk crisis warning concerning problem threat",
-            "hopeful" => "innovation breakthrough positive growth opportunity success launch improvement exciting new achievement progress",
+            "doom" =>
+                "security vulnerability breach layoffs downturn recession failure risk crisis warning concerning problem threat",
+            "hopeful" =>
+                "innovation breakthrough positive growth opportunity success launch improvement exciting new achievement progress",
             "snarky" => "hype overrated controversy debate criticism reality check failure ironic absurd",
             "funny" => "amusing hilarious quirky bizarre unexpected weird funny comedy absurd entertaining",
             "upbeat" => "exciting amazing breakthrough launch success win achievement celebration progress incredible",
@@ -123,13 +136,16 @@ public partial class ScrollCommand
             var host = new Uri(url).Host.Replace("www.", "");
             return host.Split('.')[0];
         }
-        catch { return "?"; }
+        catch
+        {
+            return "?";
+        }
     }
 
     /// <summary>
-    /// Filter items by allowed/blocked domain lists.
-    /// AllowedDomains = allowlist (if non-empty, only these pass).
-    /// BlockedDomains = blocklist (removed after allow check).
+    ///     Filter items by allowed/blocked domain lists.
+    ///     AllowedDomains = allowlist (if non-empty, only these pass).
+    ///     BlockedDomains = blocklist (removed after allow check).
     /// </summary>
     internal static List<ContentItem> ApplySourceDomainFilter(
         List<ContentItem> items, SourceFilterConfig filter)
@@ -147,15 +163,13 @@ public partial class ScrollCommand
 
             // Allowlist: if configured, item must match
             if (filter.AllowedDomains.Count > 0)
-            {
                 if (!filter.AllowedDomains.Any(d =>
-                    host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
+                        host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
                     continue;
-            }
 
             // Blocklist: remove matching items
             if (filter.BlockedDomains.Any(d =>
-                host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
+                    host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
                 continue;
 
             result.Add(item);
@@ -165,9 +179,9 @@ public partial class ScrollCommand
     }
 
     /// <summary>
-    /// Apply source reliability weights as RRF score multipliers.
-    /// Matches by source name first, then by URL domain.
-    /// Returns count of items that had weights applied.
+    ///     Apply source reliability weights as RRF score multipliers.
+    ///     Matches by source name first, then by URL domain.
+    ///     Returns count of items that had weights applied.
     /// </summary>
     internal static int ApplySourceWeights(
         List<ContentItem> items, SourceFilterConfig filter)
@@ -188,16 +202,12 @@ public partial class ScrollCommand
                 // Fall back to domain matching
                 var host = GetHostFromUrl(item.Url);
                 if (!string.IsNullOrEmpty(host))
-                {
                     foreach (var (pattern, w) in filter.Weights)
-                    {
                         if (host.Contains(pattern, StringComparison.OrdinalIgnoreCase))
                         {
                             weight = w;
                             break;
                         }
-                    }
-                }
             }
 
             if (Math.Abs(weight - 1.0) > 0.001)
@@ -213,13 +223,19 @@ public partial class ScrollCommand
     private static string? GetHostFromUrl(string? url)
     {
         if (string.IsNullOrEmpty(url)) return null;
-        try { return new Uri(url).Host.ToLowerInvariant(); }
-        catch { return null; }
+        try
+        {
+            return new Uri(url).Host.ToLowerInvariant();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
-    /// Strip markdown formatting for clean LLM consumption.
-    /// Removes headers, link syntax, emphasis, code fences — keeps plain text facts.
+    ///     Strip markdown formatting for clean LLM consumption.
+    ///     Removes headers, link syntax, emphasis, code fences — keeps plain text facts.
     /// </summary>
     internal static string StripMarkdownForLlm(string text)
     {
@@ -257,36 +273,34 @@ public partial class ScrollCommand
         // Build set of all article URLs in corpus (normalized)
         var corpusUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in items)
-        {
             if (!string.IsNullOrEmpty(item.Url))
                 corpusUrls.Add(NormalizeUrlForAuthority(item.Url));
-        }
 
         // Count incoming links from LinkedPages
         var inLinkCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in items)
+        foreach (var linked in item.LinkedPages)
         {
-            foreach (var linked in item.LinkedPages)
+            var normalizedLinked = NormalizeUrlForAuthority(linked.Url);
+            if (corpusUrls.Contains(normalizedLinked))
             {
-                var normalizedLinked = NormalizeUrlForAuthority(linked.Url);
-                if (corpusUrls.Contains(normalizedLinked))
-                {
-                    inLinkCounts.TryGetValue(normalizedLinked, out var count);
-                    inLinkCounts[normalizedLinked] = count + 1;
-                }
+                inLinkCounts.TryGetValue(normalizedLinked, out var count);
+                inLinkCounts[normalizedLinked] = count + 1;
             }
         }
 
         return inLinkCounts;
     }
 
-    private static string NormalizeUrlForAuthority(string url) =>
-        url.Split('?')[0].TrimEnd('/').ToLowerInvariant();
+    private static string NormalizeUrlForAuthority(string url)
+    {
+        return url.Split('?')[0].TrimEnd('/').ToLowerInvariant();
+    }
 
     /// <summary>
-    /// Backfill the FTS5 index and keyword corpus for existing KB items
-    /// that were stored before FTS5 was introduced. Runs automatically
-    /// on first query when the FTS5 table is empty.
+    ///     Backfill the FTS5 index and keyword corpus for existing KB items
+    ///     that were stored before FTS5 was introduced. Runs automatically
+    ///     on first query when the FTS5 table is empty.
     /// </summary>
     private static async Task BackfillFtsIndexAsync(StorageService storage, bool quiet)
     {
@@ -350,18 +364,10 @@ public partial class ScrollCommand
     [GeneratedRegex(@"\s+")]
     private static partial Regex CollapseWhitespaceRegex();
 
-    // ─── Search API rotation ───
-
     /// <summary>
-    /// Session-level round-robin counter for distributing search queries across
-    /// available API services. Avoids hammering a single provider.
-    /// </summary>
-    private static int _searchApiRotation;
-
-    /// <summary>
-    /// Build a list of available search services in priority order, then rotate
-    /// the starting position so each call uses a different primary service.
-    /// Returns an async function that tries services in rotated order.
+    ///     Build a list of available search services in priority order, then rotate
+    ///     the starting position so each call uses a different primary service.
+    ///     Returns an async function that tries services in rotated order.
     /// </summary>
     internal static Func<CancellationToken, Task<List<ContentItem>>> BuildRotatedSearchTask(
         string qualifiedQuery, int searchLimit,
@@ -372,8 +378,9 @@ public partial class ScrollCommand
         var available = new List<(string name, Func<Task<List<ContentItem>>> search)>();
 
         if (apiKeys.HasGoogleSearch)
-            available.Add(("google_search", () => new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
-                .SearchAsync(qualifiedQuery, searchLimit)));
+            available.Add(("google_search", () =>
+                new GoogleSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
+                    .SearchAsync(qualifiedQuery, searchLimit)));
         if (apiKeys.IsAvailable("brave_search"))
             available.Add(("brave_search", () => new BraveSearchService(httpClient, apiKeys, apiBudget, circuitBreaker)
                 .SearchAsync(qualifiedQuery, searchLimit)));
@@ -394,7 +401,8 @@ public partial class ScrollCommand
                 return await available[0].search();
 
             // Rotate: pick starting index, try each in order, return first success
-            var startIdx = Interlocked.Increment(ref _searchApiRotation) % (available.Count - 1); // exclude DDG from rotation
+            var startIdx =
+                Interlocked.Increment(ref _searchApiRotation) % (available.Count - 1); // exclude DDG from rotation
             var paidServices = available.Count - 1; // DDG is always last
 
             for (var i = 0; i < paidServices; i++)
@@ -426,9 +434,9 @@ public partial class ScrollCommand
     // ─── Selected sources indicator ───
 
     /// <summary>
-    /// Render a compact one-line display of the sources the sentinel selected,
-    /// color-coded by availability: green = active, red = circuit open, grey = no API key.
-    /// Shown after sentinel interpretation in both default and --full modes.
+    ///     Render a compact one-line display of the sources the sentinel selected,
+    ///     color-coded by availability: green = active, red = circuit open, grey = no API key.
+    ///     Shown after sentinel interpretation in both default and --full modes.
     /// </summary>
     internal static void RenderSelectedSources(
         List<string> selectedSources,
@@ -487,8 +495,8 @@ public partial class ScrollCommand
     // ─── Startup info panel ───
 
     /// <summary>
-    /// Render a compact startup info panel showing config, LLM, embedding, search APIs,
-    /// and KB stats. Uses full terminal width adaptively.
+    ///     Render a compact startup info panel showing config, LLM, embedding, search APIs,
+    ///     and KB stats. Uses full terminal width adaptively.
     /// </summary>
     internal static void RenderStartupPanel(
         DoomConfig config,
@@ -502,7 +510,10 @@ public partial class ScrollCommand
         var width = Math.Min(AnsiConsole.Profile.Width, 120);
 
         // Build search service status
-        var searchServices = new[] { "google_search", "brave_search", "serper", "tavily", "newsapi", "newsdata", "currents", "jina", "duckduckgo" };
+        var searchServices = new[]
+        {
+            "google_search", "brave_search", "serper", "tavily", "newsapi", "newsdata", "currents", "jina", "duckduckgo"
+        };
         var searchStatus = new List<string>();
         foreach (var svc in searchServices)
         {
@@ -552,7 +563,8 @@ public partial class ScrollCommand
         grid.AddRow("[bold grey]Search[/]", string.Join(" ", searchStatus));
 
         if (!string.IsNullOrEmpty(prompt))
-            grid.AddRow("[bold grey]Query[/]", Markup.Escape(prompt.Length > width - 20 ? prompt[..(width - 23)] + "..." : prompt));
+            grid.AddRow("[bold grey]Query[/]",
+                Markup.Escape(prompt.Length > width - 20 ? prompt[..(width - 23)] + "..." : prompt));
 
         var panel = new Panel(grid)
             .Header("[bold cyan]DoomSummarizer[/]")

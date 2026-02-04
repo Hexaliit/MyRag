@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
@@ -5,9 +8,9 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches real-time flood monitoring data from the Environment Agency API — free, no auth.
-/// Covers flood warnings, river levels, and rainfall measurements across England.
-/// https://environment.data.gov.uk/flood-monitoring/doc/reference
+///     Fetches real-time flood monitoring data from the Environment Agency API — free, no auth.
+///     Covers flood warnings, river levels, and rainfall measurements across England.
+///     https://environment.data.gov.uk/flood-monitoring/doc/reference
 /// </summary>
 public class UkEnvironmentFetcher(HttpClient httpClient)
 {
@@ -15,14 +18,14 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
     private const string UserAgent = "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)";
 
     /// <summary>
-    /// Available sections for sub-parameter routing.
-    /// Usage: -s ukflood, -s ukflood:warnings, -s ukflood:levels, -s ukflood:rainfall
+    ///     Available sections for sub-parameter routing.
+    ///     Usage: -s ukflood, -s ukflood:warnings, -s ukflood:levels, -s ukflood:rainfall
     /// </summary>
     public static readonly IReadOnlyList<string> AvailableSections =
         ["warnings", "levels", "rainfall", "stations"];
 
     /// <summary>
-    /// Fetch flood monitoring data based on section.
+    ///     Fetch flood monitoring data based on section.
     /// </summary>
     public async Task<List<ContentItem>> FetchAsync(int limit = 20, string? section = null, string? query = null)
     {
@@ -37,8 +40,8 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Fetch current flood warnings and alerts across England.
-    /// These are the most operationally relevant items.
+    ///     Fetch current flood warnings and alerts across England.
+    ///     These are the most operationally relevant items.
     /// </summary>
     public async Task<List<ContentItem>> FetchFloodWarningsAsync(int limit = 20)
     {
@@ -81,7 +84,7 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
                     Id = $"ukflood_{GenerateId(flood.FloodAreaId ?? flood.Description)}",
                     Source = "ukflood",
                     Title = title,
-                    Url = $"https://check-for-flooding.service.gov.uk/",
+                    Url = "https://check-for-flooding.service.gov.uk/",
                     Content = content ?? "",
                     Author = "Environment Agency",
                     Score = (5 - severity) * 100, // Higher severity = higher score
@@ -100,7 +103,7 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Environment Agency flood warnings failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Environment Agency flood warnings failed: {ex.Message}");
         }
 
         return items
@@ -110,7 +113,7 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Fetch monitoring stations with high river levels (above typical range).
+    ///     Fetch monitoring stations with high river levels (above typical range).
     /// </summary>
     public async Task<List<ContentItem>> FetchHighRiverLevelsAsync(int limit = 20, string? search = null)
     {
@@ -158,14 +161,14 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Environment Agency river levels failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Environment Agency river levels failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch rainfall monitoring stations.
+    ///     Fetch rainfall monitoring stations.
     /// </summary>
     public async Task<List<ContentItem>> FetchRainfallAsync(int limit = 20, string? search = null)
     {
@@ -201,14 +204,14 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Environment Agency rainfall failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Environment Agency rainfall failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch monitoring stations by search term (river name, town, etc.).
+    ///     Fetch monitoring stations by search term (river name, town, etc.).
     /// </summary>
     public async Task<List<ContentItem>> FetchStationsAsync(int limit = 20, string? search = null)
     {
@@ -245,7 +248,7 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Environment Agency stations failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Environment Agency stations failed: {ex.Message}");
         }
 
         return items;
@@ -273,13 +276,17 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
         return tags;
     }
 
-    private static string GenerateId(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string GenerateId(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static DateTimeOffset TryParseDate(string? dateStr) =>
-        string.IsNullOrEmpty(dateStr) ? DateTimeOffset.UtcNow
+    private static DateTimeOffset TryParseDate(string? dateStr)
+    {
+        return string.IsNullOrEmpty(dateStr) ? DateTimeOffset.UtcNow
             : DateTimeOffset.TryParse(dateStr, out var r) ? r : DateTimeOffset.UtcNow;
+    }
 
     // ── Environment Agency API response models ───────────────────────
 
@@ -287,34 +294,52 @@ public class UkEnvironmentFetcher(HttpClient httpClient)
         [property: JsonPropertyName("items")] List<FloodItem>? Items);
 
     private record FloodItem(
-        [property: JsonPropertyName("description")] string? Description,
-        [property: JsonPropertyName("eaAreaName")] string? EaAreaName,
-        [property: JsonPropertyName("eaRegionName")] string? EaRegionName,
-        [property: JsonPropertyName("floodArea")] FloodArea? FloodArea,
-        [property: JsonPropertyName("floodAreaID")] string? FloodAreaId,
-        [property: JsonPropertyName("isTidal")] bool? IsTidal,
-        [property: JsonPropertyName("message")] string? Message,
-        [property: JsonPropertyName("severity")] string? Severity,
-        [property: JsonPropertyName("severityLevel")] int? SeverityLevel,
-        [property: JsonPropertyName("timeMessageChanged")] string? TimeMessageChanged,
-        [property: JsonPropertyName("timeRaised")] string? TimeRaised,
-        [property: JsonPropertyName("timeSeverityChanged")] string? TimeSeverityChanged);
+        [property: JsonPropertyName("description")]
+        string? Description,
+        [property: JsonPropertyName("eaAreaName")]
+        string? EaAreaName,
+        [property: JsonPropertyName("eaRegionName")]
+        string? EaRegionName,
+        [property: JsonPropertyName("floodArea")]
+        FloodArea? FloodArea,
+        [property: JsonPropertyName("floodAreaID")]
+        string? FloodAreaId,
+        [property: JsonPropertyName("isTidal")]
+        bool? IsTidal,
+        [property: JsonPropertyName("message")]
+        string? Message,
+        [property: JsonPropertyName("severity")]
+        string? Severity,
+        [property: JsonPropertyName("severityLevel")]
+        int? SeverityLevel,
+        [property: JsonPropertyName("timeMessageChanged")]
+        string? TimeMessageChanged,
+        [property: JsonPropertyName("timeRaised")]
+        string? TimeRaised,
+        [property: JsonPropertyName("timeSeverityChanged")]
+        string? TimeSeverityChanged);
 
     private record FloodArea(
         [property: JsonPropertyName("county")] string? County,
-        [property: JsonPropertyName("riverOrSea")] string? RiverOrSea);
+        [property: JsonPropertyName("riverOrSea")]
+        string? RiverOrSea);
 
     private record StationResponse(
         [property: JsonPropertyName("items")] List<StationItem>? Items);
 
     private record StationItem(
         [property: JsonPropertyName("label")] string? Label,
-        [property: JsonPropertyName("stationReference")] string? StationReference,
-        [property: JsonPropertyName("riverName")] string? RiverName,
+        [property: JsonPropertyName("stationReference")]
+        string? StationReference,
+        [property: JsonPropertyName("riverName")]
+        string? RiverName,
         [property: JsonPropertyName("town")] string? Town,
-        [property: JsonPropertyName("catchmentName")] string? CatchmentName,
-        [property: JsonPropertyName("typicalRangeHigh")] double? TypicalRangeHigh,
-        [property: JsonPropertyName("typicalRangeLow")] double? TypicalRangeLow,
+        [property: JsonPropertyName("catchmentName")]
+        string? CatchmentName,
+        [property: JsonPropertyName("typicalRangeHigh")]
+        double? TypicalRangeHigh,
+        [property: JsonPropertyName("typicalRangeLow")]
+        double? TypicalRangeLow,
         [property: JsonPropertyName("lat")] double? Lat,
         [property: JsonPropertyName("long")] double? Lng);
 }

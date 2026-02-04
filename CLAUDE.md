@@ -124,6 +124,7 @@ Two-phase deduplication strategy to eliminate redundant content while preserving
 Fully configurable via `DocSummarizer:Deduplication` section in `appsettings.json`.
 
 **Phase 1 - Ingestion (Intra-Document):**
+
 - Deduplicates within each document before indexing
 - Near-duplicates (same meaning, different text) boost salience
 - Supports Linear or Logarithmic boost decay modes
@@ -131,17 +132,20 @@ Fully configurable via `DocSummarizer:Deduplication` section in `appsettings.jso
 - Configurable: `Deduplication:Ingestion` section
 
 **Phase 2 - Retrieval (Cross-Document):**
+
 - Deduplicates across documents after RRF ranking
 - Keeps segment with highest RRF score when similar content found
 - Prevents LLM from receiving redundant information
 - Configurable: `Deduplication:Retrieval` section
 
 **Key Services**:
+
 - `IDeduplicationService` - Injectable service for both phases
 - `DeduplicationConfig` - Full configuration with analytics
 - `DeduplicationResult<T>` - Metrics tracking for observability
 
 **Configuration Example**:
+
 ```json
 {
   "DocSummarizer": {

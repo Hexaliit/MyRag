@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DoomSummarizer.Models;
@@ -11,26 +12,46 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Routes LLM calls across providers with budget enforcement and fallback.
-/// Provider priority: configured cloud → Ollama (free, always available).
-/// Budget is checked before each cloud API call.
-/// Internally delegates to DocSummarizer's ILlmService implementations.
+///     Routes LLM calls across providers with budget enforcement and fallback.
+///     Provider priority: configured cloud → Ollama (free, always available).
+///     Budget is checked before each cloud API call.
+///     Internally delegates to DocSummarizer's ILlmService implementations.
 /// </summary>
 public class LlmRouter : ILlmService
 {
-    private readonly List<ProviderEntry> _providers = [];
+    // Known context window sizes for common models
+    private static readonly Dictionary<string, int> KnownContextSizes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["gpt-4o"] = 128000,
+        ["gpt-4o-mini"] = 128000,
+        ["gpt-4-turbo"] = 128000,
+        ["gpt-3.5-turbo"] = 16385,
+        ["claude-sonnet-4-20250514"] = 200000,
+        ["claude-3-5-sonnet-latest"] = 200000,
+        ["claude-3-5-sonnet-20241022"] = 200000,
+        ["claude-3-5-haiku-latest"] = 200000,
+        ["claude-3-haiku-20240307"] = 200000,
+        ["claude-3-opus-20240229"] = 200000,
+        ["claude-opus-4-20250514"] = 200000
+    };
+
     private readonly IApiBudget? _budget;
     private readonly ICircuitBreaker? _circuit;
     private readonly OllamaConfig _ollamaConfig;
+    private readonly List<ProviderEntry> _providers = [];
 
-    private record ProviderEntry(
-        ILlmService Service, string? BudgetServiceName, bool IsLocal, ApiKeyEntry? ServiceEntry);
+    private LlmRouter(IApiBudget? budget, ICircuitBreaker? circuit, OllamaConfig ollamaConfig)
+    {
+        _budget = budget;
+        _circuit = circuit;
+        _ollamaConfig = ollamaConfig;
+    }
 
     public bool HasCloudProvider => _providers.Any(p => !p.IsLocal);
 
     /// <summary>
-    /// Human-readable description of the active LLM configuration (for status display).
-    /// Shows primary provider and fallback chain.
+    ///     Human-readable description of the active LLM configuration (for status display).
+    ///     Shows primary provider and fallback chain.
     /// </summary>
     public string StatusDescription
     {
@@ -42,12 +63,15 @@ public class LlmRouter : ILlmService
             var desc = primary.Service.ProviderName switch
             {
                 "Ollama" => $"Ollama: synthesis={_ollamaConfig.Model}, sentinel={_ollamaConfig.SentinelModel}",
-                "LLamaSharp" => $"local GGUF (LLamaSharp)",
+                "LLamaSharp" => "local GGUF (LLamaSharp)",
                 _ => primary.Service.ProviderName
             };
 
             var fallbacks = _providers.Skip(1)
-                .Select(p => p.IsLocal ? p.Service.ProviderName : (p.ServiceEntry?.SearchEngineId?.Split('|').FirstOrDefault() ?? p.Service.ProviderName))
+                .Select(p =>
+                    p.IsLocal
+                        ? p.Service.ProviderName
+                        : p.ServiceEntry?.SearchEngineId?.Split('|').FirstOrDefault() ?? p.Service.ProviderName)
                 .ToList();
 
             if (fallbacks.Count > 0)
@@ -57,19 +81,55 @@ public class LlmRouter : ILlmService
         }
     }
 
-    private LlmRouter(IApiBudget? budget, ICircuitBreaker? circuit, OllamaConfig ollamaConfig)
+    // ── ILlmService implementation ──────────────────────────────────────
+
+    /// <inheritdoc />
+    public string ProviderName => "LlmRouter";
+
+    /// <inheritdoc />
+    Task<string> ILlmService.GenerateAsync(string prompt, LlmOptions? options, CancellationToken ct)
     {
-        _budget = budget;
-        _circuit = circuit;
-        _ollamaConfig = ollamaConfig;
+        return GenerateAsync(prompt, options, ct);
+    }
+
+    /// <inheritdoc />
+    IAsyncEnumerable<string> ILlmService.GenerateStreamingAsync(string prompt, LlmOptions? options,
+        CancellationToken ct)
+    {
+        return GenerateStreamingAsync(prompt, options, ct);
+    }
+
+    /// <inheritdoc />
+    async Task<T?> ILlmService.GenerateJsonAsync<T>(string prompt, LlmOptions? options, CancellationToken ct)
+        where T : class
+    {
+        var jsonOptions = options ?? new LlmOptions();
+        jsonOptions.JsonMode = true;
+        var json = await GenerateAsync(prompt, jsonOptions, ct);
+        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+    }
+
+    /// <inheritdoc />
+    async Task<bool> ILlmService.IsAvailableAsync(CancellationToken ct)
+    {
+        return await IsAnyAvailableAsync(ct);
+    }
+
+    /// <inheritdoc />
+    Task<int> ILlmService.GetContextWindowAsync(CancellationToken ct)
+    {
+        return Task.FromResult(GetContextSize());
     }
 
     /// <summary>
-    /// Build a router from config.
-    /// Provider priority: Ollama (if running) → LLamaSharp (local GGUF fallback) → Cloud (paid).
-    /// Ollama is preferred because it keeps models warm in memory across calls.
-    /// LLamaSharp is the zero-dependency fallback when Ollama isn't available.
-    /// Cloud providers are validated at startup and added as fallbacks only.
+    ///     Build a router from config.
+    ///     Provider priority: Ollama (if running) → LLamaSharp (local GGUF fallback) → Cloud (paid).
+    ///     Ollama is preferred because it keeps models warm in memory across calls.
+    ///     LLamaSharp is the zero-dependency fallback when Ollama isn't available.
+    ///     Cloud providers are validated at startup and added as fallbacks only.
     /// </summary>
     /// <param name="ollamaConfig">Ollama configuration for local server.</param>
     /// <param name="keys">API key service for cloud providers.</param>
@@ -85,7 +145,7 @@ public class LlmRouter : ILlmService
         var router = new LlmRouter(budget, circuit, ollamaConfig);
 
         // Priority 1: Ollama — local server, keeps models warm, fast inference
-        var docSumOllamaService = new Mostlylucid.DocSummarizer.Services.OllamaService(
+        var docSumOllamaService = new OllamaService(
             ollamaConfig.Model,
             ollamaConfig.EmbedModel,
             ollamaConfig.BaseUrl,
@@ -100,18 +160,16 @@ public class LlmRouter : ILlmService
 
         var ollamaAvailable = await ollamaLlm.IsAvailableAsync(ct);
         if (ollamaAvailable)
-            router._providers.Add(new(ollamaLlm, null, true, null));
+            router._providers.Add(new ProviderEntry(ollamaLlm, null, true, null));
 
         // Priority 2: LLamaSharp — local GGUF fallback (zero-config, but cold-starts are slow)
         if (localLlmService != null && await localLlmService.IsAvailableAsync(ct))
-        {
-            router._providers.Add(new(localLlmService, null, true, null));
-        }
+            router._providers.Add(new ProviderEntry(localLlmService, null, true, null));
 
         // If Ollama wasn't available at startup, still add it as last-resort local
         // (it may come online later, and will be tried after LLamaSharp)
         if (!ollamaAvailable)
-            router._providers.Add(new(ollamaLlm, null, true, null));
+            router._providers.Add(new ProviderEntry(ollamaLlm, null, true, null));
 
         // Priority 3+: Cloud providers as fallbacks (tried only if local providers fail)
         if (keys.IsAvailable("anthropic"))
@@ -124,7 +182,7 @@ public class LlmRouter : ILlmService
                 Model = models[0]
             });
             if (await service.IsAvailableAsync(ct))
-                router._providers.Add(new(service, "anthropic", false, entry));
+                router._providers.Add(new ProviderEntry(service, "anthropic", false, entry));
         }
 
         if (keys.IsAvailable("openai"))
@@ -137,14 +195,14 @@ public class LlmRouter : ILlmService
                 Model = models[0]
             });
             if (await service.IsAvailableAsync(ct))
-                router._providers.Add(new(service, "openai", false, entry));
+                router._providers.Add(new ProviderEntry(service, "openai", false, entry));
         }
 
         return router;
     }
 
     /// <summary>
-    /// Auto-fill context sizes from known model names if not explicitly set.
+    ///     Auto-fill context sizes from known model names if not explicitly set.
     /// </summary>
     private static ApiKeyEntry AutoFillContextSizes(ApiKeyEntry entry)
     {
@@ -163,8 +221,8 @@ public class LlmRouter : ILlmService
     }
 
     /// <summary>
-    /// Generate a completion using the best available provider.
-    /// Tries providers in order, with budget enforcement for cloud providers.
+    ///     Generate a completion using the best available provider.
+    ///     Tries providers in order, with budget enforcement for cloud providers.
     /// </summary>
     public async Task<string> GenerateAsync(string prompt, LlmOptions? options = null, CancellationToken ct = default)
     {
@@ -189,8 +247,9 @@ public class LlmRouter : ILlmService
                         }
                         else
                         {
-                            System.Diagnostics.Debug.WriteLine($"{entry.Service.ProviderName}: {check.DenialReason} -- trying next");
+                            Debug.WriteLine($"{entry.Service.ProviderName}: {check.DenialReason} -- trying next");
                         }
+
                         continue;
                     }
                 }
@@ -212,32 +271,35 @@ public class LlmRouter : ILlmService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
+                Debug.WriteLine(
                     $"{entry.Service.ProviderName} failed: {ex.Message} -- trying next provider");
             }
         }
 
-        throw new InvalidOperationException("All LLM providers failed. Is Ollama running? Or enable local GGUF models via LLamaSharp.");
+        throw new InvalidOperationException(
+            "All LLM providers failed. Is Ollama running? Or enable local GGUF models via LLamaSharp.");
     }
 
     /// <summary>
-    /// Generate with a specific role hint (main/sentinel).
-    /// Convenience overload used by DoomSummarizer's OllamaService.
+    ///     Generate with a specific role hint (main/sentinel).
+    ///     Convenience overload used by DoomSummarizer's OllamaService.
     /// </summary>
     public Task<string> GenerateAsync(string prompt, string? systemPrompt,
         double temperature, string role = "main", bool jsonMode = false,
-        CancellationToken ct = default) =>
-        GenerateAsync(prompt, new LlmOptions
+        CancellationToken ct = default)
+    {
+        return GenerateAsync(prompt, new LlmOptions
         {
             SystemPrompt = systemPrompt,
             Temperature = temperature,
             Role = role,
             JsonMode = jsonMode
         }, ct);
+    }
 
     /// <summary>
-    /// Stream tokens from the best available provider with fallback chain.
-    /// Tries providers in order, with budget enforcement for cloud providers.
+    ///     Stream tokens from the best available provider with fallback chain.
+    ///     Tries providers in order, with budget enforcement for cloud providers.
     /// </summary>
     public async IAsyncEnumerable<string> GenerateStreamingAsync(
         string prompt, LlmOptions? options = null,
@@ -268,7 +330,7 @@ public class LlmRouter : ILlmService
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
+                Debug.WriteLine(
                     $"{entry.Service.ProviderName} streaming init failed: {ex.Message} -- trying next provider");
                 lastException = ex;
                 continue;
@@ -293,7 +355,7 @@ public class LlmRouter : ILlmService
                 {
                     if (yielded)
                         throw; // Already started streaming, can't fallback
-                    System.Diagnostics.Debug.WriteLine(
+                    Debug.WriteLine(
                         $"{entry.Service.ProviderName} streaming failed: {ex.Message} -- trying next provider");
                     lastException = ex;
                     break;
@@ -318,22 +380,20 @@ public class LlmRouter : ILlmService
     }
 
     /// <summary>
-    /// Check if any provider is available.
+    ///     Check if any provider is available.
     /// </summary>
     public async Task<bool> IsAnyAvailableAsync(CancellationToken ct = default)
     {
         foreach (var entry in _providers)
-        {
             if (await entry.Service.IsAvailableAsync(ct))
                 return true;
-        }
         return false;
     }
 
     /// <summary>
-    /// Get the effective context window size for a given role.
-    /// Returns the context size of the first available provider.
-    /// Falls back to Ollama config when no cloud provider has it set.
+    ///     Get the effective context window size for a given role.
+    ///     Returns the context size of the first available provider.
+    ///     Falls back to Ollama config when no cloud provider has it set.
     /// </summary>
     public int GetContextSize(string role = "main")
     {
@@ -356,7 +416,7 @@ public class LlmRouter : ILlmService
     }
 
     /// <summary>
-    /// Compute max chars of evidence per item for the current provider.
+    ///     Compute max chars of evidence per item for the current provider.
     /// </summary>
     public int MaxEvidenceCharsPerItem(bool sentinel, int itemCount)
     {
@@ -368,7 +428,7 @@ public class LlmRouter : ILlmService
     }
 
     /// <summary>
-    /// List available providers and their status.
+    ///     List available providers and their status.
     /// </summary>
     public async Task PrintStatusAsync(CancellationToken ct = default)
     {
@@ -382,72 +442,20 @@ public class LlmRouter : ILlmService
             var ctx = entry.ServiceEntry?.ContextSize ?? (entry.IsLocal ? _ollamaConfig.ContextSize : 0);
             var ctxInfo = ctx > 0 ? $", {ctx / 1000}K ctx" : "";
             var status = available ? "available" : "unavailable";
-            System.Diagnostics.Debug.WriteLine($"  LLM {entry.Service.ProviderName} ({type}{budgetInfo}{ctxInfo}): {status}");
+            Debug.WriteLine($"  LLM {entry.Service.ProviderName} ({type}{budgetInfo}{ctxInfo}): {status}");
         }
     }
 
-    // ── ILlmService implementation ──────────────────────────────────────
-
-    /// <inheritdoc />
-    public string ProviderName => "LlmRouter";
-
-    /// <inheritdoc />
-    Task<string> ILlmService.GenerateAsync(string prompt, LlmOptions? options, CancellationToken ct)
-        => GenerateAsync(prompt, options, ct);
-
-    /// <inheritdoc />
-    IAsyncEnumerable<string> ILlmService.GenerateStreamingAsync(string prompt, LlmOptions? options, CancellationToken ct)
-        => GenerateStreamingAsync(prompt, options, ct);
-
-    /// <inheritdoc />
-    async Task<T?> ILlmService.GenerateJsonAsync<T>(string prompt, LlmOptions? options, CancellationToken ct)
-        where T : class
-    {
-        var jsonOptions = options ?? new LlmOptions();
-        jsonOptions.JsonMode = true;
-        var json = await GenerateAsync(prompt, jsonOptions, ct);
-        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
-    }
-
-    /// <inheritdoc />
-    async Task<bool> ILlmService.IsAvailableAsync(CancellationToken ct)
-        => await IsAnyAvailableAsync(ct);
-
-    /// <inheritdoc />
-    Task<int> ILlmService.GetContextWindowAsync(CancellationToken ct)
-        => Task.FromResult(GetContextSize());
-
-    // Known context window sizes for common models
-    private static readonly Dictionary<string, int> KnownContextSizes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["gpt-4o"] = 128000,
-        ["gpt-4o-mini"] = 128000,
-        ["gpt-4-turbo"] = 128000,
-        ["gpt-3.5-turbo"] = 16385,
-        ["claude-sonnet-4-20250514"] = 200000,
-        ["claude-3-5-sonnet-latest"] = 200000,
-        ["claude-3-5-sonnet-20241022"] = 200000,
-        ["claude-3-5-haiku-latest"] = 200000,
-        ["claude-3-haiku-20240307"] = 200000,
-        ["claude-3-opus-20240229"] = 200000,
-        ["claude-opus-4-20250514"] = 200000,
-    };
-
     /// <summary>
-    /// Auto-detect context size from model name if not explicitly set.
+    ///     Auto-detect context size from model name if not explicitly set.
     /// </summary>
     internal static int InferContextSize(string? modelName)
     {
         if (string.IsNullOrEmpty(modelName)) return 0;
 
         foreach (var (known, size) in KnownContextSizes)
-        {
             if (modelName.Contains(known, StringComparison.OrdinalIgnoreCase))
                 return size;
-        }
 
         // Heuristic: most modern cloud models have at least 128K
         if (modelName.StartsWith("gpt-4", StringComparison.OrdinalIgnoreCase))
@@ -457,4 +465,10 @@ public class LlmRouter : ILlmService
 
         return 0;
     }
+
+    private record ProviderEntry(
+        ILlmService Service,
+        string? BudgetServiceName,
+        bool IsLocal,
+        ApiKeyEntry? ServiceEntry);
 }

@@ -1,8 +1,8 @@
 namespace LucidRAG.Decomposer.Models;
 
 /// <summary>
-/// Root result of the decomposition pipeline.
-/// Contains the query tree, execution plan, and metadata for the orchestrator.
+///     Root result of the decomposition pipeline.
+///     Contains the query tree, execution plan, and metadata for the orchestrator.
 /// </summary>
 public record DecompositionResult
 {
@@ -10,9 +10,9 @@ public record DecompositionResult
     public required string OriginalQuery { get; init; }
 
     /// <summary>
-    /// Root nodes of the decomposition tree.
-    /// For simple queries, this is a single Atomic node.
-    /// For complex queries, multiple nodes with children.
+    ///     Root nodes of the decomposition tree.
+    ///     For simple queries, this is a single Atomic node.
+    ///     For complex queries, multiple nodes with children.
     /// </summary>
     public List<QueryNode> Nodes { get; init; } = [];
 
@@ -29,8 +29,8 @@ public record DecompositionResult
     public QuerySignals? Signals { get; init; }
 
     /// <summary>
-    /// True if this query should take the fast path (no decomposition).
-    /// Determined by: single topic, no references, no comparisons, no tool actions.
+    ///     True if this query should take the fast path (no decomposition).
+    ///     Determined by: single topic, no references, no comparisons, no tool actions.
     /// </summary>
     public bool IsFastPath => Complexity == QueryComplexity.Simple && !HasToolActions;
 
@@ -40,13 +40,15 @@ public record DecompositionResult
     /// <summary>Total leaf nodes across the tree.</summary>
     public int LeafCount => Nodes.Sum(CountLeaves);
 
-    private static int CountLeaves(QueryNode node) =>
-        node.Children.Count == 0 ? 1 : node.Children.Sum(CountLeaves);
+    private static int CountLeaves(QueryNode node)
+    {
+        return node.Children.Count == 0 ? 1 : node.Children.Sum(CountLeaves);
+    }
 }
 
 /// <summary>
-/// Execution strategy for the decomposition result.
-/// Tells the orchestrator what to run and in what order.
+///     Execution strategy for the decomposition result.
+///     Tells the orchestrator what to run and in what order.
 /// </summary>
 public record ExecutionPlan
 {
@@ -63,8 +65,8 @@ public record ExecutionPlan
     public List<QueryNode> ReferenceNodes { get; init; } = [];
 
     /// <summary>
-    /// Tool action nodes  -  executed via tool executors, not the default search pipeline.
-    /// These may be sequential (file find → index → query) or parallel.
+    ///     Tool action nodes  -  executed via tool executors, not the default search pipeline.
+    ///     These may be sequential (file find → index → query) or parallel.
     /// </summary>
     public List<QueryNode> ToolActionNodes { get; init; } = [];
 
@@ -76,7 +78,7 @@ public record ExecutionPlan
 }
 
 /// <summary>
-/// A node that depends on other nodes completing before it can execute.
+///     A node that depends on other nodes completing before it can execute.
 /// </summary>
 public record DependentExecution
 {

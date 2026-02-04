@@ -23,11 +23,24 @@ public class ImageAnalyzerTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
+        if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true);
     }
+
+    #region GeneratePerceptualHashAsync Tests
+
+    [Fact]
+    public async Task GeneratePerceptualHashAsync_ReturnsHash()
+    {
+        using var image = TestImageGenerator.CreateColorBlocks(200, 200);
+        var path = SaveTempImage(image, "hash.png");
+
+        var hash = await _analyzer.GeneratePerceptualHashAsync(path);
+
+        Assert.NotNull(hash);
+        Assert.Equal(16, hash.Length);
+    }
+
+    #endregion
 
     #region AnalyzeAsync Tests
 
@@ -109,7 +122,7 @@ public class ImageAnalyzerTests : IDisposable
     [Fact]
     public async Task AnalyzeAsync_CalculatesEdgeDensity()
     {
-        using var image = TestImageGenerator.CreateCheckerboard(200, 200, 10);
+        using var image = TestImageGenerator.CreateCheckerboard(200, 200);
         var path = SaveTempImage(image, "checker.png");
 
         var profile = await _analyzer.AnalyzeAsync(path);
@@ -199,7 +212,7 @@ public class ImageAnalyzerTests : IDisposable
     [Fact]
     public async Task AnalyzeAsync_Icon_DetectsIconType()
     {
-        using var image = TestImageGenerator.CreateIconLike(64);
+        using var image = TestImageGenerator.CreateIconLike();
         var path = SaveTempImage(image, "icon.png");
 
         var profile = await _analyzer.AnalyzeAsync(path);
@@ -262,7 +275,7 @@ public class ImageAnalyzerTests : IDisposable
     public async Task AnalyzeAsync_DifferentImages_DifferentHashes()
     {
         using var image1 = TestImageGenerator.CreateSolidColor(200, 200, Color.Red);
-        using var image2 = TestImageGenerator.CreateCheckerboard(200, 200, 10);
+        using var image2 = TestImageGenerator.CreateCheckerboard(200, 200);
 
         var path1 = SaveTempImage(image1, "red.png");
         var path2 = SaveTempImage(image2, "checker.png");
@@ -275,22 +288,6 @@ public class ImageAnalyzerTests : IDisposable
 
     #endregion
 
-    #region GeneratePerceptualHashAsync Tests
-
-    [Fact]
-    public async Task GeneratePerceptualHashAsync_ReturnsHash()
-    {
-        using var image = TestImageGenerator.CreateColorBlocks(200, 200);
-        var path = SaveTempImage(image, "hash.png");
-
-        var hash = await _analyzer.GeneratePerceptualHashAsync(path);
-
-        Assert.NotNull(hash);
-        Assert.Equal(16, hash.Length);
-    }
-
-    #endregion
-
     #region GenerateThumbnailAsync Tests
 
     [Fact]
@@ -299,7 +296,7 @@ public class ImageAnalyzerTests : IDisposable
         using var image = TestImageGenerator.CreateColorBlocks(800, 600);
         var path = SaveTempImage(image, "large.png");
 
-        var thumbnailBytes = await _analyzer.GenerateThumbnailAsync(path, maxSize: 100);
+        var thumbnailBytes = await _analyzer.GenerateThumbnailAsync(path, 100);
 
         Assert.NotEmpty(thumbnailBytes);
 
@@ -315,7 +312,7 @@ public class ImageAnalyzerTests : IDisposable
         using var image = TestImageGenerator.CreateSolidColor(800, 400, Color.Blue); // 2:1 aspect ratio
         var path = SaveTempImage(image, "wide.png");
 
-        var thumbnailBytes = await _analyzer.GenerateThumbnailAsync(path, maxSize: 200);
+        var thumbnailBytes = await _analyzer.GenerateThumbnailAsync(path, 200);
 
         using var thumbnail = Image.Load(thumbnailBytes);
         var aspectRatio = thumbnail.Width / (double)thumbnail.Height;
@@ -367,10 +364,7 @@ public class ImageAnalyzerTests : IDisposable
     public async Task AnalyzeAsync_RealScreenshot_ComprehensiveProfile()
     {
         var testImagePath = GetTestImagePath("01-home.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         var profile = await _analyzer.AnalyzeAsync(testImagePath);
 
@@ -390,10 +384,7 @@ public class ImageAnalyzerTests : IDisposable
     public async Task AnalyzeAsync_AllTestImages_NoExceptions()
     {
         var testImagesDir = GetTestImagesDirectory();
-        if (!Directory.Exists(testImagesDir))
-        {
-            return;
-        }
+        if (!Directory.Exists(testImagesDir)) return;
 
         var imageFiles = Directory.GetFiles(testImagesDir, "*.png");
         foreach (var imagePath in imageFiles)
@@ -410,10 +401,7 @@ public class ImageAnalyzerTests : IDisposable
     public async Task AnalyzeAsync_ChatResponse_HasTextElements()
     {
         var testImagePath = GetTestImagePath("03-chat-response.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         var profile = await _analyzer.AnalyzeAsync(testImagePath);
 
@@ -442,6 +430,7 @@ public class ImageAnalyzerTests : IDisposable
             count += (int)(xor & 1);
             xor >>= 1;
         }
+
         return count;
     }
 

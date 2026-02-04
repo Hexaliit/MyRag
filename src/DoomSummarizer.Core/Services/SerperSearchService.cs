@@ -1,14 +1,21 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Serper.dev — fast Google SERP API.
-/// Free tier: 2,500 queries total (one-time). Then $0.30/1000.
-/// Supports web search and news search.
+///     Serper.dev — fast Google SERP API.
+///     Free tier: 2,500 queries total (one-time). Then $0.30/1000.
+///     Supports web search and news search.
 /// </summary>
-public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class SerperSearchService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "serper";
     private const string WebEndpoint = "https://google.serper.dev/search";
@@ -17,7 +24,7 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
     public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search via Serper.dev and return results as ContentItems.
+    ///     Search via Serper.dev and return results as ContentItems.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 10, bool newsOnly = false,
@@ -74,7 +81,7 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Diagnostics.Debug.WriteLine($"Serper {(int)response.StatusCode}: {Truncate(body, 200)}");
+                Debug.WriteLine($"Serper {(int)response.StatusCode}: {Truncate(body, 200)}");
                 return [];
             }
 
@@ -86,12 +93,12 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("Serper timed out");
+            Debug.WriteLine("Serper timed out");
             return [];
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Serper error: {ex.Message}");
+            Debug.WriteLine($"Serper error: {ex.Message}");
             return [];
         }
     }
@@ -117,7 +124,6 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
                 createdAt = parsed;
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(link))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"serper_{Hash(link)}",
@@ -128,8 +134,8 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
                     ImageUrl = imageUrl,
                     CreatedAt = createdAt
                 });
-            }
         }
+
         return items;
     }
 
@@ -155,7 +161,6 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
                 createdAt = parsed;
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(link))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"serper_news_{Hash(link)}",
@@ -165,17 +170,21 @@ public class SerperSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
                     Content = snippet,
                     ImageUrl = imageUrl,
                     CreatedAt = createdAt,
-                    Metadata = source != null ? new() { ["source_name"] = source } : null
+                    Metadata = source != null ? new Dictionary<string, string> { ["source_name"] = source } : null
                 });
-            }
         }
+
         return items;
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

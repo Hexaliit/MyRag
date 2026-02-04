@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Hashing;
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Models;
@@ -6,25 +7,27 @@ using Xabe.FFmpeg;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 0: Normalize the video - demux, extract metadata, compute content hash.
-/// This is always the first wave to run.
+///     Stage 0: Normalize the video - demux, extract metadata, compute content hash.
+///     This is always the first wave to run.
 /// </summary>
 public class NormalizeWave : IVideoWave
 {
+    private static bool _ffmpegPathSet;
+    private static readonly object _ffmpegLock = new();
     private readonly ILogger<NormalizeWave> _logger;
-
-    public string Name => "normalize";
-    public int Priority => 1000; // Highest priority - runs first
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Metadata];
 
     public NormalizeWave(ILogger<NormalizeWave> logger)
     {
         _logger = logger;
     }
 
+    public string Name => "normalize";
+    public int Priority => 1000; // Highest priority - runs first
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Metadata];
+
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         context.ReportProgress("Normalizing video", 0);
 
         // Emit wave started signal
@@ -80,22 +83,48 @@ public class NormalizeWave : IVideoWave
 
         // Add metadata signals
         context.AddSignals([
-            new VideoSignal { Key = "video.duration", Value = context.Metadata.Duration, Source = Name, Tags = [VideoSignalTags.Metadata] },
-            new VideoSignal { Key = "video.fps", Value = context.Metadata.Fps, Source = Name, Tags = [VideoSignalTags.Metadata] },
-            new VideoSignal { Key = "video.width", Value = context.Metadata.Width, Source = Name, Tags = [VideoSignalTags.Metadata] },
-            new VideoSignal { Key = "video.height", Value = context.Metadata.Height, Source = Name, Tags = [VideoSignalTags.Metadata] },
-            new VideoSignal { Key = "video.codec", Value = context.Metadata.VideoCodec, Source = Name, Tags = [VideoSignalTags.Metadata] },
-            new VideoSignal { Key = "video.content_hash", Value = contentHash, Source = Name, Tags = [VideoSignalTags.Metadata] },
+            new VideoSignal
+            {
+                Key = "video.duration", Value = context.Metadata.Duration, Source = Name,
+                Tags = [VideoSignalTags.Metadata]
+            },
+            new VideoSignal
+                { Key = "video.fps", Value = context.Metadata.Fps, Source = Name, Tags = [VideoSignalTags.Metadata] },
+            new VideoSignal
+            {
+                Key = "video.width", Value = context.Metadata.Width, Source = Name, Tags = [VideoSignalTags.Metadata]
+            },
+            new VideoSignal
+            {
+                Key = "video.height", Value = context.Metadata.Height, Source = Name, Tags = [VideoSignalTags.Metadata]
+            },
+            new VideoSignal
+            {
+                Key = "video.codec", Value = context.Metadata.VideoCodec, Source = Name,
+                Tags = [VideoSignalTags.Metadata]
+            },
+            new VideoSignal
+                { Key = "video.content_hash", Value = contentHash, Source = Name, Tags = [VideoSignalTags.Metadata] }
         ]);
 
         if (audioStream != null)
-        {
             context.AddSignals([
-                new VideoSignal { Key = "audio.codec", Value = context.Metadata.AudioCodec, Source = Name, Tags = [VideoSignalTags.Audio, VideoSignalTags.Metadata] },
-                new VideoSignal { Key = "audio.sample_rate", Value = context.Metadata.AudioSampleRate, Source = Name, Tags = [VideoSignalTags.Audio, VideoSignalTags.Metadata] },
-                new VideoSignal { Key = "audio.channels", Value = context.Metadata.AudioChannels, Source = Name, Tags = [VideoSignalTags.Audio, VideoSignalTags.Metadata] },
+                new VideoSignal
+                {
+                    Key = "audio.codec", Value = context.Metadata.AudioCodec, Source = Name,
+                    Tags = [VideoSignalTags.Audio, VideoSignalTags.Metadata]
+                },
+                new VideoSignal
+                {
+                    Key = "audio.sample_rate", Value = context.Metadata.AudioSampleRate, Source = Name,
+                    Tags = [VideoSignalTags.Audio, VideoSignalTags.Metadata]
+                },
+                new VideoSignal
+                {
+                    Key = "audio.channels", Value = context.Metadata.AudioChannels, Source = Name,
+                    Tags = [VideoSignalTags.Audio, VideoSignalTags.Metadata]
+                }
             ]);
-        }
 
         // Extract audio track for transcription
         if (audioStream != null)
@@ -183,11 +212,8 @@ public class NormalizeWave : IVideoWave
         return audioPath;
     }
 
-    private static bool _ffmpegPathSet;
-    private static readonly object _ffmpegLock = new();
-
     /// <summary>
-    /// Ensure FFmpeg executables path is set. Looks for FFmpeg in common locations.
+    ///     Ensure FFmpeg executables path is set. Looks for FFmpeg in common locations.
     /// </summary>
     private static void EnsureFFmpegPath()
     {
@@ -225,7 +251,7 @@ public class NormalizeWave : IVideoWave
                     "scoop", "apps", "ffmpeg", "current", "bin"),
                 // Manual install
                 @"C:\ffmpeg\bin",
-                @"C:\Program Files\ffmpeg\bin",
+                @"C:\Program Files\ffmpeg\bin"
             };
 
             foreach (var basePath in searchPaths)

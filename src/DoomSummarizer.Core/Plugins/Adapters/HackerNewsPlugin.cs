@@ -4,7 +4,7 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts <see cref="HackerNewsFetcher"/> to the <see cref="ISourcePlugin"/> contract.
+///     Adapts <see cref="HackerNewsFetcher" /> to the <see cref="ISourcePlugin" /> contract.
 /// </summary>
 public sealed class HackerNewsPlugin : ISourcePlugin
 {

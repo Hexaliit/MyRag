@@ -2,20 +2,20 @@ using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Microsoft.Data.Sqlite;
+using Mostlylucid.DocSummarizer.Services;
+using Spectre.Console;
+using OllamaService = DoomSummarizer.Services.OllamaService;
 #if FEATURE_LLAMASHARP
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.LLamaSharp.Services;
 #endif
-using Mostlylucid.DocSummarizer.Resilience;
-using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Shared bootstrap for CLI commands. Creates the common service stack
-/// (config, storage, embedding) and provides opt-in methods for LLM,
-/// entity stores, and circuit breaker initialization.
+///     Shared bootstrap for CLI commands. Creates the common service stack
+///     (config, storage, embedding) and provides opt-in methods for LLM,
+///     entity stores, and circuit breaker initialization.
 /// </summary>
 public sealed class CommandBootstrap : IAsyncDisposable
 {
@@ -28,7 +28,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
     public VibeResolver VibeResolver { get; }
 
     // Opt-in services (initialized via methods below)
-    public DoomSummarizer.Services.OllamaService? Ollama { get; private set; }
+    public OllamaService? Ollama { get; private set; }
     public ApiKeyService? ApiKeys { get; private set; }
     public ApiBudgetService? ApiBudget { get; private set; }
     public LlmRouter? LlmRouter { get; private set; }
@@ -39,7 +39,8 @@ public sealed class CommandBootstrap : IAsyncDisposable
     public LLamaSharpLlmService? LLamaSharp { get; private set; }
 #endif
 
-    private CommandBootstrap(DoomConfig config, string dbPath, StorageService storage, IEmbeddingService embedding, VibeResolver vibeResolver)
+    private CommandBootstrap(DoomConfig config, string dbPath, StorageService storage, IEmbeddingService embedding,
+        VibeResolver vibeResolver)
     {
         Config = config;
         DbPath = dbPath;
@@ -49,7 +50,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    /// Create the core service stack: config → storage → embedding.
+    ///     Create the core service stack: config → storage → embedding.
     /// </summary>
     public static async Task<CommandBootstrap> CreateAsync(CancellationToken ct = default)
     {
@@ -62,11 +63,13 @@ public sealed class CommandBootstrap : IAsyncDisposable
             await storage.InitializeAsync();
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 /* SQLITE_BUSY */
-                                         || ex.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase))
+                                         || ex.Message.Contains("database is locked",
+                                             StringComparison.OrdinalIgnoreCase))
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[red]Error: Database is locked by another instance.[/]");
-            Spectre.Console.AnsiConsole.MarkupLine($"[yellow]DoomSummarizer uses SQLite which supports single-writer access.[/]");
-            Spectre.Console.AnsiConsole.MarkupLine($"[yellow]Please close other running instances, or use LucidRAG (PostgreSQL) for multi-user access.[/]");
+            AnsiConsole.MarkupLine("[red]Error: Database is locked by another instance.[/]");
+            AnsiConsole.MarkupLine("[yellow]DoomSummarizer uses SQLite which supports single-writer access.[/]");
+            AnsiConsole.MarkupLine(
+                "[yellow]Please close other running instances, or use LucidRAG (PostgreSQL) for multi-user access.[/]");
             throw;
         }
 
@@ -79,11 +82,11 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    /// Create an OllamaService wired to config.
+    ///     Create an OllamaService wired to config.
     /// </summary>
-    public DoomSummarizer.Services.OllamaService CreateOllama()
+    public OllamaService CreateOllama()
     {
-        Ollama = new DoomSummarizer.Services.OllamaService(Config.Ollama);
+        Ollama = new OllamaService(Config.Ollama);
         return Ollama;
     }
 
@@ -129,8 +132,8 @@ public sealed class CommandBootstrap : IAsyncDisposable
 #endif
 
     /// <summary>
-    /// Initialize the full LLM stack: API keys → rate limiter → budget → router.
-    /// Provider priority: Ollama (if running) → LLamaSharp (GPU fallback, complete builds only) → Cloud.
+    ///     Initialize the full LLM stack: API keys → rate limiter → budget → router.
+    ///     Provider priority: Ollama (if running) → LLamaSharp (GPU fallback, complete builds only) → Cloud.
     /// </summary>
     public async Task<LlmRouter> InitializeLlmStackAsync(
         CircuitBreakerService? circuitBreaker = null,
@@ -146,22 +149,22 @@ public sealed class CommandBootstrap : IAsyncDisposable
         // Create LLamaSharp as fallback provider (used when Ollama isn't running)
         var llamaSharp = LLamaSharp ?? CreateLLamaSharp();
 #else
-        Mostlylucid.DocSummarizer.Services.ILlmService? llamaSharp = null;
+        ILlmService? llamaSharp = null;
 
         // Only mention LLamaSharp when no Ollama model is configured (user might need it)
         if (string.IsNullOrEmpty(Config.Ollama.Model))
         {
             var ls = Config.LlamaSharp;
-            if (ls.Enabled != false && (ls.ContextSize != null || ls.GpuLayerCount != null || ls.SynthesisModel != null))
-            {
-                Spectre.Console.AnsiConsole.MarkupLine("[yellow]Note:[/] Config has LLamaSharp settings but this build doesn't include it. Use [bold cyan]lucidrag[/] for local GGUF support.");
-            }
+            if (ls.Enabled != false &&
+                (ls.ContextSize != null || ls.GpuLayerCount != null || ls.SynthesisModel != null))
+                AnsiConsole.MarkupLine(
+                    "[yellow]Note:[/] Config has LLamaSharp settings but this build doesn't include it. Use [bold cyan]lucidrag[/] for local GGUF support.");
         }
 #endif
 
-        LlmRouter = await Services.LlmRouter.BuildAsync(
+        LlmRouter = await LlmRouter.BuildAsync(
             Config.Ollama, ApiKeys, ApiBudget, circuitBreaker,
-            localLlmService: llamaSharp, ct: ct);
+            llamaSharp, ct);
 
         if (Ollama != null)
             Ollama.Router = LlmRouter;
@@ -170,7 +173,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    /// Initialize persistent circuit breaker and wire into rate limiter.
+    ///     Initialize persistent circuit breaker and wire into rate limiter.
     /// </summary>
     public async Task<CircuitBreakerService> InitializeCircuitBreakerAsync()
     {
@@ -181,7 +184,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    /// Initialize DuckDB vector store and entity graph store from the shared vector DB path.
+    ///     Initialize DuckDB vector store and entity graph store from the shared vector DB path.
     /// </summary>
     public async Task InitializeEntityStoresAsync()
     {
@@ -193,7 +196,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    /// Initialize only the entity graph store (no vector store needed).
+    ///     Initialize only the entity graph store (no vector store needed).
     /// </summary>
     public async Task<IEntityGraphStore> InitializeEntityGraphStoreAsync()
     {
@@ -204,7 +207,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    /// Safely initialize entity graph store. Returns null if unavailable (non-fatal).
+    ///     Safely initialize entity graph store. Returns null if unavailable (non-fatal).
     /// </summary>
     public async Task<IEntityGraphStore?> TryInitializeEntityGraphStoreAsync()
     {
@@ -219,8 +222,8 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    /// Initialize LLM stack, entity store, print availability warnings, and run the ask loop.
-    /// Consolidates the repeated pattern across AskCommand, ManCommand, and CrawlCommand.
+    ///     Initialize LLM stack, entity store, print availability warnings, and run the ask loop.
+    ///     Consolidates the repeated pattern across AskCommand, ManCommand, and CrawlCommand.
     /// </summary>
     public async Task<int> StartAskLoopAsync(
         InteractiveAskOptions options,
@@ -240,20 +243,22 @@ public sealed class CommandBootstrap : IAsyncDisposable
 #endif
         if (ollamaAvailable)
         {
-            Spectre.Console.AnsiConsole.MarkupLine($"[green]LLM:[/] {FormattingHelpers.Esc(llmRouter.StatusDescription)}");
+            AnsiConsole.MarkupLine($"[green]LLM:[/] {FormattingHelpers.Esc(llmRouter.StatusDescription)}");
         }
         else if (hasLlamaSharp)
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[cyan]Ollama not running — using local GGUF (LLamaSharp, first call loads model)[/]");
+            AnsiConsole.MarkupLine(
+                "[cyan]Ollama not running — using local GGUF (LLamaSharp, first call loads model)[/]");
         }
         else if (hasCloudLlm)
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[cyan]Ollama not available — using cloud LLM provider[/]");
+            AnsiConsole.MarkupLine("[cyan]Ollama not available — using cloud LLM provider[/]");
         }
         else
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
-            Spectre.Console.AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve  —or—  set OPENAI_API_KEY / ANTHROPIC_API_KEY[/]");
+            AnsiConsole.MarkupLine(
+                "[yellow]No LLM available (Ollama down, no cloud keys).[/] Answers will be limited to evidence listing.");
+            AnsiConsole.MarkupLine("[grey]Start Ollama: ollama serve  —or—  set OPENAI_API_KEY / ANTHROPIC_API_KEY[/]");
         }
 
         var loop = new InteractiveAskLoop(this, ollama, llmRouter, ollamaAvailable, options);

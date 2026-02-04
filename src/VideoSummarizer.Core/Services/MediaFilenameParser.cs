@@ -5,8 +5,8 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Parses movie/TV show information from filenames.
-/// Handles common naming conventions from various release groups.
+///     Parses movie/TV show information from filenames.
+///     Handles common naming conventions from various release groups.
 /// </summary>
 public partial class MediaFilenameParser
 {
@@ -18,7 +18,7 @@ public partial class MediaFilenameParser
     }
 
     /// <summary>
-    /// Parse media information from a filename.
+    ///     Parse media information from a filename.
     /// </summary>
     public ParsedMediaInfo Parse(string filePath)
     {
@@ -80,7 +80,6 @@ public partial class MediaFilenameParser
 
             if (int.TryParse(homeVideoMatch.Groups["month"].Value, out var month) &&
                 int.TryParse(homeVideoMatch.Groups["day"].Value, out var day))
-            {
                 try
                 {
                     result.Date = new DateOnly(result.Year.Value, month, day);
@@ -89,7 +88,6 @@ public partial class MediaFilenameParser
                 {
                     // Invalid date, ignore
                 }
-            }
 
             // Use any text after the date as title
             var remaining = fileName.Substring(homeVideoMatch.Index + homeVideoMatch.Length).Trim();
@@ -125,13 +123,12 @@ public partial class MediaFilenameParser
     {
         // Resolution
         if (ResolutionRegex().Match(fileName) is { Success: true } resMatch)
-        {
             result.Resolution = resMatch.Value.ToUpperInvariant();
-        }
 
         // Source
         var lowerName = fileName.ToLowerInvariant();
-        if (lowerName.Contains("bluray") || lowerName.Contains("blu-ray") || lowerName.Contains("bdrip") || lowerName.Contains("brrip"))
+        if (lowerName.Contains("bluray") || lowerName.Contains("blu-ray") || lowerName.Contains("bdrip") ||
+            lowerName.Contains("brrip"))
             result.Source = "BluRay";
         else if (lowerName.Contains("webrip") || lowerName.Contains("web-dl") || lowerName.Contains("webdl"))
             result.Source = "WEB";
@@ -145,7 +142,8 @@ public partial class MediaFilenameParser
         // Codec
         if (lowerName.Contains("x264") || lowerName.Contains("h264") || lowerName.Contains("h.264"))
             result.VideoCodec = "H.264";
-        else if (lowerName.Contains("x265") || lowerName.Contains("h265") || lowerName.Contains("h.265") || lowerName.Contains("hevc"))
+        else if (lowerName.Contains("x265") || lowerName.Contains("h265") || lowerName.Contains("h.265") ||
+                 lowerName.Contains("hevc"))
             result.VideoCodec = "H.265";
         else if (lowerName.Contains("xvid"))
             result.VideoCodec = "XviD";
@@ -164,10 +162,7 @@ public partial class MediaFilenameParser
 
         // Release group
         var groupMatch = ReleaseGroupRegex().Match(fileName);
-        if (groupMatch.Success)
-        {
-            result.ReleaseGroup = groupMatch.Groups["group"].Value;
-        }
+        if (groupMatch.Success) result.ReleaseGroup = groupMatch.Groups["group"].Value;
     }
 
     private static string CleanTitle(string title)
@@ -189,7 +184,9 @@ public partial class MediaFilenameParser
     [GeneratedRegex(@"^\[\s*www\.[^\]]+\]\s*-?\s*", RegexOptions.IgnoreCase)]
     private static partial Regex WebsitePrefixRegex();
 
-    [GeneratedRegex(@"(?<title>.+?)[.\s_-]+[Ss](?<season>\d{1,2})[Ee](?<episode>\d{1,2})|(?<title>.+?)[.\s_-]+(?<season>\d{1,2})x(?<episode>\d{2})", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"(?<title>.+?)[.\s_-]+[Ss](?<season>\d{1,2})[Ee](?<episode>\d{1,2})|(?<title>.+?)[.\s_-]+(?<season>\d{1,2})x(?<episode>\d{2})",
+        RegexOptions.IgnoreCase)]
     private static partial Regex TvShowRegex();
 
     [GeneratedRegex(@"(?<title>.+?)[.\s_-]+\(?(?<year>(?:19|20)\d{2})\)?", RegexOptions.IgnoreCase)]
@@ -213,7 +210,9 @@ public partial class MediaFilenameParser
     [GeneratedRegex(@"-(?<group>[A-Za-z0-9]+)(?:\.[a-z]{2,4})?$", RegexOptions.IgnoreCase)]
     private static partial Regex ReleaseGroupRegex();
 
-    [GeneratedRegex(@"\b(1080p|720p|480p|2160p|4k|bluray|bdrip|brrip|webrip|web-dl|hdtv|dvdrip|x264|x265|h264|h265|hevc|xvid|aac|ac3|dts|ganool|yify|rarbg|ettv)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(1080p|720p|480p|2160p|4k|bluray|bdrip|brrip|webrip|web-dl|hdtv|dvdrip|x264|x265|h264|h265|hevc|xvid|aac|ac3|dts|ganool|yify|rarbg|ettv)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex QualityWordsRegex();
 
     [GeneratedRegex(@"\s{2,}")]
@@ -221,7 +220,7 @@ public partial class MediaFilenameParser
 }
 
 /// <summary>
-/// Parsed information from a media filename.
+///     Parsed information from a media filename.
 /// </summary>
 public class ParsedMediaInfo
 {
@@ -243,7 +242,7 @@ public class ParsedMediaInfo
     public string? ReleaseGroup { get; set; }
 
     /// <summary>
-    /// Confidence in the parse (0-1)
+    ///     Confidence in the parse (0-1)
     /// </summary>
     public double Confidence =>
         (Title != null ? 0.3 : 0) +

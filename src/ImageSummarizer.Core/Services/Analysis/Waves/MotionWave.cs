@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
@@ -7,20 +10,25 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Motion Analysis Wave - Detects motion patterns in animated GIFs using optical flow.
-/// Uses Farneback dense optical flow algorithm for comprehensive motion detection.
-/// Priority: 55 (runs BEFORE VisionLLM to provide motion context for captions)
+///     Motion Analysis Wave - Detects motion patterns in animated GIFs using optical flow.
+///     Uses Farneback dense optical flow algorithm for comprehensive motion detection.
+///     Priority: 55 (runs BEFORE VisionLLM to provide motion context for captions)
 /// </summary>
 public class MotionWave : IAnalysisWave
 {
-    private readonly MotionAnalyzer _motionAnalyzer;
-    private readonly ImageConfig _config;
-    private readonly ILogger<MotionWave>? _logger;
-    private readonly HttpClient _httpClient;
+    // Shared classification helpers (DRY)
+    // Only filter generic CV placeholder labels, NOT language stopwords (breaks non-English)
+    private static readonly HashSet<string> InvalidGenericLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Generic CV placeholders that aren't meaningful as moving objects
+        "object", "unknown", "unidentified", "undefined", "none", "null", "n/a",
+        "thing", "item", "element", "entity", "instance"
+    };
 
-    public string Name => "MotionWave";
-    public int Priority => 55; // Above VisionLLM (50), runs first to provide motion context for captions
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, SignalTags.Visual, "motion", "animation" };
+    private readonly ImageConfig _config;
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<MotionWave>? _logger;
+    private readonly MotionAnalyzer _motionAnalyzer;
 
     public MotionWave(
         MotionAnalyzer motionAnalyzer,
@@ -33,6 +41,10 @@ public class MotionWave : IAnalysisWave
         _httpClient = httpClient ?? new HttpClient();
         _logger = logger;
     }
+
+    public string Name => "MotionWave";
+    public int Priority => 55; // Above VisionLLM (50), runs first to provide motion context for captions
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, SignalTags.Visual, "motion", "animation" };
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
@@ -119,7 +131,8 @@ public class MotionWave : IAnalysisWave
                 Tags = new List<string> { "motion", "classification" },
                 Metadata = new Dictionary<string, object>
                 {
-                    ["types"] = new[] { "static", "panning", "radial", "rotating", "oscillating", "object_motion", "general" }
+                    ["types"] = new[]
+                        { "static", "panning", "radial", "rotating", "oscillating", "object_motion", "general" }
                 }
             });
 
@@ -195,7 +208,7 @@ public class MotionWave : IAnalysisWave
                 });
 
                 // Add individual region signals for the top regions
-                for (int i = 0; i < Math.Min(3, result.MotionRegions.Count); i++)
+                for (var i = 0; i < Math.Min(3, result.MotionRegions.Count); i++)
                 {
                     var region = result.MotionRegions[i];
                     signals.Add(new Signal
@@ -228,7 +241,8 @@ public class MotionWave : IAnalysisWave
             });
 
             // Identify WHAT is moving - OPTIMIZATION: Check existing data before LLM call
-            _logger?.LogDebug("Motion identification check: HasMotion={HasMotion}, EnableVisionLlm={EnableVisionLlm}, EnableMotionIdentification={EnableMotionIdentification}",
+            _logger?.LogDebug(
+                "Motion identification check: HasMotion={HasMotion}, EnableVisionLlm={EnableVisionLlm}, EnableMotionIdentification={EnableMotionIdentification}",
                 result.HasMotion, _config.EnableVisionLlm, _config.Motion.EnableMotionIdentification);
 
             if (result.HasMotion && _config.Motion.EnableMotionIdentification)
@@ -240,7 +254,8 @@ public class MotionWave : IAnalysisWave
                 if (existingEntities.Count > 0)
                 {
                     // Use existing entities as moving objects (they're likely what's moving in the animation)
-                    _logger?.LogInformation("Using {Count} existing entities from prior waves instead of LLM call for motion identification",
+                    _logger?.LogInformation(
+                        "Using {Count} existing entities from prior waves instead of LLM call for motion identification",
                         existingEntities.Count);
 
                     signals.Add(new Signal
@@ -262,7 +277,6 @@ public class MotionWave : IAnalysisWave
 
                     // Add individual moving object signals
                     foreach (var obj in existingEntities.Take(5))
-                    {
                         signals.Add(new Signal
                         {
                             Key = $"motion.moving.{obj.Replace(" ", "_").ToLowerInvariant()}",
@@ -271,7 +285,6 @@ public class MotionWave : IAnalysisWave
                             Source = Name,
                             Tags = new List<string> { "motion", "object", "moving" }
                         });
-                    }
 
                     _logger?.LogInformation("Identified moving objects (from prior waves): {Objects}",
                         string.Join(", ", existingEntities));
@@ -279,7 +292,8 @@ public class MotionWave : IAnalysisWave
                 else if (_config.EnableVisionLlm)
                 {
                     // No existing entities - fall back to LLM call
-                    _logger?.LogInformation("No existing entities found, attempting LLM identification for {ImagePath}", imagePath);
+                    _logger?.LogInformation("No existing entities found, attempting LLM identification for {ImagePath}",
+                        imagePath);
                     var (movingObjects, isInferred) = await IdentifyMovingObjectsAsync(imagePath, result, context, ct);
                     _logger?.LogDebug("IdentifyMovingObjectsAsync returned {Count} objects (inferred={Inferred})",
                         movingObjects?.Count ?? 0, isInferred);
@@ -309,7 +323,6 @@ public class MotionWave : IAnalysisWave
 
                         // Add individual moving object signals
                         foreach (var obj in movingObjects.Take(5))
-                        {
                             signals.Add(new Signal
                             {
                                 Key = $"motion.moving.{obj.Replace(" ", "_").ToLowerInvariant()}",
@@ -318,7 +331,6 @@ public class MotionWave : IAnalysisWave
                                 Source = Name,
                                 Tags = new List<string> { "motion", "object", "moving" }
                             });
-                        }
 
                         _logger?.LogInformation("Identified moving objects ({Method}): {Objects}",
                             isInferred ? "inferred" : "observed", string.Join(", ", movingObjects));
@@ -346,15 +358,6 @@ public class MotionWave : IAnalysisWave
         return signals;
     }
 
-    // Shared classification helpers (DRY)
-    // Only filter generic CV placeholder labels, NOT language stopwords (breaks non-English)
-    private static readonly HashSet<string> InvalidGenericLabels = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Generic CV placeholders that aren't meaningful as moving objects
-        "object", "unknown", "unidentified", "undefined", "none", "null", "n/a",
-        "thing", "item", "element", "entity", "instance"
-    };
-
     private static bool IsValidMovingObjectLabel(string? label)
     {
         if (string.IsNullOrWhiteSpace(label))
@@ -370,21 +373,27 @@ public class MotionWave : IAnalysisWave
         return true;
     }
 
-    private static string ClassifyIntensity(double magnitude) => magnitude switch
+    private static string ClassifyIntensity(double magnitude)
     {
-        < 2 => "subtle",
-        < 5 => "moderate",
-        < 10 => "significant",
-        _ => "rapid"
-    };
+        return magnitude switch
+        {
+            < 2 => "subtle",
+            < 5 => "moderate",
+            < 10 => "significant",
+            _ => "rapid"
+        };
+    }
 
-    private static string ClassifyCoverage(double activity) => activity switch
+    private static string ClassifyCoverage(double activity)
     {
-        < 0.1 => "localized",
-        < 0.3 => "partial",
-        < 0.6 => "widespread",
-        _ => "full-frame"
-    };
+        return activity switch
+        {
+            < 0.1 => "localized",
+            < 0.3 => "partial",
+            < 0.6 => "widespread",
+            _ => "full-frame"
+        };
+    }
 
     private string GenerateMotionSummary(MotionAnalysisResult result)
     {
@@ -402,9 +411,9 @@ public class MotionWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Identify what objects are moving using Vision LLM.
-    /// Combines optical flow data with vision understanding.
-    /// Returns a tuple of (moving objects list, whether the result was inferred from entities).
+    ///     Identify what objects are moving using Vision LLM.
+    ///     Combines optical flow data with vision understanding.
+    ///     Returns a tuple of (moving objects list, whether the result was inferred from entities).
     /// </summary>
     private async Task<(List<string>? MovingObjects, bool IsInferred)> IdentifyMovingObjectsAsync(
         string imagePath,
@@ -438,16 +447,14 @@ public class MotionWave : IAnalysisWave
             _logger?.LogDebug("Parsed {Count} moving objects from Vision LLM response", parsed.Count);
 
             // If LLM found moving objects directly, return them
-            if (parsed.Count > 0)
-            {
-                return (parsed, false);
-            }
+            if (parsed.Count > 0) return (parsed, false);
 
             // If LLM couldn't see motion (single frame limitation), fall back to salient signals
             var entities = salientContext.GetValueOrDefault("entities") as List<EntityDetection>;
             if (entities != null && entities.Count > 0)
             {
-                _logger?.LogInformation("Vision LLM couldn't see animation (single frame), inferring from {Count} detected entities",
+                _logger?.LogInformation(
+                    "Vision LLM couldn't see animation (single frame), inferring from {Count} detected entities",
                     entities.Count);
 
                 // Use the entities detected by VisionLlmWave as likely moving objects
@@ -459,10 +466,7 @@ public class MotionWave : IAnalysisWave
                     .Take(5)
                     .ToList();
 
-                if (inferred.Count > 0)
-                {
-                    return (inferred, true);
-                }
+                if (inferred.Count > 0) return (inferred, true);
             }
 
             return (null, false);
@@ -475,10 +479,10 @@ public class MotionWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Check existing signals for entities we can reuse instead of making LLM calls.
-    /// Checks Florence2, MlOcr, and any other prior wave outputs.
-    /// NOTE: Florence2Wave runs at same priority (55), so its signals may not be available yet.
-    /// This checks what's available at the time MotionWave runs.
+    ///     Check existing signals for entities we can reuse instead of making LLM calls.
+    ///     Checks Florence2, MlOcr, and any other prior wave outputs.
+    ///     NOTE: Florence2Wave runs at same priority (55), so its signals may not be available yet.
+    ///     This checks what's available at the time MotionWave runs.
     /// </summary>
     private List<string> GetExistingEntities(AnalysisContext context)
     {
@@ -506,29 +510,21 @@ public class MotionWave : IAnalysisWave
             // Short OCR text might be a label/title that describes content
             var cleanText = mlOcrText.Trim().Split('\n')[0].Trim();
             if (IsValidMovingObjectLabel(cleanText) && !entities.Contains(cleanText, StringComparer.OrdinalIgnoreCase))
-            {
                 entities.Add($"'{cleanText}' text element");
-            }
         }
 
         // Check identity signals for format hints (e.g., "meme" scene type)
         var sceneType = context.GetValue<string>("scene.type");
         if (!string.IsNullOrWhiteSpace(sceneType) && sceneType != "unknown")
-        {
             // Scene type might give hints about what's moving
             _logger?.LogDebug("Scene type detected: {SceneType}", sceneType);
-        }
 
         // Check color analysis for dominant subjects (faces indicate people)
         var hasFaces = context.GetValue<bool>("faces.detected");
         var faceCount = context.GetValue<int>("faces.count");
         if (hasFaces && faceCount > 0)
-        {
             if (!entities.Any(e => e.Contains("person", StringComparison.OrdinalIgnoreCase)))
-            {
                 entities.Add(faceCount == 1 ? "person" : $"{faceCount} people");
-            }
-        }
 
         _logger?.LogDebug("GetExistingEntities found {Count} candidates: [{Entities}]",
             entities.Count, string.Join(", ", entities.Take(5)));
@@ -537,9 +533,9 @@ public class MotionWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Gather salient signals from context based on confidence and importance.
-    /// Only passes structured features (types, counts, measurements) to avoid compounding errors
-    /// from free-form text like captions/descriptions which may contain inaccuracies.
+    ///     Gather salient signals from context based on confidence and importance.
+    ///     Only passes structured features (types, counts, measurements) to avoid compounding errors
+    ///     from free-form text like captions/descriptions which may contain inaccuracies.
     /// </summary>
     private Dictionary<string, object?> GatherSalientSignals(AnalysisContext context)
     {
@@ -563,8 +559,8 @@ public class MotionWave : IAnalysisWave
 
         // Has OCR text (boolean) - indicates text-heavy content without passing potentially garbled text
         var ocrText = context.GetValue<string>("ocr.final.corrected_text")
-            ?? context.GetValue<string>("ocr.text.voting_consensus")
-            ?? context.GetValue<string>("ocr.text.raw");
+                      ?? context.GetValue<string>("ocr.text.voting_consensus")
+                      ?? context.GetValue<string>("ocr.text.raw");
         if (!string.IsNullOrWhiteSpace(ocrText))
         {
             salient["has_text"] = true;
@@ -573,25 +569,17 @@ public class MotionWave : IAnalysisWave
 
         // Text likeliness score
         var textLikeliness = context.GetValue<double>("content.text_likeliness");
-        if (textLikeliness > 0.3)
-        {
-            salient["text_likeliness"] = textLikeliness;
-        }
+        if (textLikeliness > 0.3) salient["text_likeliness"] = textLikeliness;
 
         // Dominant color names only (structured)
         var dominantColors = context.GetValue<List<DominantColor>>("color.dominant_colors");
         if (dominantColors != null && dominantColors.Count > 0)
-        {
             salient["dominant_colors"] = dominantColors.Take(3).Select(c => c.Name).ToList();
-        }
 
         // Face count (structured measurement)
         var hasFaces = context.GetValue<bool>("faces.detected");
         var faceCount = context.GetValue<int>("faces.count");
-        if (hasFaces || faceCount > 0)
-        {
-            salient["face_count"] = faceCount;
-        }
+        if (hasFaces || faceCount > 0) salient["face_count"] = faceCount;
 
         // Image dimensions
         var width = context.GetValue<int>("identity.width");
@@ -604,18 +592,15 @@ public class MotionWave : IAnalysisWave
 
         // Frame count (for context about animation length)
         var frameCount = context.GetValue<int>("identity.frame_count");
-        if (frameCount > 1)
-        {
-            salient["frame_count"] = frameCount;
-        }
+        if (frameCount > 1) salient["frame_count"] = frameCount;
 
         return salient;
     }
 
     /// <summary>
-    /// Build a context-aware prompt for motion identification.
-    /// Only includes structured features (not free-form text) to avoid compounding errors.
-    /// Adapts based on available context budget.
+    ///     Build a context-aware prompt for motion identification.
+    ///     Only includes structured features (not free-form text) to avoid compounding errors.
+    ///     Adapts based on available context budget.
     /// </summary>
     private string BuildMotionIdentificationPrompt(
         MotionAnalysisResult motion,
@@ -625,7 +610,7 @@ public class MotionWave : IAnalysisWave
         // Keep prompt concise - the image itself takes most of the context
         const int maxPromptChars = 800;
 
-        var prompt = new System.Text.StringBuilder();
+        var prompt = new StringBuilder();
 
         // Core task (always included - ~200 chars)
         prompt.AppendLine("Animated image. What objects/elements are MOVING?");
@@ -645,7 +630,8 @@ public class MotionWave : IAnalysisWave
         // 3. Has text (scrolling text)
         // 4. Dimensions/frames (for context)
 
-        if (remainingBudget > 100 && salientContext.TryGetValue("entity_types", out var typesObj) && typesObj is List<string> types && types.Count > 0)
+        if (remainingBudget > 100 && salientContext.TryGetValue("entity_types", out var typesObj) &&
+            typesObj is List<string> types && types.Count > 0)
         {
             var typeStr = $"Objects: {string.Join(", ", types.Take(5))}";
             if (typeStr.Length < remainingBudget)
@@ -655,23 +641,23 @@ public class MotionWave : IAnalysisWave
             }
         }
 
-        if (remainingBudget > 30 && salientContext.TryGetValue("face_count", out var faceObj) && faceObj is int faces && faces > 0)
+        if (remainingBudget > 30 && salientContext.TryGetValue("face_count", out var faceObj) && faceObj is int faces &&
+            faces > 0)
         {
             prompt.AppendLine($"Faces: {faces}");
             remainingBudget -= 15;
         }
 
-        if (remainingBudget > 30 && salientContext.TryGetValue("has_text", out var hasTextObj) && hasTextObj is bool hasText && hasText)
+        if (remainingBudget > 30 && salientContext.TryGetValue("has_text", out var hasTextObj) &&
+            hasTextObj is bool hasText && hasText)
         {
             var wordCount = salientContext.GetValueOrDefault("text_word_count") as int? ?? 0;
             prompt.AppendLine(wordCount > 10 ? "Contains text (may be scrolling)" : "Has text");
             remainingBudget -= 35;
         }
 
-        if (remainingBudget > 40 && salientContext.TryGetValue("frame_count", out var frameObj) && frameObj is int frameCount)
-        {
-            prompt.AppendLine($"Frames: {frameCount}");
-        }
+        if (remainingBudget > 40 && salientContext.TryGetValue("frame_count", out var frameObj) &&
+            frameObj is int frameCount) prompt.AppendLine($"Frames: {frameCount}");
 
         // Compact instructions
         prompt.AppendLine();
@@ -690,7 +676,7 @@ public class MotionWave : IAnalysisWave
         {
             // Skip meta-commentary and LLM echoing the prompt context
             if (line.StartsWith("Based on", StringComparison.OrdinalIgnoreCase) ||
-                line.StartsWith("The", StringComparison.OrdinalIgnoreCase) && line.Contains("moving") ||
+                (line.StartsWith("The", StringComparison.OrdinalIgnoreCase) && line.Contains("moving")) ||
                 line.StartsWith("I can see", StringComparison.OrdinalIgnoreCase) ||
                 line.StartsWith("In this", StringComparison.OrdinalIgnoreCase) ||
                 line.StartsWith("No motion", StringComparison.OrdinalIgnoreCase) ||
@@ -739,14 +725,14 @@ public class MotionWave : IAnalysisWave
 
             var requestBody = new
             {
-                model = model,
-                prompt = prompt,
+                model,
+                prompt,
                 images = new[] { imageBase64 },
                 stream = false
             };
 
-            var requestJson = System.Text.Json.JsonSerializer.Serialize(requestBody);
-            var content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json");
+            var requestJson = JsonSerializer.Serialize(requestBody);
+            var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromMilliseconds(_config.VisionLlmTimeout));
@@ -764,7 +750,7 @@ public class MotionWave : IAnalysisWave
             var responseJson = await response.Content.ReadAsStringAsync(ct);
             _logger?.LogDebug("Ollama response received: {Length} chars", responseJson.Length);
 
-            var result = System.Text.Json.JsonSerializer.Deserialize<OllamaMotionResponse>(responseJson);
+            var result = JsonSerializer.Deserialize<OllamaMotionResponse>(responseJson);
 
             return result?.Response;
         }
@@ -787,10 +773,9 @@ public class MotionWave : IAnalysisWave
 }
 
 /// <summary>
-/// Ollama API response for motion identification
+///     Ollama API response for motion identification
 /// </summary>
 file class OllamaMotionResponse
 {
-    [System.Text.Json.Serialization.JsonPropertyName("response")]
-    public string? Response { get; set; }
+    [JsonPropertyName("response")] public string? Response { get; set; }
 }

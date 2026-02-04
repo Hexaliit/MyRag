@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
-using Mostlylucid.DocSummarizer.Rdbms.Sqlite;
 using Mostlylucid.DocSummarizer.Resilience;
 using Xunit;
 

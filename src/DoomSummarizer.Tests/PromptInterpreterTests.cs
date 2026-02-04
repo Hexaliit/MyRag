@@ -1,18 +1,17 @@
+using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using FluentAssertions;
-using Xunit;
 
 namespace DoomSummarizer.Tests;
 
 public class PromptInterpreterTests
 {
     /// <summary>
-    /// Create a PromptInterpreter with no LLM (forces fallback keyword-based interpretation).
+    ///     Create a PromptInterpreter with no LLM (forces fallback keyword-based interpretation).
     /// </summary>
     private static PromptInterpreter CreateInterpreter()
     {
         // OllamaService with non-existent host - will fail availability check and use fallback
-        var ollama = new OllamaService(new Models.OllamaConfig
+        var ollama = new OllamaService(new OllamaConfig
         {
             BaseUrl = "http://localhost:59999",
             Model = "test"

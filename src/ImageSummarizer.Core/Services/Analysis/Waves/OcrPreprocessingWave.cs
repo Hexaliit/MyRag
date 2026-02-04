@@ -3,33 +3,24 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 using OpenCvSharp;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Preprocessing wave that runs before OCR to enhance image quality.
-/// Uses fast quality assessment to determine if preprocessing is needed,
-/// then applies adaptive enhancement (deskew, denoise, contrast correction).
-///
-/// Caches preprocessed images for downstream OCR waves to use.
+///     Preprocessing wave that runs before OCR to enhance image quality.
+///     Uses fast quality assessment to determine if preprocessing is needed,
+///     then applies adaptive enhancement (deskew, denoise, contrast correction).
+///     Caches preprocessed images for downstream OCR waves to use.
 /// </summary>
 public class OcrPreprocessingWave : IAnalysisWave
 {
     private readonly OcrPreprocessorConfig _config;
-    private readonly ModelDownloader? _modelDownloader;
-    private readonly ILogger<OcrPreprocessingWave>? _logger;
-    private OcrPreprocessor? _preprocessor;
-    private bool _initialized;
     private readonly object _initLock = new();
-
-    public string Name => "OcrPreprocessingWave";
-
-    /// <summary>
-    /// High priority - runs before other OCR waves (OcrWave is 60).
-    /// </summary>
-    public int Priority => 65;
-
-    public IReadOnlyList<string> Tags => ["preprocessing", "ocr", "quality"];
+    private readonly ILogger<OcrPreprocessingWave>? _logger;
+    private readonly ModelDownloader? _modelDownloader;
+    private bool _initialized;
+    private OcrPreprocessor? _preprocessor;
 
     public OcrPreprocessingWave(
         OcrPreprocessorConfig? config = null,
@@ -41,45 +32,17 @@ public class OcrPreprocessingWave : IAnalysisWave
         _logger = logger;
     }
 
+    public string Name => "OcrPreprocessingWave";
+
     /// <summary>
-    /// Ensures the preprocessor is initialized with model downloaded if needed.
+    ///     High priority - runs before other OCR waves (OcrWave is 60).
     /// </summary>
-    private async Task EnsureInitializedAsync(CancellationToken ct)
-    {
-        if (_initialized) return;
+    public int Priority => 65;
 
-        lock (_initLock)
-        {
-            if (_initialized) return;
-
-            // Download super-resolution model if enabled and not yet available
-            if (_config.EnableSuperResolution && _modelDownloader != null)
-            {
-                var modelPath = _modelDownloader.GetModelPathAsync(ModelType.RealESRGAN, ct)
-                    .GetAwaiter().GetResult();
-
-                if (!string.IsNullOrEmpty(modelPath))
-                {
-                    _config.SuperResolutionModelPath = modelPath;
-                    _logger?.LogInformation("Super-resolution model available at {Path}", modelPath);
-                }
-                else
-                {
-                    _logger?.LogWarning("Super-resolution model download failed, disabling feature");
-                    _config.EnableSuperResolution = false;
-                }
-            }
-
-            _preprocessor = new OcrPreprocessor(
-                _config,
-                _logger != null ? new LoggerAdapter<OcrPreprocessor>(_logger) : null);
-
-            _initialized = true;
-        }
-    }
+    public IReadOnlyList<string> Tags => ["preprocessing", "ocr", "quality"];
 
     /// <summary>
-    /// Check if preprocessing should run based on configuration and routing.
+    ///     Check if preprocessing should run based on configuration and routing.
     /// </summary>
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -191,7 +154,8 @@ public class OcrPreprocessingWave : IAnalysisWave
             }
 
             // Step 3: Run full preprocessing pipeline
-            _logger?.LogInformation("Running preprocessing on {Path}: Blur={Blur:F1}, Skew={Skew:F1}°, Noise={Noise:F1}",
+            _logger?.LogInformation(
+                "Running preprocessing on {Path}: Blur={Blur:F1}, Skew={Skew:F1}°, Noise={Noise:F1}",
                 imagePath, qualityReport.BlurScore, qualityReport.SkewAngle, qualityReport.NoiseLevel);
 
             var result = await Task.Run(() => _preprocessor!.Process(image), ct);
@@ -213,26 +177,21 @@ public class OcrPreprocessingWave : IAnalysisWave
                 }));
 
             if (result.SkewAngle != 0)
-            {
                 signals.Add(CreateSignal("preprocessing.deskew_angle", result.SkewAngle, 1.0,
                     new Dictionary<string, object>
                     {
                         ["corrected"] = true
                     }));
-            }
 
             if (result.OverCorrectionDetected)
-            {
                 signals.Add(CreateSignal("preprocessing.over_correction", true, 0.7,
                     new Dictionary<string, object>
                     {
                         ["warning"] = "Preprocessing may have degraded some text"
                     }));
-            }
 
             // Quality improvement metrics
             if (result.QualityAfter != null)
-            {
                 signals.Add(CreateSignal("preprocessing.improvement", new
                 {
                     BlurBefore = result.QualityBefore.BlurScore,
@@ -242,7 +201,6 @@ public class OcrPreprocessingWave : IAnalysisWave
                     NoiseBefore = result.QualityBefore.NoiseLevel,
                     NoiseAfter = result.QualityAfter.NoiseLevel
                 }, result.Confidence));
-            }
 
             // Step 4: Save preprocessed image to temp file for downstream waves
             var preprocessedPath = Path.Combine(
@@ -298,6 +256,43 @@ public class OcrPreprocessingWave : IAnalysisWave
         return signals;
     }
 
+    /// <summary>
+    ///     Ensures the preprocessor is initialized with model downloaded if needed.
+    /// </summary>
+    private async Task EnsureInitializedAsync(CancellationToken ct)
+    {
+        if (_initialized) return;
+
+        lock (_initLock)
+        {
+            if (_initialized) return;
+
+            // Download super-resolution model if enabled and not yet available
+            if (_config.EnableSuperResolution && _modelDownloader != null)
+            {
+                var modelPath = _modelDownloader.GetModelPathAsync(ModelType.RealESRGAN, ct)
+                    .GetAwaiter().GetResult();
+
+                if (!string.IsNullOrEmpty(modelPath))
+                {
+                    _config.SuperResolutionModelPath = modelPath;
+                    _logger?.LogInformation("Super-resolution model available at {Path}", modelPath);
+                }
+                else
+                {
+                    _logger?.LogWarning("Super-resolution model download failed, disabling feature");
+                    _config.EnableSuperResolution = false;
+                }
+            }
+
+            _preprocessor = new OcrPreprocessor(
+                _config,
+                _logger != null ? new LoggerAdapter<OcrPreprocessor>(_logger) : null);
+
+            _initialized = true;
+        }
+    }
+
     private Signal CreateSignal(string key, object value, double confidence,
         Dictionary<string, object>? metadata = null)
     {
@@ -313,21 +308,31 @@ public class OcrPreprocessingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Adapter to convert generic logger to typed logger.
+    ///     Adapter to convert generic logger to typed logger.
     /// </summary>
     private class LoggerAdapter<T> : ILogger<T>
     {
         private readonly ILogger _inner;
 
-        public LoggerAdapter(ILogger inner) => _inner = inner;
+        public LoggerAdapter(ILogger inner)
+        {
+            _inner = inner;
+        }
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
-            => _inner.BeginScope(state);
+        {
+            return _inner.BeginScope(state);
+        }
 
-        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => _inner.IsEnabled(logLevel);
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return _inner.IsEnabled(logLevel);
+        }
 
-        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, EventId eventId, TState state,
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
             Exception? exception, Func<TState, Exception?, string> formatter)
-            => _inner.Log(logLevel, eventId, state, exception, formatter);
+        {
+            _inner.Log(logLevel, eventId, state, exception, formatter);
+        }
     }
 }

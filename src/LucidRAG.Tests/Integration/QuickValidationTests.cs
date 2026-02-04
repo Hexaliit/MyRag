@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Net;
+using System.Text.Json;
 using FluentAssertions;
 using PuppeteerSharp;
 
@@ -7,25 +8,23 @@ namespace LucidRAG.Tests.Integration;
 /// <summary>
 ///     Quick validation test for the LucidRAG UI.
 ///     Tests Alpine.js initialization, explorer mode, and entity selection.
-///
 ///     Requires:
 ///     - LucidRAG app running on https://localhost:5020 (HTTPS)
 ///     - Authentication may be required for full ragApp functionality
-///
 ///     The test handles three scenarios:
 ///     1. Authenticated: Tests ragApp with entityGroups, selectedEntities, and entity selection
 ///     2. Public page: Tests publicApp functionality
 ///     3. Login page: Verifies login form is present
-///
-///     Run with: dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj --filter "FullyQualifiedName~QuickValidationTests" --no-build
+///     Run with: dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj --filter "FullyQualifiedName~QuickValidationTests"
+///     --no-build
 /// </summary>
 [Collection("Browser")]
 [Trait("Category", "Browser")]
 public class QuickValidationTests : IAsyncLifetime
 {
     private const string BaseUrl = "https://127.0.0.1:5020";
-    private readonly List<string> _consoleMessages = [];
     private readonly List<string> _consoleErrors = [];
+    private readonly List<string> _consoleMessages = [];
     private readonly List<string> _pageErrors = [];
     private IBrowser? _browser;
     private IPage? _page;
@@ -38,7 +37,8 @@ public class QuickValidationTests : IAsyncLifetime
         _browser = await Puppeteer.LaunchAsync(new LaunchOptions
         {
             Headless = true,
-            Args = [
+            Args =
+            [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
@@ -54,10 +54,7 @@ public class QuickValidationTests : IAsyncLifetime
         {
             var msg = $"[{e.Message.Type}] {e.Message.Text}";
             _consoleMessages.Add(msg);
-            if (e.Message.Type == ConsoleType.Error)
-            {
-                _consoleErrors.Add(msg);
-            }
+            if (e.Message.Type == ConsoleType.Error) _consoleErrors.Add(msg);
         };
         _page.Error += (_, e) => _pageErrors.Add($"[PageError] {e}");
     }
@@ -76,7 +73,6 @@ public class QuickValidationTests : IAsyncLifetime
     ///     4. entityGroups and selectedEntities availability
     ///     5. Entity selection via click (if entities exist)
     ///     6. No JS errors occurred
-    ///
     ///     Note: The ragApp component requires authentication.
     ///     Public pages use publicApp instead. Login pages verify form presence.
     /// </summary>
@@ -99,9 +95,9 @@ public class QuickValidationTests : IAsyncLifetime
         Console.WriteLine($"Response status: {response!.Status}");
 
         response.Status.Should().BeOneOf(
-            System.Net.HttpStatusCode.OK,
-            System.Net.HttpStatusCode.Found,
-            System.Net.HttpStatusCode.Redirect);
+            HttpStatusCode.OK,
+            HttpStatusCode.Found,
+            HttpStatusCode.Redirect);
 
         // Step 2: Wait for Alpine.js to initialize
         Console.WriteLine("Step 2: Waiting for Alpine.js to initialize...");
@@ -155,21 +151,13 @@ public class QuickValidationTests : IAsyncLifetime
         Console.WriteLine($"Current URL: {componentCheck.GetProperty("url").GetString()}");
 
         if (componentType == "ragApp" && componentFound)
-        {
             await TestRagAppComponent();
-        }
         else if (componentType == "publicApp" && componentFound)
-        {
             await TestPublicAppComponent();
-        }
         else if (componentType == "login")
-        {
             await TestLoginPage();
-        }
         else
-        {
             Console.WriteLine($"WARNING: Unknown page state. URL: {componentCheck.GetProperty("url").GetString()}");
-        }
 
         // Step Final: Check for JS errors
         Console.WriteLine("\nStep Final: Checking for JavaScript errors...");
@@ -187,10 +175,7 @@ public class QuickValidationTests : IAsyncLifetime
         if (criticalErrors.Any())
         {
             Console.WriteLine("Critical JavaScript errors found:");
-            foreach (var error in criticalErrors)
-            {
-                Console.WriteLine($"  - {error}");
-            }
+            foreach (var error in criticalErrors) Console.WriteLine($"  - {error}");
         }
         else
         {
@@ -434,11 +419,13 @@ public class QuickValidationTests : IAsyncLifetime
         Console.WriteLine($"Final state: {finalStateResult}");
 
         Console.WriteLine("\n=== VALIDATION SUMMARY (ragApp - Authenticated) ===");
-        Console.WriteLine($"ragApp found: OK");
+        Console.WriteLine("ragApp found: OK");
         if (!entityCheckResult.TryGetProperty("error", out _))
         {
-            Console.WriteLine($"entityGroups: {(entityCheckResult.GetProperty("hasEntityGroups").GetBoolean() ? "OK" : "FAIL")}");
-            Console.WriteLine($"selectedEntities: {(entityCheckResult.GetProperty("hasSelectedEntities").GetBoolean() ? "OK" : "FAIL")}");
+            Console.WriteLine(
+                $"entityGroups: {(entityCheckResult.GetProperty("hasEntityGroups").GetBoolean() ? "OK" : "FAIL")}");
+            Console.WriteLine(
+                $"selectedEntities: {(entityCheckResult.GetProperty("hasSelectedEntities").GetBoolean() ? "OK" : "FAIL")}");
         }
     }
 
@@ -501,8 +488,8 @@ public class QuickValidationTests : IAsyncLifetime
         }
 
         Console.WriteLine("\n=== VALIDATION SUMMARY (publicApp - Public Page) ===");
-        Console.WriteLine($"publicApp found: OK");
-        Console.WriteLine($"Alpine data initialized: OK");
+        Console.WriteLine("publicApp found: OK");
+        Console.WriteLine("Alpine data initialized: OK");
     }
 
     private async Task TestLoginPage()
@@ -528,16 +515,16 @@ public class QuickValidationTests : IAsyncLifetime
         Console.WriteLine($"Login page check: {loginPageCheck}");
 
         loginPageCheck.GetProperty("hasEmailInput").GetBoolean().Should().BeTrue("Login page should have email input");
-        loginPageCheck.GetProperty("hasPasswordInput").GetBoolean().Should().BeTrue("Login page should have password input");
-        loginPageCheck.GetProperty("hasSubmitButton").GetBoolean().Should().BeTrue("Login page should have submit button");
+        loginPageCheck.GetProperty("hasPasswordInput").GetBoolean().Should()
+            .BeTrue("Login page should have password input");
+        loginPageCheck.GetProperty("hasSubmitButton").GetBoolean().Should()
+            .BeTrue("Login page should have submit button");
 
         Console.WriteLine("\n=== VALIDATION SUMMARY (Login Page) ===");
-        Console.WriteLine($"Login page: OK");
-        Console.WriteLine($"Email input: OK");
-        Console.WriteLine($"Password input: OK");
-        Console.WriteLine($"Submit button: OK");
+        Console.WriteLine("Login page: OK");
+        Console.WriteLine("Email input: OK");
+        Console.WriteLine("Password input: OK");
+        Console.WriteLine("Submit button: OK");
         Console.WriteLine("NOTE: ragApp requires authentication");
     }
 }
-
-

@@ -21,42 +21,42 @@ public class DocumentEntity
     public string? Metadata { get; set; }
 
     /// <summary>
-    /// Source URL for crawled web pages. Null for uploaded files.
+    ///     Source URL for crawled web pages. Null for uploaded files.
     /// </summary>
     public string? SourceUrl { get; set; }
 
     /// <summary>
-    /// Source file path for imported files. Used for change detection on re-import.
-    /// Combined with CollectionId to form a unique identifier.
+    ///     Source file path for imported files. Used for change detection on re-import.
+    ///     Combined with CollectionId to form a unique identifier.
     /// </summary>
     public string? SourcePath { get; set; }
 
     /// <summary>
-    /// Original creation date of the source file (preserved from filesystem).
+    ///     Original creation date of the source file (preserved from filesystem).
     /// </summary>
     public DateTimeOffset? SourceCreatedAt { get; set; }
 
     /// <summary>
-    /// Last modified date of the source file at time of import.
-    /// Used for change detection.
+    ///     Last modified date of the source file at time of import.
+    ///     Used for change detection.
     /// </summary>
     public DateTimeOffset? SourceModifiedAt { get; set; }
 
     /// <summary>
-    /// Number of times this document has been updated/reimported.
+    ///     Number of times this document has been updated/reimported.
     /// </summary>
     public int Version { get; set; } = 1;
 
     /// <summary>
-    /// The document ID used in the vector store (stableDocId).
-    /// Format: {sanitized_filename}_{content_hash_from_canonicalized_markdown}
-    /// Set after processing completes.
+    ///     The document ID used in the vector store (stableDocId).
+    ///     Format: {sanitized_filename}_{content_hash_from_canonicalized_markdown}
+    ///     Set after processing completes.
     /// </summary>
     public string? VectorStoreDocId { get; set; }
 
     /// <summary>
-    /// Optional folder ID for organizing documents within a collection.
-    /// Null means the document is at the root of the collection.
+    ///     Optional folder ID for organizing documents within a collection.
+    ///     Null means the document is at the root of the collection.
     /// </summary>
     public Guid? FolderId { get; set; }
 

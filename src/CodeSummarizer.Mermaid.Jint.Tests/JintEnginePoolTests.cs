@@ -1,17 +1,17 @@
-using CodeSummarizer.Mermaid.Jint;
+using Jint;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeSummarizer.Mermaid.Jint.Tests;
 
 /// <summary>
-///     Tests for <see cref="JintEnginePool"/> — concurrent access, pool sizing, disposal.
+///     Tests for <see cref="JintEnginePool" /> — concurrent access, pool sizing, disposal.
 /// </summary>
 public class JintEnginePoolTests
 {
     [Fact]
     public void Rent_ReturnsWorkingEngine()
     {
-        using var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, maxPoolSize: 2);
+        using var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, 2);
 
         var engine = pool.Rent();
         engine.Should().NotBeNull();
@@ -26,9 +26,9 @@ public class JintEnginePoolTests
     [Fact]
     public void RentReturn_MultipleEngines_WorkConcurrently()
     {
-        using var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, maxPoolSize: 4);
+        using var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, 4);
 
-        var engines = new List<global::Jint.Engine>();
+        var engines = new List<Engine>();
         // Rent multiple engines
         for (var i = 0; i < 4; i++)
         {
@@ -45,7 +45,7 @@ public class JintEnginePoolTests
     [Fact]
     public void Dispose_PreventsRent()
     {
-        var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, maxPoolSize: 2);
+        var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, 2);
         pool.Dispose();
 
         var act = () => pool.Rent();
@@ -64,7 +64,7 @@ public class JintEnginePoolTests
     [Fact]
     public async Task ConcurrentAccess_DoesNotCorrupt()
     {
-        using var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, maxPoolSize: 4);
+        using var pool = new JintEnginePool(NullLogger<JintMermaidParser>.Instance, 4);
 
         var tasks = Enumerable.Range(0, 20).Select(_ => Task.Run(() =>
         {

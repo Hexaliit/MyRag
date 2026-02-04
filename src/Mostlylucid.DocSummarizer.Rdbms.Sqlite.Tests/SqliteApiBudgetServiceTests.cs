@@ -1,35 +1,34 @@
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
-using Mostlylucid.DocSummarizer.Rdbms.Sqlite;
 using Mostlylucid.DocSummarizer.Resilience;
 using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Rdbms.Sqlite.Tests;
 
 /// <summary>
-/// Simple test implementation of IServiceBudgetLookup that returns
-/// pre-configured ServiceBudgetInfo for known services.
+///     Simple test implementation of IServiceBudgetLookup that returns
+///     pre-configured ServiceBudgetInfo for known services.
 /// </summary>
 internal class TestBudgetLookup : IServiceBudgetLookup
 {
     private readonly Dictionary<string, ServiceBudgetInfo> _services = new(StringComparer.OrdinalIgnoreCase);
 
-    public void Register(string service, ServiceBudgetInfo info)
-    {
-        _services[service] = info;
-    }
-
     public ServiceBudgetInfo? GetServiceBudgetInfo(string service)
     {
         return _services.TryGetValue(service, out var info) ? info : null;
+    }
+
+    public void Register(string service, ServiceBudgetInfo info)
+    {
+        _services[service] = info;
     }
 }
 
 public class SqliteApiBudgetServiceTests : IAsyncLifetime
 {
     private readonly string _dbPath;
-    private readonly TestBudgetLookup _lookup;
     private readonly ApiBudgetConfig _globalConfig;
+    private readonly TestBudgetLookup _lookup;
     private SqliteApiBudgetService _sut;
 
     public SqliteApiBudgetServiceTests()
@@ -84,10 +83,7 @@ public class SqliteApiBudgetServiceTests : IAsyncLifetime
         });
 
         // Act - record 5 requests to hit the limit
-        for (var i = 0; i < 5; i++)
-        {
-            await _sut.RecordUsageAsync(service);
-        }
+        for (var i = 0; i < 5; i++) await _sut.RecordUsageAsync(service);
 
         var result = await _sut.CheckBudgetAsync(service);
 
@@ -105,15 +101,12 @@ public class SqliteApiBudgetServiceTests : IAsyncLifetime
         {
             Enabled = true,
             MaxRequestsPerDay = 100, // high daily limit so it does not trip first
-            MaxRequests = 3,         // lifetime cap
+            MaxRequests = 3, // lifetime cap
             CostPerRequest = 0.001
         });
 
         // Act - record 3 requests to hit lifetime cap
-        for (var i = 0; i < 3; i++)
-        {
-            await _sut.RecordUsageAsync(service);
-        }
+        for (var i = 0; i < 3; i++) await _sut.RecordUsageAsync(service);
 
         var result = await _sut.CheckBudgetAsync(service);
 
@@ -170,10 +163,7 @@ public class SqliteApiBudgetServiceTests : IAsyncLifetime
         var service = "global-limited-api";
 
         // Act - record enough to exceed global limit
-        for (var i = 0; i < 3; i++)
-        {
-            await _sut.RecordUsageAsync(service);
-        }
+        for (var i = 0; i < 3; i++) await _sut.RecordUsageAsync(service);
 
         var result = await _sut.CheckBudgetAsync(service);
 

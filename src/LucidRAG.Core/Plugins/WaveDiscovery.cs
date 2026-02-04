@@ -1,15 +1,14 @@
 using System.Reflection;
 using LucidRAG.Manifests;
 using Mostlylucid.Summarizer.Core.Analysis;
-using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
 namespace LucidRAG.Plugins;
 
 /// <summary>
-/// Discovers IWave implementations and embedded wave manifests from assemblies.
-/// Used during plugin registration to find all waves contributed by a plugin.
+///     Discovers IWave implementations and embedded wave manifests from assemblies.
+///     Used during plugin registration to find all waves contributed by a plugin.
 /// </summary>
 public static class WaveDiscovery
 {
@@ -19,8 +18,8 @@ public static class WaveDiscovery
         .Build();
 
     /// <summary>
-    /// Scan an assembly for all types implementing IWave.
-    /// Returns the types (not instances — use DI to resolve them).
+    ///     Scan an assembly for all types implementing IWave.
+    ///     Returns the types (not instances — use DI to resolve them).
     /// </summary>
     public static IReadOnlyList<Type> ScanForWaveTypes(Assembly assembly)
     {
@@ -31,7 +30,7 @@ public static class WaveDiscovery
     }
 
     /// <summary>
-    /// Load embedded *.wave.yaml manifests from an assembly.
+    ///     Load embedded *.wave.yaml manifests from an assembly.
     /// </summary>
     public static IReadOnlyList<WaveManifest> LoadEmbeddedManifests(
         Assembly assembly,
@@ -42,7 +41,6 @@ public static class WaveDiscovery
             .Where(n => n.EndsWith(".wave.yaml", StringComparison.OrdinalIgnoreCase));
 
         foreach (var resourceName in resourceNames)
-        {
             try
             {
                 using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -66,14 +64,13 @@ public static class WaveDiscovery
             {
                 logger?.LogError(ex, "Failed to load wave manifest from {Resource}", resourceName);
             }
-        }
 
         return manifests;
     }
 
     /// <summary>
-    /// Load embedded *.prompt.yaml resources from an assembly.
-    /// Returns raw YAML strings keyed by name.
+    ///     Load embedded *.prompt.yaml resources from an assembly.
+    ///     Returns raw YAML strings keyed by name.
     /// </summary>
     public static IReadOnlyDictionary<string, string> LoadEmbeddedPrompts(Assembly assembly)
     {
@@ -95,8 +92,8 @@ public static class WaveDiscovery
     }
 
     /// <summary>
-    /// Load embedded *.lens.yaml resources from an assembly.
-    /// Returns raw YAML strings keyed by name.
+    ///     Load embedded *.lens.yaml resources from an assembly.
+    ///     Returns raw YAML strings keyed by name.
     /// </summary>
     public static IReadOnlyDictionary<string, string> LoadEmbeddedLenses(Assembly assembly)
     {

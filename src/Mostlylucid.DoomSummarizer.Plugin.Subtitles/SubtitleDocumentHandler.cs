@@ -6,20 +6,11 @@ using SubtitlesParserV2;
 namespace DoomSummarizer.Plugins.Subtitles;
 
 /// <summary>
-/// Document handler for subtitle files (SRT, VTT, ASS, SSA).
-/// Converts subtitle content to chapter-aware markdown for ingestion.
+///     Document handler for subtitle files (SRT, VTT, ASS, SSA).
+///     Converts subtitle content to chapter-aware markdown for ingestion.
 /// </summary>
 public sealed partial class SubtitleDocumentHandler : IDocumentHandler
 {
-    [GeneratedRegex(@"<[^>]+>")]
-    private static partial Regex HtmlTagRegex();
-
-    [GeneratedRegex(@"\s*(align|position|size|line|vertical):[\w%+\-.,]+")]
-    private static partial Regex VttCueSettingsRegex();
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
-
     public IReadOnlyList<string> SupportedExtensions { get; } = [".srt", ".vtt", ".ass", ".ssa"];
     public int Priority => 10;
     public string HandlerName => "Subtitles";
@@ -34,14 +25,12 @@ public sealed partial class SubtitleDocumentHandler : IDocumentHandler
     {
         var entries = await ParseSubtitleFileAsync(filePath, options.CancellationToken);
         if (entries.Count == 0)
-        {
             return new DocumentContent
             {
                 Markdown = "",
                 Title = Path.GetFileNameWithoutExtension(filePath),
                 ContentType = "subtitles"
             };
-        }
 
         var chapters = ChapterDetector.DetectChapters(entries);
         var markdown = BuildMarkdown(entries, chapters, Path.GetFileNameWithoutExtension(filePath));
@@ -63,6 +52,15 @@ public sealed partial class SubtitleDocumentHandler : IDocumentHandler
             Metadata = metadata
         };
     }
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s*(align|position|size|line|vertical):[\w%+\-.,]+")]
+    private static partial Regex VttCueSettingsRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 
     private static async Task<List<SubtitleEntry>> ParseSubtitleFileAsync(
         string filePath, CancellationToken ct)
@@ -98,12 +96,10 @@ public sealed partial class SubtitleDocumentHandler : IDocumentHandler
 
             var text = CleanSubtitleText(lineJoinBuffer.ToString());
             if (!string.IsNullOrWhiteSpace(text))
-            {
                 entries.Add(new SubtitleEntry(
                     TimeSpan.FromMilliseconds(item.StartTime),
                     TimeSpan.FromMilliseconds(item.EndTime),
                     text));
-            }
         }
 
         return entries;
@@ -131,11 +127,8 @@ public sealed partial class SubtitleDocumentHandler : IDocumentHandler
         sb.AppendLine();
 
         if (chapters.Count <= 1)
-        {
             WriteEntriesAsText(sb, entries, 0, entries.Count);
-        }
         else
-        {
             for (var c = 0; c < chapters.Count; c++)
             {
                 var chapter = chapters[c];
@@ -147,7 +140,6 @@ public sealed partial class SubtitleDocumentHandler : IDocumentHandler
                 WriteEntriesAsText(sb, entries, chapter.StartIndex, nextStart);
                 sb.AppendLine();
             }
-        }
 
         // TrimEnd without allocating a new string when possible
         var result = sb.ToString();
@@ -166,7 +158,7 @@ public sealed partial class SubtitleDocumentHandler : IDocumentHandler
 
             // Insert paragraph break on small gaps (> 2 seconds) for readability
             if (lastEnd.HasValue && (entry.StartTime - lastEnd.Value).TotalSeconds > 2.0
-                && paragraph.Length > 0)
+                                 && paragraph.Length > 0)
             {
                 // Trim trailing space from paragraph before appending
                 while (paragraph.Length > 0 && paragraph[^1] == ' ')

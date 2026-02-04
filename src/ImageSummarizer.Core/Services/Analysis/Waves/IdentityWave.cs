@@ -1,13 +1,13 @@
+using System.Security.Cryptography;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using SixLabors.ImageSharp;
-using System.Security.Cryptography;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Basic image identity wave - extracts format, dimensions, file size, etc.
-/// Highest priority wave that provides fundamental image properties.
-/// Uses streaming to avoid loading full image into memory where possible.
+///     Basic image identity wave - extracts format, dimensions, file size, etc.
+///     Highest priority wave that provides fundamental image properties.
+///     Uses streaming to avoid loading full image into memory where possible.
 /// </summary>
 public class IdentityWave : IAnalysisWave
 {
@@ -38,10 +38,7 @@ public class IdentityWave : IAnalysisWave
         await using var stream = File.OpenRead(imagePath);
         var imageInfo = await Image.IdentifyAsync(stream, ct);
 
-        if (imageInfo == null)
-        {
-            throw new InvalidOperationException($"Could not identify image: {imagePath}");
-        }
+        if (imageInfo == null) throw new InvalidOperationException($"Could not identify image: {imagePath}");
 
         // Format
         var format = imageInfo.Metadata.DecodedImageFormat?.Name ?? "Unknown";

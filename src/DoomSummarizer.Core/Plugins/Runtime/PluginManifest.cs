@@ -4,16 +4,12 @@ using System.Text.Json.Serialization;
 namespace DoomSummarizer.Plugins.Runtime;
 
 /// <summary>
-/// Persisted manifest tracking installed plugins.
-/// Stored at <c>~/.doomsummarizer/plugins/manifest.json</c>.
+///     Persisted manifest tracking installed plugins.
+///     Stored at <c>~/.doomsummarizer/plugins/manifest.json</c>.
 /// </summary>
 public sealed class PluginManifest
 {
-    private static readonly string ManifestDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".doomsummarizer", "plugins");
-
-    private static readonly string ManifestPath = Path.Combine(ManifestDir, "manifest.json");
+    private static readonly string ManifestPath = Path.Combine(PluginsDirectory, "manifest.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -22,12 +18,9 @@ public sealed class PluginManifest
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    /// <summary>Installed plugin entries.</summary>
-    public List<PluginEntry> Plugins { get; set; } = [];
-
     /// <summary>
-    /// Well-known shorthand names that map to NuGet package IDs.
-    /// Users can type <c>plugin install source-imap</c> instead of the full package ID.
+    ///     Well-known shorthand names that map to NuGet package IDs.
+    ///     Users can type <c>plugin install source-imap</c> instead of the full package ID.
     /// </summary>
     public static readonly Dictionary<string, string> KnownShorthands = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -53,15 +46,25 @@ public sealed class PluginManifest
         ["plugin-image"] = "Mostlylucid.LucidRAG.Plugins.Image",
         ["plugin-audio"] = "Mostlylucid.LucidRAG.Plugins.Audio",
         ["plugin-data"] = "Mostlylucid.LucidRAG.Plugins.Data",
-        ["plugins-complete"] = "Mostlylucid.LucidRAG.Plugins.Complete",
+        ["plugins-complete"] = "Mostlylucid.LucidRAG.Plugins.Complete"
     };
 
+    /// <summary>Installed plugin entries.</summary>
+    public List<PluginEntry> Plugins { get; set; } = [];
+
+    /// <summary>Get the base plugins directory.</summary>
+    public static string PluginsDirectory { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".doomsummarizer", "plugins");
+
     /// <summary>
-    /// Resolve a package identifier: if it's a known shorthand, expand to the full NuGet package ID.
-    /// Otherwise, treat as an arbitrary NuGet package ID.
+    ///     Resolve a package identifier: if it's a known shorthand, expand to the full NuGet package ID.
+    ///     Otherwise, treat as an arbitrary NuGet package ID.
     /// </summary>
     public static string ResolvePackageId(string input)
-        => KnownShorthands.TryGetValue(input, out var packageId) ? packageId : input;
+    {
+        return KnownShorthands.TryGetValue(input, out var packageId) ? packageId : input;
+    }
 
     /// <summary>Load manifest from disk (or create empty).</summary>
     public static PluginManifest Load()
@@ -76,25 +79,26 @@ public sealed class PluginManifest
     /// <summary>Save manifest to disk.</summary>
     public void Save()
     {
-        Directory.CreateDirectory(ManifestDir);
+        Directory.CreateDirectory(PluginsDirectory);
         var json = JsonSerializer.Serialize(this, JsonOptions);
         File.WriteAllText(ManifestPath, json);
     }
 
     /// <summary>Find an installed plugin by package ID.</summary>
     public PluginEntry? Find(string packageId)
-        => Plugins.FirstOrDefault(p => p.PackageId.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+    {
+        return Plugins.FirstOrDefault(p => p.PackageId.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>Get the install directory for a plugin version.</summary>
     public static string GetPluginDir(string packageId, string version)
-        => Path.Combine(ManifestDir, packageId, version);
-
-    /// <summary>Get the base plugins directory.</summary>
-    public static string PluginsDirectory => ManifestDir;
+    {
+        return Path.Combine(PluginsDirectory, packageId, version);
+    }
 }
 
 /// <summary>
-/// A single installed plugin entry.
+///     A single installed plugin entry.
 /// </summary>
 public sealed class PluginEntry
 {

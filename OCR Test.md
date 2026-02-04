@@ -1,16 +1,17 @@
 # OCR Benchmark Results
 
 ## Image: example-of-scanned-paper-document-1815277868.png
+
 **Date:** 2026-01-13 21:54:25 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| Florence2 | 11392 | 2231 | 324 | 88% | ★ |
-| Tesseract | 0 | 2632 | 426 | 86% |  |
-| AdvancedOCR | - | - | - | N/A |  |
-| Nanonets | - | - | - | N/A |  |
-| OlmOCR-2 | - | - | - | N/A |  |
-| VisionLLM | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| Florence2   | 11392     | 2231  | 324   | 88%      | ★      |
+| Tesseract   | 0         | 2632  | 426   | 86%      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
+| Nanonets    | -         | -     | -     | N/A      |        |
+| OlmOCR-2    | -         | -     | -     | N/A      |        |
+| VisionLLM   | -         | -     | -     | N/A      |        |
 
 **Winner:** Florence2 (88% accuracy)
 
@@ -84,17 +85,18 @@ finarees and secounts with the Company's officers, senior management and account
 ---
 
 ## Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg
+
 **Date:** 2026-01-15 02:00:57 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| Nanonets | 0 | 853 | 132 | 98% | ★ |
-| Tesseract | 0 | 125 | 16 | 53% |  |
-| Florence2 | 8833 | 1134 | 124 | 48% |  |
-| OlmOCR-2 | 0 | 1725 | 227 | 48% |  |
-| AdvancedOCR | - | - | - | N/A |  |
-| DeepSeek | - | - | - | N/A |  |
-| VisionLLM | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| Nanonets    | 0         | 853   | 132   | 98%      | ★      |
+| Tesseract   | 0         | 125   | 16    | 53%      |        |
+| Florence2   | 8833      | 1134  | 124   | 48%      |        |
+| OlmOCR-2    | 0         | 1725  | 227   | 48%      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
+| DeepSeek    | -         | -     | -     | N/A      |        |
+| VisionLLM   | -         | -     | -     | N/A      |        |
 
 **Winner:** Nanonets (98% accuracy)
 
@@ -179,17 +181,18 @@ SCS AgencyINVOICELong Road Soth Form College.Cabrbridge.C82 BXMain Director: 079
 ---
 
 ## Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg
+
 **Date:** 2026-01-15 02:26:42 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| DeepSeek | 22260 | 1552 | 269 | 66% | ★ |
-| Tesseract | 0 | 125 | 16 | 53% |  |
-| Florence2 | 10320 | 1134 | 124 | 48% |  |
-| OlmOCR-2 | 0 | 1725 | 227 | 48% |  |
-| AdvancedOCR | - | - | - | N/A |  |
-| Nanonets | - | - | - | N/A |  |
-| VisionLLM | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| DeepSeek    | 22260     | 1552  | 269   | 66%      | ★      |
+| Tesseract   | 0         | 125   | 16    | 53%      |        |
+| Florence2   | 10320     | 1134  | 124   | 48%      |        |
+| OlmOCR-2    | 0         | 1725  | 227   | 48%      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
+| Nanonets    | -         | -     | -     | N/A      |        |
+| VisionLLM   | -         | -     | -     | N/A      |        |
 
 **Winner:** DeepSeek (66% accuracy)
 
@@ -279,17 +282,18 @@ SCS AgencyINVOICELong Road Soth Form College.Cabrbridge.C82 BXMain Director: 079
 ---
 
 ## Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg
+
 **Date:** 2026-01-15 09:15:08 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| VisionLLM | 0 | 959 | 161 | 73% | ★ |
-| DeepSeek | 18679 | 1552 | 269 | 66% |  |
-| Tesseract | 0 | 125 | 16 | 53% |  |
-| Florence2 | 9890 | 1134 | 124 | 48% |  |
-| OlmOCR-2 | 0 | 1725 | 227 | 48% |  |
-| AdvancedOCR | - | - | - | N/A |  |
-| Nanonets | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| VisionLLM   | 0         | 959   | 161   | 73%      | ★      |
+| DeepSeek    | 18679     | 1552  | 269   | 66%      |        |
+| Tesseract   | 0         | 125   | 16    | 53%      |        |
+| Florence2   | 9890      | 1134  | 124   | 48%      |        |
+| OlmOCR-2    | 0         | 1725  | 227   | 48%      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
+| Nanonets    | -         | -     | -     | N/A      |        |
 
 **Winner:** VisionLLM (73% accuracy)
 
@@ -406,17 +410,18 @@ SCS AgencyINVOICELong Road Soth Form College.Cabrbridge.C82 BXMain Director: 079
 ---
 
 ## Image: guide-to-extracting-data-from-handwritten-forms-handwritting-ocr-header-1536x773.png.webp
+
 **Date:** 2026-01-15 09:55:16 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| VisionLLM | 0 | 1003 | 166 | 85% | ★ |
-| Tesseract | 0 | 53 | 13 | 36% |  |
-| Florence2 | 7933 | 673 | 63 | 36% |  |
-| AdvancedOCR | - | - | - | N/A |  |
-| Nanonets | - | - | - | N/A |  |
-| DeepSeek | 32735 | 6143 | 1 | 0% |  |
-| OlmOCR-2 | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| VisionLLM   | 0         | 1003  | 166   | 85%      | ★      |
+| Tesseract   | 0         | 53    | 13    | 36%      |        |
+| Florence2   | 7933      | 673   | 63    | 36%      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
+| Nanonets    | -         | -     | -     | N/A      |        |
+| DeepSeek    | 32735     | 6143  | 1     | 0%       |        |
+| OlmOCR-2    | -         | -     | -     | N/A      |        |
 
 **Winner:** VisionLLM (85% accuracy)
 
@@ -438,6 +443,7 @@ On the left:
 - Page number at bottom right corner: "Page 8"
 On the right, there is a text snippet titled:
 ```
+
 {
 "name": "james halloway",
 "customer_details": {
@@ -448,6 +454,7 @@ On the right, there is a text snippet titled:
 ...
 }
 (Note: The text snippet is part of a JSON file and continues beyond what's shown here.)
+
 ```
 
 </details>
@@ -456,9 +463,11 @@ On the right, there is a text snippet titled:
 <summary>Tesseract Output (36%)</summary>
 
 ```
+
 in a opr fen prtesey Of fa wy 20:
 
 amet tener eee ban
+
 ```
 
 </details>
@@ -467,7 +476,14 @@ amet tener eee ban
 <summary>Florence2 Output (36%)</summary>
 
 ```
-Form. Number: CA75 002incomeTax. jason-5000-E1Aetet of Fertert of Difecion (Fertert) Fertrut of Dafecion of DIFecion Of Difocion (Pertertal)23Name: : James Halloway;customer details; {C#C#c#customer: no: 342 2342 2322;4"C#darch name: #Browsville",7"Darch name : 23345 43"6Annual Rehous Plan:8"Statement : {C #C#D#C #D#c #C #c#C*previous balance" "522",9"C #CC#c*c#current_c#545"10"C*c*C#5456"11"C"transactions : {€15"C:P. Park, Sirete, A.S.A.S,C#1.5"C.E.E1.E3.E4.E5.E6.E11.E12"C$5.A*C*C:S4"15"Som"Sams"SOM"Sew"Sum"SUM"Someware purchase: $5"S10",16"amazon purchase:$5"$732.40017"ATM withdraw" $540"18"Dates: €: €19"Date: € €: 25/02/2024",20"D"bill, generated : : 12/01/2044"
+
+Form. Number: CA75 002incomeTax. jason-5000-E1Aetet of Fertert of Difecion (Fertert) Fertrut of Dafecion of DIFecion Of
+Difocion (Pertertal)23Name: : James Halloway;customer details; {C#C#c#customer: no: 342 2342 2322;4"C#darch name:
+#Browsville",7"Darch name : 23345 43"6Annual Rehous Plan:8"Statement : {C #C#D#C #D#c #C #c#C*previous balance" "522",9"
+C #CC#c*c#current_c#545"10"C*c*C#5456"11"C"transactions : {€15"C:P. Park, Sirete, A.S.A.S,C#1.5"
+C.E.E1.E3.E4.E5.E6.E11.E12"C$5.A*C*C:S4"15"Som"Sams"SOM"Sew"Sum"SUM"Someware purchase: $5"S10",16"amazon purchase:$5"$
+732.40017"ATM withdraw" $540"18"Dates: €: €19"Date: € €: 25/02/2024",20"D"bill, generated : : 12/01/2044"
+
 ```
 
 </details>
@@ -476,7 +492,9 @@ Form. Number: CA75 002incomeTax. jason-5000-E1Aetet of Fertert of Difecion (Fert
 <summary>DeepSeek Output (0%)</summary>
 
 ```
+
 }}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}]}}
+
 ```
 
 </details>
@@ -502,9 +520,11 @@ Form. Number: CA75 002incomeTax. jason-5000-E1Aetet of Fertert of Difecion (Fert
 <summary>Tesseract Output (36%) ★ Winner</summary>
 
 ```
+
 in a opr fen prtesey Of fa wy 20:
 
 amet tener eee ban
+
 ```
 
 </details>
@@ -513,7 +533,14 @@ amet tener eee ban
 <summary>Florence2 Output (36%)</summary>
 
 ```
-Form. Number: CA75 002incomeTax. jason-5000-E1Aetet of Fertert of Difecion (Fertert) Fertrut of Dafecion of DIFecion Of Difocion (Pertertal)23Name: : James Halloway;customer details; {C#C#c#customer: no: 342 2342 2322;4"C#darch name: #Browsville",7"Darch name : 23345 43"6Annual Rehous Plan:8"Statement : {C #C#D#C #D#c #C #c#C*previous balance" "522",9"C #CC#c*c#current_c#545"10"C*c*C#5456"11"C"transactions : {€15"C:P. Park, Sirete, A.S.A.S,C#1.5"C.E.E1.E3.E4.E5.E6.E11.E12"C$5.A*C*C:S4"15"Som"Sams"SOM"Sew"Sum"SUM"Someware purchase: $5"S10",16"amazon purchase:$5"$732.40017"ATM withdraw" $540"18"Dates: €: €19"Date: € €: 25/02/2024",20"D"bill, generated : : 12/01/2044"
+
+Form. Number: CA75 002incomeTax. jason-5000-E1Aetet of Fertert of Difecion (Fertert) Fertrut of Dafecion of DIFecion Of
+Difocion (Pertertal)23Name: : James Halloway;customer details; {C#C#c#customer: no: 342 2342 2322;4"C#darch name:
+#Browsville",7"Darch name : 23345 43"6Annual Rehous Plan:8"Statement : {C #C#D#C #D#c #C #c#C*previous balance" "522",9"
+C #CC#c*c#current_c#545"10"C*c*C#5456"11"C"transactions : {€15"C:P. Park, Sirete, A.S.A.S,C#1.5"
+C.E.E1.E3.E4.E5.E6.E11.E12"C$5.A*C*C:S4"15"Som"Sams"SOM"Sew"Sum"SUM"Someware purchase: $5"S10",16"amazon purchase:$5"$
+732.40017"ATM withdraw" $540"18"Dates: €: €19"Date: € €: 25/02/2024",20"D"bill, generated : : 12/01/2044"
+
 ```
 
 </details>
@@ -522,6 +549,7 @@ Form. Number: CA75 002incomeTax. jason-5000-E1Aetet of Fertert of Difecion (Fert
 <summary>VisionLLM Output (33%)</summary>
 
 ```
+
 <doc>     "name":    halloway",
 details":   2340" customer_no":
 credit": $3456 current_reduits": </doc>
@@ -543,17 +571,18 @@ incomeTax.json <|ref|>text<|/ref|><|det|>[[564, 165, 858, 905]]<|/det|>
 ---
 
 ## Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg
+
 **Date:** 2026-01-15 10:27:00 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| OlmOCR-2 | 0 | 197 | 21 | 93% | ★ |
-| VisionLLM | 0 | 1992 | 279 | 78% |  |
-| DeepSeek | 8333 | 1686 | 296 | 68% |  |
-| Tesseract | 0 | 125 | 16 | 53% |  |
-| Florence2 | 8631 | 1134 | 124 | 48% |  |
-| Nanonets | 0 | 2191 | 266 | 34% |  |
-| AdvancedOCR | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| OlmOCR-2    | 0         | 197   | 21    | 93%      | ★      |
+| VisionLLM   | 0         | 1992  | 279   | 78%      |        |
+| DeepSeek    | 8333      | 1686  | 296   | 68%      |        |
+| Tesseract   | 0         | 125   | 16    | 53%      |        |
+| Florence2   | 8631      | 1134  | 124   | 48%      |        |
+| Nanonets    | 0         | 2191  | 266   | 34%      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
 
 **Winner:** OlmOCR-2 (93% accuracy)
 
@@ -780,17 +809,18 @@ Authorized Signatures Thank You for Your Business!
 ---
 
 ## Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg
+
 **Date:** 2026-01-15 10:43:18 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| DeepSeek | 8252 | 1686 | 296 | 96% | ★ |
-| Nanonets | 0 | 2191 | 266 | 89% |  |
-| VisionLLM | 0 | 2027 | 214 | 83% |  |
-| Florence2 | 8942 | 1134 | 124 | 37% |  |
-| Tesseract | 0 | 125 | 16 | 13% |  |
-| OlmOCR-2 | 0 | 96 | 18 | 1% |  |
-| AdvancedOCR | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| DeepSeek    | 8252      | 1686  | 296   | 96%      | ★      |
+| Nanonets    | 0         | 2191  | 266   | 89%      |        |
+| VisionLLM   | 0         | 2027  | 214   | 83%      |        |
+| Florence2   | 8942      | 1134  | 124   | 37%      |        |
+| Tesseract   | 0         | 125   | 16    | 13%      |        |
+| OlmOCR-2    | 0         | 96    | 18    | 1%       |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
 
 **Winner:** DeepSeek (96% accuracy)
 
@@ -1009,17 +1039,18 @@ p错 pso ‘99999p 91;999 pmlp叮嘱高清, it is 9p: 9 pism p愈 puroam 9 Samp
 ---
 
 ## Image: eqt8laxg2bdg1.png
+
 **Date:** 2026-01-15 11:11:13 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| Nanonets | 0 | 720 | 71 | 51% | ★ |
-| DeepSeek | 9032 | 328 | 152 | 16% |  |
-| VisionLLM | 0 | 405 | 55 | 12% |  |
-| Florence2 | 2840 | 58 | 9 | 8% |  |
-| Tesseract | - | - | - | N/A |  |
-| AdvancedOCR | - | - | - | N/A |  |
-| OlmOCR-2 | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| Nanonets    | 0         | 720   | 71    | 51%      | ★      |
+| DeepSeek    | 9032      | 328   | 152   | 16%      |        |
+| VisionLLM   | 0         | 405   | 55    | 12%      |        |
+| Florence2   | 2840      | 58    | 9     | 8%       |        |
+| Tesseract   | -         | -     | -     | N/A      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
+| OlmOCR-2    | -         | -     | -     | N/A      |        |
 
 **Winner:** Nanonets (51% accuracy)
 
@@ -1076,17 +1107,18 @@ Ao33S20 3/1 315 34 1/610Ao37Ao32-002-28102 1os L12 1B 1/4S
 ---
 
 ## Image: example-of-scanned-paper-document-1815277868.png
+
 **Date:** 2026-01-15 11:39:43 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| DeepSeek | 50411 | 2393 | 381 | 100% | ★ |
-| Nanonets | 0 | 2546 | 413 | 92% |  |
-| Tesseract | 0 | 2632 | 426 | 76% |  |
-| Florence2 | 37815 | 2231 | 324 | 76% |  |
-| OlmOCR-2 | 0 | 7747 | 2069 | 24% |  |
-| VisionLLM | 0 | 61 | 6 | 1% |  |
-| AdvancedOCR | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| DeepSeek    | 50411     | 2393  | 381   | 100%     | ★      |
+| Nanonets    | 0         | 2546  | 413   | 92%      |        |
+| Tesseract   | 0         | 2632  | 426   | 76%      |        |
+| Florence2   | 37815     | 2231  | 324   | 76%      |        |
+| OlmOCR-2    | 0         | 7747  | 2069  | 24%      |        |
+| VisionLLM   | 0         | 61    | 6     | 1%       |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
 
 **Winner:** DeepSeek (100% accuracy)
 
@@ -1199,17 +1231,18 @@ Investors) shown </doc>
 ---
 
 ## Image: Tutorial-HolePunch-01.jpg
+
 **Date:** 2026-01-15 11:39:43 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| DeepSeek | 14789 | 4354 | 709 | 100% | ★ |
-| Nanonets | 0 | 4178 | 674 | 97% |  |
-| VisionLLM | 0 | 2204 | 364 | 66% |  |
-| Florence2 | 19689 | 2438 | 405 | 52% |  |
-| Tesseract | 0 | 119 | 21 | 5% |  |
-| OlmOCR-2 | 0 | 111 | 21 | 4% |  |
-| AdvancedOCR | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| DeepSeek    | 14789     | 4354  | 709   | 100%     | ★      |
+| Nanonets    | 0         | 4178  | 674   | 97%      |        |
+| VisionLLM   | 0         | 2204  | 364   | 66%      |        |
+| Florence2   | 19689     | 2438  | 405   | 52%      |        |
+| Tesseract   | 0         | 119   | 21    | 5%       |        |
+| OlmOCR-2    | 0         | 111   | 21    | 4%       |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
 
 **Winner:** DeepSeek (100% accuracy)
 
@@ -1290,17 +1323,18 @@ reign-reading-program r k
 ---
 
 ## Image: 1660126674-2617528568
+
 **Date:** 2026-01-15 11:39:44 UTC
 
-| System | Time (ms) | Chars | Words | Accuracy | Winner |
-|--------|-----------|-------|-------|----------|--------|
-| VisionLLM | 0 | 368 | 65 | 95% | ★ |
-| Nanonets | 0 | 3007 | 611 | 92% |  |
-| Tesseract | 0 | 442 | 90 | 82% |  |
-| Florence2 | 43358 | 1851 | 330 | 76% |  |
-| OlmOCR-2 | 0 | 3158 | 802 | 14% |  |
-| AdvancedOCR | - | - | - | N/A |  |
-| DeepSeek | - | - | - | N/A |  |
+| System      | Time (ms) | Chars | Words | Accuracy | Winner |
+|-------------|-----------|-------|-------|----------|--------|
+| VisionLLM   | 0         | 368   | 65    | 95%      | ★      |
+| Nanonets    | 0         | 3007  | 611   | 92%      |        |
+| Tesseract   | 0         | 442   | 90    | 82%      |        |
+| Florence2   | 43358     | 1851  | 330   | 76%      |        |
+| OlmOCR-2    | 0         | 3158  | 802   | 14%      |        |
+| AdvancedOCR | -         | -     | -     | N/A      |        |
+| DeepSeek    | -         | -     | -     | N/A      |        |
 
 **Winner:** VisionLLM (95% accuracy)
 

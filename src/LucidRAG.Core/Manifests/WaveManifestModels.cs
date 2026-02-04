@@ -3,629 +3,617 @@ using YamlDotNet.Serialization;
 namespace LucidRAG.Manifests;
 
 /// <summary>
-/// YAML manifest for a wave (RAG pipeline stage).
-/// Waves are retrieval/analysis components that can be chained together.
-/// Follows StyloFlow manifest pattern.
+///     YAML manifest for a wave (RAG pipeline stage).
+///     Waves are retrieval/analysis components that can be chained together.
+///     Follows StyloFlow manifest pattern.
 /// </summary>
 public sealed class WaveManifest
 {
     /// <summary>
-    /// Unique wave identifier (e.g., "dense_retrieval", "bm25_search", "entity_extraction")
+    ///     Unique wave identifier (e.g., "dense_retrieval", "bm25_search", "entity_extraction")
     /// </summary>
     [YamlMember(Alias = "name")]
     public string Name { get; set; } = "";
 
     /// <summary>
-    /// Wave kind: source, analysis, destination, ui.
-    /// Sources emit content.* signals; destinations consume output.* signals;
-    /// analysis waves process content; UI waves contribute visual components.
+    ///     Wave kind: source, analysis, destination, ui.
+    ///     Sources emit content.* signals; destinations consume output.* signals;
+    ///     analysis waves process content; UI waves contribute visual components.
     /// </summary>
     [YamlMember(Alias = "kind")]
     public string Kind { get; set; } = "analysis";
 
     /// <summary>
-    /// Display name for UI
+    ///     Display name for UI
     /// </summary>
     [YamlMember(Alias = "display_name")]
     public string DisplayName { get; set; } = "";
 
     /// <summary>
-    /// Wave description
+    ///     Wave description
     /// </summary>
     [YamlMember(Alias = "description")]
     public string Description { get; set; } = "";
 
     /// <summary>
-    /// Semantic version
+    ///     Semantic version
     /// </summary>
     [YamlMember(Alias = "version")]
     public string Version { get; set; } = "1.0.0";
 
     /// <summary>
-    /// Priority for execution ordering (higher runs first)
+    ///     Priority for execution ordering (higher runs first)
     /// </summary>
     [YamlMember(Alias = "priority")]
     public int Priority { get; set; } = 0;
 
     /// <summary>
-    /// Whether this wave is enabled
+    ///     Whether this wave is enabled
     /// </summary>
     [YamlMember(Alias = "enabled")]
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Content domain: web, document, image, audio, video, data, or "any".
-    /// Coordinator skips waves that don't match the document's domain.
+    ///     Content domain: web, document, image, audio, video, data, or "any".
+    ///     Coordinator skips waves that don't match the document's domain.
     /// </summary>
     [YamlMember(Alias = "domain")]
     public string Domain { get; set; } = "any";
 
     /// <summary>
-    /// Tags for categorization
+    ///     Tags for categorization
     /// </summary>
     [YamlMember(Alias = "tags")]
     public List<string> Tags { get; set; } = new();
 
     /// <summary>
-    /// Taxonomy classification (kind, determinism, persistence)
+    ///     Taxonomy classification (kind, determinism, persistence)
     /// </summary>
     [YamlMember(Alias = "taxonomy")]
     public WaveTaxonomy Taxonomy { get; set; } = new();
 
     /// <summary>
-    /// Input contract - what data this wave accepts
+    ///     Input contract - what data this wave accepts
     /// </summary>
     [YamlMember(Alias = "input")]
     public WaveInputContract Input { get; set; } = new();
 
     /// <summary>
-    /// Output contract - what data this wave produces
+    ///     Output contract - what data this wave produces
     /// </summary>
     [YamlMember(Alias = "output")]
     public WaveOutputContract Output { get; set; } = new();
 
     /// <summary>
-    /// Trigger conditions - when this wave should execute
+    ///     Trigger conditions - when this wave should execute
     /// </summary>
     [YamlMember(Alias = "triggers")]
     public WaveTriggerConfig? Triggers { get; set; }
 
     /// <summary>
-    /// Signals emitted by this wave
+    ///     Signals emitted by this wave
     /// </summary>
     [YamlMember(Alias = "emits")]
     public WaveEmitsConfig? Emits { get; set; }
 
     /// <summary>
-    /// Signal dependencies - signals this wave reads from other waves
+    ///     Signal dependencies - signals this wave reads from other waves
     /// </summary>
     [YamlMember(Alias = "listens")]
     public WaveListenConfig? Listens { get; set; }
 
     /// <summary>
-    /// Concurrency lane for this wave (fast, io, ml, llm)
+    ///     Concurrency lane for this wave (fast, io, ml, llm)
     /// </summary>
     [YamlMember(Alias = "lane")]
     public WaveLaneConfig? Lane { get; set; }
 
     /// <summary>
-    /// UI contribution configuration (for kind: ui waves)
+    ///     UI contribution configuration (for kind: ui waves)
     /// </summary>
     [YamlMember(Alias = "ui")]
     public WaveUiConfig? Ui { get; set; }
 
     /// <summary>
-    /// Plugin configuration schema (required/optional config keys)
+    ///     Plugin configuration schema (required/optional config keys)
     /// </summary>
     [YamlMember(Alias = "config")]
     public WavePluginConfig? Config { get; set; }
 
     /// <summary>
-    /// Default configuration values
+    ///     Default configuration values
     /// </summary>
     [YamlMember(Alias = "defaults")]
     public WaveDefaultsConfig Defaults { get; set; } = new();
 
     /// <summary>
-    /// Runtime type binding
+    ///     Runtime type binding
     /// </summary>
     [YamlMember(Alias = "runtime")]
     public RuntimeConfig? Runtime { get; set; }
 }
 
 /// <summary>
-/// Wave taxonomy classification
+///     Wave taxonomy classification
 /// </summary>
 public sealed class WaveTaxonomy
 {
     /// <summary>
-    /// Wave kind (sensor, analyzer, ranker, synthesizer, proposer)
+    ///     Wave kind (sensor, analyzer, ranker, synthesizer, proposer)
     /// </summary>
     [YamlMember(Alias = "kind")]
     public WaveKind Kind { get; set; } = WaveKind.Analyzer;
 
     /// <summary>
-    /// Determinism level
+    ///     Determinism level
     /// </summary>
     [YamlMember(Alias = "determinism")]
     public WaveDeterminism Determinism { get; set; } = WaveDeterminism.Deterministic;
 
     /// <summary>
-    /// Persistence strategy
+    ///     Persistence strategy
     /// </summary>
     [YamlMember(Alias = "persistence")]
     public WavePersistence Persistence { get; set; } = WavePersistence.Ephemeral;
 }
 
 /// <summary>
-/// Wave kind enumeration
+///     Wave kind enumeration
 /// </summary>
 public enum WaveKind
 {
     /// <summary>
-    /// Entry point wave (e.g., query reception)
+    ///     Entry point wave (e.g., query reception)
     /// </summary>
     Sensor,
 
     /// <summary>
-    /// Analysis/processing wave (e.g., query expansion, entity extraction)
+    ///     Analysis/processing wave (e.g., query expansion, entity extraction)
     /// </summary>
     Analyzer,
 
     /// <summary>
-    /// Retrieval wave (e.g., dense search, BM25)
+    ///     Retrieval wave (e.g., dense search, BM25)
     /// </summary>
     Retriever,
 
     /// <summary>
-    /// Ranking/filtering wave (e.g., RRF, reranking)
+    ///     Ranking/filtering wave (e.g., RRF, reranking)
     /// </summary>
     Ranker,
 
     /// <summary>
-    /// Synthesis wave (e.g., LLM answer generation)
+    ///     Synthesis wave (e.g., LLM answer generation)
     /// </summary>
     Synthesizer,
 
     /// <summary>
-    /// Proposition/constraint wave
+    ///     Proposition/constraint wave
     /// </summary>
     Proposer,
 
     /// <summary>
-    /// Source wave - fetches external content (emits content.* signals)
+    ///     Source wave - fetches external content (emits content.* signals)
     /// </summary>
     Source,
 
     /// <summary>
-    /// Destination wave - sends results somewhere (consumes output.* signals)
+    ///     Destination wave - sends results somewhere (consumes output.* signals)
     /// </summary>
     Destination,
 
     /// <summary>
-    /// UI contribution wave - provides visual components for extension points
+    ///     UI contribution wave - provides visual components for extension points
     /// </summary>
     Ui
 }
 
 /// <summary>
-/// Determinism level
+///     Determinism level
 /// </summary>
 public enum WaveDeterminism
 {
     /// <summary>
-    /// Deterministic (same input = same output)
+    ///     Deterministic (same input = same output)
     /// </summary>
     Deterministic,
 
     /// <summary>
-    /// Probabilistic (LLM-based, may vary)
+    ///     Probabilistic (LLM-based, may vary)
     /// </summary>
     Probabilistic
 }
 
 /// <summary>
-/// Persistence strategy
+///     Persistence strategy
 /// </summary>
 public enum WavePersistence
 {
     /// <summary>
-    /// Ephemeral (not persisted)
+    ///     Ephemeral (not persisted)
     /// </summary>
     Ephemeral,
 
     /// <summary>
-    /// Cached (in-memory or cache)
+    ///     Cached (in-memory or cache)
     /// </summary>
     Cached,
 
     /// <summary>
-    /// Escalatable (can be persisted if needed)
+    ///     Escalatable (can be persisted if needed)
     /// </summary>
     Escalatable,
 
     /// <summary>
-    /// Direct write to database
+    ///     Direct write to database
     /// </summary>
     DirectWrite
 }
 
 /// <summary>
-/// Wave input contract
+///     Wave input contract
 /// </summary>
 public sealed class WaveInputContract
 {
     /// <summary>
-    /// Entity types this wave accepts
+    ///     Entity types this wave accepts
     /// </summary>
     [YamlMember(Alias = "accepts")]
     public List<string> Accepts { get; set; } = new();
 
     /// <summary>
-    /// Required signals that must be present
+    ///     Required signals that must be present
     /// </summary>
     [YamlMember(Alias = "required_signals")]
     public List<string> RequiredSignals { get; set; } = new();
 
     /// <summary>
-    /// Optional signals that enhance behavior
+    ///     Optional signals that enhance behavior
     /// </summary>
     [YamlMember(Alias = "optional_signals")]
     public List<string> OptionalSignals { get; set; } = new();
 }
 
 /// <summary>
-/// Wave output contract
+///     Wave output contract
 /// </summary>
 public sealed class WaveOutputContract
 {
     /// <summary>
-    /// Entity types this wave produces
+    ///     Entity types this wave produces
     /// </summary>
     [YamlMember(Alias = "produces")]
     public List<string> Produces { get; set; } = new();
 
     /// <summary>
-    /// Signals this wave emits
+    ///     Signals this wave emits
     /// </summary>
     [YamlMember(Alias = "signals")]
     public List<WaveSignalSpec> Signals { get; set; } = new();
 }
 
 /// <summary>
-/// Signal specification
+///     Signal specification
 /// </summary>
 public sealed class WaveSignalSpec
 {
     /// <summary>
-    /// Signal key (e.g., "dense.similarity", "bm25.score")
+    ///     Signal key (e.g., "dense.similarity", "bm25.score")
     /// </summary>
     [YamlMember(Alias = "key")]
     public string Key { get; set; } = "";
 
     /// <summary>
-    /// Entity type (e.g., "number", "text.segment", "vector.embedding")
+    ///     Entity type (e.g., "number", "text.segment", "vector.embedding")
     /// </summary>
     [YamlMember(Alias = "entity_type")]
     public string EntityType { get; set; } = "";
 
     /// <summary>
-    /// Salience score (0.0 - 1.0)
+    ///     Salience score (0.0 - 1.0)
     /// </summary>
     [YamlMember(Alias = "salience")]
     public double Salience { get; set; } = 1.0;
 }
 
 /// <summary>
-/// Wave trigger configuration
+///     Wave trigger configuration
 /// </summary>
 public sealed class WaveTriggerConfig
 {
     /// <summary>
-    /// Required signals for execution
+    ///     Required signals for execution
     /// </summary>
     [YamlMember(Alias = "requires")]
     public List<WaveTriggerCondition> Requires { get; set; } = new();
 
     /// <summary>
-    /// Skip conditions
+    ///     Skip conditions
     /// </summary>
     [YamlMember(Alias = "skip_when")]
     public List<string> SkipWhen { get; set; } = new();
 }
 
 /// <summary>
-/// Trigger condition
+///     Trigger condition
 /// </summary>
 public sealed class WaveTriggerCondition
 {
     /// <summary>
-    /// Signal to check
+    ///     Signal to check
     /// </summary>
     [YamlMember(Alias = "signal")]
     public string Signal { get; set; } = "";
 
     /// <summary>
-    /// Optional condition (e.g., "> 0", "== true")
+    ///     Optional condition (e.g., "> 0", "== true")
     /// </summary>
     [YamlMember(Alias = "condition")]
     public string? Condition { get; set; }
 }
 
 /// <summary>
-/// Wave emits configuration
+///     Wave emits configuration
 /// </summary>
 public sealed class WaveEmitsConfig
 {
     /// <summary>
-    /// Signal keys emitted when the wave starts executing
+    ///     Signal keys emitted when the wave starts executing
     /// </summary>
     [YamlMember(Alias = "on_start")]
     public List<string> OnStart { get; set; } = new();
 
     /// <summary>
-    /// Signals emitted on completion
+    ///     Signals emitted on completion
     /// </summary>
     [YamlMember(Alias = "on_complete")]
     public List<WaveEmitSpec> OnComplete { get; set; } = new();
 
     /// <summary>
-    /// Signal keys emitted on failure
+    ///     Signal keys emitted on failure
     /// </summary>
     [YamlMember(Alias = "on_failure")]
     public List<string> OnFailure { get; set; } = new();
 
     /// <summary>
-    /// Conditional signal emissions
+    ///     Conditional signal emissions
     /// </summary>
     [YamlMember(Alias = "conditional")]
     public List<WaveConditionalEmit> Conditional { get; set; } = new();
 }
 
 /// <summary>
-/// Emit specification
+///     Emit specification
 /// </summary>
 public sealed class WaveEmitSpec
 {
     /// <summary>
-    /// Signal key
+    ///     Signal key
     /// </summary>
     [YamlMember(Alias = "key")]
     public string Key { get; set; } = "";
 
     /// <summary>
-    /// Entity type
+    ///     Entity type
     /// </summary>
     [YamlMember(Alias = "type")]
     public string Type { get; set; } = "";
 
     /// <summary>
-    /// Optional confidence range
+    ///     Optional confidence range
     /// </summary>
     [YamlMember(Alias = "confidence_range")]
     public List<double>? ConfidenceRange { get; set; }
 }
 
 /// <summary>
-/// Conditional emit
+///     Conditional emit
 /// </summary>
 public sealed class WaveConditionalEmit
 {
     /// <summary>
-    /// Signal key
+    ///     Signal key
     /// </summary>
     [YamlMember(Alias = "key")]
     public string Key { get; set; } = "";
 
     /// <summary>
-    /// Condition expression
+    ///     Condition expression
     /// </summary>
     [YamlMember(Alias = "when")]
     public string When { get; set; } = "";
 }
 
 /// <summary>
-/// Signal dependencies - what signals this wave reads from other waves.
+///     Signal dependencies - what signals this wave reads from other waves.
 /// </summary>
 public sealed class WaveListenConfig
 {
     /// <summary>
-    /// Signals that must exist before this wave runs
+    ///     Signals that must exist before this wave runs
     /// </summary>
     [YamlMember(Alias = "required")]
     public List<string> Required { get; set; } = new();
 
     /// <summary>
-    /// Signals that enhance behavior but aren't required
+    ///     Signals that enhance behavior but aren't required
     /// </summary>
     [YamlMember(Alias = "optional")]
     public List<string> Optional { get; set; } = new();
 }
 
 /// <summary>
-/// Concurrency lane configuration per wave.
+///     Concurrency lane configuration per wave.
 /// </summary>
 public sealed class WaveLaneConfig
 {
     /// <summary>
-    /// Lane name: fast, io, ml, llm
+    ///     Lane name: fast, io, ml, llm
     /// </summary>
     [YamlMember(Alias = "name")]
     public string Name { get; set; } = "fast";
 
     /// <summary>
-    /// Max concurrent executions in this lane
+    ///     Max concurrent executions in this lane
     /// </summary>
     [YamlMember(Alias = "max_concurrency")]
     public int MaxConcurrency { get; set; } = 4;
 }
 
 /// <summary>
-/// UI contribution configuration for kind: ui waves.
-/// Declares what visual components the wave contributes to extension slots.
+///     UI contribution configuration for kind: ui waves.
+///     Declares what visual components the wave contributes to extension slots.
 /// </summary>
 public sealed class WaveUiConfig
 {
     /// <summary>
-    /// Sidebar contributions
+    ///     Sidebar contributions
     /// </summary>
     [YamlMember(Alias = "sidebar")]
     public List<WaveUiSlotEntry> Sidebar { get; set; } = new();
 
     /// <summary>
-    /// Menu contributions
+    ///     Menu contributions
     /// </summary>
     [YamlMember(Alias = "menu")]
     public List<WaveUiMenuEntry> Menu { get; set; } = new();
 
     /// <summary>
-    /// Dashboard card contributions
+    ///     Dashboard card contributions
     /// </summary>
     [YamlMember(Alias = "dashboard")]
     public List<WaveUiSlotEntry> Dashboard { get; set; } = new();
 
     /// <summary>
-    /// Settings panel contributions
+    ///     Settings panel contributions
     /// </summary>
     [YamlMember(Alias = "settings")]
     public List<WaveUiSlotEntry> Settings { get; set; } = new();
 
     /// <summary>
-    /// Static asset files (CSS)
+    ///     Static asset files (CSS)
     /// </summary>
     [YamlMember(Alias = "assets")]
     public WaveUiAssets? Assets { get; set; }
 
     /// <summary>
-    /// Get all component contributions for a named slot.
+    ///     Get all component contributions for a named slot.
     /// </summary>
-    public IEnumerable<WaveUiSlotEntry> GetSlotContributions(string slot) => slot switch
+    public IEnumerable<WaveUiSlotEntry> GetSlotContributions(string slot)
     {
-        "sidebar-top" or "sidebar-bottom" or "sidebar" => Sidebar,
-        "dashboard-cards" or "dashboard" => Dashboard,
-        "settings-panels" or "settings" => Settings,
-        _ => []
-    };
+        return slot switch
+        {
+            "sidebar-top" or "sidebar-bottom" or "sidebar" => Sidebar,
+            "dashboard-cards" or "dashboard" => Dashboard,
+            "settings-panels" or "settings" => Settings,
+            _ => []
+        };
+    }
 }
 
 /// <summary>
-/// A UI component contribution to a slot.
+///     A UI component contribution to a slot.
 /// </summary>
 public sealed class WaveUiSlotEntry
 {
-    [YamlMember(Alias = "component")]
-    public string Component { get; set; } = "";
+    [YamlMember(Alias = "component")] public string Component { get; set; } = "";
 
-    [YamlMember(Alias = "position")]
-    public string? Position { get; set; }
+    [YamlMember(Alias = "position")] public string? Position { get; set; }
 
-    [YamlMember(Alias = "weight")]
-    public int Weight { get; set; } = 50;
+    [YamlMember(Alias = "weight")] public int Weight { get; set; } = 50;
 
-    [YamlMember(Alias = "section")]
-    public string? Section { get; set; }
+    [YamlMember(Alias = "section")] public string? Section { get; set; }
 }
 
 /// <summary>
-/// A UI menu entry.
+///     A UI menu entry.
 /// </summary>
 public sealed class WaveUiMenuEntry
 {
-    [YamlMember(Alias = "label")]
-    public string Label { get; set; } = "";
+    [YamlMember(Alias = "label")] public string Label { get; set; } = "";
 
-    [YamlMember(Alias = "icon")]
-    public string? Icon { get; set; }
+    [YamlMember(Alias = "icon")] public string? Icon { get; set; }
 
-    [YamlMember(Alias = "route")]
-    public string? Route { get; set; }
+    [YamlMember(Alias = "route")] public string? Route { get; set; }
 
-    [YamlMember(Alias = "weight")]
-    public int Weight { get; set; } = 50;
+    [YamlMember(Alias = "weight")] public int Weight { get; set; } = 50;
 }
 
 /// <summary>
-/// Static assets contributed by a UI wave.
+///     Static assets contributed by a UI wave.
 /// </summary>
 public sealed class WaveUiAssets
 {
-    [YamlMember(Alias = "css")]
-    public List<string> Css { get; set; } = new();
+    [YamlMember(Alias = "css")] public List<string> Css { get; set; } = new();
 
-    [YamlMember(Alias = "js")]
-    public List<string> Js { get; set; } = new();
+    [YamlMember(Alias = "js")] public List<string> Js { get; set; } = new();
 }
 
 /// <summary>
-/// Plugin configuration schema - declares what config keys a wave needs.
+///     Plugin configuration schema - declares what config keys a wave needs.
 /// </summary>
 public sealed class WavePluginConfig
 {
     /// <summary>
-    /// Required configuration keys (wave won't run without these)
+    ///     Required configuration keys (wave won't run without these)
     /// </summary>
     [YamlMember(Alias = "required_keys")]
     public List<string> RequiredKeys { get; set; } = new();
 
     /// <summary>
-    /// Configuration entries with type and description
+    ///     Configuration entries with type and description
     /// </summary>
     [YamlMember(Alias = "entries")]
     public Dictionary<string, WaveConfigEntry> Entries { get; set; } = new();
 }
 
 /// <summary>
-/// A single configuration entry.
+///     A single configuration entry.
 /// </summary>
 public sealed class WaveConfigEntry
 {
-    [YamlMember(Alias = "type")]
-    public string Type { get; set; } = "string";
+    [YamlMember(Alias = "type")] public string Type { get; set; } = "string";
 
-    [YamlMember(Alias = "required")]
-    public bool Required { get; set; }
+    [YamlMember(Alias = "required")] public bool Required { get; set; }
 
-    [YamlMember(Alias = "secret")]
-    public bool Secret { get; set; }
+    [YamlMember(Alias = "secret")] public bool Secret { get; set; }
 
-    [YamlMember(Alias = "description")]
-    public string? Description { get; set; }
+    [YamlMember(Alias = "description")] public string? Description { get; set; }
 
-    [YamlMember(Alias = "default")]
-    public object? Default { get; set; }
+    [YamlMember(Alias = "default")] public object? Default { get; set; }
 }
 
 /// <summary>
-/// Wave defaults configuration (all parameters go here)
+///     Wave defaults configuration (all parameters go here)
 /// </summary>
 public sealed class WaveDefaultsConfig
 {
     /// <summary>
-    /// Retrieval parameters
+    ///     Retrieval parameters
     /// </summary>
     [YamlMember(Alias = "retrieval")]
     public Dictionary<string, object> Retrieval { get; set; } = new();
 
     /// <summary>
-    /// Scoring parameters
+    ///     Scoring parameters
     /// </summary>
     [YamlMember(Alias = "scoring")]
     public Dictionary<string, object> Scoring { get; set; } = new();
 
     /// <summary>
-    /// Timing parameters
+    ///     Timing parameters
     /// </summary>
     [YamlMember(Alias = "timing")]
     public Dictionary<string, object> Timing { get; set; } = new();
 
     /// <summary>
-    /// Feature flags
+    ///     Feature flags
     /// </summary>
     [YamlMember(Alias = "features")]
     public Dictionary<string, object> Features { get; set; } = new();
 
     /// <summary>
-    /// Custom parameters
+    ///     Custom parameters
     /// </summary>
     [YamlMember(Alias = "parameters")]
     public Dictionary<string, object> Parameters { get; set; } = new();

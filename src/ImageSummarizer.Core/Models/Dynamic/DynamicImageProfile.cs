@@ -3,66 +3,57 @@ using System.Text.Json;
 namespace Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 
 /// <summary>
-/// Extensible image profile that aggregates signals from multiple analysis waves.
-/// Supports both structured access and dynamic querying of signals.
+///     Extensible image profile that aggregates signals from multiple analysis waves.
+///     Supports both structured access and dynamic querying of signals.
 /// </summary>
 public class DynamicImageProfile
 {
-    private readonly Dictionary<string, List<Signal>> _signals = new();
     private readonly Dictionary<string, object> _aggregatedCache = new();
-    private bool _cacheValid = false;
+    private readonly Dictionary<string, List<Signal>> _signals = new();
+    private bool _cacheValid;
 
     /// <summary>
-    /// Path to the analyzed image.
+    ///     Path to the analyzed image.
     /// </summary>
     public string? ImagePath { get; set; }
 
     /// <summary>
-    /// When this profile was created.
+    ///     When this profile was created.
     /// </summary>
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Total analysis duration in milliseconds.
+    ///     Total analysis duration in milliseconds.
     /// </summary>
     public long AnalysisDurationMs { get; set; }
 
     /// <summary>
-    /// Names of waves that contributed to this profile.
+    ///     Names of waves that contributed to this profile.
     /// </summary>
     public List<string> ContributingWaves { get; } = new();
 
     /// <summary>
-    /// Add a signal to the profile.
+    ///     Add a signal to the profile.
     /// </summary>
     public void AddSignal(Signal signal)
     {
-        if (!_signals.ContainsKey(signal.Key))
-        {
-            _signals[signal.Key] = new List<Signal>();
-        }
+        if (!_signals.ContainsKey(signal.Key)) _signals[signal.Key] = new List<Signal>();
         _signals[signal.Key].Add(signal);
         _cacheValid = false;
 
-        if (!ContributingWaves.Contains(signal.Source))
-        {
-            ContributingWaves.Add(signal.Source);
-        }
+        if (!ContributingWaves.Contains(signal.Source)) ContributingWaves.Add(signal.Source);
     }
 
     /// <summary>
-    /// Add multiple signals.
+    ///     Add multiple signals.
     /// </summary>
     public void AddSignals(IEnumerable<Signal> signals)
     {
-        foreach (var signal in signals)
-        {
-            AddSignal(signal);
-        }
+        foreach (var signal in signals) AddSignal(signal);
     }
 
     /// <summary>
-    /// Get all signals for a specific key.
+    ///     Get all signals for a specific key.
     /// </summary>
     public IEnumerable<Signal> GetSignals(string key)
     {
@@ -70,7 +61,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get signal with highest confidence for a key.
+    ///     Get signal with highest confidence for a key.
     /// </summary>
     public Signal? GetBestSignal(string key)
     {
@@ -78,7 +69,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get value from the best signal for a key.
+    ///     Get value from the best signal for a key.
     /// </summary>
     public T? GetValue<T>(string key)
     {
@@ -92,7 +83,6 @@ public class DynamicImageProfile
 
         // Handle JsonElement deserialization (from database)
         if (signal.Value is JsonElement jsonElement)
-        {
             try
             {
                 return JsonSerializer.Deserialize<T>(jsonElement.GetRawText());
@@ -101,7 +91,6 @@ public class DynamicImageProfile
             {
                 return default;
             }
-        }
 
         // Try to convert
         try
@@ -115,7 +104,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get value with fallback.
+    ///     Get value with fallback.
     /// </summary>
     public T GetValueOrDefault<T>(string key, T defaultValue)
     {
@@ -123,7 +112,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get aggregated value using specified strategy.
+    ///     Get aggregated value using specified strategy.
     /// </summary>
     public object? GetAggregatedValue(string key, AggregationStrategy strategy = AggregationStrategy.HighestConfidence)
     {
@@ -134,7 +123,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Check if profile has signals for a key.
+    ///     Check if profile has signals for a key.
     /// </summary>
     public bool HasSignal(string key)
     {
@@ -142,7 +131,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get all signal keys.
+    ///     Get all signal keys.
     /// </summary>
     public IEnumerable<string> GetAllKeys()
     {
@@ -150,7 +139,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get all signals.
+    ///     Get all signals.
     /// </summary>
     public IEnumerable<Signal> GetAllSignals()
     {
@@ -158,7 +147,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get signals by tag.
+    ///     Get signals by tag.
     /// </summary>
     public IEnumerable<Signal> GetSignalsByTag(string tag)
     {
@@ -166,7 +155,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get signals by source wave.
+    ///     Get signals by source wave.
     /// </summary>
     public IEnumerable<Signal> GetSignalsBySource(string source)
     {
@@ -174,33 +163,28 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get aggregated view as dictionary (cached).
-    /// Uses highest confidence strategy by default.
+    ///     Get aggregated view as dictionary (cached).
+    ///     Uses highest confidence strategy by default.
     /// </summary>
     public Dictionary<string, object> GetAggregatedView()
     {
-        if (_cacheValid)
-        {
-            return new Dictionary<string, object>(_aggregatedCache);
-        }
+        if (_cacheValid) return new Dictionary<string, object>(_aggregatedCache);
 
         _aggregatedCache.Clear();
         foreach (var key in GetAllKeys())
         {
             var value = GetAggregatedValue(key);
-            if (value != null)
-            {
-                _aggregatedCache[key] = value;
-            }
+            if (value != null) _aggregatedCache[key] = value;
         }
+
         _cacheValid = true;
 
         return new Dictionary<string, object>(_aggregatedCache);
     }
 
     /// <summary>
-    /// Convert to backward-compatible static ImageProfile.
-    /// Extracts standard fields using well-known signal keys.
+    ///     Convert to backward-compatible static ImageProfile.
+    ///     Extracts standard fields using well-known signal keys.
     /// </summary>
     public ImageProfile ToStaticProfile()
     {
@@ -208,10 +192,10 @@ public class DynamicImageProfile
         {
             Sha256 = GetValueOrDefault<string>("identity.sha256", string.Empty),
             Format = GetValueOrDefault<string>("identity.format", "Unknown"),
-            Width = GetValueOrDefault<int>("identity.width", 0),
-            Height = GetValueOrDefault<int>("identity.height", 0),
+            Width = GetValueOrDefault("identity.width", 0),
+            Height = GetValueOrDefault("identity.height", 0),
             AspectRatio = GetValueOrDefault<double>("identity.aspect_ratio", 0),
-            HasExif = GetValueOrDefault<bool>("metadata.has_exif", false),
+            HasExif = GetValueOrDefault("metadata.has_exif", false),
 
             EdgeDensity = GetValueOrDefault<double>("visual.edge_density", 0),
             LuminanceEntropy = GetValueOrDefault<double>("visual.luminance_entropy", 0),
@@ -229,7 +213,7 @@ public class DynamicImageProfile
             DominantColors = GetValue<List<DominantColor>>("color.dominant_colors") ?? new List<DominantColor>(),
             ColorGrid = GetValue<ColorGrid>("color.grid"),
             MeanSaturation = GetValueOrDefault<double>("color.mean_saturation", 0),
-            IsMostlyGrayscale = GetValueOrDefault<bool>("color.is_grayscale", false),
+            IsMostlyGrayscale = GetValueOrDefault("color.is_grayscale", false),
 
             DetectedType = GetValueOrDefault("content.type", ImageType.Unknown),
             TypeConfidence = GetValueOrDefault<double>("content.type_confidence", 0),
@@ -239,7 +223,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Export profile as JSON.
+    ///     Export profile as JSON.
     /// </summary>
     public string ToJson(bool includeMetadata = true)
     {
@@ -249,13 +233,15 @@ public class DynamicImageProfile
             createdAt = CreatedAt,
             analysisDurationMs = AnalysisDurationMs,
             contributingWaves = ContributingWaves,
-            signals = (object)(includeMetadata ? GetAllSignals() : GetAllSignals().Select(s => new
-            {
-                s.Key,
-                s.Value,
-                s.Confidence,
-                s.Source
-            }))
+            signals = (object)(includeMetadata
+                ? GetAllSignals()
+                : GetAllSignals().Select(s => new
+                {
+                    s.Key,
+                    s.Value,
+                    s.Confidence,
+                    s.Source
+                }))
         };
 
         return JsonSerializer.Serialize(data, new JsonSerializerOptions
@@ -266,7 +252,7 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get summary statistics about the profile.
+    ///     Get summary statistics about the profile.
     /// </summary>
     public ProfileStatistics GetStatistics()
     {
@@ -290,8 +276,8 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Get structured ledger of salient features for LLM synthesis.
-    /// Accumulates most important signals into categorized, constrained data.
+    ///     Get structured ledger of salient features for LLM synthesis.
+    ///     Accumulates most important signals into categorized, constrained data.
     /// </summary>
     public ImageLedger GetLedger()
     {
@@ -299,8 +285,8 @@ public class DynamicImageProfile
     }
 
     /// <summary>
-    /// Create RAG-ready document data with salience synthesis.
-    /// Returns a record that can be used to construct ImageDocument for vector stores.
+    ///     Create RAG-ready document data with salience synthesis.
+    ///     Returns a record that can be used to construct ImageDocument for vector stores.
     /// </summary>
     /// <param name="purpose">Optimization purpose for salience weighting</param>
     public RagImageData ToRagData(string purpose = "caption")
@@ -309,7 +295,8 @@ public class DynamicImageProfile
 
         return new RagImageData
         {
-            Id = GetValue<string>("identity.sha256") ?? GetValue<string>("fingerprint.composite") ?? Guid.NewGuid().ToString(),
+            Id = GetValue<string>("identity.sha256") ??
+                 GetValue<string>("fingerprint.composite") ?? Guid.NewGuid().ToString(),
             Path = ImagePath ?? "",
             Format = GetValue<string>("identity.format") ?? "Unknown",
             Width = GetValue<int>("identity.width"),
@@ -322,7 +309,7 @@ public class DynamicImageProfile
             SalientSignals = ledger.GetSalientSignals(purpose),
             DominantColors = ledger.Colors.DominantColors?.Take(5).Select(c => c.Hex).ToArray(),
             MotionDirection = ledger.Motion?.MotionType,
-            AnimationType = ledger.Identity.IsAnimated ? (ledger.Motion?.Summary ?? "animated") : null,
+            AnimationType = ledger.Identity.IsAnimated ? ledger.Motion?.Summary ?? "animated" : null,
             IsAnimated = ledger.Identity.IsAnimated,
             FaceCount = ledger.Objects.Faces.Count,
             HasText = !string.IsNullOrWhiteSpace(ledger.Text.ExtractedText),
@@ -333,8 +320,8 @@ public class DynamicImageProfile
 }
 
 /// <summary>
-/// RAG-ready image data with salience synthesis.
-/// Can be used to construct ImageDocument for vector stores.
+///     RAG-ready image data with salience synthesis.
+///     Can be used to construct ImageDocument for vector stores.
 /// </summary>
 public record RagImageData
 {
@@ -360,7 +347,7 @@ public record RagImageData
 }
 
 /// <summary>
-/// Statistics about a dynamic profile.
+///     Statistics about a dynamic profile.
 /// </summary>
 public record ProfileStatistics
 {

@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using Jint;
-using Jint.Runtime;
 using Microsoft.Extensions.Logging;
 
 namespace CodeSummarizer.Mermaid.Jint;
@@ -13,11 +12,11 @@ namespace CodeSummarizer.Mermaid.Jint;
 /// </summary>
 public sealed class JintEnginePool : IDisposable
 {
-    private readonly ConcurrentBag<Engine> _pool = new();
     private readonly ILogger _logger;
-    private readonly string _polyfillScript;
-    private readonly string? _mermaidBundle;
     private readonly int _maxPoolSize;
+    private readonly string? _mermaidBundle;
+    private readonly string _polyfillScript;
+    private readonly ConcurrentBag<Engine> _pool = new();
     private volatile bool _disposed;
 
     public JintEnginePool(ILogger logger, int? maxPoolSize = null)
@@ -28,9 +27,8 @@ public sealed class JintEnginePool : IDisposable
         _mermaidBundle = LoadMermaidBundle();
 
         if (_mermaidBundle == null)
-        {
-            _logger.LogWarning("Mermaid JS bundle not found as embedded resource — Jint parser will always fall back to regex");
-        }
+            _logger.LogWarning(
+                "Mermaid JS bundle not found as embedded resource — Jint parser will always fall back to regex");
     }
 
     /// <summary>
@@ -38,8 +36,17 @@ public sealed class JintEnginePool : IDisposable
     /// </summary>
     public bool IsBundleLoaded => _mermaidBundle != null;
 
+    public void Dispose()
+    {
+        _disposed = true;
+        while (_pool.TryTake(out _))
+        {
+            // Engines don't implement IDisposable but clearing the pool allows GC
+        }
+    }
+
     /// <summary>
-    ///     Rent an engine from the pool. Must be returned via <see cref="Return"/>.
+    ///     Rent an engine from the pool. Must be returned via <see cref="Return" />.
     /// </summary>
     public Engine Rent()
     {
@@ -77,7 +84,6 @@ public sealed class JintEnginePool : IDisposable
 
         // Load mermaid bundle
         if (_mermaidBundle != null)
-        {
             try
             {
                 engine.Execute(_mermaidBundle);
@@ -86,7 +92,6 @@ public sealed class JintEnginePool : IDisposable
             {
                 _logger.LogWarning(ex, "Failed to load mermaid JS bundle into Jint engine");
             }
-        }
 
         return engine;
     }
@@ -106,14 +111,5 @@ public sealed class JintEnginePool : IDisposable
 
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
-    }
-
-    public void Dispose()
-    {
-        _disposed = true;
-        while (_pool.TryTake(out _))
-        {
-            // Engines don't implement IDisposable but clearing the pool allows GC
-        }
     }
 }

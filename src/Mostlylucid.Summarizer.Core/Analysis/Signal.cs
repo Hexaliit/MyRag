@@ -1,56 +1,59 @@
 namespace Mostlylucid.Summarizer.Core.Analysis;
 
 /// <summary>
-/// Atomic unit of analytical information produced by a wave.
-/// Signals carry a typed value, confidence, provenance, and optional metadata.
-/// Key convention: "domain.category.metric" (e.g., "doc.structure.heading_count").
+///     Atomic unit of analytical information produced by a wave.
+///     Signals carry a typed value, confidence, provenance, and optional metadata.
+///     Key convention: "domain.category.metric" (e.g., "doc.structure.heading_count").
 /// </summary>
 public record Signal
 {
     /// <summary>
-    /// Unique key identifying what this signal measures.
-    /// Convention: "domain.category.metric"
+    ///     Unique key identifying what this signal measures.
+    ///     Convention: "domain.category.metric"
     /// </summary>
     public required string Key { get; init; }
 
     /// <summary>
-    /// The measured value. Can be any serializable type.
+    ///     The measured value. Can be any serializable type.
     /// </summary>
     public object? Value { get; init; }
 
     /// <summary>
-    /// Confidence score (0.0 - 1.0) indicating reliability.
+    ///     Confidence score (0.0 - 1.0) indicating reliability.
     /// </summary>
     public double Confidence { get; init; } = 1.0;
 
     /// <summary>
-    /// Source wave that produced this signal.
+    ///     Source wave that produced this signal.
     /// </summary>
     public required string Source { get; init; }
 
     /// <summary>
-    /// When this signal was generated.
+    ///     When this signal was generated.
     /// </summary>
     public DateTime Timestamp { get; init; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Optional metadata about computation.
+    ///     Optional metadata about computation.
     /// </summary>
     public Dictionary<string, object>? Metadata { get; init; }
 
     /// <summary>
-    /// Optional tags for categorization.
+    ///     Optional tags for categorization.
     /// </summary>
     public List<string>? Tags { get; init; }
 
     /// <summary>
-    /// Get typed value or default.
+    ///     Get typed value or default.
     /// </summary>
-    public T? GetValue<T>() => Value is T typed ? typed : default;
+    public T? GetValue<T>()
+    {
+        return Value is T typed ? typed : default;
+    }
 }
 
 /// <summary>
-/// Aggregation strategy for combining multiple signals for the same key.
+///     Aggregation strategy for combining multiple signals for the same key.
 /// </summary>
 public enum AggregationStrategy
 {
@@ -63,7 +66,7 @@ public enum AggregationStrategy
 }
 
 /// <summary>
-/// Standard signal tags across domains.
+///     Standard signal tags across domains.
 /// </summary>
 public static class SignalTags
 {

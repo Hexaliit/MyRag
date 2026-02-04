@@ -1,8 +1,8 @@
 namespace DoomSummarizer.Models.LongFormGeneration;
 
 /// <summary>
-/// Result of output validation (Phase 5).
-/// Every URL, entity, and factual claim is checked against the evidence corpus.
+///     Result of output validation (Phase 5).
+///     Every URL, entity, and factual claim is checked against the evidence corpus.
 /// </summary>
 public class ValidationResult
 {
@@ -64,7 +64,7 @@ public class FactIssue
 
 public enum FactGroundingLevel
 {
-    Grounded,       // > 0.6 cosine similarity to evidence
+    Grounded, // > 0.6 cosine similarity to evidence
     WeaklyGrounded, // 0.4-0.6
-    Ungrounded      // < 0.4
+    Ungrounded // < 0.4
 }

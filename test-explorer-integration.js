@@ -42,10 +42,10 @@ async function createCollection(page, name, description) {
     const result = await page.evaluate(async (collName, collDesc) => {
         const response = await fetch('/api/collections', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: collName, description: collDesc })
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: collName, description: collDesc})
         });
-        return { ok: response.ok, status: response.status, data: await response.json().catch(() => null) };
+        return {ok: response.ok, status: response.status, data: await response.json().catch(() => null)};
     }, name, description);
 
     console.log('Collection creation result:', result);
@@ -72,7 +72,7 @@ async function uploadFilesToCollection(page, collectionId, files) {
         const batchSize = 5;
         for (let i = 0; i < files.length && i < 20; i += batchSize) { // Limit to 20 for test
             const batch = files.slice(i, i + batchSize);
-            console.log(`Uploading batch ${Math.floor(i/batchSize) + 1}: ${batch.length} files`);
+            console.log(`Uploading batch ${Math.floor(i / batchSize) + 1}: ${batch.length} files`);
 
             // Set files on the input
             await fileInput.uploadFile(...batch);
@@ -89,7 +89,7 @@ async function uploadFilesToCollection(page, collectionId, files) {
 
             const result = await page.evaluate(async (name, content, collId) => {
                 const formData = new FormData();
-                const blob = new Blob([content], { type: 'text/markdown' });
+                const blob = new Blob([content], {type: 'text/markdown'});
                 formData.append('files', blob, name);
                 if (collId) formData.append('collectionId', collId);
 
@@ -97,7 +97,7 @@ async function uploadFilesToCollection(page, collectionId, files) {
                     method: 'POST',
                     body: formData
                 });
-                return { ok: response.ok, status: response.status };
+                return {ok: response.ok, status: response.status};
             }, fileName, content, collectionId);
 
             if (result.ok) {
@@ -123,7 +123,7 @@ async function testExplorerBrowsing(page) {
     await delay(1500);
 
     // Take screenshot
-    await page.screenshot({ path: 'explorer-browse-test.png', fullPage: true });
+    await page.screenshot({path: 'explorer-browse-test.png', fullPage: true});
     console.log('Screenshot saved: explorer-browse-test.png');
 
     // Check for documents in the Explorer
@@ -155,7 +155,7 @@ async function testExplorerBrowsing(page) {
         console.log(`Selection count: ${selectionCount}`);
     }
 
-    return { docCount, stats };
+    return {docCount, stats};
 }
 
 async function testExplorerFilters(page) {
@@ -186,7 +186,7 @@ async function testExplorerFilters(page) {
     });
     console.log('Entities:', Object.keys(entities).length > 0 ? `${Object.keys(entities).length} entity types` : 'No entities');
 
-    return { signals, entities };
+    return {signals, entities};
 }
 
 async function testSearchQuery(page, query) {
@@ -196,8 +196,8 @@ async function testSearchQuery(page, query) {
     const result = await page.evaluate(async (q) => {
         const response = await fetch('/api/chat/search', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: q, maxResults: 5 })
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: q, maxResults: 5})
         });
         return response.json();
     }, query);
@@ -241,7 +241,7 @@ async function testChatQuery(page, query) {
         await delay(5000);
 
         // Take screenshot of response
-        await page.screenshot({ path: 'chat-response-test.png', fullPage: true });
+        await page.screenshot({path: 'chat-response-test.png', fullPage: true});
         console.log('Screenshot saved: chat-response-test.png');
 
         // Try to extract response text
@@ -274,7 +274,7 @@ async function main() {
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setViewport({width: 1920, height: 1080});
 
     try {
         // Step 1: Login
@@ -322,13 +322,13 @@ async function main() {
         await testChatQuery(page, 'How do I implement authentication in ASP.NET Core?');
 
         // Final screenshot
-        await page.screenshot({ path: 'integration-test-final.png', fullPage: true });
+        await page.screenshot({path: 'integration-test-final.png', fullPage: true});
         console.log('\n=== Integration Test Complete ===');
         console.log('Screenshots saved: explorer-browse-test.png, chat-response-test.png, integration-test-final.png');
 
     } catch (error) {
         console.error('Test failed:', error);
-        await page.screenshot({ path: 'test-error.png', fullPage: true });
+        await page.screenshot({path: 'test-error.png', fullPage: true});
     } finally {
         // Keep browser open for manual inspection
         console.log('\nBrowser left open for inspection. Press Ctrl+C to exit.');

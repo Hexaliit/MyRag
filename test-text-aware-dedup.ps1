@@ -11,14 +11,16 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "Text-Aware Deduplication Evaluation" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-if (-not (Test-Path $TestImage)) {
+if (-not (Test-Path $TestImage))
+{
     Write-Host "Test image not found: $TestImage" -ForegroundColor Red
     exit 1
 }
 
 Write-Host "Building project..." -ForegroundColor Yellow
 dotnet build "E:\source\lucidrag\LucidRAG.sln" -c Release /p:WarningLevel=0 | Out-Null
-if ($LASTEXITCODE -ne 0) {
+if ($LASTEXITCODE -ne 0)
+{
     Write-Host "Build failed!" -ForegroundColor Red
     exit 1
 }

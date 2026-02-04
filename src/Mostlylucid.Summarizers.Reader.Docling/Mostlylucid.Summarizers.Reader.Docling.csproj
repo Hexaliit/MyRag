@@ -50,21 +50,21 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2"/>
     </ItemGroup>
 
     <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj" />
+        <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="reader.yaml" />
+        <EmbeddedResource Include="reader.yaml"/>
     </ItemGroup>
 
     <!-- Package files -->

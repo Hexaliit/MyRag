@@ -4,16 +4,16 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services.LoadBalancing;
 
 /// <summary>
-/// Background health monitor that probes unhealthy endpoints and restores them on recovery.
+///     Background health monitor that probes unhealthy endpoints and restores them on recovery.
 /// </summary>
 public sealed class EndpointHealthMonitor : IDisposable
 {
+    private readonly CancellationTokenSource _cts = new();
     private readonly IReadOnlyList<EndpointState> _endpoints;
-    private readonly IReadOnlyDictionary<string, ILlmService> _services;
     private readonly TimeSpan _interval;
     private readonly ILogger _logger;
-    private readonly CancellationTokenSource _cts = new();
     private readonly Task _probeLoop;
+    private readonly IReadOnlyDictionary<string, ILlmService> _services;
 
     public EndpointHealthMonitor(
         IReadOnlyList<EndpointState> endpoints,
@@ -26,6 +26,12 @@ public sealed class EndpointHealthMonitor : IDisposable
         _interval = TimeSpan.FromSeconds(Math.Max(intervalSeconds, 5));
         _logger = logger;
         _probeLoop = Task.Run(ProbeLoopAsync);
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
     }
 
     private async Task ProbeLoopAsync()
@@ -55,7 +61,8 @@ public sealed class EndpointHealthMonitor : IDisposable
                     if (available)
                     {
                         endpoint.ResetHealth();
-                        LoadBalancingMetrics.RecoveryCounter.Add(1, new KeyValuePair<string, object?>("endpoint", endpoint.Name));
+                        LoadBalancingMetrics.RecoveryCounter.Add(1,
+                            new KeyValuePair<string, object?>("endpoint", endpoint.Name));
                         _logger.LogInformation("Endpoint {Endpoint} recovered", endpoint.Name);
                     }
                 }
@@ -65,11 +72,5 @@ public sealed class EndpointHealthMonitor : IDisposable
                 }
             }
         }
-    }
-
-    public void Dispose()
-    {
-        _cts.Cancel();
-        _cts.Dispose();
     }
 }

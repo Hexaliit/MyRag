@@ -77,7 +77,7 @@ public static class ProgressUpdates
     {
         return new ProgressUpdate(ProgressType.ItemProgress, stage, message ?? $"Processing {current}/{total}", current,
             total,
-            total > 0 ? (current * 100.0 / total) : 0, ElapsedMs: elapsedMs);
+            total > 0 ? current * 100.0 / total : 0, ElapsedMs: elapsedMs);
     }
 
     /// <summary>
@@ -129,7 +129,7 @@ public static class ProgressUpdates
         return new ProgressUpdate(ProgressType.Download, "Download", $"Downloading {modelName}",
             (int)(bytesDownloaded / 1024),
             (int)(totalBytes / 1024),
-            totalBytes > 0 ? (bytesDownloaded * 100.0 / totalBytes) : 0,
+            totalBytes > 0 ? bytesDownloaded * 100.0 / totalBytes : 0,
             ElapsedMs: elapsedMs,
             Data: new Dictionary<string, object>
                 { ["model"] = modelName, ["bytes"] = bytesDownloaded, ["totalBytes"] = totalBytes });

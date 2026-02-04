@@ -22,14 +22,10 @@ public static class CodePromptBuilder
         if (structure.Parsed)
         {
             if (structure.Functions.Count > 0)
-            {
                 sb.AppendLine($"Functions: {string.Join(", ", structure.Functions.Select(f => f.Name))}");
-            }
 
             if (structure.Classes.Count > 0)
-            {
                 sb.AppendLine($"Types: {string.Join(", ", structure.Classes.Select(c => c.ToString()))}");
-            }
 
             if (structure.Imports.Count > 0)
             {
@@ -54,7 +50,8 @@ public static class CodePromptBuilder
     public static string BuildMermaidPrompt(string mermaidCode, MermaidSummary parsedSummary)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Describe what this diagram shows in ONE sentence. Focus on the system/process being modeled, not the diagram syntax.");
+        sb.AppendLine(
+            "Describe what this diagram shows in ONE sentence. Focus on the system/process being modeled, not the diagram syntax.");
         sb.AppendLine();
         sb.AppendLine($"Diagram type: {parsedSummary.DiagramType}");
 
@@ -99,10 +96,7 @@ public static class CodePromptBuilder
             }
         }
 
-        if (structure.Imports.Count > 0)
-        {
-            parts.Add($"importing {structure.Imports.Count} dependencies");
-        }
+        if (structure.Imports.Count > 0) parts.Add($"importing {structure.Imports.Count} dependencies");
 
         if (parts.Count == 0)
             return $"{language} code ({structure.TotalLines} lines)";

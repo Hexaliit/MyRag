@@ -1,14 +1,15 @@
 using System.Diagnostics;
 using DoomSummarizer.Services;
 using Mostlylucid.Summarizer.Core.Utilities;
+using Xunit.Abstractions;
 
 namespace DoomSummarizer.Tests.Benchmarks;
 
 /// <summary>
-/// Benchmarks for XxHash64-based ContentHasher used for content cache comparison.
-/// Validates throughput, allocation efficiency, and collision resistance.
+///     Benchmarks for XxHash64-based ContentHasher used for content cache comparison.
+///     Validates throughput, allocation efficiency, and collision resistance.
 /// </summary>
-public class ContentHashBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
+public class ContentHashBenchmarks(ITestOutputHelper output)
 {
     // ── B1: Throughput — hash 10,000 strings of various sizes ──────────
 
@@ -203,7 +204,7 @@ public class ContentHashBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
             // Modify a single position in the base string
             var chars = baseContent.ToCharArray();
             var pos = i % chars.Length;
-            chars[pos] = (char)('A' + (i / chars.Length) % 26);
+            chars[pos] = (char)('A' + i / chars.Length % 26);
             // Also append the index to guarantee uniqueness
             var content = new string(chars) + i;
             var hash = ContentHasher.ComputeHash(content);
@@ -313,8 +314,8 @@ public class ContentHashBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
     // ── Helpers ────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Generate an array of unique strings of approximately the given size.
-    /// Uses a seeded RNG for deterministic test data.
+    ///     Generate an array of unique strings of approximately the given size.
+    ///     Uses a seeded RNG for deterministic test data.
     /// </summary>
     private static string[] GenerateStrings(int count, int approximateLength)
     {

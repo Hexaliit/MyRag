@@ -4,13 +4,13 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-/// Tests for vector store ID handling consistency.
-/// Ensures document IDs and hashes are handled correctly across different formats.
+///     Tests for vector store ID handling consistency.
+///     Ensures document IDs and hashes are handled correctly across different formats.
 /// </summary>
 public class VectorStoreIdHandlingTests
 {
     /// <summary>
-    /// Calls the private ExtractDocHash method via reflection for testing.
+    ///     Calls the private ExtractDocHash method via reflection for testing.
     /// </summary>
     private static string ExtractDocHashViaReflection(string segmentId)
     {
@@ -48,8 +48,8 @@ public class VectorStoreIdHandlingTests
     {
         // Critical: When storing segments with Segment.Id and querying with DocumentSummary.Trace.DocumentId,
         // the extracted hash must match!
-        var docId = "14_217138edd1c840c1";           // Format from DocumentSummary.Trace
-        var segmentId = "14_217138edd1c840c1_s_0";    // Format from Segment.Id
+        var docId = "14_217138edd1c840c1"; // Format from DocumentSummary.Trace
+        var segmentId = "14_217138edd1c840c1_s_0"; // Format from Segment.Id
 
         var docHash = ExtractDocHashViaReflection(docId);
         var segmentHash = ExtractDocHashViaReflection(segmentId);

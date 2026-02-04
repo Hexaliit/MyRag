@@ -4,8 +4,8 @@ using OpenCvSharp;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Enhanced image analysis using OpenCV's advanced capabilities.
-/// Provides edge detection, perspective correction, quality metrics, and more.
+///     Enhanced image analysis using OpenCV's advanced capabilities.
+///     Provides edge detection, perspective correction, quality metrics, and more.
 /// </summary>
 public class OpenCvEnhancedAnalyzer
 {
@@ -16,10 +16,56 @@ public class OpenCvEnhancedAnalyzer
         _logger = logger;
     }
 
+    #region Template Matching
+
+    /// <summary>
+    ///     Find occurrences of a template image within a larger image.
+    ///     Useful for logo/icon detection.
+    /// </summary>
+    public List<TemplateMatch> FindTemplate(string imagePath, string templatePath, double threshold = 0.8)
+    {
+        var matches = new List<TemplateMatch>();
+
+        try
+        {
+            using var image = Cv2.ImRead(imagePath);
+            using var template = Cv2.ImRead(templatePath);
+
+            if (image.Empty() || template.Empty()) return matches;
+
+            using var result = new Mat();
+            Cv2.MatchTemplate(image, template, result, TemplateMatchModes.CCoeffNormed);
+
+            while (true)
+            {
+                Cv2.MinMaxLoc(result, out _, out var maxVal, out _, out var maxLoc);
+
+                if (maxVal < threshold) break;
+
+                matches.Add(new TemplateMatch
+                {
+                    Location = new Rect(maxLoc.X, maxLoc.Y, template.Width, template.Height),
+                    Confidence = maxVal
+                });
+
+                // Suppress this match to find others
+                Cv2.FloodFill(result, maxLoc, new Scalar(0));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Template matching failed");
+        }
+
+        return matches;
+    }
+
+    #endregion
+
     #region Edge Detection & Diagram Analysis
 
     /// <summary>
-    /// Detect if image contains diagrams, charts, or line drawings using edge analysis.
+    ///     Detect if image contains diagrams, charts, or line drawings using edge analysis.
     /// </summary>
     public DiagramAnalysisResult AnalyzeDiagramContent(string imagePath)
     {
@@ -27,7 +73,7 @@ public class OpenCvEnhancedAnalyzer
 
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return result;
 
             using var gray = new Mat();
@@ -72,17 +118,16 @@ public class OpenCvEnhancedAnalyzer
             result.CircleCount = circles?.Length ?? 0;
 
             // Detect rectangles/squares (for org charts, block diagrams)
-            Cv2.FindContours(edges, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+            Cv2.FindContours(edges, out var contours, out _, RetrievalModes.External,
+                ContourApproximationModes.ApproxSimple);
 
             var rectangleCount = 0;
             foreach (var contour in contours)
             {
                 var approx = Cv2.ApproxPolyDP(contour, Cv2.ArcLength(contour, true) * 0.02, true);
-                if (approx.Length == 4 && Cv2.ContourArea(approx) > 500)
-                {
-                    rectangleCount++;
-                }
+                if (approx.Length == 4 && Cv2.ContourArea(approx) > 500) rectangleCount++;
             }
+
             result.RectangleCount = rectangleCount;
 
             // Classify diagram type
@@ -142,8 +187,8 @@ public class OpenCvEnhancedAnalyzer
     #region Perspective Correction
 
     /// <summary>
-    /// Detect if image needs perspective correction (tilted document, whiteboard, etc.)
-    /// and optionally correct it.
+    ///     Detect if image needs perspective correction (tilted document, whiteboard, etc.)
+    ///     and optionally correct it.
     /// </summary>
     public PerspectiveAnalysisResult AnalyzePerspective(string imagePath, bool autoCorrect = false)
     {
@@ -151,7 +196,7 @@ public class OpenCvEnhancedAnalyzer
 
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return result;
 
             using var gray = new Mat();
@@ -162,7 +207,8 @@ public class OpenCvEnhancedAnalyzer
             Cv2.Canny(gray, edges, 75, 200);
 
             // Find contours
-            Cv2.FindContours(edges, out var contours, out _, RetrievalModes.List, ContourApproximationModes.ApproxSimple);
+            Cv2.FindContours(edges, out var contours, out _, RetrievalModes.List,
+                ContourApproximationModes.ApproxSimple);
 
             // Look for quadrilateral that could be a document
             Point2f[]? documentCorners = null;
@@ -203,9 +249,7 @@ public class OpenCvEnhancedAnalyzer
                 result.DistortionMagnitude = Math.Abs(actualWidth / actualHeight - idealWidth / idealHeight);
 
                 if (autoCorrect && result.DistortionMagnitude > 0.1)
-                {
                     result.CorrectedImagePath = CorrectPerspective(mat, documentCorners, imagePath);
-                }
             }
         }
         catch (Exception ex)
@@ -278,7 +322,7 @@ public class OpenCvEnhancedAnalyzer
     #region Image Quality Analysis
 
     /// <summary>
-    /// Comprehensive image quality analysis using OpenCV.
+    ///     Comprehensive image quality analysis using OpenCV.
     /// </summary>
     public ImageQualityResult AnalyzeImageQuality(string imagePath)
     {
@@ -286,7 +330,7 @@ public class OpenCvEnhancedAnalyzer
 
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return result;
 
             using var gray = new Mat();
@@ -309,7 +353,7 @@ public class OpenCvEnhancedAnalyzer
             result.IsNoisy = result.NoiseLevel > 30;
 
             // Contrast analysis
-            Cv2.MinMaxLoc(gray, out double minVal, out double maxVal, out _, out _);
+            Cv2.MinMaxLoc(gray, out var minVal, out var maxVal, out _, out _);
             result.ContrastRange = maxVal - minVal;
             result.IsLowContrast = result.ContrastRange < 100;
 
@@ -339,19 +383,17 @@ public class OpenCvEnhancedAnalyzer
         var blockScore = 0.0;
         var blockCount = 0;
 
-        for (int y = 8; y < gray.Height - 8; y += 8)
+        for (var y = 8; y < gray.Height - 8; y += 8)
+        for (var x = 8; x < gray.Width - 8; x += 8)
         {
-            for (int x = 8; x < gray.Width - 8; x += 8)
-            {
-                // Check horizontal block boundary
-                var diff = Math.Abs(gray.At<byte>(y, x) - gray.At<byte>(y, x - 1));
-                var innerDiff = Math.Abs(gray.At<byte>(y, x + 1) - gray.At<byte>(y, x));
+            // Check horizontal block boundary
+            var diff = Math.Abs(gray.At<byte>(y, x) - gray.At<byte>(y, x - 1));
+            var innerDiff = Math.Abs(gray.At<byte>(y, x + 1) - gray.At<byte>(y, x));
 
-                if (diff > innerDiff * 2 && diff > 10)
-                {
-                    blockScore += diff;
-                    blockCount++;
-                }
+            if (diff > innerDiff * 2 && diff > 10)
+            {
+                blockScore += diff;
+                blockCount++;
             }
         }
 
@@ -377,13 +419,13 @@ public class OpenCvEnhancedAnalyzer
     #region Histogram & Similarity
 
     /// <summary>
-    /// Calculate color histogram for image comparison.
+    ///     Calculate color histogram for image comparison.
     /// </summary>
     public double[] CalculateColorHistogram(string imagePath, int bins = 32)
     {
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return Array.Empty<double>();
 
             using var hsv = new Mat();
@@ -394,15 +436,17 @@ public class OpenCvEnhancedAnalyzer
             var hHist = new Mat();
             var sHist = new Mat();
 
-            Cv2.CalcHist(new[] { hsvPlanes[0] }, new[] { 0 }, null, hHist, 1, new[] { bins }, new[] { new Rangef(0, 180) });
-            Cv2.CalcHist(new[] { hsvPlanes[1] }, new[] { 0 }, null, sHist, 1, new[] { bins }, new[] { new Rangef(0, 256) });
+            Cv2.CalcHist(new[] { hsvPlanes[0] }, new[] { 0 }, null, hHist, 1, new[] { bins },
+                new[] { new Rangef(0, 180) });
+            Cv2.CalcHist(new[] { hsvPlanes[1] }, new[] { 0 }, null, sHist, 1, new[] { bins },
+                new[] { new Rangef(0, 256) });
 
             Cv2.Normalize(hHist, hHist, 0, 1, NormTypes.MinMax);
             Cv2.Normalize(sHist, sHist, 0, 1, NormTypes.MinMax);
 
             // Combine into single histogram
             var result = new double[bins * 2];
-            for (int i = 0; i < bins; i++)
+            for (var i = 0; i < bins; i++)
             {
                 result[i] = hHist.At<float>(i);
                 result[bins + i] = sHist.At<float>(i);
@@ -421,7 +465,7 @@ public class OpenCvEnhancedAnalyzer
     }
 
     /// <summary>
-    /// Compare two images using histogram correlation.
+    ///     Compare two images using histogram correlation.
     /// </summary>
     public double CompareHistograms(double[] hist1, double[] hist2)
     {
@@ -435,7 +479,7 @@ public class OpenCvEnhancedAnalyzer
         var denom1 = 0.0;
         var denom2 = 0.0;
 
-        for (int i = 0; i < hist1.Length; i++)
+        for (var i = 0; i < hist1.Length; i++)
         {
             var diff1 = hist1[i] - mean1;
             var diff2 = hist2[i] - mean2;
@@ -450,56 +494,10 @@ public class OpenCvEnhancedAnalyzer
 
     #endregion
 
-    #region Template Matching
-
-    /// <summary>
-    /// Find occurrences of a template image within a larger image.
-    /// Useful for logo/icon detection.
-    /// </summary>
-    public List<TemplateMatch> FindTemplate(string imagePath, string templatePath, double threshold = 0.8)
-    {
-        var matches = new List<TemplateMatch>();
-
-        try
-        {
-            using var image = Cv2.ImRead(imagePath, ImreadModes.Color);
-            using var template = Cv2.ImRead(templatePath, ImreadModes.Color);
-
-            if (image.Empty() || template.Empty()) return matches;
-
-            using var result = new Mat();
-            Cv2.MatchTemplate(image, template, result, TemplateMatchModes.CCoeffNormed);
-
-            while (true)
-            {
-                Cv2.MinMaxLoc(result, out _, out var maxVal, out _, out var maxLoc);
-
-                if (maxVal < threshold) break;
-
-                matches.Add(new TemplateMatch
-                {
-                    Location = new Rect(maxLoc.X, maxLoc.Y, template.Width, template.Height),
-                    Confidence = maxVal
-                });
-
-                // Suppress this match to find others
-                Cv2.FloodFill(result, maxLoc, new Scalar(0));
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogWarning(ex, "Template matching failed");
-        }
-
-        return matches;
-    }
-
-    #endregion
-
     #region Scene Detection
 
     /// <summary>
-    /// Detect scene type using color distribution and edge patterns.
+    ///     Detect scene type using color distribution and edge patterns.
     /// </summary>
     public SceneDetectionResult DetectSceneType(string imagePath)
     {
@@ -507,7 +505,7 @@ public class OpenCvEnhancedAnalyzer
 
         try
         {
-            using var mat = Cv2.ImRead(imagePath, ImreadModes.Color);
+            using var mat = Cv2.ImRead(imagePath);
             if (mat.Empty()) return result;
 
             using var hsv = new Mat();

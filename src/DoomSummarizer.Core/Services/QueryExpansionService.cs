@@ -1,45 +1,44 @@
 using System.Collections.Concurrent;
-using Mostlylucid.DocSummarizer.Scoring;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Embedding-based query expansion for BM25 recall improvement.
-/// Uses embedding similarity to find synonyms from the actual corpus vocabulary.
-///
-/// "pharmaceutical" → ["pharmaceutical", "drug", "medicine", "treatment"]
-/// "AI" → ["AI", "artificial", "intelligence", "machine", "learning"]
-///
-/// BM25 on expanded terms gives semantic-ish matching at BM25 speed,
-/// bridging the vocabulary mismatch gap without requiring full embedding search.
-///
-/// Vocabulary source (adaptive, in priority order):
-/// 1. High-IDF terms from the keyword corpus (real document terms)
-/// 2. Graceful fallback to empty expansion when corpus is new/empty
-///
-/// The vocabulary grows automatically as documents are ingested and the
-/// keyword corpus is updated — no hardcoded domain lists needed.
+///     Embedding-based query expansion for BM25 recall improvement.
+///     Uses embedding similarity to find synonyms from the actual corpus vocabulary.
+///     "pharmaceutical" → ["pharmaceutical", "drug", "medicine", "treatment"]
+///     "AI" → ["AI", "artificial", "intelligence", "machine", "learning"]
+///     BM25 on expanded terms gives semantic-ish matching at BM25 speed,
+///     bridging the vocabulary mismatch gap without requiring full embedding search.
+///     Vocabulary source (adaptive, in priority order):
+///     1. High-IDF terms from the keyword corpus (real document terms)
+///     2. Graceful fallback to empty expansion when corpus is new/empty
+///     The vocabulary grows automatically as documents are ingested and the
+///     keyword corpus is updated — no hardcoded domain lists needed.
 /// </summary>
 public sealed class QueryExpansionService
 {
-    private readonly IEmbeddingService _embedding;
-    private readonly StorageService _storage;
-    private readonly ConcurrentDictionary<string, float[]> _vocabEmbeddings = new();
-    private readonly ConcurrentDictionary<string, IReadOnlyList<string>> _cache = new();
-    private bool _initialized;
-
     /// <summary>Maximum number of corpus terms to use as expansion vocabulary.</summary>
     private const int MaxVocabularySize = 500;
 
-    /// <summary>Minimum document frequency for a term to be included in the vocabulary.
-    /// Terms appearing in fewer documents are too rare to be useful expansions.</summary>
+    /// <summary>
+    ///     Minimum document frequency for a term to be included in the vocabulary.
+    ///     Terms appearing in fewer documents are too rare to be useful expansions.
+    /// </summary>
     private const int MinDocumentFrequency = 2;
 
-    /// <summary>Maximum document frequency ratio. Terms appearing in more than 50% of docs
-    /// are too common to provide discriminative expansions.</summary>
+    /// <summary>
+    ///     Maximum document frequency ratio. Terms appearing in more than 50% of docs
+    ///     are too common to provide discriminative expansions.
+    /// </summary>
     private const double MaxDocumentFrequencyRatio = 0.50;
+
+    private readonly ConcurrentDictionary<string, IReadOnlyList<string>> _cache = new();
+    private readonly IEmbeddingService _embedding;
+    private readonly StorageService _storage;
+    private readonly ConcurrentDictionary<string, float[]> _vocabEmbeddings = new();
+    private bool _initialized;
 
     public QueryExpansionService(IEmbeddingService embedding, StorageService storage)
     {
@@ -48,8 +47,8 @@ public sealed class QueryExpansionService
     }
 
     /// <summary>
-    /// Expand a BM25 query by appending embedding-similar synonyms.
-    /// Returns the original query with expansion terms appended.
+    ///     Expand a BM25 query by appending embedding-similar synonyms.
+    ///     Returns the original query with expansion terms appended.
     /// </summary>
     public async Task<string> ExpandForBm25Async(
         string query,
@@ -77,10 +76,8 @@ public sealed class QueryExpansionService
 
             var expanded = await ExpandTermAsync(term, maxExpansionsPerTerm, minSimilarity, ct);
             foreach (var exp in expanded)
-            {
                 if (!string.Equals(exp, term, StringComparison.OrdinalIgnoreCase))
                     expansions.Add(exp);
-            }
         }
 
         if (expansions.Count == 0)
@@ -131,8 +128,8 @@ public sealed class QueryExpansionService
     }
 
     /// <summary>
-    /// Build expansion vocabulary from the actual corpus keyword_corpus table.
-    /// Selects terms with good IDF characteristics (not too rare, not too common).
+    ///     Build expansion vocabulary from the actual corpus keyword_corpus table.
+    ///     Selects terms with good IDF characteristics (not too rare, not too common).
     /// </summary>
     private async Task EnsureInitializedAsync(CancellationToken ct)
     {

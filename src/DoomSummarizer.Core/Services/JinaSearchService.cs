@@ -1,15 +1,22 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Jina AI Search API — embeddings-powered semantic search.
-/// Free tier: no credit card needed, rate-limited (slower without API key).
-/// With API key: higher priority, faster results.
-/// Returns clean content extracted from search results.
+///     Jina AI Search API — embeddings-powered semantic search.
+///     Free tier: no credit card needed, rate-limited (slower without API key).
+///     With API key: higher priority, faster results.
+///     Returns clean content extracted from search results.
 /// </summary>
-public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class JinaSearchService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "jina";
     private const string Endpoint = "https://s.jina.ai/";
@@ -17,7 +24,7 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
     public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search via Jina AI and return results as ContentItems.
+    ///     Search via Jina AI and return results as ContentItems.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 5,
@@ -66,7 +73,7 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Diagnostics.Debug.WriteLine($"Jina {(int)response.StatusCode}: {Truncate(body, 200)}");
+                Debug.WriteLine($"Jina {(int)response.StatusCode}: {Truncate(body, 200)}");
                 return [];
             }
 
@@ -78,12 +85,12 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("Jina timed out");
+            Debug.WriteLine("Jina timed out");
             return [];
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Jina error: {ex.Message}");
+            Debug.WriteLine($"Jina error: {ex.Message}");
             return [];
         }
     }
@@ -110,7 +117,6 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
                 !string.IsNullOrEmpty(content) ? Truncate(content, 1000) : null;
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(url))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"jina_{Hash(url)}",
@@ -120,15 +126,19 @@ public class JinaSearchService(HttpClient httpClient, ApiKeyService keys, ApiBud
                     Content = bestContent,
                     CreatedAt = DateTimeOffset.UtcNow
                 });
-            }
         }
+
         return items;
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

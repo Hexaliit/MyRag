@@ -6,17 +6,15 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Phase 4: Section Generation (Main LLM).
-/// Supports both sequential and parallel modes:
-/// - Sequential: Full negative prompt support, slower
-/// - Parallel: Intro → parallel body → conclusion, faster
-///
-/// Inspired by ComoRAG's cognitive approach:
-/// - Dynamic memory workspace (covered concepts tracking)
-/// - Progressive evidence consolidation (propositions)
-/// - Iterative refinement (negative prompts prevent repetition)
-///
-/// LLM is called once per section — no compression calls.
+///     Phase 4: Section Generation (Main LLM).
+///     Supports both sequential and parallel modes:
+///     - Sequential: Full negative prompt support, slower
+///     - Parallel: Intro → parallel body → conclusion, faster
+///     Inspired by ComoRAG's cognitive approach:
+///     - Dynamic memory workspace (covered concepts tracking)
+///     - Progressive evidence consolidation (propositions)
+///     - Iterative refinement (negative prompts prevent repetition)
+///     LLM is called once per section — no compression calls.
 /// </summary>
 public static partial class SectionGenerator
 {
@@ -26,14 +24,18 @@ public static partial class SectionGenerator
     private const float PropositionSimilarityThreshold = 0.85f;
     private const int MaxParallelSections = 3; // Limit concurrent LLM calls
 
+    // Max segments to include in LLM context per section (reduces reasoning load)
+    private const int MaxEvidenceSegmentsForLlm = 8;
+    private const float TopSalienceThreshold = 0.5f;
+
     // Pattern to extract key concepts from generated content
     [GeneratedRegex(@"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b")]
     private static partial Regex KeyConceptRx();
 
     /// <summary>
-    /// Generate all sections with optional parallelization.
-    /// Pattern: Intro (sequential) → Body (parallel) → Conclusion (sequential)
-    /// This balances speed with quality — intro sets context, body runs fast, conclusion wraps up.
+    ///     Generate all sections with optional parallelization.
+    ///     Pattern: Intro (sequential) → Body (parallel) → Conclusion (sequential)
+    ///     This balances speed with quality — intro sets context, body runs fast, conclusion wraps up.
     /// </summary>
     public static async Task GenerateAllSectionsAsync(
         DocumentPlan plan,
@@ -67,7 +69,7 @@ public static partial class SectionGenerator
     }
 
     /// <summary>
-    /// Parallel generation: Intro first, then body sections in parallel, then conclusion.
+    ///     Parallel generation: Intro first, then body sections in parallel, then conclusion.
     /// </summary>
     private static async Task GenerateParallelAsync(
         DocumentPlan plan,
@@ -167,14 +169,15 @@ public static partial class SectionGenerator
             var conclusionPrompt = BuildSectionPrompt(conclusionSection, plan, corpus, runningSummary, entityTracker,
                 query, vibePrompt, conclusionIdx, 0, templateDef, embedder);
             conclusionSection.GeneratedContent = await ollama.GenerateAsync(conclusionPrompt, null, 0.5, ct);
-            conclusionSection.CoveredConcepts = ExtractCoveredConcepts(conclusionSection.GeneratedContent, conclusionSection.Heading);
+            conclusionSection.CoveredConcepts =
+                ExtractCoveredConcepts(conclusionSection.GeneratedContent, conclusionSection.Heading);
             runningSummary.RecordSection(conclusionSection, conclusionIdx);
             entityTracker.ScanGenerated(conclusionSection.GeneratedContent, conclusionIdx);
         }
     }
 
     /// <summary>
-    /// Sequential generation with full negative prompt support (original behavior).
+    ///     Sequential generation with full negative prompt support (original behavior).
     /// </summary>
     private static async Task GenerateSequentialAsync(
         DocumentPlan plan,
@@ -203,13 +206,11 @@ public static partial class SectionGenerator
 
             // Build ExcludeTopics from previous sections' covered concepts
             if (i > 0)
-            {
                 section.ExcludeTopics = plan.Sections
                     .Take(i)
                     .SelectMany(s => s.CoveredConcepts)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
-            }
 
             // Filter propositions for this section (theme-relevant, not yet used)
             var sectionPropositions = FilterPropositionsForSection(
@@ -269,8 +270,8 @@ public static partial class SectionGenerator
     }
 
     /// <summary>
-    /// Extract propositions from all evidence segments (Dense-X Retrieval).
-    /// Computes embeddings for semantic matching.
+    ///     Extract propositions from all evidence segments (Dense-X Retrieval).
+    ///     Computes embeddings for semantic matching.
     /// </summary>
     private static List<Proposition> ExtractAllPropositions(
         EvidenceCorpus corpus,
@@ -280,19 +281,17 @@ public static partial class SectionGenerator
 
         // Compute embeddings for propositions (needed for semantic dedup)
         foreach (var prop in allPropositions)
-        {
             if (prop.Text.Length >= 20)
                 prop.Embedding = embedder(prop.Text);
-        }
 
         return allPropositions;
     }
 
     /// <summary>
-    /// Filter propositions for a specific section:
-    /// 1. Match by theme embedding similarity
-    /// 2. Exclude already-used propositions (cross-section dedup)
-    /// 3. Take top-K most relevant
+    ///     Filter propositions for a specific section:
+    ///     1. Match by theme embedding similarity
+    ///     2. Exclude already-used propositions (cross-section dedup)
+    ///     3. Take top-K most relevant
     /// </summary>
     private static List<Proposition> FilterPropositionsForSection(
         List<Proposition> allPropositions,
@@ -302,18 +301,18 @@ public static partial class SectionGenerator
     {
         // Remove propositions already used in previous sections
         var available = PropositionExtractor.RemoveUsedPropositions(
-            allPropositions, usedPropositions, PropositionSimilarityThreshold);
+            allPropositions, usedPropositions);
 
         // Filter for section theme relevance
         var filtered = PropositionExtractor.FilterForSection(
-            available, section, MaxPropositionsPerSection);
+            available, section);
 
         return filtered;
     }
 
     /// <summary>
-    /// Extract key concepts from generated content for negative prompts.
-    /// Uses named entity patterns and section-specific terms.
+    ///     Extract key concepts from generated content for negative prompts.
+    ///     Uses named entity patterns and section-specific terms.
     /// </summary>
     private static List<string> ExtractCoveredConcepts(string content, string heading)
     {
@@ -339,17 +338,11 @@ public static partial class SectionGenerator
         // Extract technical terms (often in specific patterns)
         var technicalPatterns = new[] { "HTMX", "ASP.NET", "JavaScript", "HTML", "CSS", "API", "HTTP", "DOM" };
         foreach (var pattern in technicalPatterns)
-        {
             if (content.Contains(pattern, StringComparison.OrdinalIgnoreCase))
                 concepts.Add(pattern);
-        }
 
         return concepts.Take(15).ToList(); // Limit to prevent prompt bloat
     }
-
-    // Max segments to include in LLM context per section (reduces reasoning load)
-    private const int MaxEvidenceSegmentsForLlm = 8;
-    private const float TopSalienceThreshold = 0.5f;
 
     private static string BuildSectionPrompt(
         PlannedSection section,
@@ -374,12 +367,10 @@ public static partial class SectionGenerator
 
         // If we filtered too aggressively, include at least some evidence
         if (topEvidence.Count < 3 && section.AssignedEvidence.Count > 0)
-        {
             topEvidence = section.AssignedEvidence
                 .OrderByDescending(e => e.Segment.SalienceScore)
                 .Take(Math.Min(MaxEvidenceSegmentsForLlm, section.AssignedEvidence.Count))
                 .ToList();
-        }
 
         // Build evidence block from filtered segments
         var evidence = new StringBuilder();
@@ -399,6 +390,7 @@ public static partial class SectionGenerator
                 var marker = seg.Segment.SalienceScore > 0.8 ? "[KEY] " : "";
                 evidence.AppendLine($"  {marker}{seg.Segment.Text}");
             }
+
             evidence.AppendLine();
         }
 
@@ -434,7 +426,7 @@ public static partial class SectionGenerator
 
         // Format propositions as bullet points (Dense-X style)
         var propositionsText = section.Propositions.Count > 0
-            ? PropositionExtractor.FormatAsBullets(section.Propositions, includeSource: true)
+            ? PropositionExtractor.FormatAsBullets(section.Propositions)
             : "";
 
         // Build negative prompts from excluded topics (ComoRAG memory)
@@ -449,25 +441,21 @@ public static partial class SectionGenerator
         var highQualitySegments = topEvidence.Count(e => e.Segment.SalienceScore > 0.7);
 
         if (topEvidence.Count <= 2 || sourceCount <= 1 || highQualitySegments == 0)
-        {
             // Sparse evidence: be honest, keep it short
             evidenceDensityGuidance = """
-                EVIDENCE NOTE: Limited concrete evidence available for this section.
-                Write a shorter, focused section (100-150 words max).
-                Only include claims directly supported by the evidence above.
-                If you cannot provide specific technical details, acknowledge the scope is limited.
-                Do NOT pad with generic statements or conceptual filler.
-                """;
-        }
+                                      EVIDENCE NOTE: Limited concrete evidence available for this section.
+                                      Write a shorter, focused section (100-150 words max).
+                                      Only include claims directly supported by the evidence above.
+                                      If you cannot provide specific technical details, acknowledge the scope is limited.
+                                      Do NOT pad with generic statements or conceptual filler.
+                                      """;
         else if (avgSalience < 0.6 || highQualitySegments < 3)
-        {
             // Medium evidence: be concise
             evidenceDensityGuidance = """
-                EVIDENCE NOTE: Moderate evidence density.
-                Prioritize concrete technical details over general concepts.
-                Keep section focused and avoid padding.
-                """;
-        }
+                                      EVIDENCE NOTE: Moderate evidence density.
+                                      Prioritize concrete technical details over general concepts.
+                                      Keep section focused and avoid padding.
+                                      """;
 
         return PromptTemplateService.Render("longform-section", new Dictionary<string, object?>
         {

@@ -1,22 +1,16 @@
 using LucidRAG.Decomposer.Models;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Uses NER entities to detect multi-entity queries that need separate treatment.
-/// When a query mentions 2+ distinct entities of the same type (e.g., 2 ORGs),
-/// checks if the query implies comparison via embedding archetype matching.
+///     Uses NER entities to detect multi-entity queries that need separate treatment.
+///     When a query mentions 2+ distinct entities of the same type (e.g., 2 ORGs),
+///     checks if the query implies comparison via embedding archetype matching.
 /// </summary>
 public class EntityRelationAnalyzer : IQueryAnalyzer
 {
-    private readonly IEmbeddingService? _embedding;
-    private readonly ILogger<EntityRelationAnalyzer>? _logger;
-
-    private float[][]? _comparisonArchetypes;
-
     private static readonly string[] ComparisonArchetypeTexts =
     [
         "How does X compare to Y?",
@@ -25,6 +19,11 @@ public class EntityRelationAnalyzer : IQueryAnalyzer
         "Pros and cons of X vs Y",
         "Which is better, X or Y?"
     ];
+
+    private readonly IEmbeddingService? _embedding;
+    private readonly ILogger<EntityRelationAnalyzer>? _logger;
+
+    private float[][]? _comparisonArchetypes;
 
     public EntityRelationAnalyzer(IEmbeddingService? embedding = null, ILogger<EntityRelationAnalyzer>? logger = null)
     {
@@ -91,9 +90,7 @@ public class EntityRelationAnalyzer : IQueryAnalyzer
             // Entity-scoped sub-queries for better source routing
             // (only if not already decomposed as comparison)
             if (!nodes.Any(n => n.Type == QueryNodeType.Comparison))
-            {
                 foreach (var entity in entities.Take(4))
-                {
                     nodes.Add(new QueryNode
                     {
                         Query = query,
@@ -101,8 +98,6 @@ public class EntityRelationAnalyzer : IQueryAnalyzer
                         RelevantEntities = [entity],
                         Depth = 0
                     });
-                }
-            }
         }
 
         return existing with
@@ -133,6 +128,7 @@ public class EntityRelationAnalyzer : IQueryAnalyzer
             var sim = ComplexityClassifier.CosineSimilarity(queryEmb, archetype);
             if (sim > max) max = sim;
         }
+
         return max;
     }
 }

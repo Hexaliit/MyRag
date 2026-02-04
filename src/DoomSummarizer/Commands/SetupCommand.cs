@@ -1,40 +1,19 @@
 using System.ComponentModel;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Services;
+using Spectre.Console;
+using Spectre.Console.Cli;
 #if FEATURE_LLAMASHARP
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.LLamaSharp.Services;
 #endif
-using Mostlylucid.DocSummarizer.Services;
-using Spectre.Console;
-using Spectre.Console.Cli;
 
 namespace DoomSummarizer.Commands;
 
 public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [CommandOption("--playwright")]
-        [Description("Also install Playwright browsers")]
-        public bool Playwright { get; init; }
-
-        [CommandOption("--ner")]
-        [Description("Download NER model for entity extraction (~430MB)")]
-        public bool Ner { get; init; }
-
-#if FEATURE_LLAMASHARP
-        [CommandOption("--local-llm")]
-        [Description("Download local GGUF models for LLamaSharp inference (~2.7GB)")]
-        public bool LocalLlm { get; init; }
-
-        [CommandOption("--skip-local-llm")]
-        [Description("Skip local LLM model download")]
-        public bool SkipLocalLlm { get; init; }
-#endif
-    }
-
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
+        CancellationToken cancellationToken)
     {
 #if FEATURE_COMPLETE
         AnsiConsole.Write(new FigletText("LucidRAG").Color(Color.Cyan1));
@@ -54,7 +33,8 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 ctx.Status("Initializing configuration...");
                 var config = await ConfigService.LoadAsync();
                 var dbPath = ConfigService.GetDbPath(config);
-                AnsiConsole.MarkupLine($"[green]\u2713[/] Config directory: {FormattingHelpers.Esc(Path.GetDirectoryName(dbPath))}");
+                AnsiConsole.MarkupLine(
+                    $"[green]\u2713[/] Config directory: {FormattingHelpers.Esc(Path.GetDirectoryName(dbPath))}");
 
                 // 2. Download ONNX models
                 ctx.Status("Setting up ONNX embedding model...");
@@ -127,7 +107,8 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 }
 #else
                 AnsiConsole.MarkupLine("[grey]-[/] Local LLM (LLamaSharp) not included in this build");
-                AnsiConsole.MarkupLine("   [grey]Use Ollama for local inference, or use the lucidrag (complete) build[/]");
+                AnsiConsole.MarkupLine(
+                    "   [grey]Use Ollama for local inference, or use the lucidrag (complete) build[/]");
 #endif
 
                 // 3. Initialize database
@@ -138,23 +119,27 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
 
                 // 4. Check Ollama availability and models
                 ctx.Status("Checking Ollama availability...");
-                var ollama = new DoomSummarizer.Services.OllamaService(config.Ollama);
+                var ollama = new OllamaService(config.Ollama);
                 if (await ollama.IsAvailableAsync())
                 {
-                    AnsiConsole.MarkupLine($"[green]\u2713[/] Ollama available at {FormattingHelpers.Esc(config.Ollama.BaseUrl)}");
+                    AnsiConsole.MarkupLine(
+                        $"[green]\u2713[/] Ollama available at {FormattingHelpers.Esc(config.Ollama.BaseUrl)}");
 
                     var models = await ollama.GetAvailableModelsAsync();
                     var requiredModels = new[] { config.Ollama.Model, config.Ollama.SentinelModel };
                     foreach (var required in requiredModels.Distinct())
                     {
-                        var found = models.Any(m => m.StartsWith(required.Split(':')[0], StringComparison.OrdinalIgnoreCase));
+                        var found = models.Any(m =>
+                            m.StartsWith(required.Split(':')[0], StringComparison.OrdinalIgnoreCase));
                         if (found)
                         {
-                            AnsiConsole.MarkupLine($"   [green]\u2713[/] Model [bold]{FormattingHelpers.Esc(required)}[/] available");
+                            AnsiConsole.MarkupLine(
+                                $"   [green]\u2713[/] Model [bold]{FormattingHelpers.Esc(required)}[/] available");
                         }
                         else
                         {
-                            AnsiConsole.MarkupLine($"   [yellow]\u26a0[/] Model [bold]{FormattingHelpers.Esc(required)}[/] not found — pull it:");
+                            AnsiConsole.MarkupLine(
+                                $"   [yellow]\u26a0[/] Model [bold]{FormattingHelpers.Esc(required)}[/] not found — pull it:");
                             AnsiConsole.MarkupLine($"     [grey]ollama pull {FormattingHelpers.Esc(required)}[/]");
                         }
                     }
@@ -164,7 +149,8 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                         var otherModels = models.Where(m => !requiredModels.Any(r =>
                             m.StartsWith(r.Split(':')[0], StringComparison.OrdinalIgnoreCase))).Take(5).ToList();
                         if (otherModels.Count > 0)
-                            AnsiConsole.MarkupLine($"   [grey]Other available: {FormattingHelpers.Esc(string.Join(", ", otherModels))}[/]");
+                            AnsiConsole.MarkupLine(
+                                $"   [grey]Other available: {FormattingHelpers.Esc(string.Join(", ", otherModels))}[/]");
                     }
                 }
                 else
@@ -182,8 +168,10 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     AnsiConsole.MarkupLine($"[grey]-[/] Ollama not running at {FormattingHelpers.Esc(config.Ollama.BaseUrl)} (optional — LLamaSharp handles LLM locally)");
                     AnsiConsole.MarkupLine($"   [grey]To use Ollama instead: ollama serve && ollama pull {FormattingHelpers.Esc(config.Ollama.Model)}[/]");
 #else
-                    AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {FormattingHelpers.Esc(config.Ollama.BaseUrl)}");
-                    AnsiConsole.MarkupLine($"   [grey]Install Ollama for LLM synthesis: ollama serve && ollama pull {FormattingHelpers.Esc(config.Ollama.Model)}[/]");
+                    AnsiConsole.MarkupLine(
+                        $"[yellow]\u26a0[/] Ollama not running at {FormattingHelpers.Esc(config.Ollama.BaseUrl)}");
+                    AnsiConsole.MarkupLine(
+                        $"   [grey]Install Ollama for LLM synthesis: ollama serve && ollama pull {FormattingHelpers.Esc(config.Ollama.Model)}[/]");
                     AnsiConsole.MarkupLine("   [grey]Or set ANTHROPIC_API_KEY / OPENAI_API_KEY for cloud LLM[/]");
 #endif
                 }
@@ -193,7 +181,8 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 if (!Directory.Exists(templatesDir))
                 {
                     Directory.CreateDirectory(templatesDir);
-                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates directory: {FormattingHelpers.Esc(templatesDir)}");
+                    AnsiConsole.MarkupLine(
+                        $"[green]\u2713[/] Templates directory: {FormattingHelpers.Esc(templatesDir)}");
                     AnsiConsole.MarkupLine("   [grey]Place .yaml or .liquid files here for custom output templates[/]");
                 }
                 else
@@ -201,7 +190,8 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     var yamlCount = Directory.EnumerateFiles(templatesDir, "*.yaml")
                         .Concat(Directory.EnumerateFiles(templatesDir, "*.yml")).Count();
                     var liquidCount = Directory.GetFiles(templatesDir, "*.liquid").Length;
-                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates: {yamlCount} YAML + {liquidCount} Liquid in {FormattingHelpers.Esc(templatesDir)}");
+                    AnsiConsole.MarkupLine(
+                        $"[green]\u2713[/] Templates: {yamlCount} YAML + {liquidCount} Liquid in {FormattingHelpers.Esc(templatesDir)}");
                 }
 
                 // 6. Download NER model if requested
@@ -237,15 +227,19 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                         }
                         else
                         {
-                            AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Playwright install exited with code {exitCode} (common in single-file builds)");
-                            AnsiConsole.MarkupLine("   Install manually: [grey]dotnet tool install --global Microsoft.Playwright.CLI && playwright install chromium[/]");
+                            AnsiConsole.MarkupLine(
+                                $"[yellow]\u26a0[/] Playwright install exited with code {exitCode} (common in single-file builds)");
+                            AnsiConsole.MarkupLine(
+                                "   Install manually: [grey]dotnet tool install --global Microsoft.Playwright.CLI && playwright install chromium[/]");
                             AnsiConsole.MarkupLine("   Or: [grey]npx playwright install chromium[/]");
                         }
                     }
                     catch (Exception ex)
                     {
-                        AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Playwright failed (common in single-file builds): {Markup.Escape(ex.Message)}");
-                        AnsiConsole.MarkupLine("   Install manually: [grey]dotnet tool install --global Microsoft.Playwright.CLI && playwright install chromium[/]");
+                        AnsiConsole.MarkupLine(
+                            $"[yellow]\u26a0[/] Playwright failed (common in single-file builds): {Markup.Escape(ex.Message)}");
+                        AnsiConsole.MarkupLine(
+                            "   Install manually: [grey]dotnet tool install --global Microsoft.Playwright.CLI && playwright install chromium[/]");
                         AnsiConsole.MarkupLine("   Or: [grey]npx playwright install chromium[/]");
                     }
                 }
@@ -278,5 +272,26 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
         AnsiConsole.MarkupLine($"  [cyan]{cmd} scroll --list-templates[/]           - List output templates");
 
         return 0;
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [CommandOption("--playwright")]
+        [Description("Also install Playwright browsers")]
+        public bool Playwright { get; init; }
+
+        [CommandOption("--ner")]
+        [Description("Download NER model for entity extraction (~430MB)")]
+        public bool Ner { get; init; }
+
+#if FEATURE_LLAMASHARP
+        [CommandOption("--local-llm")]
+        [Description("Download local GGUF models for LLamaSharp inference (~2.7GB)")]
+        public bool LocalLlm { get; init; }
+
+        [CommandOption("--skip-local-llm")]
+        [Description("Skip local LLM model download")]
+        public bool SkipLocalLlm { get; init; }
+#endif
     }
 }

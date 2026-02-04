@@ -1,7 +1,7 @@
 namespace DoomWriter.Models;
 
 /// <summary>
-/// A suggestion from the intelligence pipeline (link, mention, warning).
+///     A suggestion from the intelligence pipeline (link, mention, warning).
 /// </summary>
 public record Suggestion
 {

@@ -8,19 +8,24 @@ namespace CodeSummarizer.Mermaid.Jint;
 /// <summary>
 ///     Mermaid parser that uses Jint (pure .NET JavaScript interpreter) to run
 ///     mermaid.js in-process for 100% spec-conformant parsing.
-///     Falls back to <see cref="RegexMermaidParser"/> on any failure.
+///     Falls back to <see cref="RegexMermaidParser" /> on any failure.
 /// </summary>
 public sealed class JintMermaidParser : IMermaidParser, IDisposable
 {
-    private readonly JintEnginePool _pool;
     private readonly IMermaidParser _fallback;
     private readonly ILogger _logger;
+    private readonly JintEnginePool _pool;
 
     public JintMermaidParser(ILogger<JintMermaidParser> logger, IMermaidParser? fallback = null, int? poolSize = null)
     {
         _logger = logger;
         _fallback = fallback ?? new RegexMermaidParser();
         _pool = new JintEnginePool(logger, poolSize);
+    }
+
+    public void Dispose()
+    {
+        _pool.Dispose();
     }
 
     /// <inheritdoc />
@@ -39,10 +44,8 @@ public sealed class JintMermaidParser : IMermaidParser, IDisposable
             var result = engine.Invoke("MermaidParser.parse", mermaidCode);
 
             if (result.Type is Types.Undefined or Types.Null)
-            {
                 // parse() succeeded (no exception) but returned nothing — syntax is valid
                 return MermaidDataExtractor.CreateValidationOnlySummary(mermaidCode);
-            }
 
             return MermaidDataExtractor.Extract(result, mermaidCode);
         }
@@ -55,10 +58,5 @@ public sealed class JintMermaidParser : IMermaidParser, IDisposable
         {
             _pool.Return(engine);
         }
-    }
-
-    public void Dispose()
-    {
-        _pool.Dispose();
     }
 }

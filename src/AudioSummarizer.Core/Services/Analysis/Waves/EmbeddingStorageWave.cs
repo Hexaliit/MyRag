@@ -6,19 +6,16 @@ using Mostlylucid.Storage.Core.Abstractions.Models;
 namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
-/// Persists voice embeddings to a vector store for later similarity search.
-/// Runs after VoiceEmbeddingWave (Priority 30) — only when a vector store is available.
-/// Gracefully no-ops if IVectorStore is not registered.
+///     Persists voice embeddings to a vector store for later similarity search.
+///     Runs after VoiceEmbeddingWave (Priority 30) — only when a vector store is available.
+///     Gracefully no-ops if IVectorStore is not registered.
 /// </summary>
 public class EmbeddingStorageWave : IAudioWave
 {
+    private readonly AudioConfig _config;
     private readonly ILogger<EmbeddingStorageWave> _logger;
     private readonly IVectorStore? _vectorStore;
-    private readonly AudioConfig _config;
     private bool _collectionInitialized;
-
-    public int Priority => 20;
-    public string Name => "EmbeddingStorageWave";
 
     public EmbeddingStorageWave(
         ILogger<EmbeddingStorageWave> logger,
@@ -29,6 +26,9 @@ public class EmbeddingStorageWave : IAudioWave
         _config = config.Value;
         _vectorStore = vectorStore;
     }
+
+    public int Priority => 20;
+    public string Name => "EmbeddingStorageWave";
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {
@@ -81,7 +81,8 @@ public class EmbeddingStorageWave : IAudioWave
             Buffer.BlockCopy(bytes, 0, embedding, 0, bytes.Length);
 
             // Read metadata from context
-            var voiceprintId = context.GetValue<string>("speaker.voiceprint_id") ?? Path.GetFileNameWithoutExtension(audioPath);
+            var voiceprintId = context.GetValue<string>("speaker.voiceprint_id") ??
+                               Path.GetFileNameWithoutExtension(audioPath);
             var model = context.GetValue<string>("speaker.embedding_model") ?? "ecapa-tdnn";
             var fileHash = context.GetValue<string>("audio.hash.sha256") ?? "";
 

@@ -1,9 +1,9 @@
 using System.Text;
 using System.Threading.Channels;
 using DoomSummarizer.Commands;
+using DoomSummarizer.Core.Services;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
-using DoomSummarizer.Services;
 using LucidRAG.Decomposer.Analysis;
 using LucidRAG.Decomposer.Models;
 using LucidRAG.Decomposer.Orchestration;
@@ -35,14 +35,15 @@ public record InteractiveAskOptions(
             Source != null ? new[] { Source } : null,
             Name, Days, TopK, Once, Quiet, InitialQuestion,
             CrawlProgress, IsCrawlRunning, PromptTemplate)
-    { }
+    {
+    }
 }
 
 public sealed class InteractiveAskLoop
 {
     private readonly CommandBootstrap _boot;
-    private readonly OllamaService? _ollama;
     private readonly LlmRouter? _llmRouter;
+    private readonly OllamaService? _ollama;
     private readonly bool _ollamaAvailable;
     private readonly InteractiveAskOptions _options;
 
@@ -73,7 +74,7 @@ public sealed class InteractiveAskLoop
 
         // Per-session conversational RAG state
         var sessionId = Guid.NewGuid().ToString("N")[..12];
-        var segmentCache = new SalientSegmentCache(capacity: 50);
+        var segmentCache = new SalientSegmentCache(50);
         var chatCorpus = new ChatCorpusService(_boot.Storage, _boot.Embedding);
         var turnNumber = 0;
         Task? pendingIndexTask = null;
@@ -86,9 +87,11 @@ public sealed class InteractiveAskLoop
             AnsiConsole.Write(new Rule("[bold cyan]DoomSummarizer Ask Mode[/]").LeftJustified());
             AnsiConsole.MarkupLine("[grey]Interactive Q&A over your stored knowledge base.[/]");
             AnsiConsole.MarkupLine("[grey]Commands: quit, sources, history, clear, suggest <prefix>[/]");
-            AnsiConsole.MarkupLine("[grey]Slash commands: /docs, /segments, /cache, /resolve <query>, /me, /remember, /forget, /personal, /whois[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]Slash commands: /docs, /segments, /cache, /resolve <query>, /me, /remember, /forget, /personal, /whois[/]");
             if (_options.CrawlProgress != null)
-                AnsiConsole.MarkupLine("[grey]Background crawl is running — items become queryable as they're indexed.[/]");
+                AnsiConsole.MarkupLine(
+                    "[grey]Background crawl is running — items become queryable as they're indexed.[/]");
             AnsiConsole.WriteLine();
         }
 
@@ -130,21 +133,24 @@ public sealed class InteractiveAskLoop
                 question = null;
                 continue;
             }
+
             if (cmd == "history")
             {
                 ShowHistory(history);
                 question = null;
                 continue;
             }
+
             if (cmd == "clear")
             {
                 history.Clear();
-                segmentCache = new SalientSegmentCache(capacity: 50);
+                segmentCache = new SalientSegmentCache(50);
                 turnNumber = 0;
                 AnsiConsole.MarkupLine("[grey]Conversation and cache cleared.[/]");
                 question = null;
                 continue;
             }
+
             if (cmd.StartsWith("suggest "))
             {
                 var prefix = question.Trim()[8..];
@@ -166,7 +172,15 @@ public sealed class InteractiveAskLoop
             // Await any pending index task from previous turn before starting new one
             if (pendingIndexTask != null)
             {
-                try { await pendingIndexTask; } catch { /* non-fatal */ }
+                try
+                {
+                    await pendingIndexTask;
+                }
+                catch
+                {
+                    /* non-fatal */
+                }
+
                 pendingIndexTask = null;
             }
 
@@ -182,9 +196,14 @@ public sealed class InteractiveAskLoop
 
         // Await final index task before exit to prevent ONNX disposal crash
         if (pendingIndexTask != null)
-        {
-            try { await pendingIndexTask; } catch { /* non-fatal */ }
-        }
+            try
+            {
+                await pendingIndexTask;
+            }
+            catch
+            {
+                /* non-fatal */
+            }
 
         // Drain any remaining progress
         DrainCrawlProgress();
@@ -198,10 +217,7 @@ public sealed class InteractiveAskLoop
     private void DrainCrawlProgress()
     {
         if (_options.CrawlProgress == null) return;
-        while (_options.CrawlProgress.TryRead(out var update))
-        {
-            RenderCrawlUpdate(update);
-        }
+        while (_options.CrawlProgress.TryRead(out var update)) RenderCrawlUpdate(update);
     }
 
     private static void RenderCrawlUpdate(CrawlProgressUpdate update)
@@ -273,7 +289,6 @@ public sealed class InteractiveAskLoop
 
                 // Phase 0b: Personal context gap-filling — resolve "here", "my company", etc.
                 if (personalCorpus != null)
-                {
                     try
                     {
                         var sentinel = new ConversationSentinel(ollama, embedding, ollamaAvailable);
@@ -287,7 +302,6 @@ public sealed class InteractiveAskLoop
                     {
                         // Personal resolution failure is non-fatal
                     }
-                }
 
                 // Phase 1: Decompose
                 try
@@ -308,11 +322,11 @@ public sealed class InteractiveAskLoop
 
                     decomposition = await decomposer.DecomposeAsync(
                         searchQuery,
-                        entities: null,
-                        hasUrls: false,
-                        hasDateTimes: false,
-                        sentinelData: null,
-                        ct: ct);
+                        null,
+                        false,
+                        false,
+                        null,
+                        ct);
                 }
                 catch
                 {
@@ -334,7 +348,7 @@ public sealed class InteractiveAskLoop
                     TopK = conceptBudget * 2,
                     MinRelevance = 0.15f,
                     IsKnowledgeBase = true,
-                    UseEmbeddingDedup = true,
+                    UseEmbeddingDedup = true
                 }, ct);
 
                 // Phase 2b: Merge with salient cached segments
@@ -399,9 +413,9 @@ public sealed class InteractiveAskLoop
                 sourceIds = topEvidence.Select(e => e.Id).ToList();
 
                 ctx.Status("Verifying terms...");
-                var missingTerms = DoomSummarizer.Core.Services.TermVerifier.Verify(
+                var missingTerms = TermVerifier.Verify(
                     question, storage.DataPath, collectionName,
-                    sourceFilters: effectiveSources);
+                    effectiveSources);
 
                 ctx.Status("Synthesizing answer...");
                 answer = await SynthesizeAnswer(
@@ -411,17 +425,13 @@ public sealed class InteractiveAskLoop
 
         // Show sentinel diagnostic
         if (!_options.Quiet && sentinelResult is { IsFollowUp: true })
-        {
             AnsiConsole.MarkupLine(
                 $"[dim]Resolved: \"{Markup.Escape(sentinelResult.ResolvedQuery)}\" ({sentinelResult.Reason})[/]");
-        }
 
         // Show personal context diagnostic
         if (!_options.Quiet && personalContext != null)
-        {
             AnsiConsole.MarkupLine(
                 $"[dim]Personal: {Markup.Escape(personalContext)}[/]");
-        }
 
         // Show cache stats
         if (!_options.Quiet && history.Count > 0)
@@ -435,7 +445,8 @@ public sealed class InteractiveAskLoop
         }
 
         if (!_options.Quiet && evidence.Count > 0)
-            AnsiConsole.MarkupLine($"[dim]{evidence.Count} results ({retrievalResult.Elapsed.TotalMilliseconds:F0}ms)[/]");
+            AnsiConsole.MarkupLine(
+                $"[dim]{evidence.Count} results ({retrievalResult.Elapsed.TotalMilliseconds:F0}ms)[/]");
 
         if (evidence.Count == 0)
         {
@@ -469,6 +480,7 @@ public sealed class InteractiveAskLoop
                 choices.Add(label);
                 AnsiConsole.MarkupLine($"  [cyan]{Markup.Escape(label)}[/]");
             }
+
             choices.Add("All results");
 
             var selected = AnsiConsole.Prompt(
@@ -493,9 +505,9 @@ public sealed class InteractiveAskLoop
                 .StartAsync("Synthesizing answer...", async ctx =>
                 {
                     ctx.Status("Verifying terms...");
-                    var missingTerms = DoomSummarizer.Core.Services.TermVerifier.Verify(
+                    var missingTerms = TermVerifier.Verify(
                         question, storage.DataPath, collectionName,
-                        sourceFilters: effectiveSources);
+                        effectiveSources);
 
                     ctx.Status("Synthesizing answer...");
                     answer = await SynthesizeAnswer(
@@ -566,10 +578,8 @@ public sealed class InteractiveAskLoop
 
                 // Record implicit feedback if this was a follow-up (continued topic = positive)
                 if (sentinelResult is { IsFollowUp: true } && turnNumber > 1)
-                {
                     await chatCorpus.RecordFeedbackAsync(sessionId, turnNumber - 1,
-                        continued: true, ct);
-                }
+                        true, ct);
 
                 // Detect and index personal facts from user's question
                 if (personalCorpus != null)
@@ -579,10 +589,8 @@ public sealed class InteractiveAskLoop
 
                     var factStatement = await personalCorpus.DetectSelfDisclosureAsync(question, ct);
                     if (factStatement != null)
-                    {
                         await personalCorpus.IndexFactAsync(
                             personalCorpus.ActiveCorpusName, factStatement, question, ct);
-                    }
                 }
             }
             catch
@@ -593,7 +601,7 @@ public sealed class InteractiveAskLoop
     }
 
     /// <summary>
-    /// Synthesize an answer using conversation context via ask-answer.txt or SynthesizeSummaryAsync.
+    ///     Synthesize an answer using conversation context via ask-answer.txt or SynthesizeSummaryAsync.
     /// </summary>
     private async Task<string> SynthesizeAnswer(
         string question,
@@ -619,6 +627,7 @@ public sealed class InteractiveAskLoop
                 if (!string.IsNullOrEmpty(item.Url))
                     sb.AppendLine($"  {item.Url}");
             }
+
             return sb.ToString();
         }
 
@@ -630,7 +639,7 @@ public sealed class InteractiveAskLoop
             var resolvedQuery = sentinelResult?.ResolvedQuery ?? question;
             conversationContext = await compressor.CompressAsync(
                 history.Select(h => (h.question, h.answer)).ToList(),
-                resolvedQuery, targetTokens: 2000, ct);
+                resolvedQuery, 2000, ct);
         }
 
         // Build user context line from personal corpus (empty string if none)
@@ -648,7 +657,7 @@ public sealed class InteractiveAskLoop
                 ["CONVERSATION_CONTEXT"] = conversationContext,
                 ["QUESTION"] = question, // Original question (not resolved)
                 ["TODAY"] = DateTime.Now.ToString("MMMM d, yyyy"),
-                ["EVIDENCE"] = evidenceBlock,
+                ["EVIDENCE"] = evidenceBlock
             };
 
             var prompt = PromptTemplateService.Render("ask-answer", templateVars);
@@ -662,7 +671,7 @@ public sealed class InteractiveAskLoop
             topic: e.DetectedTopic ?? "general",
             sentiment: e.SentimentScore,
             url: e.Url ?? "",
-            relevance: (double)e.RelevanceScore
+            relevance: e.RelevanceScore
         )).ToList();
 
         return await ollama.SynthesizeSummaryAsync(
@@ -671,16 +680,16 @@ public sealed class InteractiveAskLoop
             "",
             question,
             topEvidence,
-            embedder: text => embedding.EmbedAsync(text).GetAwaiter().GetResult(),
-            batchEmbedder: texts => embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
-            forceAnswer: true,
-            promptTemplate: _options.PromptTemplate,
+            text => embedding.EmbedAsync(text).GetAwaiter().GetResult(),
+            texts => embedding.EmbedBatchAsync(texts).GetAwaiter().GetResult(),
+            true,
+            _options.PromptTemplate,
             missingTerms: missingTerms,
             ct: ct);
     }
 
     /// <summary>
-    /// Build evidence block for the ask-answer.txt template.
+    ///     Build evidence block for the ask-answer.txt template.
     /// </summary>
     private static string BuildEvidenceBlock(List<ContentItem> items)
     {
@@ -702,6 +711,7 @@ public sealed class InteractiveAskLoop
                 sb.AppendLine(item.Summary);
             }
         }
+
         return sb.ToString();
     }
 
@@ -809,12 +819,10 @@ public sealed class InteractiveAskLoop
         // Show all unique source IDs across the conversation with frequency
         var sourceFreq = new Dictionary<string, int>();
         foreach (var (_, _, ids) in history)
+        foreach (var id in ids)
         {
-            foreach (var id in ids)
-            {
-                sourceFreq.TryGetValue(id, out var count);
-                sourceFreq[id] = count + 1;
-            }
+            sourceFreq.TryGetValue(id, out var count);
+            sourceFreq[id] = count + 1;
         }
 
         var table = new Table()
@@ -885,7 +893,8 @@ public sealed class InteractiveAskLoop
             .GetAwaiter().GetResult();
 
         AnsiConsole.MarkupLine($"[bold]Resolved query:[/] {Markup.Escape(result.ResolvedQuery)}");
-        AnsiConsole.MarkupLine($"[grey]Follow-up: {result.IsFollowUp} | Confidence: {result.Confidence:F2} | {result.Reason}[/]");
+        AnsiConsole.MarkupLine(
+            $"[grey]Follow-up: {result.IsFollowUp} | Confidence: {result.Confidence:F2} | {result.Reason}[/]");
     }
 
     private static void ShowSessionStats(
@@ -902,7 +911,8 @@ public sealed class InteractiveAskLoop
         AnsiConsole.MarkupLine($"  Turns: {turnNumber}");
         AnsiConsole.MarkupLine($"  Unique sources: {totalSources}");
         AnsiConsole.MarkupLine($"  Cache: {count}/{capacity} ({evicted} evicted)");
-        AnsiConsole.MarkupLine($"  Prompt index: {pEntries} entries, {pHits} hits / {pHits + pMisses} lookups ({pRate:P0})");
+        AnsiConsole.MarkupLine(
+            $"  Prompt index: {pEntries} entries, {pHits} hits / {pHits + pMisses} lookups ({pRate:P0})");
         if (savedComputations > 0)
             AnsiConsole.MarkupLine($"  Saved computations: ~{savedComputations} cosine similarities");
         AnsiConsole.MarkupLine($"  History entries: {history.Count}");
@@ -999,7 +1009,8 @@ public sealed class InteractiveAskLoop
         var facts = await corpus.GetAllFactsAsync(corpusName, ct);
         if (facts.Count == 0)
         {
-            AnsiConsole.MarkupLine("[grey]No personal facts stored. Use /remember or share facts in your questions.[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]No personal facts stored. Use /remember or share facts in your questions.[/]");
             return;
         }
 
@@ -1073,7 +1084,7 @@ public sealed class InteractiveAskLoop
 
         foreach (var (type, label) in types)
         {
-            var entities = await corpus.GetPersonalEntitiesAsync(corpusName, type, limit: 5, ct);
+            var entities = await corpus.GetPersonalEntitiesAsync(corpusName, type, 5, ct);
             if (entities.Count == 0) continue;
             hasAny = true;
 
@@ -1086,9 +1097,8 @@ public sealed class InteractiveAskLoop
         }
 
         if (!hasAny)
-        {
-            AnsiConsole.MarkupLine("[grey]No personal entities yet. Share facts about yourself to build your profile.[/]");
-        }
+            AnsiConsole.MarkupLine(
+                "[grey]No personal entities yet. Share facts about yourself to build your profile.[/]");
     }
 
     private static async Task SwitchPersonalCorpus(
@@ -1115,10 +1125,12 @@ public sealed class InteractiveAskLoop
             foreach (var c in corpuses)
             {
                 var active = c.Equals(corpus.ActiveCorpusName, StringComparison.OrdinalIgnoreCase)
-                    ? " [green](active)[/]" : "";
+                    ? " [green](active)[/]"
+                    : "";
                 var facts = await corpus.GetAllFactsAsync(c, ct);
                 AnsiConsole.MarkupLine($"  {Markup.Escape(c)}{active} — {facts.Count} fact(s)");
             }
+
             AnsiConsole.MarkupLine("[grey]Usage: /whois <name> to switch[/]");
             return;
         }

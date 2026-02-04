@@ -64,10 +64,7 @@ public sealed class WaveConfigProvider : IWaveConfigProvider
 
         // Apply appsettings overrides
         var section = _configuration.GetSection($"DocSummarizer:Images:Waves:{waveName}:Defaults");
-        if (section.Exists())
-        {
-            defaults = ApplyOverrides(defaults, section);
-        }
+        if (section.Exists()) defaults = ApplyOverrides(defaults, section);
 
         _resolvedDefaults[waveName] = defaults;
         return defaults;
@@ -143,7 +140,6 @@ public sealed class WaveConfigProvider : IWaveConfigProvider
             .Where(n => n.EndsWith(".wave.yaml", StringComparison.OrdinalIgnoreCase));
 
         foreach (var resourceName in resourceNames)
-        {
             try
             {
                 using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -168,7 +164,6 @@ public sealed class WaveConfigProvider : IWaveConfigProvider
             {
                 _logger.LogError(ex, "Failed to load wave manifest from {Resource}", resourceName);
             }
-        }
 
         _logger.LogInformation("Loaded {Count} wave manifests", _manifests.Count);
     }
@@ -191,7 +186,8 @@ public sealed class WaveConfigProvider : IWaveConfigProvider
             Medium = section.GetValue("Confidence:Medium", defaults.Confidence.Medium),
             Low = section.GetValue("Confidence:Low", defaults.Confidence.Low),
             HighThreshold = section.GetValue("Confidence:HighThreshold", defaults.Confidence.HighThreshold),
-            EscalationThreshold = section.GetValue("Confidence:EscalationThreshold", defaults.Confidence.EscalationThreshold)
+            EscalationThreshold =
+                section.GetValue("Confidence:EscalationThreshold", defaults.Confidence.EscalationThreshold)
         };
 
         var timing = new TimingDefaults
@@ -212,12 +208,8 @@ public sealed class WaveConfigProvider : IWaveConfigProvider
         var parameters = new Dictionary<string, object>(defaults.Parameters);
         var paramSection = section.GetSection("Parameters");
         if (paramSection.Exists())
-        {
             foreach (var child in paramSection.GetChildren())
-            {
                 parameters[child.Key] = child.Value ?? "";
-            }
-        }
 
         return new WaveDefaults
         {

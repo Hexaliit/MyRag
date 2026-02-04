@@ -4,14 +4,44 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Detects query intent to drive synthesis strategy selection.
+///     Detects query intent to drive synthesis strategy selection.
 /// </summary>
 public static partial class QueryTypeDetector
 {
+    private static readonly string[] PrimarySourceDomains =
+    [
+        "arxiv.org", "openreview.net", "aclanthology.org", "neurips.cc",
+        "proceedings.mlr.press", "openai.com", "ai.google", "research.google",
+        "research.facebook.com", "research.meta.com", "deepmind.google",
+        "microsoft.com/research", "nature.com", "science.org", "ieee.org",
+        "acm.org", "wikipedia.org"
+    ];
+
+    private static readonly string[] LowSignalDomains =
+    [
+        "medium.com", "dev.to", "linkedin.com", "towardsdatascience.com",
+        "hackernoon.com", "analytics-vidhya"
+    ];
+
+    private static readonly string[] NewsDomains =
+    [
+        // Wire services + premium journalism
+        "bbc.co.uk", "bbc.com", "theguardian.com", "reuters.com", "apnews.com",
+        "nytimes.com", "washingtonpost.com", "economist.com", "ft.com",
+        "wsj.com", "npr.org", "pbs.org", "politico.com", "theatlantic.com",
+        // Tech & science press
+        "arstechnica.com", "theverge.com", "techcrunch.com", "wired.com",
+        "theregister.com", "engadget.com", "zdnet.com", "thenextweb.com",
+        "9to5mac.com", "tomshardware.com", "anandtech.com",
+        // International
+        "aljazeera.com", "france24.com", "dw.com", "scmp.com",
+        "japantimes.co.jp", "abc.net.au"
+    ];
+
     /// <summary>
-    /// Resolve the answer prompt template based on sentinel intent and query pattern.
-    /// Returns a template name like "answer", "answer-howto", "answer-yesno".
-    /// The sentinel intent (if available) takes priority; falls back to regex patterns.
+    ///     Resolve the answer prompt template based on sentinel intent and query pattern.
+    ///     Returns a template name like "answer", "answer-howto", "answer-yesno".
+    ///     The sentinel intent (if available) takes priority; falls back to regex patterns.
     /// </summary>
     public static string ResolveAnswerTemplate(string? query, SentinelIntent? sentinelIntent = null)
     {
@@ -39,10 +69,14 @@ public static partial class QueryTypeDetector
         return "answer";
     }
 
-    [GeneratedRegex(@"^\s*(can\s+(i|we|you|it)|does\s+(it|this|the)|is\s+(it|this|there)|do\s+(you|i|we)|will\s+(it|this)|are\s+there|should\s+i)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"^\s*(can\s+(i|we|you|it)|does\s+(it|this|the)|is\s+(it|this|there)|do\s+(you|i|we)|will\s+(it|this)|are\s+there|should\s+i)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex YesNoPattern();
 
-    [GeneratedRegex(@"^\s*(how\s+(do|can|should|would|to)\b|what('?s|\s+is)\s+the\s+(command|way|method|syntax|step|process)\s+to\b)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"^\s*(how\s+(do|can|should|would|to)\b|what('?s|\s+is)\s+the\s+(command|way|method|syntax|step|process)\s+to\b)",
+        RegexOptions.IgnoreCase)]
     private static partial Regex HowToPattern();
 
     public static QueryType Detect(string? query)
@@ -68,9 +102,9 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// Override query type using sentinel intent when available.
-    /// The sentinel LLM is better at distinguishing QA from roundup
-    /// (e.g., "What's the SNL host this week?" is QA, not roundup).
+    ///     Override query type using sentinel intent when available.
+    ///     The sentinel LLM is better at distinguishing QA from roundup
+    ///     (e.g., "What's the SNL host this week?" is QA, not roundup).
     /// </summary>
     public static QueryType Detect(string? query, SentinelIntent? sentinelIntent)
     {
@@ -91,20 +125,20 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// Whether recency filtering should be applied.
-    /// Uses sentinel LLM extraction only - no hardcoded regex patterns.
+    ///     Whether recency filtering should be applied.
+    ///     Uses sentinel LLM extraction only - no hardcoded regex patterns.
     /// </summary>
     public static bool ImpliesDateGating(SentinelIntent? sentinelIntent)
     {
         if (sentinelIntent == null) return false;
         return sentinelIntent.RequiresFresh
-            || sentinelIntent.TimeSensitivity is "today" or "breaking" or "week"
-            || sentinelIntent.DateRange != null;
+               || sentinelIntent.TimeSensitivity is "today" or "breaking" or "week"
+               || sentinelIntent.DateRange != null;
     }
 
     /// <summary>
-    /// Get the maximum age for freshness filtering based on sentinel LLM extraction.
-    /// NO regex fallbacks - trust the LLM to parse natural language.
+    ///     Get the maximum age for freshness filtering based on sentinel LLM extraction.
+    ///     NO regex fallbacks - trust the LLM to parse natural language.
     /// </summary>
     public static TimeSpan GetMaxAge(SentinelIntent? sentinelIntent, string? query = null)
     {
@@ -137,8 +171,8 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// Check if a content item looks like "on this day" / historical drift
-    /// that should be penalized in roundup queries.
+    ///     Check if a content item looks like "on this day" / historical drift
+    ///     that should be penalized in roundup queries.
     /// </summary>
     public static bool IsTopicDrift(ContentItem item)
     {
@@ -147,8 +181,8 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// Source quality multipliers for a given query type.
-    /// Applied after existing source weights in the RRF pipeline.
+    ///     Source quality multipliers for a given query type.
+    ///     Applied after existing source weights in the RRF pipeline.
     /// </summary>
     public static double GetSourceQualityMultiplier(QueryType queryType, string? url)
     {
@@ -166,8 +200,8 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// For roundup queries, compute a freshness multiplier based on publication date.
-    /// Items older than the cutoff get demoted.
+    ///     For roundup queries, compute a freshness multiplier based on publication date.
+    ///     Items older than the cutoff get demoted.
     /// </summary>
     public static double GetFreshnessMultiplier(ContentItem item, TimeSpan maxAge)
     {
@@ -219,65 +253,47 @@ public static partial class QueryTypeDetector
         }
     }
 
-    private static readonly string[] PrimarySourceDomains =
-    [
-        "arxiv.org", "openreview.net", "aclanthology.org", "neurips.cc",
-        "proceedings.mlr.press", "openai.com", "ai.google", "research.google",
-        "research.facebook.com", "research.meta.com", "deepmind.google",
-        "microsoft.com/research", "nature.com", "science.org", "ieee.org",
-        "acm.org", "wikipedia.org"
-    ];
-
-    private static readonly string[] LowSignalDomains =
-    [
-        "medium.com", "dev.to", "linkedin.com", "towardsdatascience.com",
-        "hackernoon.com", "analytics-vidhya"
-    ];
-
-    private static readonly string[] NewsDomains =
-    [
-        // Wire services + premium journalism
-        "bbc.co.uk", "bbc.com", "theguardian.com", "reuters.com", "apnews.com",
-        "nytimes.com", "washingtonpost.com", "economist.com", "ft.com",
-        "wsj.com", "npr.org", "pbs.org", "politico.com", "theatlantic.com",
-        // Tech & science press
-        "arstechnica.com", "theverge.com", "techcrunch.com", "wired.com",
-        "theregister.com", "engadget.com", "zdnet.com", "thenextweb.com",
-        "9to5mac.com", "tomshardware.com", "anandtech.com",
-        // International
-        "aljazeera.com", "france24.com", "dw.com", "scmp.com",
-        "japantimes.co.jp", "abc.net.au"
-    ];
-
-    [GeneratedRegex(@"\b(history|evolution|timeline|origin|how\s+did\s+\w+\s+(develop|start|begin|evolve|emerge)|chronolog|over\s+the\s+years|through\s+the\s+ages)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(history|evolution|timeline|origin|how\s+did\s+\w+\s+(develop|start|begin|evolve|emerge)|chronolog|over\s+the\s+years|through\s+the\s+ages)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex TimelinePattern();
 
-    [GeneratedRegex(@"\b(vs\.?|versus|compar|difference\s+between|which\s+is\s+better|pros?\s+and\s+cons?|trade.?offs?)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(vs\.?|versus|compar|difference\s+between|which\s+is\s+better|pros?\s+and\s+cons?|trade.?offs?)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex ComparisonPattern();
 
-    [GeneratedRegex(@"\b(how\s+does|what\s+is|what'?s\s+the|what'?s\s+a\b|explain|why\s+does|how\s+do|what\s+are|who\s+is|who'?s\s+the|overview\s+of|introduction\s+to|guide\s+to)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(how\s+does|what\s+is|what'?s\s+the|what'?s\s+a\b|explain|why\s+does|how\s+do|what\s+are|who\s+is|who'?s\s+the|overview\s+of|introduction\s+to|guide\s+to)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex ExplainerPattern();
 
-    [GeneratedRegex(@"\b(today|this\s+week|this\s+morning|latest|recent|news|interesting|stories|headlines|roundup|round.?up|digest|weekly|daily|what.?s\s+new|what\s+happened|trending|top\s+\d+|best\s+of)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(today|this\s+week|this\s+morning|latest|recent|news|interesting|stories|headlines|roundup|round.?up|digest|weekly|daily|what.?s\s+new|what\s+happened|trending|top\s+\d+|best\s+of)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex RoundupPattern();
 
     /// <summary>
-    /// Matches queries that imply "recent / today" date constraint.
+    ///     Matches queries that imply "recent / today" date constraint.
     /// </summary>
-    [GeneratedRegex(@"\b(today|this\s+morning|right\s+now|past\s+hour|last\s+\d+\s+(hours?|days?|weeks?)|this\s+afternoon|just\s+happened|breaking|recent|latest|new|current|this\s+week|past\s+few\s+days)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(today|this\s+morning|right\s+now|past\s+hour|last\s+\d+\s+(hours?|days?|weeks?)|this\s+afternoon|just\s+happened|breaking|recent|latest|new|current|this\s+week|past\s+few\s+days)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex DateGatingPattern();
 
     /// <summary>
-    /// Matches content that looks like "on this day in history" drift — should be penalized in roundups.
+    ///     Matches content that looks like "on this day in history" drift — should be penalized in roundups.
     /// </summary>
-    [GeneratedRegex(@"\b(on\s+this\s+day|today\s+in\s+history|born\s+on\s+this\s+day|anniversary\s+of|years?\s+ago\s+today|this\s+day\s+in|historical\s+event)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(on\s+this\s+day|today\s+in\s+history|born\s+on\s+this\s+day|anniversary\s+of|years?\s+ago\s+today|this\s+day\s+in|historical\s+event)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex TopicDriftPattern();
 
     // --- GraphRAG Scope Detection ---
 
     /// <summary>
-    /// Detect the GraphRAG scope of a query: Local (specific), Global (sensemaking), or Connective (DRIFT).
-    /// Uses heuristic patterns first, then sentinel intent when available.
+    ///     Detect the GraphRAG scope of a query: Local (specific), Global (sensemaking), or Connective (DRIFT).
+    ///     Uses heuristic patterns first, then sentinel intent when available.
     /// </summary>
     public static GraphScope DetectGraphScope(string? query)
     {
@@ -296,8 +312,8 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// Override graph scope using sentinel intent when available.
-    /// Sentinel "deep_dive" → Connective, "roundup" → Global.
+    ///     Override graph scope using sentinel intent when available.
+    ///     Sentinel "deep_dive" → Connective, "roundup" → Global.
     /// </summary>
     public static GraphScope DetectGraphScope(string? query, SentinelIntent? sentinelIntent)
     {
@@ -308,14 +324,12 @@ public static partial class QueryTypeDetector
 
         // Sentinel graph_scope overrides heuristic when present
         if (!string.IsNullOrWhiteSpace(sentinelIntent.GraphScope))
-        {
             return sentinelIntent.GraphScope.ToLowerInvariant() switch
             {
                 "global" => GraphScope.Global,
                 "connective" => GraphScope.Connective,
                 _ => heuristic
             };
-        }
 
         // Infer from intent type when graph_scope not explicitly set
         if (sentinelIntent.Intent is "deep_dive" && heuristic == GraphScope.Local)
@@ -325,17 +339,21 @@ public static partial class QueryTypeDetector
     }
 
     /// <summary>
-    /// Sensemaking queries: "what are the main themes", "summarize the key topics",
-    /// "overview of all", "what patterns", "common threads", "big picture".
+    ///     Sensemaking queries: "what are the main themes", "summarize the key topics",
+    ///     "overview of all", "what patterns", "common threads", "big picture".
     /// </summary>
-    [GeneratedRegex(@"\b(main\s+themes?|key\s+topics?|summarize\s+(all|everything|the\s+key)|overview\s+of\s+(all|the|my)|what\s+patterns?|common\s+threads?|big\s+picture|recurring\s+topics?|what\s+topics?\s+(do|does|are)|corpus|across\s+(all|the)\s+(documents?|articles?|sources?)|general\s+themes?|broad\s+trends?)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(main\s+themes?|key\s+topics?|summarize\s+(all|everything|the\s+key)|overview\s+of\s+(all|the|my)|what\s+patterns?|common\s+threads?|big\s+picture|recurring\s+topics?|what\s+topics?\s+(do|does|are)|corpus|across\s+(all|the)\s+(documents?|articles?|sources?)|general\s+themes?|broad\s+trends?)\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex GlobalScopePattern();
 
     /// <summary>
-    /// Connective queries: "how does X relate to Y", "connection between",
-    /// "what links", "relationship between", "compare across".
+    ///     Connective queries: "how does X relate to Y", "connection between",
+    ///     "what links", "relationship between", "compare across".
     /// </summary>
-    [GeneratedRegex(@"\b(how\s+does?\s+\w+\s+relate|relat(e|es|ed|ion|ionship)\s+(to|between|with)|connect(ion|ed|s)?\s+(between|to|with|across)|what\s+links?|bridge\s+between|compare\s+across|in\s+common\s+between|shared\s+between|overlap\s+between|how\s+are\s+\w+\s+(and|&)\s+\w+\s+(connected|related|linked))\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b(how\s+does?\s+\w+\s+relate|relat(e|es|ed|ion|ionship)\s+(to|between|with)|connect(ion|ed|s)?\s+(between|to|with|across)|what\s+links?|bridge\s+between|compare\s+across|in\s+common\s+between|shared\s+between|overlap\s+between|how\s+are\s+\w+\s+(and|&)\s+\w+\s+(connected|related|linked))\b",
+        RegexOptions.IgnoreCase)]
     private static partial Regex ConnectiveScopePattern();
 }
 
@@ -349,10 +367,10 @@ public enum QueryType
 }
 
 /// <summary>
-/// GraphRAG-style query scope (Microsoft Research, 2024).
-/// Determines whether a query needs chunk-level retrieval (Local),
-/// corpus-level community summaries (Global), or entity graph traversal (Connective).
-/// See: https://microsoft.github.io/graphrag/
+///     GraphRAG-style query scope (Microsoft Research, 2024).
+///     Determines whether a query needs chunk-level retrieval (Local),
+///     corpus-level community summaries (Global), or entity graph traversal (Connective).
+///     See: https://microsoft.github.io/graphrag/
 /// </summary>
 public enum GraphScope
 {

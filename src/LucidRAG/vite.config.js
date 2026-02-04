@@ -36,11 +36,11 @@ export default defineConfig({
     server: {
         proxy: {
             '/api': 'http://localhost:5019',
-      '/hubs': {
-        target: 'http://localhost:5019',
-        ws: true
-      },
-      '/graphql': 'http://localhost:5019'
+            '/hubs': {
+                target: 'http://localhost:5019',
+                ws: true
+            },
+            '/graphql': 'http://localhost:5019'
+        }
     }
-  }
 })

@@ -1,18 +1,15 @@
 using Microsoft.Extensions.Logging;
-using VideoSummarizer.Core.Models;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Detects title sequences and credit rolls in video.
-/// Title sequences typically appear in the first 5% of the video with text overlays.
-/// Credits appear in the last 10% with scrolling text on dark backgrounds.
-/// These segments need enhanced OCR processing.
+///     Detects title sequences and credit rolls in video.
+///     Title sequences typically appear in the first 5% of the video with text overlays.
+///     Credits appear in the last 10% with scrolling text on dark backgrounds.
+///     These segments need enhanced OCR processing.
 /// </summary>
 public class TitleCreditsDetectionWave : IVideoWave
 {
-    private readonly ILogger<TitleCreditsDetectionWave> _logger;
-
     // Detection thresholds
     private const double TitleWindowPercent = 0.05; // First 5% of video
     private const double CreditsWindowPercent = 0.10; // Last 10% of video
@@ -20,18 +17,21 @@ public class TitleCreditsDetectionWave : IVideoWave
     private const double MinCreditsDuration = 10.0; // Minimum 10 seconds
     private const double TextDensityThreshold = 0.3; // 30% of frame contains text regions
     private const double DarkBackgroundThreshold = 0.7; // 70% dark pixels
-
-    public string Name => "title_credits_detection";
-    public int Priority => 785; // After shot thumbnails, before subtitle extraction
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+    private readonly ILogger<TitleCreditsDetectionWave> _logger;
 
     public TitleCreditsDetectionWave(ILogger<TitleCreditsDetectionWave> logger)
     {
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        context.Metadata != null && context.Shots.Count > 0;
+    public string Name => "title_credits_detection";
+    public int Priority => 785; // After shot thumbnails, before subtitle extraction
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null && context.Shots.Count > 0;
+    }
 
     public Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -60,7 +60,7 @@ public class TitleCreditsDetectionWave : IVideoWave
     }
 
     /// <summary>
-    /// Detect potential title sequence at the beginning of the video.
+    ///     Detect potential title sequence at the beginning of the video.
     /// </summary>
     private TitleCreditsSegment? DetectTitleSequence(VideoContext context, double windowEnd)
     {
@@ -98,9 +98,7 @@ public class TitleCreditsDetectionWave : IVideoWave
             // Check for OCR text presence
             var ocrText = GetSignalValue<string>(profile, "ocr.text") ?? "";
             if (!string.IsNullOrEmpty(ocrText) && ocrText.Length > 10)
-            {
                 titleEndTime = Math.Max(titleEndTime, shot.EndTime);
-            }
         }
 
         if (shotCount == 0) return null;
@@ -131,8 +129,8 @@ public class TitleCreditsDetectionWave : IVideoWave
     }
 
     /// <summary>
-    /// Detect potential credits sequence at the end of the video.
-    /// Credits typically have scrolling text, dark backgrounds, and high text density.
+    ///     Detect potential credits sequence at the end of the video.
+    ///     Credits typically have scrolling text, dark backgrounds, and high text density.
     /// </summary>
     private TitleCreditsSegment? DetectCreditsSequence(VideoContext context, double windowStart, double duration)
     {
@@ -177,9 +175,7 @@ public class TitleCreditsDetectionWave : IVideoWave
             // If we have text + dark background, this is likely credits
             var ocrText = GetSignalValue<string>(profile, "ocr.text") ?? "";
             if (!string.IsNullOrEmpty(ocrText) && ocrText.Length > 20 && avgLuminance < 0.3)
-            {
                 creditsStartTime = Math.Min(creditsStartTime, shot.StartTime);
-            }
         }
 
         if (shotCount == 0) return null;
@@ -273,7 +269,7 @@ public class TitleCreditsDetectionWave : IVideoWave
     }
 
     /// <summary>
-    /// Mark shots in title/credits sequences for enhanced OCR processing.
+    ///     Mark shots in title/credits sequences for enhanced OCR processing.
     /// </summary>
     private void MarkShotsForEnhancedOcr(
         VideoContext context,
@@ -456,7 +452,7 @@ public class TitleCreditsDetectionWave : IVideoWave
 }
 
 /// <summary>
-/// Type of title/credits sequence.
+///     Type of title/credits sequence.
 /// </summary>
 public enum SequenceType
 {
@@ -466,7 +462,7 @@ public enum SequenceType
 }
 
 /// <summary>
-/// Detected title or credits sequence information.
+///     Detected title or credits sequence information.
 /// </summary>
 public record TitleCreditsSegment
 {

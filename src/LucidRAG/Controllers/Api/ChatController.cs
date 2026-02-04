@@ -122,14 +122,29 @@ public class ChatController(
         Response.Headers.Append("Content-Type", "text/event-stream");
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
-        var searchMode = request.SearchMode?.ToLowerInvariant() switch { "semantic" => SearchMode.Semantic, "keyword" => SearchMode.Keyword, _ => SearchMode.Hybrid };
-        var chatRequest = new ChatRequest(request.Query, request.ConversationId, request.CollectionId, request.DocumentIds, request.SystemPrompt, searchMode);
+        var searchMode = request.SearchMode?.ToLowerInvariant() switch
+        {
+            "semantic" => SearchMode.Semantic, "keyword" => SearchMode.Keyword, _ => SearchMode.Hybrid
+        };
+        var chatRequest = new ChatRequest(request.Query, request.ConversationId, request.CollectionId,
+            request.DocumentIds, request.SystemPrompt, searchMode);
         await foreach (var chunk in searchService.ChatStreamWithSourcesAsync(chatRequest, ct))
         {
-            var data = JsonSerializer.Serialize(new { type = chunk.Type, text = chunk.Text, sources = chunk.Sources?.Select(s => new { number = s.Number, documentId = s.DocumentId, documentName = s.DocumentName, text = s.Text, pageOrSection = s.PageOrSection }), conversationId = chunk.ConversationId, thinkingNote = chunk.ThinkingNote, searchTimeMs = chunk.SearchTimeMs, segmentCount = chunk.SegmentCount });
+            var data = JsonSerializer.Serialize(new
+            {
+                type = chunk.Type, text = chunk.Text,
+                sources = chunk.Sources?.Select(s => new
+                {
+                    number = s.Number, documentId = s.DocumentId, documentName = s.DocumentName, text = s.Text,
+                    pageOrSection = s.PageOrSection
+                }),
+                conversationId = chunk.ConversationId, thinkingNote = chunk.ThinkingNote,
+                searchTimeMs = chunk.SearchTimeMs, segmentCount = chunk.SegmentCount
+            });
             await Response.WriteAsync($"data: {data}\n\n", ct);
             await Response.Body.FlushAsync(ct);
         }
+
         await Response.WriteAsync("data: [DONE]\n\n", ct);
         await Response.Body.FlushAsync(ct);
     }

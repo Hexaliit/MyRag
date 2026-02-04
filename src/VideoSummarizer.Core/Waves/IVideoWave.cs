@@ -3,44 +3,53 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Interface for pluggable video analysis components.
-/// Each wave processes the video and contributes to the shared context.
-/// Waves are deterministic-first: expensive LLM operations are deferred or optional.
+///     Interface for pluggable video analysis components.
+///     Each wave processes the video and contributes to the shared context.
+///     Waves are deterministic-first: expensive LLM operations are deferred or optional.
 /// </summary>
 public interface IVideoWave
 {
     /// <summary>
-    /// Unique name identifying this wave.
+    ///     Unique name identifying this wave.
     /// </summary>
     string Name { get; }
 
     /// <summary>
-    /// Priority for execution order. Higher priority waves run first.
+    ///     Priority for execution order. Higher priority waves run first.
     /// </summary>
     int Priority { get; }
 
     /// <summary>
-    /// Tags describing what category of analysis this wave provides.
+    ///     Tags describing what category of analysis this wave provides.
     /// </summary>
     IReadOnlyList<string> Tags { get; }
 
     /// <summary>
-    /// Check if this wave should run based on cheap preconditions.
+    ///     Check if this wave should run based on cheap preconditions.
     /// </summary>
-    bool ShouldRun(VideoContext context) => true;
+    bool ShouldRun(VideoContext context)
+    {
+        return true;
+    }
 
     /// <summary>
-    /// Process the video and contribute results to the context.
+    ///     Process the video and contribute results to the context.
     /// </summary>
     Task ProcessAsync(VideoContext context, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Shared context passed between video analysis waves.
-/// Contains all extracted signals and intermediate results.
+///     Shared context passed between video analysis waves.
+///     Contains all extracted signals and intermediate results.
 /// </summary>
 public class VideoContext
 {
+    /// <summary>Arbitrary cache for sharing data between waves</summary>
+    private readonly Dictionary<string, object> _cache = new();
+
+    /// <summary>Signals produced by waves</summary>
+    private readonly Dictionary<string, List<VideoSignal>> _signals = new();
+
     /// <summary>Path to the source video file</summary>
     public required string VideoPath { get; init; }
 
@@ -83,17 +92,11 @@ public class VideoContext
     /// <summary>Frame timestamps (frame index -> seconds)</summary>
     public Dictionary<int, double> FrameTimestamps { get; } = [];
 
-    /// <summary>Arbitrary cache for sharing data between waves</summary>
-    private readonly Dictionary<string, object> _cache = new();
-
-    /// <summary>Signals produced by waves</summary>
-    private readonly Dictionary<string, List<VideoSignal>> _signals = new();
-
     /// <summary>Progress callback for reporting status</summary>
     public Action<string, double>? OnProgress { get; set; }
 
     /// <summary>
-    /// Add a signal to the context.
+    ///     Add a signal to the context.
     /// </summary>
     public void AddSignal(VideoSignal signal)
     {
@@ -103,7 +106,7 @@ public class VideoContext
     }
 
     /// <summary>
-    /// Add multiple signals.
+    ///     Add multiple signals.
     /// </summary>
     public void AddSignals(IEnumerable<VideoSignal> signals)
     {
@@ -112,60 +115,80 @@ public class VideoContext
     }
 
     /// <summary>
-    /// Get all signals for a key.
+    ///     Get all signals for a key.
     /// </summary>
-    public IEnumerable<VideoSignal> GetSignals(string key) =>
-        _signals.TryGetValue(key, out var list) ? list : [];
+    public IEnumerable<VideoSignal> GetSignals(string key)
+    {
+        return _signals.TryGetValue(key, out var list) ? list : [];
+    }
 
     /// <summary>
-    /// Get the best signal for a key (highest confidence).
+    ///     Get the best signal for a key (highest confidence).
     /// </summary>
-    public VideoSignal? GetBestSignal(string key) =>
-        GetSignals(key).OrderByDescending(s => s.Confidence).FirstOrDefault();
+    public VideoSignal? GetBestSignal(string key)
+    {
+        return GetSignals(key).OrderByDescending(s => s.Confidence).FirstOrDefault();
+    }
 
     /// <summary>
-    /// Get value from best signal.
+    ///     Get value from best signal.
     /// </summary>
-    public T? GetValue<T>(string key) =>
-        GetBestSignal(key)?.Value is T val ? val : default;
+    public T? GetValue<T>(string key)
+    {
+        return GetBestSignal(key)?.Value is T val ? val : default;
+    }
 
     /// <summary>
-    /// Check if a signal exists.
+    ///     Check if a signal exists.
     /// </summary>
-    public bool HasSignal(string key) =>
-        _signals.ContainsKey(key) && _signals[key].Count > 0;
+    public bool HasSignal(string key)
+    {
+        return _signals.ContainsKey(key) && _signals[key].Count > 0;
+    }
 
     /// <summary>
-    /// Get all signals.
+    ///     Get all signals.
     /// </summary>
-    public IEnumerable<VideoSignal> GetAllSignals() =>
-        _signals.Values.SelectMany(s => s);
+    public IEnumerable<VideoSignal> GetAllSignals()
+    {
+        return _signals.Values.SelectMany(s => s);
+    }
 
     /// <summary>
-    /// Cache data for sharing between waves.
+    ///     Cache data for sharing between waves.
     /// </summary>
-    public void SetCached<T>(string key, T value) => _cache[key] = value!;
+    public void SetCached<T>(string key, T value)
+    {
+        _cache[key] = value!;
+    }
 
     /// <summary>
-    /// Retrieve cached data.
+    ///     Retrieve cached data.
     /// </summary>
-    public T? GetCached<T>(string key) =>
-        _cache.TryGetValue(key, out var val) && val is T typed ? typed : default;
+    public T? GetCached<T>(string key)
+    {
+        return _cache.TryGetValue(key, out var val) && val is T typed ? typed : default;
+    }
 
     /// <summary>
-    /// Clear cache to free memory.
+    ///     Clear cache to free memory.
     /// </summary>
-    public void ClearCache() => _cache.Clear();
+    public void ClearCache()
+    {
+        _cache.Clear();
+    }
 
     /// <summary>
-    /// Report progress.
+    ///     Report progress.
     /// </summary>
-    public void ReportProgress(string stage, double percent) =>
+    public void ReportProgress(string stage, double percent)
+    {
         OnProgress?.Invoke(stage, percent);
+    }
 }
 
 /// <summary>
-/// A signal produced by a video analysis wave.
+///     A signal produced by a video analysis wave.
 /// </summary>
 public record VideoSignal
 {
@@ -183,6 +206,7 @@ public record VideoSignal
 
     /// <summary>Optional time range this signal applies to</summary>
     public double? StartTime { get; init; }
+
     public double? EndTime { get; init; }
 
     /// <summary>When generated</summary>
@@ -196,7 +220,7 @@ public record VideoSignal
 }
 
 /// <summary>
-/// Tags for video signal categorization.
+///     Tags for video signal categorization.
 /// </summary>
 public static class VideoSignalTags
 {

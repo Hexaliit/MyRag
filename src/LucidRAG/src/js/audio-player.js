@@ -101,11 +101,11 @@ class AudioPlayerManager {
         // Create individual track containers
         const stemPlayers = {}
         const stemColors = {
-            vocals: { wave: 'rgb(236, 72, 153)', progress: 'rgb(219, 39, 119)' },      // Pink
-            drums: { wave: 'rgb(245, 158, 11)', progress: 'rgb(217, 119, 6)' },        // Amber
-            bass: { wave: 'rgb(16, 185, 129)', progress: 'rgb(5, 150, 105)' },         // Green
-            other: { wave: 'rgb(59, 130, 246)', progress: 'rgb(37, 99, 235)' },        // Blue
-            instrumentals: { wave: 'rgb(139, 92, 246)', progress: 'rgb(124, 58, 237)' } // Purple
+            vocals: {wave: 'rgb(236, 72, 153)', progress: 'rgb(219, 39, 119)'},      // Pink
+            drums: {wave: 'rgb(245, 158, 11)', progress: 'rgb(217, 119, 6)'},        // Amber
+            bass: {wave: 'rgb(16, 185, 129)', progress: 'rgb(5, 150, 105)'},         // Green
+            other: {wave: 'rgb(59, 130, 246)', progress: 'rgb(37, 99, 235)'},        // Blue
+            instrumentals: {wave: 'rgb(139, 92, 246)', progress: 'rgb(124, 58, 237)'} // Purple
         }
 
         const stemLabels = {
@@ -271,7 +271,7 @@ class AudioPlayerManager {
 const audioPlayer = new AudioPlayerManager()
 
 // Export for module use
-export { audioPlayer, AudioPlayerManager }
+export {audioPlayer, AudioPlayerManager}
 
 // Make available globally for inline scripts
 window.AudioPlayer = audioPlayer

@@ -1,18 +1,17 @@
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Data.Models;
 
 namespace Mostlylucid.DocSummarizer.Data.Services;
 
 /// <summary>
-/// Composite database reader that routes to the appropriate reader based on file extension.
-/// Supports both SQLite (.db, .sqlite, .sqlite3) and Access (.accdb, .mdb) files.
+///     Composite database reader that routes to the appropriate reader based on file extension.
+///     Supports both SQLite (.db, .sqlite, .sqlite3) and Access (.accdb, .mdb) files.
 /// </summary>
 public class CompositeDatabaseReader : IDatabaseReader
 {
-    private readonly SqliteDatabaseReader _sqliteReader;
     private readonly AccessDatabaseReader _accessReader;
     private readonly ILogger<CompositeDatabaseReader>? _logger;
+    private readonly SqliteDatabaseReader _sqliteReader;
 
     public CompositeDatabaseReader(
         SqliteDatabaseReader sqliteReader,

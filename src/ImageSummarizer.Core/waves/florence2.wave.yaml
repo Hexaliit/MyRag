@@ -29,12 +29,12 @@ emits:
     - key: florence2.caption
       type: string
       description: Florence-2 generated image caption
-      confidence_range: [0.6, 0.95]
+      confidence_range: [ 0.6, 0.95 ]
 
     - key: florence2.ocr_text
       type: string
       description: OCR text extracted by Florence-2
-      confidence_range: [0.7, 0.85]
+      confidence_range: [ 0.7, 0.85 ]
 
     - key: content.extracted_text
       type: string
@@ -47,7 +47,7 @@ emits:
     - key: florence2.should_escalate
       type: bool
       description: Whether to escalate to Vision LLM
-      confidence_range: [0.8, 0.95]
+      confidence_range: [ 0.8, 0.95 ]
 
     - key: florence2.error
       type: string

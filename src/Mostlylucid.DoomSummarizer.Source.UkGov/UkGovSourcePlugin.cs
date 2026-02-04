@@ -5,9 +5,9 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Sources.UkGov;
 
 /// <summary>
-/// Standalone NuGet source plugin for UK Government open data.
-/// Routes to Parliament Hansard, Police Crime Data, and Environment Agency Flood Monitoring APIs.
-/// All endpoints are free and require no authentication.
+///     Standalone NuGet source plugin for UK Government open data.
+///     Routes to Parliament Hansard, Police Crime Data, and Environment Agency Flood Monitoring APIs.
+///     All endpoints are free and require no authentication.
 /// </summary>
 public sealed class UkGovSourcePlugin : ISourcePlugin
 {
@@ -20,7 +20,8 @@ public sealed class UkGovSourcePlugin : ISourcePlugin
         Keys = ["parliament", "hansard", "ukpolice", "ukflood", "ukgov"],
         DisplayName = "UK Government",
         Description = "UK Parliament Hansard debates, Police crime data, and Environment Agency flood monitoring.",
-        Capabilities = SourceCapabilities.Search | SourceCapabilities.Feed | SourceCapabilities.SubSource | SourceCapabilities.NoAuth,
+        Capabilities = SourceCapabilities.Search | SourceCapabilities.Feed | SourceCapabilities.SubSource |
+                       SourceCapabilities.NoAuth,
         PackageId = "Mostlylucid.LucidRAG.Sources.UkGov",
         Examples =
         [

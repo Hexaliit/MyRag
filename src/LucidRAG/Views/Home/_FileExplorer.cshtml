@@ -132,7 +132,8 @@
                 <div class="text-xs text-base-content/50 uppercase tracking-wide flex items-center gap-2">
                     Entities
                     <template x-if="selectedEntities.size > 0">
-                        <span class="badge badge-xs badge-secondary" x-text="selectedEntities.size + ' selected'"></span>
+                        <span class="badge badge-xs badge-secondary"
+                              x-text="selectedEntities.size + ' selected'"></span>
                     </template>
                 </div>
                 <div class="flex items-center gap-1">
@@ -140,8 +141,10 @@
                         <button class="btn btn-ghost btn-xs text-error"
                                 @@click="selectedEntities.clear(); selectedEntities = new Set(); loadContents()"
                                 title="Clear entity filters">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M6 18L18 6M6 6l12 12"/>
                             </svg>
                         </button>
                     </template>
@@ -158,8 +161,9 @@
                 <template x-for="(entities, type) in entityGroups" :key="type">
                     <div class="bg-base-200/30 rounded-lg overflow-hidden">
                         <!-- Entity type header - always visible -->
-                        <div class="flex items-center gap-2 px-2 py-1.5 text-sm font-medium cursor-pointer hover:bg-base-200/50"
-                             @@click="entityTypeExpanded = entityTypeExpanded === type ? null : type">
+                        <div
+                            class="flex items-center gap-2 px-2 py-1.5 text-sm font-medium cursor-pointer hover:bg-base-200/50"
+                            @@click="entityTypeExpanded = entityTypeExpanded === type ? null : type">
                             <span x-html="getEntityIcon(type)"></span>
                             <span x-text="type" class="capitalize flex-1"></span>
                             <span class="badge badge-xs badge-ghost" x-text="entities.length"></span>
@@ -167,16 +171,18 @@
                                  class="h-3 w-3 transition-transform"
                                  :class="entityTypeExpanded === type ? 'rotate-180' : ''"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M19 9l-7 7-7-7"/>
                             </svg>
                         </div>
                         <!-- Entity items -->
                         <div class="px-1 pb-1" x-show="entityTypeExpanded === type" x-collapse>
                             <template x-for="entity in entities.slice(0, 10)" :key="entity.id">
-                                <div class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300 text-xs"
-                                     :class="selectedEntities.has(entity.id) ? 'bg-secondary/20 font-medium' : ''"
-                                     @@click="toggleEntityFilter(entity.id, type)"
-                                     :title="entity.description || entity.name">
+                                <div
+                                    class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-base-300 text-xs"
+                                    :class="selectedEntities.has(entity.id) ? 'bg-secondary/20 font-medium' : ''"
+                                    @@click="toggleEntityFilter(entity.id, type)"
+                                    :title="entity.description || entity.name">
                                     <input type="checkbox" class="checkbox checkbox-xs"
                                            :checked="selectedEntities.has(entity.id)"
                                            @@click.stop/>

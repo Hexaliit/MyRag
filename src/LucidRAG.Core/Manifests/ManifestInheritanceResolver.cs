@@ -1,11 +1,11 @@
-using Microsoft.Extensions.Logging;
+using System.Collections;
 using System.Reflection;
 
 namespace LucidRAG.Manifests;
 
 /// <summary>
-/// Resolves YAML manifest inheritance by merging parent and child manifests.
-/// Supports deep merging of nested objects and collections.
+///     Resolves YAML manifest inheritance by merging parent and child manifests.
+///     Supports deep merging of nested objects and collections.
 /// </summary>
 public sealed class ManifestInheritanceResolver<TManifest> where TManifest : class
 {
@@ -22,8 +22,8 @@ public sealed class ManifestInheritanceResolver<TManifest> where TManifest : cla
     }
 
     /// <summary>
-    /// Resolves inheritance for a manifest by loading parent and merging properties.
-    /// Returns the fully resolved manifest with all inherited properties.
+    ///     Resolves inheritance for a manifest by loading parent and merging properties.
+    ///     Returns the fully resolved manifest with all inherited properties.
     /// </summary>
     public async Task<TManifest> ResolveInheritanceAsync(
         TManifest manifest,
@@ -32,11 +32,11 @@ public sealed class ManifestInheritanceResolver<TManifest> where TManifest : cla
         // Check if this manifest inherits from another
         var inheritsProperty = typeof(TManifest).GetProperty("Inherits");
         if (inheritsProperty == null)
-            return manifest;  // No inheritance support
+            return manifest; // No inheritance support
 
         var inheritsValue = inheritsProperty.GetValue(manifest) as string;
         if (string.IsNullOrEmpty(inheritsValue))
-            return manifest;  // No parent specified
+            return manifest; // No parent specified
 
         // Get manifest name for cycle detection
         var nameProperty = typeof(TManifest).GetProperty("Name");
@@ -64,7 +64,7 @@ public sealed class ManifestInheritanceResolver<TManifest> where TManifest : cla
                     "Parent manifest '{Parent}' not found for '{Child}'",
                     inheritsValue,
                     manifestName);
-                return manifest;  // Return child as-is if parent not found
+                return manifest; // Return child as-is if parent not found
             }
 
             // Recursively resolve parent's inheritance
@@ -87,8 +87,8 @@ public sealed class ManifestInheritanceResolver<TManifest> where TManifest : cla
     }
 
     /// <summary>
-    /// Merges parent and child manifests.
-    /// Child properties override parent properties.
+    ///     Merges parent and child manifests.
+    ///     Child properties override parent properties.
     /// </summary>
     private TManifest MergeManifests(TManifest parent, TManifest child)
     {
@@ -107,17 +107,17 @@ public sealed class ManifestInheritanceResolver<TManifest> where TManifest : cla
 
             var childValue = property.GetValue(child);
             if (childValue == null)
-                continue;  // Skip null values (keep parent value)
+                continue; // Skip null values (keep parent value)
 
             // For strings, check if empty
             if (childValue is string str && string.IsNullOrEmpty(str))
-                continue;  // Skip empty strings (keep parent value)
+                continue; // Skip empty strings (keep parent value)
 
             // For collections, merge or replace based on type
-            if (childValue is System.Collections.IDictionary childDict)
+            if (childValue is IDictionary childDict)
             {
                 var parentValue = property.GetValue(merged);
-                if (parentValue is System.Collections.IDictionary parentDict)
+                if (parentValue is IDictionary parentDict)
                 {
                     // Merge dictionaries
                     MergeDictionaries(parentDict, childDict);
@@ -133,7 +133,7 @@ public sealed class ManifestInheritanceResolver<TManifest> where TManifest : cla
     }
 
     /// <summary>
-    /// Creates a shallow copy of a manifest.
+    ///     Creates a shallow copy of a manifest.
     /// </summary>
     private TManifest CloneManifest(TManifest source)
     {
@@ -152,19 +152,16 @@ public sealed class ManifestInheritanceResolver<TManifest> where TManifest : cla
     }
 
     /// <summary>
-    /// Merges two dictionaries, with child values overriding parent values.
+    ///     Merges two dictionaries, with child values overriding parent values.
     /// </summary>
     private void MergeDictionaries(
-        System.Collections.IDictionary parent,
-        System.Collections.IDictionary child)
+        IDictionary parent,
+        IDictionary child)
     {
         foreach (var key in child.Keys)
         {
             var childValue = child[key];
-            if (childValue != null)
-            {
-                parent[key] = childValue;  // Override parent value
-            }
+            if (childValue != null) parent[key] = childValue; // Override parent value
         }
     }
 }

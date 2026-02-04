@@ -1,4 +1,4 @@
-using System.IO.Hashing;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -12,20 +12,17 @@ using Qdrant.Client.Grpc;
 namespace Mostlylucid.Storage.Core.Implementations;
 
 /// <summary>
-/// Qdrant-backed vector store for production deployments.
-/// Provides persistent storage, distributed support, and advanced filtering.
-/// Requires Qdrant server to be running.
+///     Qdrant-backed vector store for production deployments.
+///     Provides persistent storage, distributed support, and advanced filtering.
+///     Requires Qdrant server to be running.
 /// </summary>
 public class QdrantVectorStore : IMultiVectorStore
 {
     private readonly QdrantClient _client;
+    private readonly Dictionary<string, CollectionMetadata> _collections = new();
     private readonly ILogger<QdrantVectorStore> _logger;
     private readonly QdrantOptions _options;
-    private readonly Dictionary<string, CollectionMetadata> _collections = new();
     private bool _disposed;
-
-    public bool IsPersistent => true;
-    public VectorStoreBackend Backend => VectorStoreBackend.Qdrant;
 
     public QdrantVectorStore(IOptions<VectorStoreOptions> options, ILogger<QdrantVectorStore> logger)
     {
@@ -36,6 +33,9 @@ public class QdrantVectorStore : IMultiVectorStore
             ? new QdrantClient($"https://{_options.Host}:{_options.Port}", apiKey: _options.ApiKey)
             : new QdrantClient(_options.Host, _options.Port, apiKey: _options.ApiKey);
     }
+
+    public bool IsPersistent => true;
+    public VectorStoreBackend Backend => VectorStoreBackend.Qdrant;
 
     // ========== Collection Management ==========
 
@@ -75,7 +75,8 @@ public class QdrantVectorStore : IMultiVectorStore
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to initialize Qdrant collection '{collectionName}': {ex.Message}", ex);
+            throw new InvalidOperationException(
+                $"Failed to initialize Qdrant collection '{collectionName}': {ex.Message}", ex);
         }
     }
 
@@ -111,14 +112,14 @@ public class QdrantVectorStore : IMultiVectorStore
     {
         try
         {
-            var info = await _client.GetCollectionInfoAsync(collectionName, cancellationToken: ct);
+            var info = await _client.GetCollectionInfoAsync(collectionName, ct);
 
             return new CollectionStats
             {
                 CollectionName = collectionName,
                 DocumentCount = (long)info.PointsCount,
                 VectorDimension = _collections.GetValueOrDefault(collectionName)?.VectorDimension ?? 0,
-                SizeBytes = null  // Qdrant doesn't expose this directly
+                SizeBytes = null // Qdrant doesn't expose this directly
             };
         }
         catch
@@ -145,7 +146,7 @@ public class QdrantVectorStore : IMultiVectorStore
 
             var scrollResult = await _client.ScrollAsync(
                 collectionName,
-                filter: new Filter
+                new Filter
                 {
                     Must =
                     {
@@ -159,7 +160,7 @@ public class QdrantVectorStore : IMultiVectorStore
                         }
                     }
                 },
-                limit: 1,
+                1,
                 cancellationToken: ct);
 
             return scrollResult.Result.Count > 0;
@@ -170,7 +171,8 @@ public class QdrantVectorStore : IMultiVectorStore
         }
     }
 
-    public async Task UpsertDocumentsAsync(string collectionName, IEnumerable<VectorDocument> documents, CancellationToken ct = default)
+    public async Task UpsertDocumentsAsync(string collectionName, IEnumerable<VectorDocument> documents,
+        CancellationToken ct = default)
     {
         var docList = documents.ToList();
 
@@ -179,19 +181,14 @@ public class QdrantVectorStore : IMultiVectorStore
 
         var metadata = _collections.GetValueOrDefault(collectionName);
         if (metadata == null)
-        {
-            throw new InvalidOperationException($"Collection '{collectionName}' not initialized. Call InitializeAsync first.");
-        }
+            throw new InvalidOperationException(
+                $"Collection '{collectionName}' not initialized. Call InitializeAsync first.");
 
         // Validate dimensions
         foreach (var doc in docList)
-        {
             if (doc.Embedding.Length != metadata.VectorDimension)
-            {
                 throw new ArgumentException(
                     $"Document {doc.Id} embedding dimension {doc.Embedding.Length} does not match collection dimension {metadata.VectorDimension}");
-            }
-        }
 
         // Convert documents to Qdrant points
         var points = docList.Select(d =>
@@ -211,32 +208,24 @@ public class QdrantVectorStore : IMultiVectorStore
             };
 
             // Store text if configured
-            if (metadata.StoreText && d.Text != null)
-            {
-                point.Payload["text"] = d.Text;
-            }
+            if (metadata.StoreText && d.Text != null) point.Payload["text"] = d.Text;
 
             // Store metadata as JSON
-            if (d.Metadata.Count > 0)
-            {
-                point.Payload["metadata"] = JsonSerializer.Serialize(d.Metadata);
-            }
+            if (d.Metadata.Count > 0) point.Payload["metadata"] = JsonSerializer.Serialize(d.Metadata);
 
             return point;
         }).ToList();
 
         // Upsert in batches
         const int batchSize = 100;
-        for (int i = 0; i < points.Count; i += batchSize)
+        for (var i = 0; i < points.Count; i += batchSize)
         {
             var batch = points.Skip(i).Take(batchSize).ToList();
             await _client.UpsertAsync(collectionName, batch, cancellationToken: ct);
 
             if (points.Count > batchSize)
-            {
                 _logger.LogDebug("Upserted batch {Current}/{Total} to Qdrant collection {Collection}",
                     i / batchSize + 1, (points.Count + batchSize - 1) / batchSize, collectionName);
-            }
         }
 
         _logger.LogDebug("Upserted {Count} documents to Qdrant collection {Collection}",
@@ -264,11 +253,12 @@ public class QdrantVectorStore : IMultiVectorStore
             cancellationToken: ct);
     }
 
-    public async Task<VectorDocument?> GetDocumentAsync(string collectionName, string documentId, CancellationToken ct = default)
+    public async Task<VectorDocument?> GetDocumentAsync(string collectionName, string documentId,
+        CancellationToken ct = default)
     {
         var scrollResult = await _client.ScrollAsync(
             collectionName,
-            filter: new Filter
+            new Filter
             {
                 Must =
                 {
@@ -282,7 +272,7 @@ public class QdrantVectorStore : IMultiVectorStore
                     }
                 }
             },
-            limit: 1,
+            1,
             payloadSelector: true,
             vectorsSelector: true,
             cancellationToken: ct);
@@ -294,14 +284,14 @@ public class QdrantVectorStore : IMultiVectorStore
         return PayloadToDocument(point.Payload, ExtractVectorData(point.Vectors));
     }
 
-    public async Task<List<VectorDocument>> GetAllDocumentsAsync(string collectionName, string? parentId = null, CancellationToken ct = default)
+    public async Task<List<VectorDocument>> GetAllDocumentsAsync(string collectionName, string? parentId = null,
+        CancellationToken ct = default)
     {
         var documents = new List<VectorDocument>();
         PointId? offset = null;
 
         Filter? filter = null;
         if (parentId != null)
-        {
             filter = new Filter
             {
                 Must =
@@ -316,17 +306,16 @@ public class QdrantVectorStore : IMultiVectorStore
                     }
                 }
             };
-        }
 
         while (true)
         {
             var scrollResult = await _client.ScrollAsync(
                 collectionName,
-                filter: filter,
-                limit: 100,
-                offset: offset,
-                payloadSelector: true,
-                vectorsSelector: true,
+                filter,
+                100,
+                offset,
+                true,
+                true,
                 cancellationToken: ct);
 
             foreach (var point in scrollResult.Result)
@@ -347,19 +336,17 @@ public class QdrantVectorStore : IMultiVectorStore
 
     // ========== Search Operations ==========
 
-    public async Task<List<VectorSearchResult>> SearchAsync(string collectionName, VectorSearchQuery query, CancellationToken ct = default)
+    public async Task<List<VectorSearchResult>> SearchAsync(string collectionName, VectorSearchQuery query,
+        CancellationToken ct = default)
     {
         var metadata = _collections.GetValueOrDefault(collectionName);
         if (metadata == null)
-        {
-            throw new InvalidOperationException($"Collection '{collectionName}' not initialized. Call InitializeAsync first.");
-        }
+            throw new InvalidOperationException(
+                $"Collection '{collectionName}' not initialized. Call InitializeAsync first.");
 
         if (query.QueryEmbedding.Length != metadata.VectorDimension)
-        {
             throw new ArgumentException(
                 $"Query embedding dimension {query.QueryEmbedding.Length} does not match collection dimension {metadata.VectorDimension}");
-        }
 
         Filter? filter = null;
         if (query.ParentId != null || (query.Filters != null && query.Filters.Count > 0))
@@ -367,7 +354,6 @@ public class QdrantVectorStore : IMultiVectorStore
             filter = new Filter();
 
             if (query.ParentId != null)
-            {
                 filter.Must.Add(new Condition
                 {
                     Field = new FieldCondition
@@ -376,7 +362,6 @@ public class QdrantVectorStore : IMultiVectorStore
                         Match = new Match { Keyword = query.ParentId }
                     }
                 });
-            }
 
             // TODO: Add support for complex metadata filters
         }
@@ -384,7 +369,7 @@ public class QdrantVectorStore : IMultiVectorStore
         var results = await _client.SearchAsync(
             collectionName,
             query.QueryEmbedding,
-            filter: filter,
+            filter,
             limit: (ulong)query.TopK,
             payloadSelector: query.IncludeDocument,
             vectorsSelector: query.IncludeEmbedding,
@@ -395,15 +380,13 @@ public class QdrantVectorStore : IMultiVectorStore
             {
                 VectorDocument? doc = null;
                 if (query.IncludeDocument)
-                {
                     doc = PayloadToDocument(r.Payload, query.IncludeEmbedding ? ExtractVectorData(r.Vectors) : null);
-                }
 
                 return new VectorSearchResult
                 {
                     Id = r.Payload.TryGetValue("id", out var idVal) ? idVal.StringValue : "",
                     Score = r.Score,
-                    Distance = null,  // Qdrant returns score, not distance
+                    Distance = null, // Qdrant returns score, not distance
                     Document = doc,
                     Metadata = doc?.Metadata ?? new Dictionary<string, object>(),
                     Text = query.IncludeDocument && doc != null ? doc.Text : null,
@@ -414,18 +397,16 @@ public class QdrantVectorStore : IMultiVectorStore
             .ToList();
     }
 
-    public async Task<List<VectorSearchResult>> FindSimilarAsync(string collectionName, string documentId, int topK = 10, CancellationToken ct = default)
+    public async Task<List<VectorSearchResult>> FindSimilarAsync(string collectionName, string documentId,
+        int topK = 10, CancellationToken ct = default)
     {
         var doc = await GetDocumentAsync(collectionName, documentId, ct);
-        if (doc == null)
-        {
-            return new List<VectorSearchResult>();
-        }
+        if (doc == null) return new List<VectorSearchResult>();
 
         var query = new VectorSearchQuery
         {
             QueryEmbedding = doc.Embedding,
-            TopK = topK + 1,  // +1 to exclude self
+            TopK = topK + 1, // +1 to exclude self
             IncludeDocument = false
         };
 
@@ -437,7 +418,8 @@ public class QdrantVectorStore : IMultiVectorStore
 
     // ========== Content Hash-Based Caching ==========
 
-    public async Task<Dictionary<string, VectorDocument>> GetDocumentsByHashAsync(string collectionName, IEnumerable<string> contentHashes, CancellationToken ct = default)
+    public async Task<Dictionary<string, VectorDocument>> GetDocumentsByHashAsync(string collectionName,
+        IEnumerable<string> contentHashes, CancellationToken ct = default)
     {
         var result = new Dictionary<string, VectorDocument>();
         var hashList = contentHashes.ToList();
@@ -452,7 +434,6 @@ public class QdrantVectorStore : IMultiVectorStore
             {
                 var filter = new Filter();
                 foreach (var hash in hashBatch)
-                {
                     filter.Should.Add(new Condition
                     {
                         Field = new FieldCondition
@@ -461,12 +442,11 @@ public class QdrantVectorStore : IMultiVectorStore
                             Match = new Match { Keyword = hash }
                         }
                     });
-                }
 
                 var scrollResult = await _client.ScrollAsync(
                     collectionName,
-                    filter: filter,
-                    limit: (uint)hashBatch.Length,
+                    filter,
+                    (uint)hashBatch.Length,
                     payloadSelector: true,
                     vectorsSelector: true,
                     cancellationToken: ct);
@@ -474,18 +454,13 @@ public class QdrantVectorStore : IMultiVectorStore
                 foreach (var point in scrollResult.Result)
                 {
                     var doc = PayloadToDocument(point.Payload, ExtractVectorData(point.Vectors));
-                    if (doc != null && !string.IsNullOrEmpty(doc.ContentHash))
-                    {
-                        result[doc.ContentHash] = doc;
-                    }
+                    if (doc != null && !string.IsNullOrEmpty(doc.ContentHash)) result[doc.ContentHash] = doc;
                 }
             }
 
             if (result.Count > 0)
-            {
                 _logger.LogDebug("Found {Found}/{Total} cached documents by hash in collection {Collection}",
                     result.Count, hashList.Count, collectionName);
-            }
         }
         catch (Exception ex)
         {
@@ -495,7 +470,8 @@ public class QdrantVectorStore : IMultiVectorStore
         return result;
     }
 
-    public async Task RemoveStaleDocumentsAsync(string collectionName, string parentId, IEnumerable<string> validHashes, CancellationToken ct = default)
+    public async Task RemoveStaleDocumentsAsync(string collectionName, string parentId, IEnumerable<string> validHashes,
+        CancellationToken ct = default)
     {
         try
         {
@@ -514,7 +490,6 @@ public class QdrantVectorStore : IMultiVectorStore
 
             // Delete stale documents one by one using filter
             foreach (var doc in staleDocs)
-            {
                 await _client.DeleteAsync(
                     collectionName,
                     new Filter
@@ -532,7 +507,6 @@ public class QdrantVectorStore : IMultiVectorStore
                         }
                     },
                     cancellationToken: ct);
-            }
 
             _logger.LogDebug("Removed {Count} stale documents from collection {Collection}",
                 staleDocs.Count, collectionName);
@@ -545,7 +519,8 @@ public class QdrantVectorStore : IMultiVectorStore
 
     // ========== Summary Caching ==========
 
-    public async Task<CachedSummary?> GetCachedSummaryAsync(string collectionName, string documentId, CancellationToken ct = default)
+    public async Task<CachedSummary?> GetCachedSummaryAsync(string collectionName, string documentId,
+        CancellationToken ct = default)
     {
         try
         {
@@ -555,7 +530,7 @@ public class QdrantVectorStore : IMultiVectorStore
 
             var scrollResult = await _client.ScrollAsync(
                 collectionName,
-                filter: new Filter
+                new Filter
                 {
                     Must =
                     {
@@ -577,7 +552,7 @@ public class QdrantVectorStore : IMultiVectorStore
                         }
                     }
                 },
-                limit: 1,
+                1,
                 payloadSelector: true,
                 cancellationToken: ct);
 
@@ -664,13 +639,11 @@ public class QdrantVectorStore : IMultiVectorStore
                 };
 
                 foreach (var nv in namedVectorList)
-                {
                     vectorParamsMap.Map[nv.Name] = new VectorParams
                     {
                         Size = (ulong)nv.Dimension,
                         Distance = MapDistance(nv.DistanceMetric)
                     };
-                }
 
                 await _client.CreateCollectionAsync(
                     collectionName,
@@ -712,21 +685,19 @@ public class QdrantVectorStore : IMultiVectorStore
 
         var metadata = _collections.GetValueOrDefault(collectionName);
         if (metadata == null)
-        {
             throw new InvalidOperationException(
                 $"Collection '{collectionName}' not initialized. Call InitializeMultiVectorAsync first.");
-        }
 
         var points = docList.Select(d =>
         {
             // Build named vectors map including the default vector
             var namedVectors = new NamedVectors();
 #pragma warning disable CS0612 // Vector.Data is obsolete but replacement API not yet stable
-            namedVectors.Vectors[""] = new Qdrant.Client.Grpc.Vector { Data = { d.Embedding } };
+            namedVectors.Vectors[""] = new Vector { Data = { d.Embedding } };
 
             foreach (var (name, vector) in d.NamedVectors)
             {
-                namedVectors.Vectors[name] = new Qdrant.Client.Grpc.Vector { Data = { vector } };
+                namedVectors.Vectors[name] = new Vector { Data = { vector } };
 #pragma warning restore CS0612
             }
 
@@ -744,21 +715,15 @@ public class QdrantVectorStore : IMultiVectorStore
                 }
             };
 
-            if (metadata.StoreText && d.Text != null)
-            {
-                point.Payload["text"] = d.Text;
-            }
+            if (metadata.StoreText && d.Text != null) point.Payload["text"] = d.Text;
 
-            if (d.Metadata.Count > 0)
-            {
-                point.Payload["metadata"] = JsonSerializer.Serialize(d.Metadata);
-            }
+            if (d.Metadata.Count > 0) point.Payload["metadata"] = JsonSerializer.Serialize(d.Metadata);
 
             return point;
         }).ToList();
 
         const int batchSize = 100;
-        for (int i = 0; i < points.Count; i += batchSize)
+        for (var i = 0; i < points.Count; i += batchSize)
         {
             var batch = points.Skip(i).Take(batchSize).ToList();
             await _client.UpsertAsync(collectionName, batch, cancellationToken: ct);
@@ -776,10 +741,8 @@ public class QdrantVectorStore : IMultiVectorStore
     {
         var metadata = _collections.GetValueOrDefault(collectionName);
         if (metadata == null)
-        {
             throw new InvalidOperationException(
                 $"Collection '{collectionName}' not initialized. Call InitializeMultiVectorAsync first.");
-        }
 
         Filter? filter = null;
         if (query.ParentId != null)
@@ -798,7 +761,7 @@ public class QdrantVectorStore : IMultiVectorStore
         var results = await _client.SearchAsync(
             collectionName,
             query.QueryEmbedding,
-            filter: filter,
+            filter,
             limit: (ulong)query.TopK,
             vectorName: vectorName,
             payloadSelector: query.IncludeDocument,
@@ -810,9 +773,7 @@ public class QdrantVectorStore : IMultiVectorStore
             {
                 VectorDocument? doc = null;
                 if (query.IncludeDocument)
-                {
                     doc = PayloadToDocument(r.Payload, query.IncludeEmbedding ? ExtractVectorData(r.Vectors) : null);
-                }
 
                 return new VectorSearchResult
                 {
@@ -829,19 +790,36 @@ public class QdrantVectorStore : IMultiVectorStore
             .ToList();
     }
 
-    private static Distance MapDistance(VectorDistance distance) => distance switch
+    public void Dispose()
     {
-        VectorDistance.Cosine => Distance.Cosine,
-        VectorDistance.Euclidean => Distance.Euclid,
-        VectorDistance.DotProduct => Distance.Dot,
-        _ => Distance.Cosine
-    };
+        if (_disposed) return;
+
+        _client.Dispose();
+        _disposed = true;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    private static Distance MapDistance(VectorDistance distance)
+    {
+        return distance switch
+        {
+            VectorDistance.Cosine => Distance.Cosine,
+            VectorDistance.Euclidean => Distance.Euclid,
+            VectorDistance.DotProduct => Distance.Dot,
+            _ => Distance.Cosine
+        };
+    }
 
     // ========== Private Helpers ==========
 
     private static string GenerateUuidFromId(string id)
     {
-        using var md5 = System.Security.Cryptography.MD5.Create();
+        using var md5 = MD5.Create();
         var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(id));
         return new Guid(hash).ToString();
     }
@@ -856,7 +834,8 @@ public class QdrantVectorStore : IMultiVectorStore
             var parentId = payload.TryGetValue("parentId", out var pidVal) && !string.IsNullOrEmpty(pidVal.StringValue)
                 ? pidVal.StringValue
                 : null;
-            var contentHash = payload.TryGetValue("contentHash", out var chVal) && !string.IsNullOrEmpty(chVal.StringValue)
+            var contentHash = payload.TryGetValue("contentHash", out var chVal) &&
+                              !string.IsNullOrEmpty(chVal.StringValue)
                 ? chVal.StringValue
                 : null;
             var text = payload.TryGetValue("text", out var txtVal) && !string.IsNullOrEmpty(txtVal.StringValue)
@@ -866,7 +845,8 @@ public class QdrantVectorStore : IMultiVectorStore
             var metadataJson = payload.TryGetValue("metadata", out var metaVal) ? metaVal.StringValue : null;
             var metadata = string.IsNullOrEmpty(metadataJson)
                 ? new Dictionary<string, object>()
-                : JsonSerializer.Deserialize<Dictionary<string, object>>(metadataJson) ?? new Dictionary<string, object>();
+                : JsonSerializer.Deserialize<Dictionary<string, object>>(metadataJson) ??
+                  new Dictionary<string, object>();
 
             var createdAtStr = payload.TryGetValue("createdAt", out var caVal) ? caVal.StringValue : null;
             var updatedAtStr = payload.TryGetValue("updatedAt", out var uaVal) ? uaVal.StringValue : null;
@@ -879,7 +859,9 @@ public class QdrantVectorStore : IMultiVectorStore
                 Text = text,
                 Embedding = embedding ?? Array.Empty<float>(),
                 Metadata = metadata,
-                CreatedAt = string.IsNullOrEmpty(createdAtStr) ? DateTimeOffset.UtcNow : DateTimeOffset.Parse(createdAtStr),
+                CreatedAt = string.IsNullOrEmpty(createdAtStr)
+                    ? DateTimeOffset.UtcNow
+                    : DateTimeOffset.Parse(createdAtStr),
                 UpdatedAt = string.IsNullOrEmpty(updatedAtStr) ? null : DateTimeOffset.Parse(updatedAtStr)
             };
         }
@@ -909,20 +891,6 @@ public class QdrantVectorStore : IMultiVectorStore
         }
     }
 #pragma warning restore CS0612
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-
-        _client.Dispose();
-        _disposed = true;
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        Dispose();
-        return ValueTask.CompletedTask;
-    }
 
     private class CollectionMetadata
     {

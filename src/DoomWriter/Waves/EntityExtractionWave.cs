@@ -1,21 +1,25 @@
 using System.Text.RegularExpressions;
-using Mostlylucid.Summarizer.Core.Analysis;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
-using Mostlylucid.DocSummarizer.Services.Onnx;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace DoomWriter.Waves;
 
 /// <summary>
-/// Extracts entities using ONNX BERT-NER (PER, ORG, LOC, MISC) with regex fallback.
-/// ML lane — ONNX inference is GPU-bound, limit concurrency.
-/// Lower priority — runs after segments are extracted.
+///     Extracts entities using ONNX BERT-NER (PER, ORG, LOC, MISC) with regex fallback.
+///     ML lane — ONNX inference is GPU-bound, limit concurrency.
+///     Lower priority — runs after segments are extracted.
 /// </summary>
 public sealed partial class EntityExtractionWave : ITypedAnalysisWave<string>
 {
     private readonly NerService _nerService;
-    private bool _nerModelChecked;
     private bool _nerModelAvailable;
+    private bool _nerModelChecked;
+
+    public EntityExtractionWave(NerService nerService)
+    {
+        _nerService = nerService;
+    }
 
     public string Name => "doc.entities";
     public string Description => "Extract entities via ONNX NER with regex fallback";
@@ -23,13 +27,10 @@ public sealed partial class EntityExtractionWave : ITypedAnalysisWave<string>
     public IReadOnlyList<string> Tags => ["ml", SignalTags.Entity];
     public bool Enabled { get; set; } = true;
 
-    public EntityExtractionWave(NerService nerService)
+    public bool ShouldRun(string content, AnalysisContext context)
     {
-        _nerService = nerService;
+        return !string.IsNullOrWhiteSpace(content) && context.HasCached("segments");
     }
-
-    public bool ShouldRun(string content, AnalysisContext context) =>
-        !string.IsNullOrWhiteSpace(content) && context.HasCached("segments");
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string markdown, AnalysisContext context, CancellationToken ct = default)
@@ -43,14 +44,12 @@ public sealed partial class EntityExtractionWave : ITypedAnalysisWave<string>
             _nerModelAvailable = _nerService.IsAvailable;
 
             if (!_nerModelAvailable)
-            {
                 // Start download in background — regex fallback for now
                 _ = Task.Run(async () =>
                 {
                     await _nerService.EnsureModelAsync(null, CancellationToken.None);
                     _nerModelAvailable = _nerService.IsAvailable;
                 }, CancellationToken.None);
-            }
         }
 
         List<TrackedEntity> entities;
@@ -111,7 +110,7 @@ public sealed partial class EntityExtractionWave : ITypedAnalysisWave<string>
         var entityMentions = new Dictionary<string, (string Type, int Count, List<int> Sections, float MaxConfidence)>(
             StringComparer.OrdinalIgnoreCase);
 
-        for (int i = 0; i < segments.Count; i++)
+        for (var i = 0; i < segments.Count; i++)
         {
             var nerEntities = await _nerService.ExtractEntitiesAsync(segments[i].Text, ct);
 
@@ -167,10 +166,8 @@ public sealed partial class EntityExtractionWave : ITypedAnalysisWave<string>
         var entityMentions = new Dictionary<string, (string Type, int Count, List<int> Sections)>(
             StringComparer.OrdinalIgnoreCase);
 
-        for (int i = 0; i < segments.Count; i++)
-        {
+        for (var i = 0; i < segments.Count; i++)
             foreach (var name in segments[i].EntityNames)
-            {
                 if (entityMentions.TryGetValue(name, out var existing))
                 {
                     existing.Count++;
@@ -182,8 +179,6 @@ public sealed partial class EntityExtractionWave : ITypedAnalysisWave<string>
                 {
                     entityMentions[name] = (InferEntityType(name), 1, [i]);
                 }
-            }
-        }
 
         return entityMentions.Select(kv => new TrackedEntity
         {

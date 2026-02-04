@@ -5,18 +5,14 @@ using VideoSummarizer.Core.Services;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Stage 2.6: Extract chapter marks and create preliminary scene segments.
-/// Chapters from video containers provide high-confidence scene boundaries.
-/// Also detects black frames and silence as potential segment markers.
+///     Stage 2.6: Extract chapter marks and create preliminary scene segments.
+///     Chapters from video containers provide high-confidence scene boundaries.
+///     Also detects black frames and silence as potential segment markers.
 /// </summary>
 public class ChapterExtractionWave : IVideoWave
 {
     private readonly FFmpegAnalysisService _ffmpegService;
     private readonly ILogger<ChapterExtractionWave> _logger;
-
-    public string Name => "chapter_extraction";
-    public int Priority => 740; // After subtitles
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Scene, VideoSignalTags.Metadata];
 
     public ChapterExtractionWave(
         FFmpegAnalysisService ffmpegService,
@@ -26,7 +22,14 @@ public class ChapterExtractionWave : IVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) => context.Metadata != null;
+    public string Name => "chapter_extraction";
+    public int Priority => 740; // After subtitles
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Scene, VideoSignalTags.Metadata];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -91,7 +94,6 @@ public class ChapterExtractionWave : IVideoWave
         context.SetCached("black_frames", blackFrames);
 
         foreach (var bf in blackFrames)
-        {
             context.AddSignal(new VideoSignal
             {
                 Key = "black_frame",
@@ -102,7 +104,6 @@ public class ChapterExtractionWave : IVideoWave
                 Confidence = 0.8,
                 Tags = [VideoSignalTags.Visual, VideoSignalTags.Scene]
             });
-        }
 
         // 3. Detect silence (audio boundaries)
         context.ReportProgress("Detecting silence", 60);
@@ -113,7 +114,6 @@ public class ChapterExtractionWave : IVideoWave
         context.SetCached("silences", silences);
 
         foreach (var silence in silences)
-        {
             context.AddSignal(new VideoSignal
             {
                 Key = "silence",
@@ -124,7 +124,6 @@ public class ChapterExtractionWave : IVideoWave
                 Confidence = 0.7,
                 Tags = [VideoSignalTags.Audio, VideoSignalTags.Scene]
             });
-        }
 
         // 4. Analyze audio loudness
         context.ReportProgress("Analyzing loudness", 80);
@@ -198,8 +197,8 @@ public class ChapterExtractionWave : IVideoWave
     }
 
     /// <summary>
-    /// Infer scene boundaries from black frames and silence when no chapters exist.
-    /// Black frame + silence = likely scene boundary.
+    ///     Infer scene boundaries from black frames and silence when no chapters exist.
+    ///     Black frame + silence = likely scene boundary.
     /// </summary>
     private void InferSceneBoundaries(
         VideoContext context,
@@ -233,10 +232,7 @@ public class ChapterExtractionWave : IVideoWave
                 continue;
 
             // Only add if silence is significant (> 2 seconds)
-            if (silence.Duration >= 2.0)
-            {
-                boundaries.Add((midpoint, 0.5));
-            }
+            if (silence.Duration >= 2.0) boundaries.Add((midpoint, 0.5));
         }
 
         // Sort and filter boundaries
@@ -249,13 +245,11 @@ public class ChapterExtractionWave : IVideoWave
         var lastBoundary = 0.0;
 
         foreach (var (time, confidence) in sortedBoundaries)
-        {
             if (time - lastBoundary >= 10.0)
             {
                 filteredBoundaries.Add((time, confidence));
                 lastBoundary = time;
             }
-        }
 
         // Create scene segments from boundaries
         var videoDuration = context.Metadata!.Duration;

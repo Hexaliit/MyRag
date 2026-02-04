@@ -4,12 +4,12 @@ using System.Reflection;
 namespace DoomSummarizer.Plugins.Runtime;
 
 /// <summary>
-/// Scans assemblies for types implementing <see cref="ISourcePlugin"/> or <see cref="IOutputPlugin"/>.
+///     Scans assemblies for types implementing <see cref="ISourcePlugin" /> or <see cref="IOutputPlugin" />.
 /// </summary>
 public static class PluginDiscovery
 {
     /// <summary>
-    /// Discover all <see cref="ISourcePlugin"/> implementations in a loaded assembly.
+    ///     Discover all <see cref="ISourcePlugin" /> implementations in a loaded assembly.
     /// </summary>
     public static IReadOnlyList<ISourcePlugin> DiscoverSourcePlugins(Assembly assembly)
     {
@@ -47,7 +47,7 @@ public static class PluginDiscovery
     }
 
     /// <summary>
-    /// Discover all <see cref="IOutputPlugin"/> implementations in a loaded assembly.
+    ///     Discover all <see cref="IOutputPlugin" /> implementations in a loaded assembly.
     /// </summary>
     public static IReadOnlyList<IOutputPlugin> DiscoverOutputPlugins(Assembly assembly)
     {
@@ -85,14 +85,13 @@ public static class PluginDiscovery
     }
 
     /// <summary>
-    /// Discover plugins from all assemblies in the current AppDomain.
-    /// Used by DoomSummarizer.Complete to find statically-linked source packages.
+    ///     Discover plugins from all assemblies in the current AppDomain.
+    ///     Used by DoomSummarizer.Complete to find statically-linked source packages.
     /// </summary>
     public static IReadOnlyList<ISourcePlugin> DiscoverAllSourcePlugins()
     {
         var plugins = new List<ISourcePlugin>();
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
             try
             {
                 plugins.AddRange(DiscoverSourcePlugins(assembly));
@@ -101,12 +100,12 @@ public static class PluginDiscovery
             {
                 // Skip assemblies that can't be scanned
             }
-        }
+
         return plugins;
     }
 
     /// <summary>
-    /// Discover all <see cref="IProcessorPlugin"/> implementations across all loaded assemblies.
+    ///     Discover all <see cref="IProcessorPlugin" /> implementations across all loaded assemblies.
     /// </summary>
     public static IReadOnlyList<IProcessorPlugin> DiscoverAllProcessorPlugins()
     {
@@ -128,7 +127,8 @@ public static class PluginDiscovery
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"[PluginDiscovery] Failed to create processor plugin {type.FullName}: {ex.Message}");
+                        Debug.WriteLine(
+                            $"[PluginDiscovery] Failed to create processor plugin {type.FullName}: {ex.Message}");
                     }
                 }
             }
@@ -143,11 +143,12 @@ public static class PluginDiscovery
                 // Skip assemblies that can't be scanned
             }
         }
+
         return plugins;
     }
 
     /// <summary>
-    /// Discover all <see cref="ICliPlugin"/> implementations across all loaded assemblies.
+    ///     Discover all <see cref="ICliPlugin" /> implementations across all loaded assemblies.
     /// </summary>
     public static IReadOnlyList<ICliPlugin> DiscoverAllCliPlugins()
     {
@@ -184,6 +185,7 @@ public static class PluginDiscovery
                 // Skip assemblies that can't be scanned
             }
         }
+
         return plugins;
     }
 }

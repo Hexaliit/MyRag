@@ -1,18 +1,17 @@
 using System.Data.Common;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using LucidRAG.Data;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
-/// Connection interceptor that sets PostgreSQL search_path for tenant isolation.
-/// This is the correct approach because EF Core caches compiled models.
+///     Connection interceptor that sets PostgreSQL search_path for tenant isolation.
+///     This is the correct approach because EF Core caches compiled models.
 /// </summary>
 public class TenantSchemaInterceptor : DbConnectionInterceptor
 {
-    private readonly ITenantAccessor _tenantAccessor;
     private readonly ILogger<TenantSchemaInterceptor> _logger;
+    private readonly ITenantAccessor _tenantAccessor;
 
     public TenantSchemaInterceptor(ITenantAccessor tenantAccessor, ILogger<TenantSchemaInterceptor> logger)
     {
@@ -38,10 +37,7 @@ public class TenantSchemaInterceptor : DbConnectionInterceptor
     private void SetSearchPath(DbConnection connection)
     {
         var tenant = _tenantAccessor.Current;
-        if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId)
-        {
-            return;
-        }
+        if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId) return;
 
         using var cmd = connection.CreateCommand();
         // Use parameterized approach to prevent SQL injection
@@ -54,10 +50,7 @@ public class TenantSchemaInterceptor : DbConnectionInterceptor
     private async Task SetSearchPathAsync(DbConnection connection, CancellationToken ct)
     {
         var tenant = _tenantAccessor.Current;
-        if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId)
-        {
-            return;
-        }
+        if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId) return;
 
         await using var cmd = connection.CreateCommand();
         var schemaName = tenant.SchemaName;
@@ -68,13 +61,13 @@ public class TenantSchemaInterceptor : DbConnectionInterceptor
 }
 
 /// <summary>
-/// Tenant-aware DbContext that applies schema-per-tenant isolation via search_path.
-/// NOTE: Schema isolation is handled by TenantSchemaInterceptor, not OnModelCreating.
+///     Tenant-aware DbContext that applies schema-per-tenant isolation via search_path.
+///     NOTE: Schema isolation is handled by TenantSchemaInterceptor, not OnModelCreating.
 /// </summary>
 public class TenantAwareDbContext : RagDocumentsDbContext
 {
-    private readonly ITenantAccessor _tenantAccessor;
     private readonly ILogger<TenantAwareDbContext> _logger;
+    private readonly ITenantAccessor _tenantAccessor;
 
     public TenantAwareDbContext(
         DbContextOptions<RagDocumentsDbContext> options,
@@ -92,36 +85,36 @@ public class TenantAwareDbContext : RagDocumentsDbContext
 }
 
 /// <summary>
-/// Factory for creating tenant-aware DbContext instances.
+///     Factory for creating tenant-aware DbContext instances.
 /// </summary>
 public interface ITenantDbContextFactory
 {
     /// <summary>
-    /// Create a DbContext for the current tenant.
+    ///     Create a DbContext for the current tenant.
     /// </summary>
     RagDocumentsDbContext CreateDbContext();
 
     /// <summary>
-    /// Create a DbContext for a specific tenant.
+    ///     Create a DbContext for a specific tenant.
     /// </summary>
     RagDocumentsDbContext CreateDbContextForTenant(string tenantId);
 
     /// <summary>
-    /// Create a DbContext for the public/default schema.
+    ///     Create a DbContext for the public/default schema.
     /// </summary>
     RagDocumentsDbContext CreatePublicDbContext();
 }
 
 /// <summary>
-/// PostgreSQL implementation of tenant DbContext factory.
-/// Uses schema switching for tenant isolation.
+///     PostgreSQL implementation of tenant DbContext factory.
+///     Uses schema switching for tenant isolation.
 /// </summary>
 public class PostgresTenantDbContextFactory : ITenantDbContextFactory
 {
-    private readonly IServiceProvider _services;
-    private readonly ITenantAccessor _tenantAccessor;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PostgresTenantDbContextFactory> _logger;
+    private readonly IServiceProvider _services;
+    private readonly ITenantAccessor _tenantAccessor;
 
     public PostgresTenantDbContextFactory(
         IServiceProvider services,
@@ -138,10 +131,7 @@ public class PostgresTenantDbContextFactory : ITenantDbContextFactory
     public RagDocumentsDbContext CreateDbContext()
     {
         var tenant = _tenantAccessor.Current;
-        if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId)
-        {
-            return CreatePublicDbContext();
-        }
+        if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId) return CreatePublicDbContext();
 
         return CreateDbContextForTenant(tenant.TenantId);
     }
@@ -177,10 +167,7 @@ public class PostgresTenantDbContextFactory : ITenantDbContextFactory
         var connectionString = _configuration.GetConnectionString("DefaultConnection");
 
         var optionsBuilder = new DbContextOptionsBuilder<RagDocumentsDbContext>();
-        optionsBuilder.UseNpgsql(connectionString, npgsql =>
-        {
-            npgsql.UseVector();
-        });
+        optionsBuilder.UseNpgsql(connectionString, npgsql => { npgsql.UseVector(); });
 
         // Create accessor with default tenant
         var tempAccessor = new TenantAccessor
@@ -196,12 +183,12 @@ public class PostgresTenantDbContextFactory : ITenantDbContextFactory
 }
 
 /// <summary>
-/// Extension methods for tenant-aware database operations.
+///     Extension methods for tenant-aware database operations.
 /// </summary>
 public static class TenantDatabaseExtensions
 {
     /// <summary>
-    /// Execute a database operation in the context of a specific tenant.
+    ///     Execute a database operation in the context of a specific tenant.
     /// </summary>
     public static async Task<T> ExecuteInTenantContextAsync<T>(
         this ITenantDbContextFactory factory,
@@ -213,7 +200,7 @@ public static class TenantDatabaseExtensions
     }
 
     /// <summary>
-    /// Set the search path for a PostgreSQL connection to a tenant's schema.
+    ///     Set the search path for a PostgreSQL connection to a tenant's schema.
     /// </summary>
     public static async Task SetSearchPathAsync(this DbContext context, string schema)
     {

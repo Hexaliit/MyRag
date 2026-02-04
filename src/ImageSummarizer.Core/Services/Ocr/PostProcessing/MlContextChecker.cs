@@ -3,16 +3,16 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 
 /// <summary>
-/// Tier 2: ML-based context checking for OCR text
-/// Uses N-gram language models and perplexity scoring to detect
-/// dictionary-valid words that are contextually incorrect
+///     Tier 2: ML-based context checking for OCR text
+///     Uses N-gram language models and perplexity scoring to detect
+///     dictionary-valid words that are contextually incorrect
 /// </summary>
 public class MlContextChecker
 {
-    private readonly ILogger<MlContextChecker>? _logger;
     private readonly Dictionary<string, Dictionary<string, double>> _bigramModel = new();
+    private readonly ILogger<MlContextChecker>? _logger;
     private readonly Dictionary<string, Dictionary<string, double>> _trigramModel = new();
-    private bool _isInitialized = false;
+    private bool _isInitialized;
 
     public MlContextChecker(ILogger<MlContextChecker>? logger = null)
     {
@@ -20,7 +20,7 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Initialize ML models (loads pre-trained n-gram models or trains on corpus)
+    ///     Initialize ML models (loads pre-trained n-gram models or trains on corpus)
     /// </summary>
     public async Task<bool> InitializeAsync(CancellationToken ct = default)
     {
@@ -34,7 +34,8 @@ public class MlContextChecker
             await TrainOnEnglishCorpusAsync(ct);
 
             _isInitialized = true;
-            _logger?.LogInformation("ML context checker initialized with {BigramCount} bigrams and {TrigramCount} trigrams",
+            _logger?.LogInformation(
+                "ML context checker initialized with {BigramCount} bigrams and {TrigramCount} trigrams",
                 _bigramModel.Count, _trigramModel.Count);
 
             return true;
@@ -47,10 +48,11 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Check if text is contextually valid using ML models
-    /// Returns perplexity score (lower = better) and list of failure reasons
+    ///     Check if text is contextually valid using ML models
+    ///     Returns perplexity score (lower = better) and list of failure reasons
     /// </summary>
-    public (bool IsValid, double Perplexity, List<ContextSuggestion> Suggestions, List<string> FailureReasons) CheckContext(string text)
+    public (bool IsValid, double Perplexity, List<ContextSuggestion> Suggestions, List<string> FailureReasons)
+        CheckContext(string text)
     {
         var failureReasons = new List<string>();
 
@@ -63,10 +65,8 @@ public class MlContextChecker
         var words = text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
 
         if (words.Length < 2)
-        {
             // Too short for context analysis
             return (true, 0, new List<ContextSuggestion>(), failureReasons);
-        }
 
         // Calculate perplexity using bigram model
         var perplexity = CalculatePerplexity(words);
@@ -93,14 +93,11 @@ public class MlContextChecker
 
             // Check for inconsistent casing
             var caseChanges = 0;
-            for (int i = 1; i < words.Length; i++)
-            {
-                if (words[i].Length > 0 && words[i-1].Length > 0)
-                {
-                    if (char.IsUpper(words[i][0]) != char.IsUpper(words[i-1][0]))
+            for (var i = 1; i < words.Length; i++)
+                if (words[i].Length > 0 && words[i - 1].Length > 0)
+                    if (char.IsUpper(words[i][0]) != char.IsUpper(words[i - 1][0]))
                         caseChanges++;
-                }
-            }
+
             if (caseChanges > words.Length / 2)
                 failureReasons.Add("inconsistent_casing_rhythm");
         }
@@ -113,9 +110,9 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Calculate perplexity of text using n-gram models
-    /// Lower perplexity = more natural text
-    /// Now distinguishes between unknown bigrams (neutral) and known-bad bigrams (suspicious)
+    ///     Calculate perplexity of text using n-gram models
+    ///     Lower perplexity = more natural text
+    ///     Now distinguishes between unknown bigrams (neutral) and known-bad bigrams (suspicious)
     /// </summary>
     private double CalculatePerplexity(string[] words)
     {
@@ -123,11 +120,11 @@ public class MlContextChecker
             return 0;
 
         double logProb = 0;
-        int knownBigramCount = 0;
-        int suspiciousBigramCount = 0;
+        var knownBigramCount = 0;
+        var suspiciousBigramCount = 0;
 
         // Bigram probabilities
-        for (int i = 1; i < words.Length; i++)
+        for (var i = 1; i < words.Length; i++)
         {
             var prev = words[i - 1].ToLowerInvariant();
             var curr = words[i].ToLowerInvariant();
@@ -159,10 +156,8 @@ public class MlContextChecker
 
         // If we have known-bad bigrams, return high perplexity
         if (suspiciousBigramCount > 0)
-        {
             // Scale by how many suspicious bigrams we found
             return 1000.0 * suspiciousBigramCount;
-        }
 
         // If we have mostly known bigrams, calculate normal perplexity
         if (knownBigramCount > (words.Length - 1) / 2)
@@ -177,19 +172,19 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Find words that are contextually wrong based on surrounding words
+    ///     Find words that are contextually wrong based on surrounding words
     /// </summary>
     private List<ContextSuggestion> FindContextualErrors(string[] words)
     {
         var suggestions = new List<ContextSuggestion>();
 
-        for (int i = 0; i < words.Length; i++)
+        for (var i = 0; i < words.Length; i++)
         {
             var word = words[i];
 
             // Get context (previous and next words)
-            string? prevWord = i > 0 ? words[i - 1].ToLowerInvariant() : null;
-            string? nextWord = i < words.Length - 1 ? words[i + 1].ToLowerInvariant() : null;
+            var prevWord = i > 0 ? words[i - 1].ToLowerInvariant() : null;
+            var nextWord = i < words.Length - 1 ? words[i + 1].ToLowerInvariant() : null;
 
             // Check if current word is unusual given context
             var contextScore = CalculateContextScore(prevWord, word.ToLowerInvariant(), nextWord);
@@ -200,7 +195,6 @@ public class MlContextChecker
                 var alternatives = GenerateContextualAlternatives(prevWord, word, nextWord);
 
                 if (alternatives.Any())
-                {
                     suggestions.Add(new ContextSuggestion
                     {
                         OriginalWord = word,
@@ -209,7 +203,6 @@ public class MlContextChecker
                         Alternatives = alternatives,
                         Reason = "Low contextual probability"
                     });
-                }
             }
         }
 
@@ -217,12 +210,12 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Calculate how well a word fits its context
-    /// Returns score between 0 and 1 (higher = better fit)
+    ///     Calculate how well a word fits its context
+    ///     Returns score between 0 and 1 (higher = better fit)
     /// </summary>
     private double CalculateContextScore(string? prevWord, string currentWord, string? nextWord)
     {
-        double score = 1.0;
+        var score = 1.0;
 
         if (prevWord != null)
         {
@@ -240,7 +233,7 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Generate contextual alternatives for a word
+    ///     Generate contextual alternatives for a word
     /// </summary>
     private List<string> GenerateContextualAlternatives(string? prevWord, string originalWord, string? nextWord)
     {
@@ -253,32 +246,28 @@ public class MlContextChecker
             ["Tn"] = new[] { "In", "To", "Th" },
             ["Tl"] = new[] { "It", "Ti", "I" },
             ["rn"] = new[] { "m", "in", "n" },
-            ["cl"] = new[] { "d", "a" },
+            ["cl"] = new[] { "d", "a" }
         };
 
         // Check if original word has known OCR confusions
         if (ocrConfusions.TryGetValue(originalWord, out var possibleFixes))
-        {
             // Score each fix based on context
             foreach (var fix in possibleFixes)
             {
                 var contextScore = CalculateContextScore(prevWord, fix.ToLowerInvariant(), nextWord);
 
                 if (contextScore > 0.1) // Reasonable probability
-                {
                     alternatives.Add(fix);
-                }
             }
-        }
 
         return alternatives.OrderByDescending(alt =>
             CalculateContextScore(prevWord, alt.ToLowerInvariant(), nextWord)).ToList();
     }
 
     /// <summary>
-    /// Get bigram probability P(word2 | word1)
-    /// Returns: (probability, is_known)
-    /// Unknown bigrams get neutral probability to avoid false positives
+    ///     Get bigram probability P(word2 | word1)
+    ///     Returns: (probability, is_known)
+    ///     Unknown bigrams get neutral probability to avoid false positives
     /// </summary>
     private (double Probability, bool IsKnown) GetBigramProbability(string word1, string word2)
     {
@@ -292,8 +281,8 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Initialize n-gram models using embedded English bigram corpus.
-    /// No external downloads required - corpus is compiled into the assembly.
+    ///     Initialize n-gram models using embedded English bigram corpus.
+    ///     No external downloads required - corpus is compiled into the assembly.
     /// </summary>
     private Task TrainOnEnglishCorpusAsync(CancellationToken ct)
     {
@@ -303,9 +292,9 @@ public class MlContextChecker
     }
 
     /// <summary>
-    /// Embedded English bigram corpus based on Google Web 1T and Brown corpus statistics.
-    /// Includes 200+ most common bigrams for robust OCR quality detection.
-    /// No external downloads required.
+    ///     Embedded English bigram corpus based on Google Web 1T and Brown corpus statistics.
+    ///     Includes 200+ most common bigrams for robust OCR quality detection.
+    ///     No external downloads required.
     /// </summary>
     private void LoadEmbeddedEnglishBigrams()
     {
@@ -420,7 +409,7 @@ public class MlContextChecker
             // Common verbs
             ("going", "on", 0.88), ("come", "on", 0.90), ("going", "back", 0.85), ("come", "back", 0.88),
             ("find", "out", 0.92), ("figure", "out", 0.90), ("work", "out", 0.88), ("turn", "out", 0.85),
-            ("give", "up", 0.88), ("show", "up", 0.85), ("end", "up", 0.90), ("pick", "up", 0.82),
+            ("give", "up", 0.88), ("show", "up", 0.85), ("end", "up", 0.90), ("pick", "up", 0.82)
         };
 
         // Load bigrams into model
@@ -429,10 +418,7 @@ public class MlContextChecker
             var w1 = word1.ToLowerInvariant();
             var w2 = word2.ToLowerInvariant();
 
-            if (!_bigramModel.ContainsKey(w1))
-            {
-                _bigramModel[w1] = new Dictionary<string, double>();
-            }
+            if (!_bigramModel.ContainsKey(w1)) _bigramModel[w1] = new Dictionary<string, double>();
 
             _bigramModel[w1][w2] = prob;
         }
@@ -443,7 +429,7 @@ public class MlContextChecker
 }
 
 /// <summary>
-/// Suggestion for contextual correction
+///     Suggestion for contextual correction
 /// </summary>
 public class ContextSuggestion
 {

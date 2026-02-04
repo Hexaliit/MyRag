@@ -8,11 +8,12 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizers.Reader.Docx;
 
 /// <summary>
-/// DOCX document reader using Open XML SDK.
-/// Heading-aware extraction with list and table support.
+///     DOCX document reader using Open XML SDK.
+///     Heading-aware extraction with list and table support.
 /// </summary>
 public class DocxReader : IDocumentReader
 {
+    private static readonly string[] _extensions = [".docx"];
     private readonly ILogger<DocxReader> _logger;
 
     public DocxReader(ILogger<DocxReader> logger)
@@ -21,7 +22,6 @@ public class DocxReader : IDocumentReader
     }
 
     public string ReaderName => "docx";
-    private static readonly string[] _extensions = [".docx"];
     public IReadOnlyList<string> SupportedExtensions => _extensions;
     public int Priority => 100;
 
@@ -44,6 +44,7 @@ public class DocxReader : IDocumentReader
                     title = doc.PackageProperties.Title;
                     metadata["title"] = title;
                 }
+
                 if (!string.IsNullOrWhiteSpace(doc.PackageProperties.Creator))
                     metadata["author"] = doc.PackageProperties.Creator;
                 if (!string.IsNullOrWhiteSpace(doc.PackageProperties.Subject))
@@ -73,13 +74,8 @@ public class DocxReader : IDocumentReader
                 ct.ThrowIfCancellationRequested();
 
                 if (element is Paragraph para)
-                {
                     ProcessParagraph(para, sb, options);
-                }
-                else if (element is Table table && options.ExtractTables)
-                {
-                    ProcessTable(table, sb);
-                }
+                else if (element is Table table && options.ExtractTables) ProcessTable(table, sb);
             }
         }
 
@@ -96,19 +92,29 @@ public class DocxReader : IDocumentReader
         });
     }
 
-    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"reader-docx-{Guid.NewGuid():N}.docx");
         try
         {
             await using (var fs = File.Create(tempPath))
+            {
                 await stream.CopyToAsync(fs, ct);
+            }
 
             return await ReadAsync(tempPath, options, ct);
         }
         finally
         {
-            try { File.Delete(tempPath); } catch { /* best effort */ }
+            try
+            {
+                File.Delete(tempPath);
+            }
+            catch
+            {
+                /* best effort */
+            }
         }
     }
 

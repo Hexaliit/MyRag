@@ -10,7 +10,6 @@ public static class TestDbContextFactory
 {
     /// <summary>
     ///     Create an in-memory database context for unit testing.
-    ///
     ///     NOTE: Prefer SQLite in-memory over EF InMemory so that provider-specific mappings
     ///     (e.g. conditional pgvector/SQLite behavior) execute correctly in the model.
     /// </summary>

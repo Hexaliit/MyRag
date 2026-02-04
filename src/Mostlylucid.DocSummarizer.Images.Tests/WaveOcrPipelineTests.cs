@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
@@ -9,14 +8,14 @@ using Xunit.Abstractions;
 namespace Mostlylucid.DocSummarizer.Images.Tests;
 
 /// <summary>
-/// Integration tests for wave-based OCR pipeline.
-/// Tests the complete signal flow from AdvancedOcrWave.
+///     Integration tests for wave-based OCR pipeline.
+///     Tests the complete signal flow from AdvancedOcrWave.
 /// </summary>
 public class WaveOcrPipelineTests
 {
+    private readonly WaveOrchestrator _orchestrator;
     private readonly ITestOutputHelper _output;
     private readonly ServiceProvider _serviceProvider;
-    private readonly WaveOrchestrator _orchestrator;
 
     public WaveOcrPipelineTests(ITestOutputHelper output)
     {
@@ -73,9 +72,7 @@ public class WaveOcrPipelineTests
         // Log registered waves
         _output.WriteLine("Registered waves:");
         foreach (var wave in waves.OrderByDescending(w => w.Priority))
-        {
             _output.WriteLine($"  [{wave.Priority}] {wave.Name} - Tags: {string.Join(", ", wave.Tags)}");
-        }
     }
 
     [Theory]
@@ -111,13 +108,12 @@ public class WaveOcrPipelineTests
         _output.WriteLine($"OCR signals emitted: {ocrSignals.Count}");
 
         foreach (var signal in ocrSignals)
-        {
-            _output.WriteLine($"  [{signal.Source}] {signal.Key} = {signal.Value} (confidence: {signal.Confidence:F3})");
-        }
+            _output.WriteLine(
+                $"  [{signal.Source}] {signal.Key} = {signal.Value} (confidence: {signal.Confidence:F3})");
 
         // Verify advanced pipeline ran
         var advancedProcessed = profile.HasSignal("ocr.advanced.performance") ||
-                               profile.HasSignal("ocr.frames.extracted");
+                                profile.HasSignal("ocr.frames.extracted");
 
         if (advancedProcessed)
         {
@@ -143,9 +139,7 @@ public class WaveOcrPipelineTests
                 _output.WriteLine("Temporal median composite: Created");
                 var medianText = profile.GetValue<string>("ocr.temporal_median.full_text");
                 if (!string.IsNullOrEmpty(medianText))
-                {
                     _output.WriteLine($"  Text: \"{medianText.Substring(0, Math.Min(100, medianText.Length))}...\"");
-                }
             }
 
             // Early exit
@@ -175,7 +169,8 @@ public class WaveOcrPipelineTests
             if (profile.HasSignal("ocr.advanced.performance"))
             {
                 var perf = profile.GetBestSignal("ocr.advanced.performance");
-                _output.WriteLine($"Performance: {perf?.Metadata?["duration_ms"]}ms, Quality mode: {perf?.Metadata?["quality_mode"]}");
+                _output.WriteLine(
+                    $"Performance: {perf?.Metadata?["duration_ms"]}ms, Quality mode: {perf?.Metadata?["quality_mode"]}");
             }
 
             Assert.True(advancedProcessed, "Advanced OCR pipeline should have processed the GIF");
@@ -225,11 +220,9 @@ public class WaveOcrPipelineTests
             _output.WriteLine($"Early exit triggered: {earlyExit}");
 
             if (earlyExit)
-            {
                 // Verify voting was skipped
                 Assert.False(profile.HasSignal("ocr.voting.consensus_text"),
                     "Voting should be skipped when early exit is triggered");
-            }
         }
     }
 
@@ -271,7 +264,7 @@ public class WaveOcrPipelineTests
 
         // Arrange & Act
         var profile = await _orchestrator.AnalyzeAsync(gifPath);
-        var json = profile.ToJson(includeMetadata: true);
+        var json = profile.ToJson(true);
 
         // Assert
         Assert.NotNull(json);
@@ -345,13 +338,9 @@ public class WaveOcrPipelineTests
         {
             _output.WriteLine($"\n[{signal.Source}] {signal.Key}");
             if (signal.Key.Contains("text", StringComparison.OrdinalIgnoreCase))
-            {
                 _output.WriteLine($"  TEXT: \"{signal.Value}\"");
-            }
             else
-            {
                 _output.WriteLine($"  Value: {signal.Value}");
-            }
             _output.WriteLine($"  Confidence: {signal.Confidence:F3}");
         }
 
@@ -401,14 +390,11 @@ public class WaveOcrPipelineTests
             {
                 var skipSignal = profile.GetBestSignal("ocr.advanced.skipped") ?? profile.GetBestSignal("ocr.skipped");
                 if (skipSignal?.Metadata != null && skipSignal.Metadata.ContainsKey("reason"))
-                {
                     _output.WriteLine($"   Reason: {skipSignal.Metadata["reason"]}");
-                }
             }
 
             // For this test, we're expecting text, so log a warning but don't fail
             _output.WriteLine("   Note: Expected text extraction from this GIF");
         }
     }
-
 }

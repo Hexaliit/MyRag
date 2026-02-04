@@ -1,7 +1,7 @@
 namespace Mostlylucid.DocSummarizer.Resilience;
 
 /// <summary>
-/// Circuit breaker state machine status.
+///     Circuit breaker state machine status.
 /// </summary>
 public enum CircuitStatus
 {
@@ -16,8 +16,8 @@ public enum CircuitStatus
 }
 
 /// <summary>
-/// Classification of failure that caused a circuit to trip.
-/// Different failure types have different retry strategies.
+///     Classification of failure that caused a circuit to trip.
+///     Different failure types have different retry strategies.
 /// </summary>
 public enum CircuitFailureType
 {
@@ -44,7 +44,7 @@ public enum CircuitFailureType
 }
 
 /// <summary>
-/// Snapshot of a service's circuit breaker state.
+///     Snapshot of a service's circuit breaker state.
 /// </summary>
 public record CircuitEntry
 {

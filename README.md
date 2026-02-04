@@ -11,7 +11,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Release&logo=github)](https://github.com/scottgal/lucidrag/releases)
 [![GitHub Downloads](https://img.shields.io/github/downloads/scottgal/lucidrag/total?label=Downloads&logo=github)](https://github.com/scottgal/lucidrag/releases)
 
-> **IN DEVELOPMENT** - This project is under active development and not yet ready for production use. APIs may change without notice. Watch this repo for updates.
+> **IN DEVELOPMENT** - This project is under active development and not yet ready for production use. APIs may change
+> without notice. Watch this repo for updates.
 
 </div>
 
@@ -26,7 +27,10 @@
 
 </div>
 
-**DoomSummarizer** is a distillation of ***lucid***RAG principles — hybrid search, entity extraction, knowledge graph construction, evidence-grounded synthesis — compressed into a standalone single-binary CLI. It fetches, ranks, and synthesizes news and research with a built-in local knowledge base, NER entity extraction, and long-form article generation. No API keys required for default sources.
+**DoomSummarizer** is a distillation of ***lucid***RAG principles — hybrid search, entity extraction, knowledge graph
+construction, evidence-grounded synthesis — compressed into a standalone single-binary CLI. It fetches, ranks, and
+synthesizes news and research with a built-in local knowledge base, NER entity extraction, and long-form article
+generation. No API keys required for default sources.
 
 ```bash
 # Daily digest from default sources
@@ -43,11 +47,16 @@ doomsummarizer ask -s crawl:mydocs "how does authentication work?"
 doomsummarizer scroll "history of LLMs" -t blog-article -o llm-history.md
 ```
 
-**Key features**: hybrid BM25 + semantic ranking, ONNX embeddings (offline), HTTP ETag/Last-Modified cache-aware web crawling, NER entity extraction with knowledge graph, budget-controlled cloud LLM support (Anthropic/OpenAI), 15+ output templates, email delivery.
+**Key features**: hybrid BM25 + semantic ranking, ONNX embeddings (offline), HTTP ETag/Last-Modified cache-aware web
+crawling, NER entity extraction with knowledge graph, budget-controlled cloud LLM support (Anthropic/OpenAI), 15+ output
+templates, email delivery.
 
-> **[Full documentation, all CLI options, and examples →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
+> *
+*[Full documentation, all CLI options, and examples →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)
+**
 
-**Download**: Grab pre-built binaries for Windows, Linux, and macOS from [**Releases**](https://github.com/scottgal/lucidrag/releases).
+**Download**: Grab pre-built binaries for Windows, Linux, and macOS from [**Releases
+**](https://github.com/scottgal/lucidrag/releases).
 
 ---
 
@@ -55,16 +64,16 @@ doomsummarizer scroll "history of LLMs" -t blog-article -o llm-history.md
 
 Most RAG systems are basic document-to-vector pipelines. ***lucid***RAG is different:
 
-| Feature | Basic RAG | ***lucid***RAG |
-|---------|-----------|----------|
-| Search | Semantic only | Hybrid BM25 + Semantic with RRF fusion |
-| Query Processing | Direct embedding | Agentic decomposition (Sentinel) |
-| Knowledge | Flat chunks | GraphRAG with entity extraction & communities |
-| Images | Not supported | 22-wave ML pipeline (OCR, faces, motion, scenes) |
-| Data Files | Not supported | CSV, Excel, Parquet profiling with DuckDB |
-| Video | Not supported | Scene detection, transcript extraction |
-| Deployment | Cloud-dependent | **Zero API keys** - runs fully local |
-| Multi-tenancy | Not supported | Schema-per-tenant with automatic provisioning |
+| Feature          | Basic RAG        | ***lucid***RAG                                   |
+|------------------|------------------|--------------------------------------------------|
+| Search           | Semantic only    | Hybrid BM25 + Semantic with RRF fusion           |
+| Query Processing | Direct embedding | Agentic decomposition (Sentinel)                 |
+| Knowledge        | Flat chunks      | GraphRAG with entity extraction & communities    |
+| Images           | Not supported    | 22-wave ML pipeline (OCR, faces, motion, scenes) |
+| Data Files       | Not supported    | CSV, Excel, Parquet profiling with DuckDB        |
+| Video            | Not supported    | Scene detection, transcript extraction           |
+| Deployment       | Cloud-dependent  | **Zero API keys** - runs fully local             |
+| Multi-tenancy    | Not supported    | Schema-per-tenant with automatic provisioning    |
 
 ---
 
@@ -139,15 +148,16 @@ Handles traditional documents with intelligent chunking and hybrid search:
 
 A 22-wave modular ML pipeline for comprehensive image understanding:
 
-| Wave Category | Waves | Purpose |
-|---------------|-------|---------|
-| **OCR** | AdvancedOcr, MlOcr, OcrQuality | Multi-engine text extraction with confidence |
-| **Vision AI** | Florence2, VisionLlm, ClipEmbedding | Foundation models for understanding |
-| **Detection** | Face, Scene, TextRegion, QRCode | Object and pattern detection |
-| **Analysis** | Color, Motion, Edge, Composition | Visual feature extraction |
-| **Forensics** | Exif, Contradiction, AutoRouting | Metadata and validation |
+| Wave Category | Waves                               | Purpose                                      |
+|---------------|-------------------------------------|----------------------------------------------|
+| **OCR**       | AdvancedOcr, MlOcr, OcrQuality      | Multi-engine text extraction with confidence |
+| **Vision AI** | Florence2, VisionLlm, ClipEmbedding | Foundation models for understanding          |
+| **Detection** | Face, Scene, TextRegion, QRCode     | Object and pattern detection                 |
+| **Analysis**  | Color, Motion, Edge, Composition    | Visual feature extraction                    |
+| **Forensics** | Exif, Contradiction, AutoRouting    | Metadata and validation                      |
 
 **Special Capabilities:**
+
 - Animated GIF/WebP: Frame deduplication (SSIM), temporal voting, filmstrip generation
 - Faces: Detection with bounding boxes for privacy redaction
 - Motion: Optical flow analysis for animation classification
@@ -190,6 +200,7 @@ User: "Compare the authentication approaches in the 2023 and 2024 security audit
 ```
 
 **Features:**
+
 - Query classification (keyword, semantic, comparison, aggregation)
 - Automatic sub-query generation
 - Clarification requests for ambiguous queries
@@ -209,6 +220,7 @@ Documents → Entity Extraction → Relationship Building → Community Detectio
 ```
 
 **Interactive Visualization**: D3.js force-directed graph with:
+
 - Node sizing by connection count
 - Edge weights showing relationship strength
 - Community coloring for clusters
@@ -218,16 +230,16 @@ Documents → Entity Extraction → Relationship Building → Community Detectio
 
 Structured storage for all extracted intelligence:
 
-| Artifact Type | Content |
-|---------------|---------|
-| `ocr_text` | Extracted text with per-character confidence |
-| `ocr_word_boxes` | Bounding box coordinates for each word |
-| `llm_summary` | AI-generated content summaries |
-| `filmstrip` | Compressed frame sequences for GIFs/videos |
-| `key_frame` | Representative frames from videos |
-| `table_csv` | Extracted tables as CSV |
-| `table_json` | Table metadata and structure |
-| `transcript` | Audio transcriptions with timestamps |
+| Artifact Type    | Content                                      |
+|------------------|----------------------------------------------|
+| `ocr_text`       | Extracted text with per-character confidence |
+| `ocr_word_boxes` | Bounding box coordinates for each word       |
+| `llm_summary`    | AI-generated content summaries               |
+| `filmstrip`      | Compressed frame sequences for GIFs/videos   |
+| `key_frame`      | Representative frames from videos            |
+| `table_csv`      | Extracted tables as CSV                      |
+| `table_json`     | Table metadata and structure                 |
+| `transcript`     | Audio transcriptions with timestamps         |
 
 ---
 
@@ -261,6 +273,7 @@ Enterprise-ready tenant isolation:
 ```
 
 **Features:**
+
 - PostgreSQL schema-per-tenant isolation
 - Automatic schema provisioning on first access
 - Domain-based routing (subdomain or path)
@@ -271,20 +284,20 @@ Enterprise-ready tenant isolation:
 
 ## API Reference
 
-| Endpoint | Methods | Description |
-|----------|---------|-------------|
-| `/api/chat` | POST, GET | Conversational AI with memory |
-| `/api/search` | POST | Stateless semantic search |
-| `/api/documents` | GET, POST, DELETE | Document CRUD |
-| `/api/explorer` | GET | File browser with filters |
-| `/api/collections` | CRUD | Collection management |
-| `/api/folders` | CRUD | Virtual folder organization |
-| `/api/graph` | GET | Knowledge graph data |
-| `/api/communities` | GET, POST | Community detection |
-| `/api/evidence` | GET | Artifact retrieval |
-| `/api/tenants` | CRUD | Multi-tenant management |
-| `/api/ingestion` | CRUD | Source management (GitHub, S3, FTP) |
-| `/api/crawl` | POST, GET | Web crawling |
+| Endpoint           | Methods           | Description                         |
+|--------------------|-------------------|-------------------------------------|
+| `/api/chat`        | POST, GET         | Conversational AI with memory       |
+| `/api/search`      | POST              | Stateless semantic search           |
+| `/api/documents`   | GET, POST, DELETE | Document CRUD                       |
+| `/api/explorer`    | GET               | File browser with filters           |
+| `/api/collections` | CRUD              | Collection management               |
+| `/api/folders`     | CRUD              | Virtual folder organization         |
+| `/api/graph`       | GET               | Knowledge graph data                |
+| `/api/communities` | GET, POST         | Community detection                 |
+| `/api/evidence`    | GET               | Artifact retrieval                  |
+| `/api/tenants`     | CRUD              | Multi-tenant management             |
+| `/api/ingestion`   | CRUD              | Source management (GitHub, S3, FTP) |
+| `/api/crawl`       | POST, GET         | Web crawling                        |
 
 **OpenAPI Documentation**: `/scalar/v1`
 
@@ -309,6 +322,7 @@ Enterprise-ready tenant isolation:
 ### LLM Provider
 
 **Local (Ollama):**
+
 ```json
 {
   "DocSummarizer": {
@@ -322,6 +336,7 @@ Enterprise-ready tenant isolation:
 ```
 
 **Cloud (Anthropic/OpenAI):**
+
 ```json
 {
   "DocSummarizer": {
@@ -354,6 +369,7 @@ providers:
 ```
 
 **Features:**
+
 - Named providers with tier-based selection (triage, general, synthesis, vision)
 - Polly resilience (retry with exponential backoff, circuit breaker)
 - OpenTelemetry observability (tracing, metrics)
@@ -369,7 +385,8 @@ See [docs/UNIFIED_LLM_PROVIDERS.md](docs/UNIFIED_LLM_PROVIDERS.md) for complete 
 
 [![DoomSummarizer Releases](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Download&logo=github)](https://github.com/scottgal/lucidrag/releases)
 
-A distillation of ***lucid***RAG into a single-binary CLI. Console-first research assistant and personal knowledge base — fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings, no API keys required.
+A distillation of ***lucid***RAG into a single-binary CLI. Console-first research assistant and personal knowledge
+base — fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings, no API keys required.
 
 ```bash
 doomsummarizer scroll "AI security news" -v snarky     # Digest with tone
@@ -378,7 +395,8 @@ doomsummarizer ask -s crawl:docs "how does auth work?"   # Query your KB
 doomsummarizer scroll "Rust vs Go" -t deep-dive -o comparison.md  # Long-form article
 ```
 
-**[Full documentation →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)** | **[Download →](https://github.com/scottgal/lucidrag/releases)**
+**[Full documentation →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)** | *
+*[Download →](https://github.com/scottgal/lucidrag/releases)**
 
 ### LucidRAG CLI
 
@@ -414,13 +432,16 @@ imagesummarizer animation.gif --pipeline advancedocr
 imagesummarizer --mcp
 ```
 
-**MCP Tools (9 available):** `extract_text_from_image`, `analyze_image_quality`, `list_ocr_pipelines`, `batch_extract_text`, `summarize_animated_gif`, `generate_caption`, `generate_detailed_description`, `analyze_with_template`, `list_output_templates`
+**MCP Tools (9 available):** `extract_text_from_image`, `analyze_image_quality`, `list_ocr_pipelines`,
+`batch_extract_text`, `summarize_animated_gif`, `generate_caption`, `generate_detailed_description`,
+`analyze_with_template`, `list_output_templates`
 
 ---
 
 ## NuGet Packages
 
-This repo publishes a set of reusable NuGet packages (pipelines, storage, and integrations) that power LucidRAG and DoomSummarizer.
+This repo publishes a set of reusable NuGet packages (pipelines, storage, and integrations) that power LucidRAG and
+DoomSummarizer.
 
 - Package list + install guide: `docs/NUGET_PACKAGES.md`
 - Canonical docs index: `docs/DOCS-INDEX.md`
@@ -453,13 +474,14 @@ dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj -c Release --filter "Catego
 
 ## Requirements
 
-| Component | Version | Notes |
-|-----------|---------|-------|
-| .NET SDK | 10.0+ | Required |
-| PostgreSQL | 16+ | Or SQLite for standalone |
-| Node.js | 18+ | For CSS build only |
+| Component  | Version | Notes                    |
+|------------|---------|--------------------------|
+| .NET SDK   | 10.0+   | Required                 |
+| PostgreSQL | 16+     | Or SQLite for standalone |
+| Node.js    | 18+     | For CSS build only       |
 
 **Optional Services:**
+
 - **Ollama** - Local LLM inference (recommended: qwen2.5:3b)
 - **Qdrant** - Production vector storage
 - **Docling** - Enhanced PDF/DOCX parsing
@@ -494,30 +516,33 @@ src/
 
 ## CI/CD
 
-| Workflow | Trigger | Output |
-|----------|---------|--------|
-| `build.yml` | PR/Push | Tests with PostgreSQL containers |
-| `release-lucidrag.yml` | `lucidrag-v*` tag | Docker multi-arch (amd64/arm64) |
-| `release-lucidrag-cli.yml` | `cli-v*` tag | CLI binaries |
-| `release-imagesummarizer.yml` | `img-v*` tag | ImageSummarizer releases |
-| `publish-docsummarizer-nuget.yml` | Manual | NuGet packages |
+| Workflow                          | Trigger           | Output                           |
+|-----------------------------------|-------------------|----------------------------------|
+| `build.yml`                       | PR/Push           | Tests with PostgreSQL containers |
+| `release-lucidrag.yml`            | `lucidrag-v*` tag | Docker multi-arch (amd64/arm64)  |
+| `release-lucidrag-cli.yml`        | `cli-v*` tag      | CLI binaries                     |
+| `release-imagesummarizer.yml`     | `img-v*` tag      | ImageSummarizer releases         |
+| `publish-docsummarizer-nuget.yml` | Manual            | NuGet packages                   |
 
 ---
 
 ## License
 
-The  UnLicense - see [LICENSE](LICENSE)
+The UnLicense - see [LICENSE](LICENSE)
 
 ---
 
 ## Contributing
 
-***lucid***RAG is in active development and we welcome contributions! Please check the [Issues](https://github.com/scottgal/lucidrag/issues) for areas where help is needed.
+***lucid***RAG is in active development and we welcome contributions! Please check
+the [Issues](https://github.com/scottgal/lucidrag/issues) for areas where help is needed.
 
 ---
 
 <div align="center">
 
-**[GitHub](https://github.com/scottgal/lucidrag)** | **[Releases](https://github.com/scottgal/lucidrag/releases)** | **[Issues](https://github.com/scottgal/lucidrag/issues)** | **[DoomSummarizer Docs](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
+**[GitHub](https://github.com/scottgal/lucidrag)** | **[Releases](https://github.com/scottgal/lucidrag/releases)** | *
+*[Issues](https://github.com/scottgal/lucidrag/issues)** | *
+*[DoomSummarizer Docs](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
 
 </div>

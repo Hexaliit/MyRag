@@ -4,21 +4,27 @@ using Mostlylucid.Summarizer.Core.Analysis;
 namespace LucidRAG.Coordination;
 
 /// <summary>
-/// Manages concurrency lanes for wave execution.
-/// Each lane has a semaphore limiting parallel execution.
+///     Manages concurrency lanes for wave execution.
+///     Each lane has a semaphore limiting parallel execution.
 /// </summary>
 public sealed class LaneManager : IDisposable
 {
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _semaphores = new();
     private readonly CoordinatorProfile _profile;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _semaphores = new();
 
     public LaneManager(CoordinatorProfile profile)
     {
         _profile = profile;
     }
 
+    public void Dispose()
+    {
+        foreach (var semaphore in _semaphores.Values)
+            semaphore.Dispose();
+    }
+
     /// <summary>
-    /// Acquire a slot in the named lane. Blocks until a slot is available.
+    ///     Acquire a slot in the named lane. Blocks until a slot is available.
     /// </summary>
     public async Task AcquireAsync(string laneName, CancellationToken ct = default)
     {
@@ -27,7 +33,7 @@ public sealed class LaneManager : IDisposable
     }
 
     /// <summary>
-    /// Release a slot in the named lane.
+    ///     Release a slot in the named lane.
     /// </summary>
     public void Release(string laneName)
     {
@@ -45,11 +51,5 @@ public sealed class LaneManager : IDisposable
 
             return new SemaphoreSlim(maxConcurrency, maxConcurrency);
         });
-    }
-
-    public void Dispose()
-    {
-        foreach (var semaphore in _semaphores.Values)
-            semaphore.Dispose();
     }
 }

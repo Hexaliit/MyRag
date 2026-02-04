@@ -4,14 +4,14 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Service for tracking faces across videos and managing persistent face identities.
-/// Provides functionality similar to Immich's face recognition system.
-/// Privacy-preserving: uses embeddings only, no face images stored.
+///     Service for tracking faces across videos and managing persistent face identities.
+///     Provides functionality similar to Immich's face recognition system.
+///     Privacy-preserving: uses embeddings only, no face images stored.
 /// </summary>
 public class FaceTrackingService
 {
-    private readonly ILogger<FaceTrackingService> _logger;
     private readonly object _lock = new();
+    private readonly ILogger<FaceTrackingService> _logger;
 
     // In-memory face database (should be persisted to DB in production)
     private FaceDatabase _database = new()
@@ -26,7 +26,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Load or create a face database.
+    ///     Load or create a face database.
     /// </summary>
     public FaceDatabase GetOrCreateDatabase(string name = "Default")
     {
@@ -37,8 +37,8 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Match a face embedding against known identities.
-    /// Creates a new identity if no match found and options allow it.
+    ///     Match a face embedding against known identities.
+    ///     Creates a new identity if no match found and options allow it.
     /// </summary>
     public FaceMatchResult MatchFace(
         float[] embedding,
@@ -66,16 +66,10 @@ public class FaceTrackingService
                 var bestMatch = matches[0];
 
                 // Update centroid if enabled
-                if (options.UpdateCentroidOnMatch)
-                {
-                    UpdateCentroid(bestMatch.Identity, embedding);
-                }
+                if (options.UpdateCentroidOnMatch) UpdateCentroid(bestMatch.Identity, embedding);
 
                 // Track video appearance
-                if (!bestMatch.Identity.VideoIds.Contains(videoId))
-                {
-                    bestMatch.Identity.VideoIds.Add(videoId);
-                }
+                if (!bestMatch.Identity.VideoIds.Contains(videoId)) bestMatch.Identity.VideoIds.Add(videoId);
 
                 _logger.LogDebug("Matched face to identity {Id} with similarity {Similarity:F3}",
                     bestMatch.Identity.Id, bestMatch.Similarity);
@@ -131,7 +125,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Get all face identities from the database.
+    ///     Get all face identities from the database.
     /// </summary>
     public List<FaceIdentity> GetAllIdentities()
     {
@@ -142,7 +136,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Get face identities for a specific video.
+    ///     Get face identities for a specific video.
     /// </summary>
     public List<FaceIdentity> GetIdentitiesForVideo(Guid videoId)
     {
@@ -155,7 +149,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Assign a name to a face identity.
+    ///     Assign a name to a face identity.
     /// </summary>
     public FaceIdentity? AssignName(Guid identityId, string name, IdentitySource source = IdentitySource.UserInput)
     {
@@ -179,17 +173,14 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Set a label for a face identity.
+    ///     Set a label for a face identity.
     /// </summary>
     public FaceIdentity? SetLabel(Guid identityId, string label)
     {
         lock (_lock)
         {
             var identity = _database.Identities.FirstOrDefault(i => i.Id == identityId);
-            if (identity == null)
-            {
-                return null;
-            }
+            if (identity == null) return null;
 
             identity.Label = label;
             return identity;
@@ -197,7 +188,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Merge multiple face identities into one.
+    ///     Merge multiple face identities into one.
     /// </summary>
     public FaceIdentity? MergeIdentities(MergeIdentitiesRequest request)
     {
@@ -232,12 +223,8 @@ public class FaceTrackingService
 
                 // Merge video IDs
                 foreach (var videoId in secondary.VideoIds)
-                {
                     if (!primary.VideoIds.Contains(videoId))
-                    {
                         primary.VideoIds.Add(videoId);
-                    }
-                }
 
                 // Remove secondary from database
                 _database.Identities.Remove(secondary);
@@ -246,20 +233,14 @@ public class FaceTrackingService
             // Update centroid with weighted average
             var totalWeight = allEmbeddings.Sum(e => e.Weight);
             var newCentroid = new float[primary.CentroidEmbedding.Length];
-            for (int i = 0; i < newCentroid.Length; i++)
-            {
+            for (var i = 0; i < newCentroid.Length; i++)
                 newCentroid[i] = allEmbeddings.Sum(e => e.Embedding[i] * e.Weight) / totalWeight;
-            }
 
             // Normalize centroid
             var norm = (float)Math.Sqrt(newCentroid.Sum(x => x * x));
             if (norm > 0)
-            {
-                for (int i = 0; i < newCentroid.Length; i++)
-                {
+                for (var i = 0; i < newCentroid.Length; i++)
                     newCentroid[i] /= norm;
-                }
-            }
 
             // Update primary identity (create new record since it's immutable)
             var updated = primary with
@@ -284,7 +265,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Split a face identity into multiple identities.
+    ///     Split a face identity into multiple identities.
     /// </summary>
     public List<FaceIdentity> SplitIdentity(SplitIdentityRequest request)
     {
@@ -295,7 +276,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Match face to cast member based on embedding similarity.
+    ///     Match face to cast member based on embedding similarity.
     /// </summary>
     public FaceIdentity? MatchToCastMember(
         Guid identityId,
@@ -311,10 +292,7 @@ public class FaceTrackingService
         lock (_lock)
         {
             var identity = _database.Identities.FirstOrDefault(i => i.Id == identityId);
-            if (identity == null)
-            {
-                return null;
-            }
+            if (identity == null) return null;
 
             var similarity = CosineSimilarity(identity.CentroidEmbedding, castMember.FaceEmbedding);
             if (similarity >= minSimilarity)
@@ -333,7 +311,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Get face database statistics.
+    ///     Get face database statistics.
     /// </summary>
     public FaceDatabaseStats GetStats()
     {
@@ -344,7 +322,7 @@ public class FaceTrackingService
     }
 
     /// <summary>
-    /// Get suggestions for naming a face identity.
+    ///     Get suggestions for naming a face identity.
     /// </summary>
     public List<IdentitySuggestion> GetNameSuggestions(
         Guid identityId,
@@ -352,22 +330,15 @@ public class FaceTrackingService
     {
         var suggestions = new List<IdentitySuggestion>();
 
-        if (mediaMetadata == null)
-        {
-            return suggestions;
-        }
+        if (mediaMetadata == null) return suggestions;
 
         lock (_lock)
         {
             var identity = _database.Identities.FirstOrDefault(i => i.Id == identityId);
-            if (identity == null)
-            {
-                return suggestions;
-            }
+            if (identity == null) return suggestions;
 
             // Suggest cast members
             foreach (var cast in mediaMetadata.Cast.Take(10))
-            {
                 suggestions.Add(new IdentitySuggestion
                 {
                     FaceIdentityId = identityId,
@@ -376,11 +347,9 @@ public class FaceTrackingService
                     Confidence = 0.5 - (cast.Order ?? 0) * 0.05, // Higher confidence for main cast
                     Evidence = $"Cast member ({cast.Character ?? "unknown role"})"
                 });
-            }
 
             // Suggest from directors/writers if relevant
             foreach (var director in mediaMetadata.Directors.Take(3))
-            {
                 suggestions.Add(new IdentitySuggestion
                 {
                     FaceIdentityId = identityId,
@@ -389,7 +358,6 @@ public class FaceTrackingService
                     Confidence = 0.3,
                     Evidence = "Director"
                 });
-            }
         }
 
         return suggestions.OrderByDescending(s => s.Confidence).ToList();
@@ -401,20 +369,14 @@ public class FaceTrackingService
         var count = identity.SampleCount + 1;
         var centroid = identity.CentroidEmbedding;
 
-        for (int i = 0; i < centroid.Length && i < newEmbedding.Length; i++)
-        {
+        for (var i = 0; i < centroid.Length && i < newEmbedding.Length; i++)
             centroid[i] = (centroid[i] * identity.SampleCount + newEmbedding[i]) / count;
-        }
 
         // Normalize
         var norm = (float)Math.Sqrt(centroid.Sum(x => x * x));
         if (norm > 0)
-        {
-            for (int i = 0; i < centroid.Length; i++)
-            {
+            for (var i = 0; i < centroid.Length; i++)
                 centroid[i] /= norm;
-            }
-        }
 
         // Can't update immutable record, need to replace
         // In production, this would update the database
@@ -437,33 +399,27 @@ public class FaceTrackingService
 
     private static double CosineSimilarity(float[] a, float[] b)
     {
-        if (a.Length != b.Length)
-        {
-            return 0;
-        }
+        if (a.Length != b.Length) return 0;
 
         double dotProduct = 0;
         double normA = 0;
         double normB = 0;
 
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];
             normB += b[i] * b[i];
         }
 
-        if (normA == 0 || normB == 0)
-        {
-            return 0;
-        }
+        if (normA == 0 || normB == 0) return 0;
 
         return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
     }
 }
 
 /// <summary>
-/// Result of matching a face against the database.
+///     Result of matching a face against the database.
 /// </summary>
 public record FaceMatchResult
 {

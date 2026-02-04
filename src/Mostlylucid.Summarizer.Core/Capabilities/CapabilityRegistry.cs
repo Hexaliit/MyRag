@@ -5,30 +5,34 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizer.Core.Capabilities;
 
 /// <summary>
-/// Central registry for hardware capabilities and model availability.
-/// Detected once at startup and cached as signals for all coordinators.
-/// Uses reflection to detect ONNX Runtime providers without compile-time dependency.
+///     Central registry for hardware capabilities and model availability.
+///     Detected once at startup and cached as signals for all coordinators.
+///     Uses reflection to detect ONNX Runtime providers without compile-time dependency.
 /// </summary>
 public class CapabilityRegistry : IDisposable
 {
-    private readonly ILogger<CapabilityRegistry> _logger;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-
-    // Cached capability signals
-    private CapabilitySnapshot? _snapshot;
-
     // ONNX detection via reflection
     private static Type? _ortEnvType;
     private static MethodInfo? _getProvidersMethod;
     private static bool _onnxDetectionAttempted;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly ILogger<CapabilityRegistry> _logger;
+
+    // Cached capability signals
+    private CapabilitySnapshot? _snapshot;
 
     public CapabilityRegistry(ILogger<CapabilityRegistry> logger)
     {
         _logger = logger;
     }
 
+    public void Dispose()
+    {
+        _initLock.Dispose();
+    }
+
     /// <summary>
-    /// Get the current capability snapshot. Initializes on first access.
+    ///     Get the current capability snapshot. Initializes on first access.
     /// </summary>
     public async Task<CapabilitySnapshot> GetCapabilitiesAsync(CancellationToken ct = default)
     {
@@ -51,7 +55,7 @@ public class CapabilityRegistry : IDisposable
     }
 
     /// <summary>
-    /// Force re-detection of capabilities (e.g., after model download).
+    ///     Force re-detection of capabilities (e.g., after model download).
     /// </summary>
     public async Task RefreshAsync(CancellationToken ct = default)
     {
@@ -147,8 +151,8 @@ public class CapabilityRegistry : IDisposable
     }
 
     /// <summary>
-    /// Detect available ONNX execution providers using reflection.
-    /// This allows detection without a compile-time dependency on ONNX Runtime.
+    ///     Detect available ONNX execution providers using reflection.
+    ///     This allows detection without a compile-time dependency on ONNX Runtime.
     /// </summary>
     private List<string> DetectExecutionProviders()
     {
@@ -199,7 +203,6 @@ public class CapabilityRegistry : IDisposable
                 .FirstOrDefault(a => a.GetName().Name == "Microsoft.ML.OnnxRuntime");
 
             if (onnxAssembly == null)
-            {
                 // Try to load it explicitly
                 try
                 {
@@ -210,13 +213,9 @@ public class CapabilityRegistry : IDisposable
                     // Not available
                     return;
                 }
-            }
 
             _ortEnvType = onnxAssembly.GetType("Microsoft.ML.OnnxRuntime.OrtEnv");
-            if (_ortEnvType != null)
-            {
-                _getProvidersMethod = _ortEnvType.GetMethod("GetAvailableProviders");
-            }
+            if (_ortEnvType != null) _getProvidersMethod = _ortEnvType.GetMethod("GetAvailableProviders");
         }
         catch (Exception ex)
         {
@@ -241,7 +240,6 @@ public class CapabilityRegistry : IDisposable
     {
         // Priority: CUDA > DirectML > CoreML > CPU
         if (gpu.IsAvailable)
-        {
             return gpu.Backend switch
             {
                 GpuBackend.Cuda when providers.Contains("CUDAExecutionProvider") => "CUDAExecutionProvider",
@@ -249,19 +247,13 @@ public class CapabilityRegistry : IDisposable
                 GpuBackend.CoreML when providers.Contains("CoreMLExecutionProvider") => "CoreMLExecutionProvider",
                 _ => "CPUExecutionProvider"
             };
-        }
 
         return "CPUExecutionProvider";
-    }
-
-    public void Dispose()
-    {
-        _initLock.Dispose();
     }
 }
 
 /// <summary>
-/// Immutable snapshot of system capabilities.
+///     Immutable snapshot of system capabilities.
 /// </summary>
 public record CapabilitySnapshot
 {
@@ -273,32 +265,32 @@ public record CapabilitySnapshot
     public required Dictionary<string, ModelStatus> Models { get; init; }
 
     /// <summary>
-    /// Check if a specific execution provider is available.
-    /// </summary>
-    public bool HasProvider(string provider) =>
-        ExecutionProviders.Contains(provider, StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Check if GPU acceleration is available.
+    ///     Check if GPU acceleration is available.
     /// </summary>
     public bool HasGpu => Gpu.IsAvailable;
 
     /// <summary>
-    /// Get the best available provider for a given preference.
+    ///     Check if a specific execution provider is available.
+    /// </summary>
+    public bool HasProvider(string provider)
+    {
+        return ExecutionProviders.Contains(provider, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Get the best available provider for a given preference.
     /// </summary>
     public string GetBestProvider(params string[] preferences)
     {
         foreach (var pref in preferences)
-        {
             if (HasProvider(pref))
                 return pref;
-        }
         return PreferredProvider;
     }
 }
 
 /// <summary>
-/// GPU hardware capabilities.
+///     GPU hardware capabilities.
 /// </summary>
 public record GpuCapabilities
 {
@@ -312,7 +304,7 @@ public record GpuCapabilities
 }
 
 /// <summary>
-/// GPU backend types.
+///     GPU backend types.
 /// </summary>
 public enum GpuBackend
 {
@@ -325,7 +317,7 @@ public enum GpuBackend
 }
 
 /// <summary>
-/// Platform information.
+///     Platform information.
 /// </summary>
 public record PlatformInfo
 {
@@ -338,7 +330,7 @@ public record PlatformInfo
 }
 
 /// <summary>
-/// Status of a specific model.
+///     Status of a specific model.
 /// </summary>
 public record ModelStatus
 {

@@ -4,8 +4,8 @@ using Microsoft.Extensions.Options;
 namespace LucidRAG.Services.Storage;
 
 /// <summary>
-/// Filesystem-based evidence storage.
-/// Stores artifacts at: {basePath}/{entityId}/{artifactType}/{filename}
+///     Filesystem-based evidence storage.
+///     Stores artifacts at: {basePath}/{entityId}/{artifactType}/{filename}
 /// </summary>
 public class FilesystemEvidenceStorage : IEvidenceStorage
 {
@@ -34,18 +34,15 @@ public class FilesystemEvidenceStorage : IEvidenceStorage
         var fullPath = GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath);
 
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
+        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
         await using var fileStream = new FileStream(
             fullPath,
             FileMode.Create,
             FileAccess.Write,
             FileShare.None,
-            bufferSize: 81920,
-            useAsync: true);
+            81920,
+            true);
 
         await content.CopyToAsync(fileStream, ct);
 
@@ -72,8 +69,8 @@ public class FilesystemEvidenceStorage : IEvidenceStorage
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read,
-            bufferSize: 81920,
-            useAsync: true);
+            81920,
+            true);
 
         return await Task.FromResult<Stream>(stream);
     }
@@ -106,10 +103,7 @@ public class FilesystemEvidenceStorage : IEvidenceStorage
     {
         var fullPath = GetFullPath(path);
 
-        if (!File.Exists(fullPath))
-        {
-            return null;
-        }
+        if (!File.Exists(fullPath)) return null;
 
         var fileInfo = new FileInfo(fullPath);
 
@@ -127,10 +121,10 @@ public class FilesystemEvidenceStorage : IEvidenceStorage
         }
 
         return new EvidenceStorageInfo(
-            SizeBytes: fileInfo.Length,
-            ContentHash: hash,
-            LastModified: new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero),
-            Metadata: null);
+            fileInfo.Length,
+            hash,
+            new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero),
+            null);
     }
 
     public Uri? GetPublicUri(string path, TimeSpan? expiry = null)
@@ -160,7 +154,6 @@ public class FilesystemEvidenceStorage : IEvidenceStorage
             while (!string.IsNullOrEmpty(directory) &&
                    directory != _basePath &&
                    directory.StartsWith(_basePath))
-            {
                 if (Directory.Exists(directory) &&
                     !Directory.EnumerateFileSystemEntries(directory).Any())
                 {
@@ -171,7 +164,6 @@ public class FilesystemEvidenceStorage : IEvidenceStorage
                 {
                     break;
                 }
-            }
         }
         catch (Exception ex)
         {
@@ -181,30 +173,30 @@ public class FilesystemEvidenceStorage : IEvidenceStorage
 }
 
 /// <summary>
-/// Configuration for evidence storage.
+///     Configuration for evidence storage.
 /// </summary>
 public class EvidenceStorageOptions
 {
     public const string SectionName = "EvidenceStorage";
 
     /// <summary>
-    /// Base path for filesystem storage.
-    /// Default: {AppContext.BaseDirectory}/evidence
+    ///     Base path for filesystem storage.
+    ///     Default: {AppContext.BaseDirectory}/evidence
     /// </summary>
     public string? BasePath { get; set; }
 
     /// <summary>
-    /// Default storage provider: "filesystem", "s3".
+    ///     Default storage provider: "filesystem", "s3".
     /// </summary>
     public string DefaultProvider { get; set; } = "filesystem";
 
     /// <summary>
-    /// Days to retain temporary artifacts before cleanup.
+    ///     Days to retain temporary artifacts before cleanup.
     /// </summary>
     public int TemporaryArtifactRetentionDays { get; set; } = 7;
 
     /// <summary>
-    /// Days to retain processing logs.
+    ///     Days to retain processing logs.
     /// </summary>
     public int ProcessingLogRetentionDays { get; set; } = 30;
 }

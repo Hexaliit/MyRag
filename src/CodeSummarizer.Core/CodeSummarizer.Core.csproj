@@ -1,72 +1,72 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <LangVersion>preview</LangVersion>
-    <RootNamespace>CodeSummarizer</RootNamespace>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>preview</LangVersion>
+        <RootNamespace>CodeSummarizer</RootNamespace>
 
-    <!-- NuGet Package Metadata -->
-    <IsPackable>true</IsPackable>
-    <PackageId>Mostlylucid.LucidRAG.CodeSummarizer</PackageId>
-    <Authors>Scott Galloway</Authors>
-    <Company>Mostlylucid</Company>
-    <Description>Code block and Mermaid diagram summarization for RAG pipelines. Uses Tree-sitter for AST parsing of 28+ languages and regex-based Mermaid parsing for diagram structure extraction.</Description>
-    <PackageTags>code;summarization;tree-sitter;mermaid;ast;rag;embeddings</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/release-notes.txt"))</PackageReleaseNotes>
+        <!-- NuGet Package Metadata -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.LucidRAG.CodeSummarizer</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <Company>Mostlylucid</Company>
+        <Description>Code block and Mermaid diagram summarization for RAG pipelines. Uses Tree-sitter for AST parsing of 28+ languages and regex-based Mermaid parsing for diagram structure extraction.</Description>
+        <PackageTags>code;summarization;tree-sitter;mermaid;ast;rag;embeddings</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/release-notes.txt"))</PackageReleaseNotes>
 
-    <!-- Symbols -->
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <!-- Symbols -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 
-    <!-- Documentation -->
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn>
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
 
-    <!-- Deterministic builds -->
-    <Deterministic>true</Deterministic>
-    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-  </PropertyGroup>
+        <!-- Deterministic builds -->
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
 
-  <!-- MinVer -->
-  <PropertyGroup>
-    <MinVerTagPrefix>codesumv</MinVerTagPrefix>
-    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
-  </PropertyGroup>
-
-  <!-- Release configuration: no PDB files -->
-  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <DebugSymbols>false</DebugSymbols>
-    <DebugType>none</DebugType>
-  </PropertyGroup>
-
-  <ItemGroup>
     <!-- MinVer -->
-    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PropertyGroup>
+        <MinVerTagPrefix>codesumv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
 
-    <!-- Tree-sitter for AST parsing -->
-    <PackageReference Include="TreeSitter.DotNet" Version="1.3.0" />
+    <!-- Release configuration: no PDB files -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
 
-    <!-- Core dependencies (version-matched per TFM) -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net9.0'" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net8.0'" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net8.0'" />
-  </ItemGroup>
+    <ItemGroup>
+        <!-- MinVer -->
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
 
-  <!-- Package files -->
-  <ItemGroup>
-    <None Include=".\release-notes.txt" Pack="true" PackagePath="">
-      <Link>Properties\release-notes.txt</Link>
-    </None>
-  </ItemGroup>
+        <!-- Tree-sitter for AST parsing -->
+        <PackageReference Include="TreeSitter.DotNet" Version="1.3.0"/>
+
+        <!-- Core dependencies (version-matched per TFM) -->
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net10.0'"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net9.0'"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net9.0'"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net8.0'"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" Condition="'$(TargetFramework)' == 'net8.0'"/>
+    </ItemGroup>
+
+    <!-- Package files -->
+    <ItemGroup>
+        <None Include=".\release-notes.txt" Pack="true" PackagePath="">
+            <Link>Properties\release-notes.txt</Link>
+        </None>
+    </ItemGroup>
 
 </Project>

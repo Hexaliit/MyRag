@@ -6,16 +6,16 @@ using Mostlylucid.DocSummarizer.Services;
 namespace Mostlylucid.DocSummarizer.Scanning.Waves;
 
 /// <summary>
-/// Wave for VLM-based OCR extraction.
-/// Renders document pages as images and uses vision LLMs to extract structured markdown.
-/// Supports multiple providers: Ollama, Anthropic, OpenAI, Nanonets.
+///     Wave for VLM-based OCR extraction.
+///     Renders document pages as images and uses vision LLMs to extract structured markdown.
+///     Supports multiple providers: Ollama, Anthropic, OpenAI, Nanonets.
 /// </summary>
 public class VlmOcrWave : IDocumentWave
 {
-    private readonly IVlmOcrService _vlmOcrService;
-    private readonly PdfPageRenderer _pdfRenderer;
     private readonly IDocumentEscalationService _escalationService;
     private readonly ILogger<VlmOcrWave>? _logger;
+    private readonly PdfPageRenderer _pdfRenderer;
+    private readonly IVlmOcrService _vlmOcrService;
 
     public VlmOcrWave(
         IVlmOcrService vlmOcrService,
@@ -34,6 +34,7 @@ public class VlmOcrWave : IDocumentWave
     public int Priority => 50; // Runs after native extraction
     public IReadOnlyList<string> Tags => ["extraction", "ocr", "vlm", "ai"];
     public IReadOnlyList<string> RequiredSignals => []; // Can run standalone for images
+
     public IReadOnlyList<string> EmittedSignals =>
     [
         "content.markdown",

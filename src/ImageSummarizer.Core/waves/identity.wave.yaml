@@ -10,8 +10,8 @@ scope:
 
 triggers:
   # Always runs - no dependencies
-  requires: []
-  skip_when: []
+  requires: [ ]
+  skip_when: [ ]
 
 emits:
   on_complete:
@@ -52,11 +52,11 @@ emits:
       description: Content hash for caching
 
 listens:
-  required: []  # No dependencies - runs first
-  optional: []
+  required: [ ]  # No dependencies - runs first
+  optional: [ ]
 
 config:
-  bindings: []  # Always runs
+  bindings: [ ]  # Always runs
 
 lane:
   name: metadata

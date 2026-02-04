@@ -238,13 +238,17 @@ public record ChartDataPoint
     ///     Create from numeric X and Y
     /// </summary>
     public static ChartDataPoint From(double x, double y, string? label = null)
-        => new() { X = x, Y = y, Label = label };
+    {
+        return new ChartDataPoint { X = x, Y = y, Label = label };
+    }
 
     /// <summary>
     ///     Create from category label and Y value (for bar/pie charts)
     /// </summary>
     public static ChartDataPoint FromCategory(string label, double value, int index = 0)
-        => new() { X = index, Y = value, Label = label };
+    {
+        return new ChartDataPoint { X = index, Y = value, Label = label };
+    }
 
     /// <summary>
     ///     Convert to JSON-compatible dictionary

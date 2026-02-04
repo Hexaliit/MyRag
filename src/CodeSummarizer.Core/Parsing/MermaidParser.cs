@@ -386,8 +386,8 @@ public static partial class MermaidParser
 
         // Check if title is on the first line (e.g., "pie title My Chart")
         var firstLine = code.Trim().Split('\n')[0].Trim();
-        var pieTitleMatch = System.Text.RegularExpressions.Regex.Match(
-            firstLine, @"^pie\s+title\s+(.+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var pieTitleMatch = Regex.Match(
+            firstLine, @"^pie\s+title\s+(.+)$", RegexOptions.IgnoreCase);
         if (pieTitleMatch.Success)
             title = pieTitleMatch.Groups[1].Value.Trim();
 

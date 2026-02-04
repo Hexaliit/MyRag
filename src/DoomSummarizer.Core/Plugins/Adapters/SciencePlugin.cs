@@ -4,7 +4,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts <see cref="SpaceflightNewsFetcher"/> and <see cref="UsgsEarthquakeFetcher"/> to the <see cref="ISourcePlugin"/> contract.
+///     Adapts <see cref="SpaceflightNewsFetcher" /> and <see cref="UsgsEarthquakeFetcher" /> to the
+///     <see cref="ISourcePlugin" /> contract.
 /// </summary>
 public sealed class SciencePlugin : ISourcePlugin
 {

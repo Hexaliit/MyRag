@@ -1,28 +1,58 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>DoomWriter Editor</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.8/dist/index.css" />
+    <link href="https://cdn.jsdelivr.net/npm/vditor@3.10.8/dist/index.css" rel="stylesheet"/>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; overflow: hidden; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
             background: var(--bg-color, #1e1e1e);
             color: var(--text-color, #d4d4d4);
         }
+
         #vditor {
             height: 100%;
             border: none;
         }
+
         /* Clean up Vditor chrome for embedded use */
-        .vditor { border: none !important; border-radius: 0 !important; }
-        .vditor-toolbar { border-bottom: 1px solid rgba(255,255,255,0.1) !important; }
-        .vditor-ir { padding: 16px 48px !important; max-width: 900px; margin: 0 auto; }
-        .vditor-sv { padding: 16px !important; }
-        .vditor-wysiwyg { padding: 16px 48px !important; max-width: 900px; margin: 0 auto; }
+        .vditor {
+            border: none !important;
+            border-radius: 0 !important;
+        }
+
+        .vditor-toolbar {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+
+        .vditor-ir {
+            padding: 16px 48px !important;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .vditor-sv {
+            padding: 16px !important;
+        }
+
+        .vditor-wysiwyg {
+            padding: 16px 48px !important;
+            max-width: 900px;
+            margin: 0 auto;
+        }
 
         /* Rich image rendering */
         .vditor-ir img, .vditor-wysiwyg img {
@@ -30,7 +60,7 @@
             height: auto;
             border-radius: 6px;
             margin: 8px 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         /* Table styling */
@@ -39,14 +69,16 @@
             width: 100%;
             margin: 12px 0;
         }
+
         .vditor-ir th, .vditor-ir td,
         .vditor-wysiwyg th, .vditor-wysiwyg td {
-            border: 1px solid rgba(255,255,255,0.15);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             padding: 8px 12px;
             text-align: left;
         }
+
         .vditor-ir th, .vditor-wysiwyg th {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255, 255, 255, 0.05);
             font-weight: 600;
         }
 
@@ -60,7 +92,7 @@
         #autocomplete-ghost {
             position: fixed;
             pointer-events: none;
-            color: rgba(255,255,255,0.25);
+            color: rgba(255, 255, 255, 0.25);
             font-family: inherit;
             font-size: inherit;
             z-index: 100;
@@ -72,9 +104,9 @@
         #autocomplete-popup {
             position: fixed;
             background: #2d2d2d;
-            border: 1px solid rgba(255,255,255,0.15);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 6px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
             max-width: 400px;
             max-height: 200px;
             overflow-y: auto;
@@ -82,6 +114,7 @@
             display: none;
             font-size: 13px;
         }
+
         .ac-item {
             padding: 6px 12px;
             cursor: pointer;
@@ -89,19 +122,23 @@
             align-items: center;
             gap: 8px;
         }
+
         .ac-item:hover, .ac-item.selected {
             background: rgba(59, 130, 246, 0.3);
         }
+
         .ac-item .ac-icon {
             font-size: 11px;
             opacity: 0.6;
         }
+
         .ac-item .ac-text {
             flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
         .ac-item .ac-hint {
             font-size: 11px;
             opacity: 0.5;
@@ -125,6 +162,7 @@
             text-decoration-skip-ink: none;
             cursor: pointer;
         }
+
         /* Diagnostics: suggestion underline */
         .diag-suggestion {
             text-decoration: wavy underline #3b82f6;
@@ -143,15 +181,18 @@
             z-index: 50;
             opacity: 0.7;
         }
-        .diag-gutter:hover { opacity: 1; }
+
+        .diag-gutter:hover {
+            opacity: 1;
+        }
 
         /* Quick action popup (Ctrl+.) */
         #quick-action-popup {
             position: fixed;
             background: #2d2d2d;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 6px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
             min-width: 260px;
             max-width: 400px;
             max-height: 240px;
@@ -160,12 +201,14 @@
             display: none;
             font-size: 13px;
         }
+
         .qa-header {
             padding: 6px 12px;
             font-size: 11px;
-            color: rgba(255,255,255,0.5);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255, 255, 255, 0.5);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
+
         .qa-item {
             padding: 8px 12px;
             cursor: pointer;
@@ -173,19 +216,23 @@
             align-items: center;
             gap: 8px;
         }
+
         .qa-item:hover, .qa-item.selected {
             background: rgba(59, 130, 246, 0.3);
         }
+
         .qa-item .qa-icon {
             font-size: 14px;
             flex-shrink: 0;
         }
+
         .qa-item .qa-text {
             flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
         .qa-item .qa-shortcut {
             font-size: 10px;
             opacity: 0.4;
@@ -206,714 +253,733 @@
             z-index: 300;
             animation: pulse 1.5s ease-in-out infinite;
         }
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="vditor"></div>
-    <div id="autocomplete-ghost"></div>
-    <div id="autocomplete-popup"></div>
-    <div id="ai-generating">AI writing...</div>
-    <div id="quick-action-popup"></div>
+<div id="vditor"></div>
+<div id="autocomplete-ghost"></div>
+<div id="autocomplete-popup"></div>
+<div id="ai-generating">AI writing...</div>
+<div id="quick-action-popup"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.8/dist/index.min.js"></script>
-    <script>
-        let vditor;
-        let debounceTimer = null;
-        let autocompleteTimer = null;
-        let spellCheckTimer = null;
-        let currentGhostText = '';
-        let acSelectedIndex = -1;
-        let acItems = [];
-        const DEBOUNCE_MS = 500;
-        const AUTOCOMPLETE_DEBOUNCE_MS = 800;
-        const SPELLCHECK_DEBOUNCE_MS = 1500;
+<script src="https://cdn.jsdelivr.net/npm/vditor@3.10.8/dist/index.min.js"></script>
+<script>
+    let vditor;
+    let debounceTimer = null;
+    let autocompleteTimer = null;
+    let spellCheckTimer = null;
+    let currentGhostText = '';
+    let acSelectedIndex = -1;
+    let acItems = [];
+    const DEBOUNCE_MS = 500;
+    const AUTOCOMPLETE_DEBOUNCE_MS = 800;
+    const SPELLCHECK_DEBOUNCE_MS = 1500;
 
-        // --- C# Interop ---
+    // --- C# Interop ---
 
-        function postToCSharp(msg) {
-            const json = JSON.stringify(msg);
-            try {
-                if (window.chrome && window.chrome.webview) {
-                    window.chrome.webview.postMessage(json);
-                } else if (window.external && window.external.notify) {
-                    window.external.notify(json);
-                } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge) {
-                    window.webkit.messageHandlers.bridge.postMessage(json);
-                }
-            } catch (e) {
-                console.warn('postToCSharp failed:', e);
+    function postToCSharp(msg) {
+        const json = JSON.stringify(msg);
+        try {
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage(json);
+            } else if (window.external && window.external.notify) {
+                window.external.notify(json);
+            } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge) {
+                window.webkit.messageHandlers.bridge.postMessage(json);
             }
+        } catch (e) {
+            console.warn('postToCSharp failed:', e);
         }
+    }
 
-        // --- Cursor Utilities ---
+    // --- Cursor Utilities ---
 
-        function getCursorPosition() {
-            try {
-                const sel = window.getSelection();
-                if (!sel || sel.rangeCount === 0) return 0;
-                const range = sel.getRangeAt(0);
-                const preRange = range.cloneRange();
-                const editorEl = document.querySelector('.vditor-ir') ||
-                                 document.querySelector('.vditor-wysiwyg') ||
-                                 document.querySelector('.vditor-sv');
-                if (!editorEl) return 0;
-                preRange.selectNodeContents(editorEl);
-                preRange.setEnd(range.startContainer, range.startOffset);
-                return preRange.toString().length;
-            } catch (e) { return 0; }
+    function getCursorPosition() {
+        try {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return 0;
+            const range = sel.getRangeAt(0);
+            const preRange = range.cloneRange();
+            const editorEl = document.querySelector('.vditor-ir') ||
+                document.querySelector('.vditor-wysiwyg') ||
+                document.querySelector('.vditor-sv');
+            if (!editorEl) return 0;
+            preRange.selectNodeContents(editorEl);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            return preRange.toString().length;
+        } catch (e) {
+            return 0;
         }
+    }
 
-        function getTextBeforeCursor() {
-            const content = vditor.getValue();
-            const pos = getCursorPosition();
-            return content.substring(0, pos);
+    function getTextBeforeCursor() {
+        const content = vditor.getValue();
+        const pos = getCursorPosition();
+        return content.substring(0, pos);
+    }
+
+    function getCursorRect() {
+        try {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return null;
+            const range = sel.getRangeAt(0);
+            return range.getBoundingClientRect();
+        } catch (e) {
+            return null;
         }
+    }
 
-        function getCursorRect() {
-            try {
-                const sel = window.getSelection();
-                if (!sel || sel.rangeCount === 0) return null;
-                const range = sel.getRangeAt(0);
-                return range.getBoundingClientRect();
-            } catch (e) { return null; }
-        }
+    // --- Editor Mode ---
 
-        // --- Editor Mode ---
+    function setEditorMode(mode) {
+        if (!vditor) return;
+        localStorage.setItem('doomwriter-mode', mode);
+    }
 
-        function setEditorMode(mode) {
-            if (!vditor) return;
-            localStorage.setItem('doomwriter-mode', mode);
-        }
+    // --- Navigation (signal panel clicks) ---
 
-        // --- Navigation (signal panel clicks) ---
+    function scrollToText(searchText) {
+        if (!vditor) return false;
+        // Get the editor content element
+        var el = document.querySelector('.vditor-ir') || document.querySelector('.vditor-wysiwyg') || document.querySelector('.vditor-sv');
+        if (!el) return false;
 
-        function scrollToText(searchText) {
-            if (!vditor) return false;
-            // Get the editor content element
-            var el = document.querySelector('.vditor-ir') || document.querySelector('.vditor-wysiwyg') || document.querySelector('.vditor-sv');
-            if (!el) return false;
-
-            // Walk text nodes to find the search text
-            var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-            var needle = searchText.substring(0, 40).replace(/\*\*/g, ''); // Strip markdown bold
-            var node;
-            while (node = walker.nextNode()) {
-                if (node.textContent && node.textContent.includes(needle)) {
-                    // Found it — scroll the parent element into view
-                    var parent = node.parentElement;
-                    if (parent) {
-                        parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        // Flash highlight
-                        parent.style.transition = 'background 0.3s';
-                        parent.style.background = 'rgba(59, 130, 246, 0.2)';
-                        setTimeout(function() { parent.style.background = ''; }, 1500);
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        function scrollToHeading(headingText) {
-            if (!vditor) return false;
-            var el = document.querySelector('.vditor-ir') || document.querySelector('.vditor-wysiwyg');
-            if (!el) return false;
-
-            // Headings are rendered as h1-h6 elements
-            var headings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
-            for (var i = 0; i < headings.length; i++) {
-                if (headings[i].textContent.trim().includes(headingText.substring(0, 30))) {
-                    headings[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    headings[i].style.transition = 'background 0.3s';
-                    headings[i].style.background = 'rgba(59, 130, 246, 0.2)';
-                    setTimeout(function() { headings[i].style.background = ''; }, 1500);
+        // Walk text nodes to find the search text
+        var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+        var needle = searchText.substring(0, 40).replace(/\*\*/g, ''); // Strip markdown bold
+        var node;
+        while (node = walker.nextNode()) {
+            if (node.textContent && node.textContent.includes(needle)) {
+                // Found it — scroll the parent element into view
+                var parent = node.parentElement;
+                if (parent) {
+                    parent.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    // Flash highlight
+                    parent.style.transition = 'background 0.3s';
+                    parent.style.background = 'rgba(59, 130, 246, 0.2)';
+                    setTimeout(function () {
+                        parent.style.background = '';
+                    }, 1500);
                     return true;
                 }
             }
-            return false;
+        }
+        return false;
+    }
+
+    function scrollToHeading(headingText) {
+        if (!vditor) return false;
+        var el = document.querySelector('.vditor-ir') || document.querySelector('.vditor-wysiwyg');
+        if (!el) return false;
+
+        // Headings are rendered as h1-h6 elements
+        var headings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        for (var i = 0; i < headings.length; i++) {
+            if (headings[i].textContent.trim().includes(headingText.substring(0, 30))) {
+                headings[i].scrollIntoView({behavior: 'smooth', block: 'start'});
+                headings[i].style.transition = 'background 0.3s';
+                headings[i].style.background = 'rgba(59, 130, 246, 0.2)';
+                setTimeout(function () {
+                    headings[i].style.background = '';
+                }, 1500);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // --- Autocomplete ---
+
+    function showGhostText(text) {
+        const ghost = document.getElementById('autocomplete-ghost');
+        const rect = getCursorRect();
+        if (!rect || !text) {
+            hideGhostText();
+            return;
         }
 
-        // --- Autocomplete ---
+        currentGhostText = text;
+        ghost.textContent = text;
+        ghost.style.left = rect.right + 'px';
+        ghost.style.top = rect.top + 'px';
+        ghost.style.display = 'block';
+    }
 
-        function showGhostText(text) {
-            const ghost = document.getElementById('autocomplete-ghost');
-            const rect = getCursorRect();
-            if (!rect || !text) { hideGhostText(); return; }
+    function hideGhostText() {
+        document.getElementById('autocomplete-ghost').style.display = 'none';
+        currentGhostText = '';
+    }
 
-            currentGhostText = text;
-            ghost.textContent = text;
-            ghost.style.left = rect.right + 'px';
-            ghost.style.top = rect.top + 'px';
-            ghost.style.display = 'block';
+    function showAutocompletePopup(items) {
+        const popup = document.getElementById('autocomplete-popup');
+        const rect = getCursorRect();
+        if (!rect || !items || items.length === 0) {
+            hideAutocompletePopup();
+            return;
         }
 
-        function hideGhostText() {
-            document.getElementById('autocomplete-ghost').style.display = 'none';
-            currentGhostText = '';
-        }
+        acItems = items;
+        acSelectedIndex = 0;
 
-        function showAutocompletePopup(items) {
-            const popup = document.getElementById('autocomplete-popup');
-            const rect = getCursorRect();
-            if (!rect || !items || items.length === 0) { hideAutocompletePopup(); return; }
-
-            acItems = items;
-            acSelectedIndex = 0;
-
-            popup.innerHTML = items.map((item, i) => {
-                const icon = item.kind === 'link' ? '🔗' : item.kind === 'entity' ? '📌' : '💡';
-                const selected = i === 0 ? ' selected' : '';
-                return `<div class="ac-item${selected}" data-index="${i}" onclick="acceptAutocomplete(${i})">
+        popup.innerHTML = items.map((item, i) => {
+            const icon = item.kind === 'link' ? '🔗' : item.kind === 'entity' ? '📌' : '💡';
+            const selected = i === 0 ? ' selected' : '';
+            return `<div class="ac-item${selected}" data-index="${i}" onclick="acceptAutocomplete(${i})">
                     <span class="ac-icon">${icon}</span>
                     <span class="ac-text">${escapeHtml(item.displayText)}</span>
                     <span class="ac-hint">Tab</span>
                 </div>`;
-            }).join('');
+        }).join('');
 
-            popup.style.left = rect.left + 'px';
-            popup.style.top = (rect.bottom + 4) + 'px';
-            popup.style.display = 'block';
-        }
+        popup.style.left = rect.left + 'px';
+        popup.style.top = (rect.bottom + 4) + 'px';
+        popup.style.display = 'block';
+    }
 
-        function hideAutocompletePopup() {
-            document.getElementById('autocomplete-popup').style.display = 'none';
-            acItems = [];
-            acSelectedIndex = -1;
-        }
+    function hideAutocompletePopup() {
+        document.getElementById('autocomplete-popup').style.display = 'none';
+        acItems = [];
+        acSelectedIndex = -1;
+    }
 
-        function acceptAutocomplete(index) {
-            if (index < 0 || index >= acItems.length) return;
-            const item = acItems[index];
-            vditor.insertValue(item.text);
-            hideAutocompletePopup();
+    function acceptAutocomplete(index) {
+        if (index < 0 || index >= acItems.length) return;
+        const item = acItems[index];
+        vditor.insertValue(item.text);
+        hideAutocompletePopup();
+        hideGhostText();
+        postToCSharp({type: 'autocompleteAccepted', text: item.text, kind: item.kind});
+    }
+
+    function acceptGhostText() {
+        if (currentGhostText) {
+            vditor.insertValue(currentGhostText);
             hideGhostText();
-            postToCSharp({ type: 'autocompleteAccepted', text: item.text, kind: item.kind });
+        }
+    }
+
+    // Called from C# when autocomplete results arrive
+    function showAutocompleteSuggestion(data) {
+        if (!data || !data.suggestions || data.suggestions.length === 0) {
+            hideGhostText();
+            hideAutocompletePopup();
+            return;
         }
 
-        function acceptGhostText() {
-            if (currentGhostText) {
-                vditor.insertValue(currentGhostText);
-                hideGhostText();
-            }
+        if (data.kind === 'sentence') {
+            // Show as ghost text (Tab to accept)
+            showGhostText(data.suggestions[0].text);
+        } else {
+            // Show as popup (link or entity completions)
+            showAutocompletePopup(data.suggestions);
         }
+    }
 
-        // Called from C# when autocomplete results arrive
-        function showAutocompleteSuggestion(data) {
-            if (!data || !data.suggestions || data.suggestions.length === 0) {
-                hideGhostText();
-                hideAutocompletePopup();
-                return;
-            }
+    // --- AI Generation Indicator ---
 
-            if (data.kind === 'sentence') {
-                // Show as ghost text (Tab to accept)
-                showGhostText(data.suggestions[0].text);
-            } else {
-                // Show as popup (link or entity completions)
-                showAutocompletePopup(data.suggestions);
-            }
-        }
+    function showAiGenerating(msg) {
+        const el = document.getElementById('ai-generating');
+        el.textContent = msg || 'AI writing...';
+        el.style.display = 'block';
+    }
 
-        // --- AI Generation Indicator ---
+    function hideAiGenerating() {
+        document.getElementById('ai-generating').style.display = 'none';
+    }
 
-        function showAiGenerating(msg) {
-            const el = document.getElementById('ai-generating');
-            el.textContent = msg || 'AI writing...';
-            el.style.display = 'block';
-        }
+    // --- Image Drop Support ---
 
-        function hideAiGenerating() {
-            document.getElementById('ai-generating').style.display = 'none';
-        }
+    function handleImageDrop(file) {
+        // Read as data URI for inline display
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const dataUri = e.target.result;
+            const alt = file.name.replace(/\.[^/.]+$/, '');
+            vditor.insertValue(`![${alt}](${dataUri})\n`);
+        };
+        reader.readAsDataURL(file);
+    }
 
-        // --- Image Drop Support ---
+    // --- Utilities ---
 
-        function handleImageDrop(file) {
-            // Read as data URI for inline display
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const dataUri = e.target.result;
-                const alt = file.name.replace(/\.[^/.]+$/, '');
-                vditor.insertValue(`![${alt}](${dataUri})\n`);
-            };
-            reader.readAsDataURL(file);
-        }
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
-        // --- Utilities ---
+    // --- Diagnostics System ---
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+    let currentDiagnostics = [];
+    let qaSelectedIndex = -1;
+    let qaItems = [];
 
-        // --- Diagnostics System ---
+    // Called from C# to display diagnostics (spelling, grammar, etc.)
+    function showDiagnostics(diagnostics) {
+        currentDiagnostics = diagnostics || [];
+        // Apply visual markers to the editor content
+        renderDiagnosticMarkers();
+    }
 
-        let currentDiagnostics = [];
-        let qaSelectedIndex = -1;
-        let qaItems = [];
+    function clearDiagnostics() {
+        currentDiagnostics = [];
+        // Remove all diagnostic markers
+        const markers = document.querySelectorAll('.diag-marker, .diag-gutter');
+        markers.forEach(m => m.remove());
+    }
 
-        // Called from C# to display diagnostics (spelling, grammar, etc.)
-        function showDiagnostics(diagnostics) {
-            currentDiagnostics = diagnostics || [];
-            // Apply visual markers to the editor content
-            renderDiagnosticMarkers();
-        }
+    function renderDiagnosticMarkers() {
+        // Remove existing markers
+        const existing = document.querySelectorAll('.diag-gutter');
+        existing.forEach(m => m.remove());
 
-        function clearDiagnostics() {
-            currentDiagnostics = [];
-            // Remove all diagnostic markers
-            const markers = document.querySelectorAll('.diag-marker, .diag-gutter');
-            markers.forEach(m => m.remove());
-        }
+        // Group diagnostics by line
+        const byLine = {};
+        currentDiagnostics.forEach(d => {
+            if (!byLine[d.line]) byLine[d.line] = [];
+            byLine[d.line].push(d);
+        });
 
-        function renderDiagnosticMarkers() {
-            // Remove existing markers
-            const existing = document.querySelectorAll('.diag-gutter');
-            existing.forEach(m => m.remove());
+        // Add gutter icons for lines with diagnostics
+        const editorEl = document.querySelector('.vditor-ir') ||
+            document.querySelector('.vditor-wysiwyg') ||
+            document.querySelector('.vditor-sv');
+        if (!editorEl) return;
 
-            // Group diagnostics by line
-            const byLine = {};
-            currentDiagnostics.forEach(d => {
-                if (!byLine[d.line]) byLine[d.line] = [];
-                byLine[d.line].push(d);
-            });
+        Object.keys(byLine).forEach(lineNum => {
+            const diags = byLine[lineNum];
+            const hasSpelling = diags.some(d => d.type === 'spelling');
+            const hasGrammar = diags.some(d => d.type === 'grammar');
+            const hasEntityLink = diags.some(d => d.type === 'entitylink');
 
-            // Add gutter icons for lines with diagnostics
-            const editorEl = document.querySelector('.vditor-ir') ||
-                             document.querySelector('.vditor-wysiwyg') ||
-                             document.querySelector('.vditor-sv');
-            if (!editorEl) return;
+            // Determine icon
+            let icon = '💡'; // default lightbulb
+            if (hasSpelling) icon = '📝';
+            else if (hasEntityLink) icon = '🔗';
 
-            Object.keys(byLine).forEach(lineNum => {
-                const diags = byLine[lineNum];
-                const hasSpelling = diags.some(d => d.type === 'spelling');
-                const hasGrammar = diags.some(d => d.type === 'grammar');
-                const hasEntityLink = diags.some(d => d.type === 'entitylink');
+            const gutter = document.createElement('div');
+            gutter.className = 'diag-gutter';
+            gutter.textContent = icon;
+            gutter.title = `${diags.length} diagnostic(s) — Ctrl+. to fix`;
+            gutter.dataset.line = lineNum;
+            gutter.onclick = () => showQuickActions(parseInt(lineNum));
 
-                // Determine icon
-                let icon = '💡'; // default lightbulb
-                if (hasSpelling) icon = '📝';
-                else if (hasEntityLink) icon = '🔗';
+            // Position relative to editor (approximate line height)
+            const lineHeight = 24;
+            gutter.style.top = (parseInt(lineNum) * lineHeight + 8) + 'px';
+            editorEl.style.position = 'relative';
+            editorEl.appendChild(gutter);
+        });
+    }
 
-                const gutter = document.createElement('div');
-                gutter.className = 'diag-gutter';
-                gutter.textContent = icon;
-                gutter.title = `${diags.length} diagnostic(s) — Ctrl+. to fix`;
-                gutter.dataset.line = lineNum;
-                gutter.onclick = () => showQuickActions(parseInt(lineNum));
+    // --- Quick Action Popup (Ctrl+. or lightbulb click) ---
 
-                // Position relative to editor (approximate line height)
-                const lineHeight = 24;
-                gutter.style.top = (parseInt(lineNum) * lineHeight + 8) + 'px';
-                editorEl.style.position = 'relative';
-                editorEl.appendChild(gutter);
-            });
-        }
+    function showQuickActions(line) {
+        const diags = currentDiagnostics.filter(d => d.line === line);
+        if (diags.length === 0) return;
 
-        // --- Quick Action Popup (Ctrl+. or lightbulb click) ---
+        const popup = document.getElementById('quick-action-popup');
+        qaItems = [];
+        qaSelectedIndex = 0;
 
-        function showQuickActions(line) {
-            const diags = currentDiagnostics.filter(d => d.line === line);
-            if (diags.length === 0) return;
+        let html = '<div class="qa-header">Quick Actions</div>';
 
-            const popup = document.getElementById('quick-action-popup');
-            qaItems = [];
-            qaSelectedIndex = 0;
-
-            let html = '<div class="qa-header">Quick Actions</div>';
-
-            diags.forEach(d => {
-                if (d.type === 'spelling') {
-                    // Spelling: suggest corrections + add to dictionary
-                    (d.suggestions || []).forEach(s => {
-                        qaItems.push({ action: 'replace', word: d.word, replacement: s, line: d.line, col: d.col });
-                        html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+        diags.forEach(d => {
+            if (d.type === 'spelling') {
+                // Spelling: suggest corrections + add to dictionary
+                (d.suggestions || []).forEach(s => {
+                    qaItems.push({action: 'replace', word: d.word, replacement: s, line: d.line, col: d.col});
+                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
                             <span class="qa-icon">✏️</span>
                             <span class="qa-text">Change to: ${escapeHtml(s)}</span>
                         </div>`;
-                    });
-                    qaItems.push({ action: 'addToDict', word: d.word });
-                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                });
+                qaItems.push({action: 'addToDict', word: d.word});
+                html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
                         <span class="qa-icon">📖</span>
                         <span class="qa-text">Add "${escapeHtml(d.word)}" to dictionary</span>
                     </div>`;
-                    qaItems.push({ action: 'ignore', word: d.word });
-                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                qaItems.push({action: 'ignore', word: d.word});
+                html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
                         <span class="qa-icon">⏭️</span>
                         <span class="qa-text">Ignore</span>
                     </div>`;
-                } else if (d.type === 'grammar') {
-                    if (d.quickFix) {
-                        qaItems.push({ action: 'replace', word: d.word, replacement: d.quickFix, line: d.line, col: d.col });
-                        html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+            } else if (d.type === 'grammar') {
+                if (d.quickFix) {
+                    qaItems.push({action: 'replace', word: d.word, replacement: d.quickFix, line: d.line, col: d.col});
+                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
                             <span class="qa-icon">✅</span>
                             <span class="qa-text">Fix: ${escapeHtml(d.quickFix)}</span>
                         </div>`;
-                    }
-                    qaItems.push({ action: 'ignore', word: d.word });
-                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+                }
+                qaItems.push({action: 'ignore', word: d.word});
+                html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
                         <span class="qa-icon">⏭️</span>
                         <span class="qa-text">Ignore</span>
                     </div>`;
-                } else if (d.type === 'entitylink') {
-                    if (d.quickFix) {
-                        qaItems.push({ action: 'insertLink', text: d.quickFix, word: d.word, line: d.line, col: d.col });
-                        html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
+            } else if (d.type === 'entitylink') {
+                if (d.quickFix) {
+                    qaItems.push({action: 'insertLink', text: d.quickFix, word: d.word, line: d.line, col: d.col});
+                    html += `<div class="qa-item" data-idx="${qaItems.length - 1}">
                             <span class="qa-icon">🔗</span>
                             <span class="qa-text">Link to: ${escapeHtml(d.quickFix)}</span>
                         </div>`;
-                    }
                 }
-            });
-
-            popup.innerHTML = html;
-            // Highlight first item
-            const firstItem = popup.querySelector('.qa-item');
-            if (firstItem) firstItem.classList.add('selected');
-
-            // Position near the gutter icon
-            const gutterEl = document.querySelector(`.diag-gutter[data-line="${line}"]`);
-            if (gutterEl) {
-                const rect = gutterEl.getBoundingClientRect();
-                popup.style.left = (rect.right + 4) + 'px';
-                popup.style.top = rect.top + 'px';
-            } else {
-                popup.style.left = '40px';
-                popup.style.top = '100px';
             }
-            popup.style.display = 'block';
+        });
 
-            // Click handlers on items
-            popup.querySelectorAll('.qa-item').forEach(el => {
-                el.addEventListener('click', () => {
-                    const idx = parseInt(el.dataset.idx);
-                    acceptQuickAction(idx);
+        popup.innerHTML = html;
+        // Highlight first item
+        const firstItem = popup.querySelector('.qa-item');
+        if (firstItem) firstItem.classList.add('selected');
+
+        // Position near the gutter icon
+        const gutterEl = document.querySelector(`.diag-gutter[data-line="${line}"]`);
+        if (gutterEl) {
+            const rect = gutterEl.getBoundingClientRect();
+            popup.style.left = (rect.right + 4) + 'px';
+            popup.style.top = rect.top + 'px';
+        } else {
+            popup.style.left = '40px';
+            popup.style.top = '100px';
+        }
+        popup.style.display = 'block';
+
+        // Click handlers on items
+        popup.querySelectorAll('.qa-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const idx = parseInt(el.dataset.idx);
+                acceptQuickAction(idx);
+            });
+        });
+    }
+
+    function hideQuickActions() {
+        document.getElementById('quick-action-popup').style.display = 'none';
+        qaItems = [];
+        qaSelectedIndex = -1;
+    }
+
+    function acceptQuickAction(index) {
+        if (index < 0 || index >= qaItems.length) return;
+        const item = qaItems[index];
+
+        // Send action back to C#
+        postToCSharp({
+            type: 'quickAction',
+            action: item.action,
+            word: item.word || '',
+            replacement: item.replacement || item.text || '',
+            line: item.line || 0,
+            col: item.col || 0
+        });
+
+        hideQuickActions();
+    }
+
+    // --- Keyboard Handling ---
+
+    document.addEventListener('keydown', function (e) {
+        // Ctrl+. : Quick Action (VS Code convention)
+        if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+            e.preventDefault();
+            // Find diagnostics at cursor line
+            const pos = getCursorPosition();
+            const content = vditor.getValue();
+            const lines = content.substring(0, pos).split('\n');
+            const curLine = lines.length - 1;
+            showQuickActions(curLine);
+            return;
+        }
+
+        // Ctrl+Space: Manual autocomplete trigger
+        if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+            e.preventDefault();
+            const textBefore = getTextBeforeCursor();
+            if (textBefore.length > 3) {
+                postToCSharp({
+                    type: 'autocompleteRequest',
+                    textBeforeCursor: textBefore.slice(-500),
+                    cursor: getCursorPosition()
                 });
-            });
+            }
+            return;
         }
 
-        function hideQuickActions() {
-            document.getElementById('quick-action-popup').style.display = 'none';
-            qaItems = [];
-            qaSelectedIndex = -1;
-        }
-
-        function acceptQuickAction(index) {
-            if (index < 0 || index >= qaItems.length) return;
-            const item = qaItems[index];
-
-            // Send action back to C#
-            postToCSharp({
-                type: 'quickAction',
-                action: item.action,
-                word: item.word || '',
-                replacement: item.replacement || item.text || '',
-                line: item.line || 0,
-                col: item.col || 0
-            });
-
-            hideQuickActions();
-        }
-
-        // --- Keyboard Handling ---
-
-        document.addEventListener('keydown', function(e) {
-            // Ctrl+. : Quick Action (VS Code convention)
-            if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+        // Quick action popup navigation
+        if (qaItems.length > 0) {
+            if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                // Find diagnostics at cursor line
-                const pos = getCursorPosition();
-                const content = vditor.getValue();
-                const lines = content.substring(0, pos).split('\n');
-                const curLine = lines.length - 1;
-                showQuickActions(curLine);
+                qaSelectedIndex = Math.min(qaSelectedIndex + 1, qaItems.length - 1);
+                updateQaSelection();
+                return;
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                qaSelectedIndex = Math.max(qaSelectedIndex - 1, 0);
+                updateQaSelection();
+                return;
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                acceptQuickAction(qaSelectedIndex);
+                return;
+            } else if (e.key === 'Escape') {
+                hideQuickActions();
                 return;
             }
+        }
 
-            // Ctrl+Space: Manual autocomplete trigger
-            if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+        // Ctrl+Right: accept ghost text word-by-word
+        if (e.ctrlKey && e.key === 'ArrowRight' && currentGhostText) {
+            e.preventDefault();
+            acceptGhostTextWord();
+            return;
+        }
+
+        // Tab: accept ghost text or autocomplete
+        if (e.key === 'Tab') {
+            if (currentGhostText) {
                 e.preventDefault();
+                acceptGhostText();
+                return;
+            }
+            if (acItems.length > 0 && acSelectedIndex >= 0) {
+                e.preventDefault();
+                acceptAutocomplete(acSelectedIndex);
+                return;
+            }
+        }
+
+        // Escape: dismiss autocomplete
+        if (e.key === 'Escape') {
+            hideGhostText();
+            hideAutocompletePopup();
+        }
+
+        // Arrow keys in autocomplete popup
+        if (acItems.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                acSelectedIndex = Math.min(acSelectedIndex + 1, acItems.length - 1);
+                updatePopupSelection();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                acSelectedIndex = Math.max(acSelectedIndex - 1, 0);
+                updatePopupSelection();
+            } else if (e.key === 'Enter' && acSelectedIndex >= 0) {
+                e.preventDefault();
+                acceptAutocomplete(acSelectedIndex);
+            }
+        }
+    });
+
+    function updatePopupSelection() {
+        const items = document.querySelectorAll('.ac-item');
+        items.forEach((el, i) => {
+            el.classList.toggle('selected', i === acSelectedIndex);
+        });
+    }
+
+    function updateQaSelection() {
+        const items = document.querySelectorAll('#quick-action-popup .qa-item');
+        items.forEach((el, i) => {
+            el.classList.toggle('selected', i === qaSelectedIndex);
+        });
+    }
+
+    // Accept ghost text word-by-word (Ctrl+Right)
+    function acceptGhostTextWord() {
+        if (!currentGhostText) return;
+        const firstSpace = currentGhostText.indexOf(' ');
+        let word;
+        if (firstSpace > 0) {
+            word = currentGhostText.substring(0, firstSpace + 1);
+            currentGhostText = currentGhostText.substring(firstSpace + 1);
+        } else {
+            word = currentGhostText;
+            currentGhostText = '';
+        }
+        vditor.insertValue(word);
+        if (currentGhostText) {
+            showGhostText(currentGhostText);
+        } else {
+            hideGhostText();
+        }
+    }
+
+    // --- Initialize Vditor ---
+
+    const savedMode = localStorage.getItem('doomwriter-mode') || 'ir';
+
+    vditor = new Vditor('vditor', {
+        mode: savedMode,
+        theme: 'dark',
+        icon: 'ant',
+        height: '100%',
+        outline: {enable: false},
+        counter: {enable: false},
+        typewriterMode: true,
+        placeholder: 'Start writing...',
+
+        // Pin CDN for Mermaid, highlight.js, KaTeX lazy-loading
+        cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.8',
+
+        // Rich preview: images/GIF, math, Mermaid diagrams, tables, code
+        preview: {
+            markdown: {
+                toc: true,
+                autoSpace: true,
+                fixTermTypo: false,
+                mark: true // Enable ==highlight== syntax
+            },
+            math: {engine: 'KaTeX'},
+            hljs: {
+                lineNumber: true,
+                style: 'github-dark',
+                enable: true
+            }
+        },
+
+        // Enable image upload via paste/drag
+        upload: {
+            handler: function (files) {
+                for (const file of files) {
+                    if (file.type.startsWith('image/')) {
+                        handleImageDrop(file);
+                    }
+                }
+                return null; // We handle it ourselves
+            },
+            accept: 'image/*'
+        },
+
+        toolbar: [
+            'headings', 'bold', 'italic', 'strike', '|',
+            'line', 'quote', 'list', 'ordered-list', 'check', '|',
+            'code', 'inline-code', 'table', 'link', 'upload', '|',
+            {
+                name: 'ai-next',
+                tip: 'AI: Next Paragraph (Ctrl+Shift+Enter)',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+                click: function () {
+                    postToCSharp({type: 'toolbarAction', action: 'nextParagraph'});
+                }
+            },
+            {
+                name: 'ai-links',
+                tip: 'AI: Suggest Links',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+                click: function () {
+                    postToCSharp({type: 'toolbarAction', action: 'suggestLinks'});
+                }
+            },
+            {
+                name: 'ai-check',
+                tip: 'AI: Grammar & Coherence Check',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+                click: function () {
+                    postToCSharp({type: 'toolbarAction', action: 'check'});
+                }
+            },
+            {
+                name: 'ai-expand',
+                tip: 'AI: Expand Selection',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
+                click: function () {
+                    postToCSharp({type: 'toolbarAction', action: 'expand'});
+                }
+            },
+            {
+                name: 'ai-rewrite',
+                tip: 'AI: Rewrite Selection',
+                icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+                click: function () {
+                    postToCSharp({type: 'toolbarAction', action: 'rewrite'});
+                }
+            },
+            '|',
+            'undo', 'redo', '|',
+            'edit-mode', 'fullscreen', 'export'
+        ],
+
+        cache: {enable: false},
+
+        after: function () {
+            // Set dark content + code themes after initialization
+            vditor.setTheme('dark', 'dark', 'github-dark');
+            postToCSharp({type: 'ready'});
+        },
+
+        input: function (value) {
+            hideGhostText();
+            hideAutocompletePopup();
+
+            // Debounced content change notification
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                postToCSharp({
+                    type: 'contentChanged',
+                    content: vditor.getValue(),
+                    cursor: getCursorPosition()
+                });
+            }, DEBOUNCE_MS);
+
+            // Debounced autocomplete request
+            clearTimeout(autocompleteTimer);
+            autocompleteTimer = setTimeout(function () {
                 const textBefore = getTextBeforeCursor();
-                if (textBefore.length > 3) {
+                if (textBefore.length > 10) {
                     postToCSharp({
                         type: 'autocompleteRequest',
-                        textBeforeCursor: textBefore.slice(-500),
+                        textBeforeCursor: textBefore.slice(-500), // Last 500 chars for context
                         cursor: getCursorPosition()
                     });
                 }
-                return;
-            }
+            }, AUTOCOMPLETE_DEBOUNCE_MS);
 
-            // Quick action popup navigation
-            if (qaItems.length > 0) {
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    qaSelectedIndex = Math.min(qaSelectedIndex + 1, qaItems.length - 1);
-                    updateQaSelection();
-                    return;
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    qaSelectedIndex = Math.max(qaSelectedIndex - 1, 0);
-                    updateQaSelection();
-                    return;
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    acceptQuickAction(qaSelectedIndex);
-                    return;
-                } else if (e.key === 'Escape') {
-                    hideQuickActions();
-                    return;
-                }
-            }
-
-            // Ctrl+Right: accept ghost text word-by-word
-            if (e.ctrlKey && e.key === 'ArrowRight' && currentGhostText) {
-                e.preventDefault();
-                acceptGhostTextWord();
-                return;
-            }
-
-            // Tab: accept ghost text or autocomplete
-            if (e.key === 'Tab') {
-                if (currentGhostText) {
-                    e.preventDefault();
-                    acceptGhostText();
-                    return;
-                }
-                if (acItems.length > 0 && acSelectedIndex >= 0) {
-                    e.preventDefault();
-                    acceptAutocomplete(acSelectedIndex);
-                    return;
-                }
-            }
-
-            // Escape: dismiss autocomplete
-            if (e.key === 'Escape') {
-                hideGhostText();
-                hideAutocompletePopup();
-            }
-
-            // Arrow keys in autocomplete popup
-            if (acItems.length > 0) {
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    acSelectedIndex = Math.min(acSelectedIndex + 1, acItems.length - 1);
-                    updatePopupSelection();
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    acSelectedIndex = Math.max(acSelectedIndex - 1, 0);
-                    updatePopupSelection();
-                } else if (e.key === 'Enter' && acSelectedIndex >= 0) {
-                    e.preventDefault();
-                    acceptAutocomplete(acSelectedIndex);
-                }
-            }
-        });
-
-        function updatePopupSelection() {
-            const items = document.querySelectorAll('.ac-item');
-            items.forEach((el, i) => {
-                el.classList.toggle('selected', i === acSelectedIndex);
-            });
-        }
-
-        function updateQaSelection() {
-            const items = document.querySelectorAll('#quick-action-popup .qa-item');
-            items.forEach((el, i) => {
-                el.classList.toggle('selected', i === qaSelectedIndex);
-            });
-        }
-
-        // Accept ghost text word-by-word (Ctrl+Right)
-        function acceptGhostTextWord() {
-            if (!currentGhostText) return;
-            const firstSpace = currentGhostText.indexOf(' ');
-            let word;
-            if (firstSpace > 0) {
-                word = currentGhostText.substring(0, firstSpace + 1);
-                currentGhostText = currentGhostText.substring(firstSpace + 1);
-            } else {
-                word = currentGhostText;
-                currentGhostText = '';
-            }
-            vditor.insertValue(word);
-            if (currentGhostText) {
-                showGhostText(currentGhostText);
-            } else {
-                hideGhostText();
-            }
-        }
-
-        // --- Initialize Vditor ---
-
-        const savedMode = localStorage.getItem('doomwriter-mode') || 'ir';
-
-        vditor = new Vditor('vditor', {
-            mode: savedMode,
-            theme: 'dark',
-            icon: 'ant',
-            height: '100%',
-            outline: { enable: false },
-            counter: { enable: false },
-            typewriterMode: true,
-            placeholder: 'Start writing...',
-
-            // Pin CDN for Mermaid, highlight.js, KaTeX lazy-loading
-            cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.8',
-
-            // Rich preview: images/GIF, math, Mermaid diagrams, tables, code
-            preview: {
-                markdown: {
-                    toc: true,
-                    autoSpace: true,
-                    fixTermTypo: false,
-                    mark: true // Enable ==highlight== syntax
-                },
-                math: { engine: 'KaTeX' },
-                hljs: {
-                    lineNumber: true,
-                    style: 'github-dark',
-                    enable: true
-                }
-            },
-
-            // Enable image upload via paste/drag
-            upload: {
-                handler: function(files) {
-                    for (const file of files) {
-                        if (file.type.startsWith('image/')) {
-                            handleImageDrop(file);
-                        }
-                    }
-                    return null; // We handle it ourselves
-                },
-                accept: 'image/*'
-            },
-
-            toolbar: [
-                'headings', 'bold', 'italic', 'strike', '|',
-                'line', 'quote', 'list', 'ordered-list', 'check', '|',
-                'code', 'inline-code', 'table', 'link', 'upload', '|',
-                {
-                    name: 'ai-next',
-                    tip: 'AI: Next Paragraph (Ctrl+Shift+Enter)',
-                    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
-                    click: function() {
-                        postToCSharp({ type: 'toolbarAction', action: 'nextParagraph' });
-                    }
-                },
-                {
-                    name: 'ai-links',
-                    tip: 'AI: Suggest Links',
-                    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
-                    click: function() {
-                        postToCSharp({ type: 'toolbarAction', action: 'suggestLinks' });
-                    }
-                },
-                {
-                    name: 'ai-check',
-                    tip: 'AI: Grammar & Coherence Check',
-                    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-                    click: function() {
-                        postToCSharp({ type: 'toolbarAction', action: 'check' });
-                    }
-                },
-                {
-                    name: 'ai-expand',
-                    tip: 'AI: Expand Selection',
-                    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
-                    click: function() {
-                        postToCSharp({ type: 'toolbarAction', action: 'expand' });
-                    }
-                },
-                {
-                    name: 'ai-rewrite',
-                    tip: 'AI: Rewrite Selection',
-                    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-                    click: function() {
-                        postToCSharp({ type: 'toolbarAction', action: 'rewrite' });
-                    }
-                },
-                '|',
-                'undo', 'redo', '|',
-                'edit-mode', 'fullscreen', 'export'
-            ],
-
-            cache: { enable: false },
-
-            after: function() {
-                // Set dark content + code themes after initialization
-                vditor.setTheme('dark', 'dark', 'github-dark');
-                postToCSharp({ type: 'ready' });
-            },
-
-            input: function(value) {
-                hideGhostText();
-                hideAutocompletePopup();
-
-                // Debounced content change notification
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(function() {
+            // Debounced spell check request
+            clearTimeout(spellCheckTimer);
+            spellCheckTimer = setTimeout(function () {
+                const content = vditor.getValue();
+                if (content.length > 0) {
                     postToCSharp({
-                        type: 'contentChanged',
-                        content: vditor.getValue(),
-                        cursor: getCursorPosition()
+                        type: 'spellCheck',
+                        text: content
                     });
-                }, DEBOUNCE_MS);
+                }
+            }, SPELLCHECK_DEBOUNCE_MS);
+        },
 
-                // Debounced autocomplete request
-                clearTimeout(autocompleteTimer);
-                autocompleteTimer = setTimeout(function() {
-                    const textBefore = getTextBeforeCursor();
-                    if (textBefore.length > 10) {
-                        postToCSharp({
-                            type: 'autocompleteRequest',
-                            textBeforeCursor: textBefore.slice(-500), // Last 500 chars for context
-                            cursor: getCursorPosition()
-                        });
-                    }
-                }, AUTOCOMPLETE_DEBOUNCE_MS);
-
-                // Debounced spell check request
-                clearTimeout(spellCheckTimer);
-                spellCheckTimer = setTimeout(function() {
-                    const content = vditor.getValue();
-                    if (content.length > 0) {
-                        postToCSharp({
-                            type: 'spellCheck',
-                            text: content
-                        });
-                    }
-                }, SPELLCHECK_DEBOUNCE_MS);
-            },
-
-            select: function(value) {
-                if (value && value.length > 0) {
-                    const sel = window.getSelection();
-                    if (sel && sel.rangeCount > 0) {
-                        postToCSharp({
-                            type: 'selection',
-                            text: value,
-                            from: getCursorPosition(),
-                            to: getCursorPosition() + value.length
-                        });
-                    }
+        select: function (value) {
+            if (value && value.length > 0) {
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                    postToCSharp({
+                        type: 'selection',
+                        text: value,
+                        from: getCursorPosition(),
+                        to: getCursorPosition() + value.length
+                    });
                 }
             }
-        });
+        }
+    });
 
-        // Ctrl+Shift+Enter: AI Next Paragraph shortcut
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
-                e.preventDefault();
-                postToCSharp({ type: 'toolbarAction', action: 'nextParagraph' });
-            }
-        });
-    </script>
+    // Ctrl+Shift+Enter: AI Next Paragraph shortcut
+    document.addEventListener('keydown', function (e) {
+        if (e.ctrlKey && e.shiftKey && e.key === 'Enter') {
+            e.preventDefault();
+            postToCSharp({type: 'toolbarAction', action: 'nextParagraph'});
+        }
+    });
+</script>
 </body>
 </html>

@@ -8,26 +8,26 @@ using Mostlylucid.Storage.Core.Config;
 namespace Mostlylucid.Storage.Core.Implementations;
 
 /// <summary>
-/// In-memory vector store with no persistence.
-/// Fast and simple - ideal for testing, tool/MCP mode, and one-shot analysis.
-/// All data is lost when the process exits.
+///     In-memory vector store with no persistence.
+///     Fast and simple - ideal for testing, tool/MCP mode, and one-shot analysis.
+///     All data is lost when the process exits.
 /// </summary>
 public class InMemoryVectorStore : IMultiVectorStore
 {
+    private readonly ConcurrentDictionary<string, CollectionData> _collections = new();
     private readonly ILogger<InMemoryVectorStore> _logger;
     private readonly InMemoryOptions _options;
-    private readonly ConcurrentDictionary<string, CollectionData> _collections = new();
     private readonly ConcurrentDictionary<string, CachedSummary> _summaryCache = new();
     private bool _disposed;
-
-    public bool IsPersistent => false;
-    public VectorStoreBackend Backend => VectorStoreBackend.InMemory;
 
     public InMemoryVectorStore(IOptions<VectorStoreOptions> options, ILogger<InMemoryVectorStore> logger)
     {
         _logger = logger;
         _options = options.Value.InMemory;
     }
+
+    public bool IsPersistent => false;
+    public VectorStoreBackend Backend => VectorStoreBackend.InMemory;
 
     // ========== Collection Management ==========
 
@@ -41,10 +41,8 @@ public class InMemoryVectorStore : IMultiVectorStore
         });
 
         if (_options.Verbose)
-        {
             _logger.LogInformation("Initialized in-memory collection {Collection} (dim={Dim})",
                 collectionName, schema.VectorDimension);
-        }
 
         return Task.CompletedTask;
     }
@@ -58,10 +56,7 @@ public class InMemoryVectorStore : IMultiVectorStore
     {
         _collections.TryRemove(collectionName, out _);
 
-        if (_options.Verbose)
-        {
-            _logger.LogInformation("Deleted in-memory collection {Collection}", collectionName);
-        }
+        if (_options.Verbose) _logger.LogInformation("Deleted in-memory collection {Collection}", collectionName);
 
         return Task.CompletedTask;
     }
@@ -69,7 +64,6 @@ public class InMemoryVectorStore : IMultiVectorStore
     public Task<CollectionStats> GetCollectionStatsAsync(string collectionName, CancellationToken ct = default)
     {
         if (!_collections.TryGetValue(collectionName, out var collection))
-        {
             return Task.FromResult(new CollectionStats
             {
                 CollectionName = collectionName,
@@ -77,7 +71,6 @@ public class InMemoryVectorStore : IMultiVectorStore
                 VectorDimension = 0,
                 SizeBytes = null
             });
-        }
 
         var sizeBytes = collection.Documents.Sum(d =>
             d.Embedding.Length * sizeof(float) +
@@ -103,24 +96,20 @@ public class InMemoryVectorStore : IMultiVectorStore
         return Task.FromResult(exists);
     }
 
-    public Task UpsertDocumentsAsync(string collectionName, IEnumerable<VectorDocument> documents, CancellationToken ct = default)
+    public Task UpsertDocumentsAsync(string collectionName, IEnumerable<VectorDocument> documents,
+        CancellationToken ct = default)
     {
         if (!_collections.TryGetValue(collectionName, out var collection))
-        {
-            throw new InvalidOperationException($"Collection '{collectionName}' does not exist. Call InitializeAsync first.");
-        }
+            throw new InvalidOperationException(
+                $"Collection '{collectionName}' does not exist. Call InitializeAsync first.");
 
         var docList = documents.ToList();
 
         // Validate dimensions
         foreach (var doc in docList)
-        {
             if (doc.Embedding.Length != collection.Schema.VectorDimension)
-            {
                 throw new ArgumentException(
                     $"Document {doc.Id} embedding dimension {doc.Embedding.Length} does not match collection dimension {collection.Schema.VectorDimension}");
-            }
-        }
 
         lock (collection.Documents)
         {
@@ -138,16 +127,15 @@ public class InMemoryVectorStore : IMultiVectorStore
                 var toRemove = collection.Documents.Count - _options.MaxDocuments;
                 collection.Documents.RemoveRange(0, toRemove);
 
-                _logger.LogWarning("In-memory collection {Collection} exceeded limit ({Limit}), evicted {Count} oldest documents",
+                _logger.LogWarning(
+                    "In-memory collection {Collection} exceeded limit ({Limit}), evicted {Count} oldest documents",
                     collectionName, _options.MaxDocuments, toRemove);
             }
         }
 
         if (_options.Verbose)
-        {
             _logger.LogDebug("Upserted {Count} documents to in-memory collection {Collection}",
                 docList.Count, collectionName);
-        }
 
         return Task.CompletedTask;
     }
@@ -165,7 +153,8 @@ public class InMemoryVectorStore : IMultiVectorStore
         return Task.CompletedTask;
     }
 
-    public Task<VectorDocument?> GetDocumentAsync(string collectionName, string documentId, CancellationToken ct = default)
+    public Task<VectorDocument?> GetDocumentAsync(string collectionName, string documentId,
+        CancellationToken ct = default)
     {
         if (!_collections.TryGetValue(collectionName, out var collection))
             return Task.FromResult<VectorDocument?>(null);
@@ -174,7 +163,8 @@ public class InMemoryVectorStore : IMultiVectorStore
         return Task.FromResult(doc);
     }
 
-    public Task<List<VectorDocument>> GetAllDocumentsAsync(string collectionName, string? parentId = null, CancellationToken ct = default)
+    public Task<List<VectorDocument>> GetAllDocumentsAsync(string collectionName, string? parentId = null,
+        CancellationToken ct = default)
     {
         if (!_collections.TryGetValue(collectionName, out var collection))
             return Task.FromResult(new List<VectorDocument>());
@@ -188,7 +178,8 @@ public class InMemoryVectorStore : IMultiVectorStore
 
     // ========== Search Operations ==========
 
-    public Task<List<VectorSearchResult>> SearchAsync(string collectionName, VectorSearchQuery query, CancellationToken ct = default)
+    public Task<List<VectorSearchResult>> SearchAsync(string collectionName, VectorSearchQuery query,
+        CancellationToken ct = default)
     {
         if (!_collections.TryGetValue(collectionName, out var collection))
             return Task.FromResult(new List<VectorSearchResult>());
@@ -196,14 +187,10 @@ public class InMemoryVectorStore : IMultiVectorStore
         var candidates = collection.Documents.AsEnumerable();
 
         // Filter by parent ID if specified
-        if (query.ParentId != null)
-        {
-            candidates = candidates.Where(d => d.ParentId == query.ParentId);
-        }
+        if (query.ParentId != null) candidates = candidates.Where(d => d.ParentId == query.ParentId);
 
         // Apply metadata filters if specified
         if (query.Filters != null && query.Filters.Count > 0)
-        {
             candidates = candidates.Where(d =>
             {
                 foreach (var filter in query.Filters)
@@ -214,9 +201,9 @@ public class InMemoryVectorStore : IMultiVectorStore
                     if (!value.Equals(filter.Value))
                         return false;
                 }
+
                 return true;
             });
-        }
 
         // Score by cosine similarity and return top K
         var results = candidates
@@ -244,18 +231,16 @@ public class InMemoryVectorStore : IMultiVectorStore
         return Task.FromResult(results);
     }
 
-    public async Task<List<VectorSearchResult>> FindSimilarAsync(string collectionName, string documentId, int topK = 10, CancellationToken ct = default)
+    public async Task<List<VectorSearchResult>> FindSimilarAsync(string collectionName, string documentId,
+        int topK = 10, CancellationToken ct = default)
     {
         var doc = await GetDocumentAsync(collectionName, documentId, ct);
-        if (doc == null)
-        {
-            return new List<VectorSearchResult>();
-        }
+        if (doc == null) return new List<VectorSearchResult>();
 
         var query = new VectorSearchQuery
         {
             QueryEmbedding = doc.Embedding,
-            TopK = topK + 1,  // +1 to exclude self
+            TopK = topK + 1, // +1 to exclude self
             IncludeDocument = false
         };
 
@@ -267,7 +252,8 @@ public class InMemoryVectorStore : IMultiVectorStore
 
     // ========== Content Hash-Based Caching ==========
 
-    public Task<Dictionary<string, VectorDocument>> GetDocumentsByHashAsync(string collectionName, IEnumerable<string> contentHashes, CancellationToken ct = default)
+    public Task<Dictionary<string, VectorDocument>> GetDocumentsByHashAsync(string collectionName,
+        IEnumerable<string> contentHashes, CancellationToken ct = default)
     {
         var result = new Dictionary<string, VectorDocument>();
 
@@ -276,23 +262,18 @@ public class InMemoryVectorStore : IMultiVectorStore
 
         var hashSet = contentHashes.ToHashSet();
         foreach (var doc in collection.Documents)
-        {
             if (doc.ContentHash != null && hashSet.Contains(doc.ContentHash))
-            {
                 result[doc.ContentHash] = doc;
-            }
-        }
 
         if (_options.Verbose && result.Count > 0)
-        {
             _logger.LogDebug("Found {Found}/{Total} cached documents by hash in collection {Collection}",
                 result.Count, hashSet.Count, collectionName);
-        }
 
         return Task.FromResult(result);
     }
 
-    public Task RemoveStaleDocumentsAsync(string collectionName, string parentId, IEnumerable<string> validHashes, CancellationToken ct = default)
+    public Task RemoveStaleDocumentsAsync(string collectionName, string parentId, IEnumerable<string> validHashes,
+        CancellationToken ct = default)
     {
         if (!_collections.TryGetValue(collectionName, out var collection))
             return Task.CompletedTask;
@@ -311,10 +292,8 @@ public class InMemoryVectorStore : IMultiVectorStore
             var removed = countBefore - collection.Documents.Count;
 
             if (_options.Verbose && removed > 0)
-            {
                 _logger.LogDebug("Removed {Count} stale documents from collection {Collection}",
                     removed, collectionName);
-            }
         }
 
         return Task.CompletedTask;
@@ -322,16 +301,15 @@ public class InMemoryVectorStore : IMultiVectorStore
 
     // ========== Summary Caching ==========
 
-    public Task<CachedSummary?> GetCachedSummaryAsync(string collectionName, string documentId, CancellationToken ct = default)
+    public Task<CachedSummary?> GetCachedSummaryAsync(string collectionName, string documentId,
+        CancellationToken ct = default)
     {
         var fullKey = $"{collectionName}:{documentId}";
         _summaryCache.TryGetValue(fullKey, out var summary);
 
         if (_options.Verbose && summary != null)
-        {
             _logger.LogDebug("Summary cache hit for document {DocumentId} in collection {Collection}",
                 documentId, collectionName);
-        }
 
         return Task.FromResult(summary);
     }
@@ -342,10 +320,8 @@ public class InMemoryVectorStore : IMultiVectorStore
         _summaryCache[fullKey] = summary;
 
         if (_options.Verbose)
-        {
             _logger.LogDebug("Cached summary for document {DocumentId} in collection {Collection}",
                 summary.DocumentId, collectionName);
-        }
 
         return Task.CompletedTask;
     }
@@ -385,9 +361,8 @@ public class InMemoryVectorStore : IMultiVectorStore
         CancellationToken ct = default)
     {
         if (!_collections.TryGetValue(collectionName, out var collection))
-        {
-            throw new InvalidOperationException($"Collection '{collectionName}' does not exist. Call InitializeMultiVectorAsync first.");
-        }
+            throw new InvalidOperationException(
+                $"Collection '{collectionName}' does not exist. Call InitializeMultiVectorAsync first.");
 
         var docList = documents.ToList();
         var namedConfigs = collection.Schema.NamedVectors.ToDictionary(n => n.Name);
@@ -396,25 +371,19 @@ public class InMemoryVectorStore : IMultiVectorStore
         {
             // Validate primary embedding dimension
             if (doc.Embedding.Length != collection.Schema.VectorDimension)
-            {
                 throw new ArgumentException(
                     $"Document {doc.Id} primary embedding dimension {doc.Embedding.Length} does not match collection dimension {collection.Schema.VectorDimension}");
-            }
 
             // Validate named vector dimensions
             foreach (var (name, vector) in doc.NamedVectors)
             {
                 if (!namedConfigs.TryGetValue(name, out var config))
-                {
                     throw new ArgumentException(
                         $"Document {doc.Id} has named vector '{name}' which is not configured on collection '{collectionName}'");
-                }
 
                 if (vector.Length != config.Dimension)
-                {
                     throw new ArgumentException(
                         $"Document {doc.Id} named vector '{name}' dimension {vector.Length} does not match configured dimension {config.Dimension}");
-                }
             }
         }
 
@@ -432,10 +401,8 @@ public class InMemoryVectorStore : IMultiVectorStore
         }
 
         if (_options.Verbose)
-        {
             _logger.LogDebug("Upserted {Count} multi-vector documents to in-memory collection {Collection}",
                 docList.Count, collectionName);
-        }
 
         return Task.CompletedTask;
     }
@@ -451,22 +418,16 @@ public class InMemoryVectorStore : IMultiVectorStore
 
         var namedConfig = collection.Schema.NamedVectors.FirstOrDefault(n => n.Name == vectorName);
         if (namedConfig == null)
-        {
-            throw new ArgumentException($"Named vector '{vectorName}' is not configured on collection '{collectionName}'");
-        }
+            throw new ArgumentException(
+                $"Named vector '{vectorName}' is not configured on collection '{collectionName}'");
 
         if (query.QueryEmbedding.Length != namedConfig.Dimension)
-        {
             throw new ArgumentException(
                 $"Query embedding dimension {query.QueryEmbedding.Length} does not match named vector '{vectorName}' dimension {namedConfig.Dimension}");
-        }
 
         var candidates = collection.Documents.AsEnumerable();
 
-        if (query.ParentId != null)
-        {
-            candidates = candidates.Where(d => d.ParentId == query.ParentId);
-        }
+        if (query.ParentId != null) candidates = candidates.Where(d => d.ParentId == query.ParentId);
 
         var results = candidates
             .OfType<MultiVectorDocument>()
@@ -493,24 +454,6 @@ public class InMemoryVectorStore : IMultiVectorStore
         return Task.FromResult(results);
     }
 
-    // ========== Private Helpers ==========
-
-    private static double CosineSimilarity(float[] a, float[] b)
-    {
-        if (a.Length != b.Length || a.Length == 0) return 0;
-
-        double dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.Length; i++)
-        {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-
-        var denom = Math.Sqrt(normA) * Math.Sqrt(normB);
-        return denom > 0 ? dot / denom : 0;
-    }
-
     public void Dispose()
     {
         if (_disposed) return;
@@ -524,6 +467,24 @@ public class InMemoryVectorStore : IMultiVectorStore
     {
         Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    // ========== Private Helpers ==========
+
+    private static double CosineSimilarity(float[] a, float[] b)
+    {
+        if (a.Length != b.Length || a.Length == 0) return 0;
+
+        double dot = 0, normA = 0, normB = 0;
+        for (var i = 0; i < a.Length; i++)
+        {
+            dot += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+
+        var denom = Math.Sqrt(normA) * Math.Sqrt(normB);
+        return denom > 0 ? dot / denom : 0;
     }
 
     private class CollectionData

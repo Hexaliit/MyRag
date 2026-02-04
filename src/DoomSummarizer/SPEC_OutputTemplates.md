@@ -28,6 +28,7 @@ QueryType DetectQueryType(string query)
 ```
 
 Returns enum:
+
 - `Timeline` — query contains: history, evolution, timeline, origin, how did X develop, chronology
 - `Comparison` — query contains: vs, versus, compare, difference between, which is better
 - `Explainer` — query contains: how does X work, what is, explain, why does
@@ -35,6 +36,7 @@ Returns enum:
 - `General` — default fallback
 
 This drives:
+
 - Which synthesis prompt template to use
 - Source quality weighting adjustments
 - Output structure expectations
@@ -84,6 +86,7 @@ Prompt the sentinel LLM to produce a JSON outline from the evidence:
 ```
 
 Each section references evidence items by index. The outline ensures:
+
 - Logical flow between sections
 - Each section grounded in specific evidence
 - No section depends on content not in the evidence
@@ -91,6 +94,7 @@ Each section references evidence items by index. The outline ensures:
 **Pass 2: Section-by-Section Generation** (main model)
 
 For each section in the outline:
+
 - Build a prompt with: section heading, assigned evidence items' full content/TextRank excerpts,
   the previous section's last paragraph (context bridge), and section-specific instructions
 - Temperature: 0.5 (more creative than factual extraction but still grounded)
@@ -109,6 +113,7 @@ Include approximate year ranges.
 ```
 
 And each section's generation prompt adds:
+
 ```
 Structure this section as a timeline. For each milestone:
 - Year — What happened — Why it mattered — Source
@@ -173,6 +178,7 @@ public async Task<BlogArticleResult> SynthesizeBlogArticleAsync(
 One LLM call with a heavily structured prompt that produces editorial content:
 
 **Prompt structure:**
+
 ```
 You are writing a curated weekly newsletter called "The Doom Scroll" about {topic}.
 
@@ -247,6 +253,7 @@ public string? SignOff { get; init; }
 ### New Liquid Templates
 
 **blog-article:**
+
 ```liquid
 # {{ article_title }}
 
@@ -271,6 +278,7 @@ public string? SignOff { get; init; }
 **blog-timeline:** Same as blog-article but sections are timeline eras.
 
 **blog-newsletter:**
+
 ```liquid
 # The Doom Scroll — {{ date | date: "%B %d, %Y" }}
 
@@ -341,12 +349,12 @@ Also apply source quality scoring before synthesis when query type is Timeline o
 
 ## 7. Files Changed
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `Services/QueryTypeDetector.cs` | NEW | Detect query intent (timeline, comparison, roundup, etc.) |
-| `Services/OllamaService.cs` | MODIFY | Add SynthesizeBlogArticleAsync, SynthesizeNewsletterAsync, new models, JSON context |
-| `Services/TemplateService.cs` | MODIFY | Add blog-article, blog-timeline, blog-newsletter templates; extend DigestData |
-| `Commands/ScrollCommand.cs` | MODIFY | Wire template selection → synthesis method; apply source quality scoring |
+| File                            | Action | Purpose                                                                             |
+|---------------------------------|--------|-------------------------------------------------------------------------------------|
+| `Services/QueryTypeDetector.cs` | NEW    | Detect query intent (timeline, comparison, roundup, etc.)                           |
+| `Services/OllamaService.cs`     | MODIFY | Add SynthesizeBlogArticleAsync, SynthesizeNewsletterAsync, new models, JSON context |
+| `Services/TemplateService.cs`   | MODIFY | Add blog-article, blog-timeline, blog-newsletter templates; extend DigestData       |
+| `Commands/ScrollCommand.cs`     | MODIFY | Wire template selection → synthesis method; apply source quality scoring            |
 
 ---
 
@@ -355,9 +363,9 @@ Also apply source quality scoring before synthesis when query type is Timeline o
 1. `dotnet build` — zero errors
 2. `dotnet test` — all existing tests pass
 3. Manual: `dotnet run -- scroll "history of transformers in NLP" --template blog-article --vibe upbeat`
-   - Should produce multi-section article with timeline structure (auto-detected)
+    - Should produce multi-section article with timeline structure (auto-detected)
 4. Manual: `dotnet run -- scroll "interesting .NET articles this week on AI" --template blog-newsletter --vibe neutral`
-   - Should produce curated newsletter with top picks + quick hits
+    - Should produce curated newsletter with top picks + quick hits
 5. Manual: `dotnet run -- scroll "what's the history of the bbc" --template blog-timeline --vibe upbeat`
-   - Should produce timeline-structured article
+    - Should produce timeline-structured article
 6. `dotnet run -- scroll --list-templates` — should show new templates

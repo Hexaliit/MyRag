@@ -10,19 +10,18 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Crawls documentation starting from a seed URL (typically the project README),
-/// discovers linked docs, and indexes via the same pipeline as CrawlCommand.
-/// No hardcoded document list — the crawler follows markdown links.
-///
-/// Same ingestion steps as all other paths:
-///   Crawl → Embed → Score → Keywords → SQLite → FTS5 → Lucene → NER → Entity graph
+///     Crawls documentation starting from a seed URL (typically the project README),
+///     discovers linked docs, and indexes via the same pipeline as CrawlCommand.
+///     No hardcoded document list — the crawler follows markdown links.
+///     Same ingestion steps as all other paths:
+///     Crawl → Embed → Score → Keywords → SQLite → FTS5 → Lucene → NER → Entity graph
 /// </summary>
 public sealed class ManualLoader
 {
     public const string ManualSource = "manual";
+    private readonly IEmbeddingService _embedding;
 
     private readonly StorageService _storage;
-    private readonly IEmbeddingService _embedding;
 
     public ManualLoader(StorageService storage, IEmbeddingService embedding)
     {
@@ -31,17 +30,17 @@ public sealed class ManualLoader
     }
 
     /// <summary>
-    /// Check whether the manual corpus has already been indexed.
+    ///     Check whether the manual corpus has already been indexed.
     /// </summary>
     public async Task<bool> IsManualLoadedAsync()
     {
-        var items = await _storage.GetRecentItemsAsync(days: 36500, source: ManualSource);
+        var items = await _storage.GetRecentItemsAsync(36500, ManualSource);
         return items.Count > 0;
     }
 
     /// <summary>
-    /// Crawl documentation from seed URL, then embed, score, index, and extract entities.
-    /// Uses the same WebCrawlerService + ItemProcessor pipeline as CrawlCommand.
+    ///     Crawl documentation from seed URL, then embed, score, index, and extract entities.
+    ///     Uses the same WebCrawlerService + ItemProcessor pipeline as CrawlCommand.
     /// </summary>
     public async Task LoadManualAsync(ItemProcessor processor, bool refresh, CancellationToken ct)
     {
@@ -72,13 +71,11 @@ public sealed class ManualLoader
 
         // Auto-detect GitHub scope for path filtering
         if (CrawlCommand.TryGetGitHubRepoScope(manifest.SeedUrl, out var repoScope))
-        {
             crawlConfig = crawlConfig with
             {
                 PathFilter = manifest.PathFilter ?? $"{repoScope}/**",
                 GitHubRawMode = true
             };
-        }
 
         // Crawl docs from seed URL
         using var httpClient = HttpClientFactory.CreateDefault();
@@ -111,7 +108,8 @@ public sealed class ManualLoader
 
                     newItems.Add(item);
                     crawlTask.Increment(1);
-                    crawlTask.Description = $"[cyan]Crawled {newItems.Count}: {Markup.Escape(item.Title?.Length > 40 ? item.Title[..37] + "..." : item.Title ?? "")}[/]";
+                    crawlTask.Description =
+                        $"[cyan]Crawled {newItems.Count}: {Markup.Escape(item.Title?.Length > 40 ? item.Title[..37] + "..." : item.Title ?? "")}[/]";
                 }
 
                 crawlTask.Value = crawlTask.MaxValue;
@@ -131,6 +129,7 @@ public sealed class ManualLoader
                     item.Embedding = await _embedding.EmbedAsync(textToEmbed, ct);
                     embedTask.Increment(1);
                 }
+
                 embedTask.Description = $"[green]Embedded {newItems.Count} pages[/]";
 
                 // Stage 3: NER entity extraction
@@ -158,7 +157,6 @@ public sealed class ManualLoader
                 }
 
                 if (nerService != null)
-                {
                     try
                     {
                         foreach (var item in newItems)
@@ -174,7 +172,7 @@ public sealed class ManualLoader
                     {
                         nerService.Dispose();
                     }
-                }
+
                 nerTask.Value = nerTask.MaxValue;
                 nerTask.Description = nerService != null
                     ? $"[green]Extracted entities from {newItems.Count} pages[/]"
@@ -193,14 +191,13 @@ public sealed class ManualLoader
                     await processor.IndexItemAsync(item);
                     indexTask.Increment(1);
                 }
+
                 indexTask.Description = $"[green]Indexed {newItems.Count} pages[/]";
 
                 // Stage 5: Persist entities (deferred — items must exist in DB first for FK)
                 if (entityMap.Count > 0)
-                {
                     foreach (var (item, entities) in entityMap)
                         await processor.PersistEntitiesAsync(item, entities);
-                }
 
                 processor.CommitLucene();
             });
@@ -209,14 +206,14 @@ public sealed class ManualLoader
     }
 
     /// <summary>
-    /// Load the manifest from the embedded resource.
+    ///     Load the manifest from the embedded resource.
     /// </summary>
     internal static ManualManifest LoadManifest()
     {
         var assembly = Assembly.GetExecutingAssembly();
         var resourceName = "DoomSummarizer.Resources.manual.manifest.yaml";
         using var stream = assembly.GetManifestResourceStream(resourceName)
-            ?? throw new FileNotFoundException($"Embedded resource '{resourceName}' not found.");
+                           ?? throw new FileNotFoundException($"Embedded resource '{resourceName}' not found.");
         using var reader = new StreamReader(stream);
 
         var deserializer = new DeserializerBuilder()

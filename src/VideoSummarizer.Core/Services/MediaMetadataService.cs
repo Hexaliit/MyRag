@@ -5,16 +5,16 @@ using VideoSummarizer.Core.Services.External;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Orchestrates metadata lookup from multiple sources (TMDB, OMDB, OpenSubtitles).
-/// Provides unified metadata enrichment for media files.
-/// External clients are optional - if not configured, metadata features are disabled.
+///     Orchestrates metadata lookup from multiple sources (TMDB, OMDB, OpenSubtitles).
+///     Provides unified metadata enrichment for media files.
+///     External clients are optional - if not configured, metadata features are disabled.
 /// </summary>
 public class MediaMetadataService
 {
-    private readonly TmdbClient? _tmdb;
+    private readonly ILogger<MediaMetadataService> _logger;
     private readonly OmdbClient? _omdb;
     private readonly OpenSubtitlesClient? _openSubtitles;
-    private readonly ILogger<MediaMetadataService> _logger;
+    private readonly TmdbClient? _tmdb;
 
     public MediaMetadataService(
         ILogger<MediaMetadataService> logger,
@@ -29,17 +29,17 @@ public class MediaMetadataService
     }
 
     /// <summary>
-    /// Whether external metadata services are available.
+    ///     Whether external metadata services are available.
     /// </summary>
     public bool HasExternalServices => _tmdb != null || _omdb != null;
 
     /// <summary>
-    /// Whether subtitle download services are available.
+    ///     Whether subtitle download services are available.
     /// </summary>
     public bool HasSubtitleServices => _openSubtitles != null;
 
     /// <summary>
-    /// Enrich a media file with external metadata.
+    ///     Enrich a media file with external metadata.
     /// </summary>
     public async Task<MediaFile> EnrichMetadataAsync(
         MediaFile mediaFile,
@@ -73,10 +73,7 @@ public class MediaMetadataService
                 if (_omdb != null && !string.IsNullOrEmpty(tmdbMetadata.ImdbId))
                 {
                     var omdbData = await _omdb.GetByImdbIdAsync(tmdbMetadata.ImdbId, ct);
-                    if (omdbData != null)
-                    {
-                        mediaFile.ExternalMetadata = MergeOmdbData(tmdbMetadata, omdbData);
-                    }
+                    if (omdbData != null) mediaFile.ExternalMetadata = MergeOmdbData(tmdbMetadata, omdbData);
                 }
 
                 _logger.LogInformation("Enriched {File} with metadata from TMDB: {Title}",
@@ -109,7 +106,7 @@ public class MediaMetadataService
     }
 
     /// <summary>
-    /// Search TMDB for movie or TV show.
+    ///     Search TMDB for movie or TV show.
     /// </summary>
     private async Task<ExternalMediaMetadata?> SearchTmdbAsync(
         string title,
@@ -127,26 +124,21 @@ public class MediaMetadataService
             if (bestMatch != null)
             {
                 var details = await _tmdb.GetMovieDetailsAsync(bestMatch.Id, ct);
-                if (details != null)
-                {
-                    return _tmdb.ToExternalMetadata(details);
-                }
+                if (details != null) return _tmdb.ToExternalMetadata(details);
             }
         }
 
         // Try TV search
         var tvResults = await _tmdb.SearchTvShowsAsync(title, year, ct);
         if (tvResults.Count > 0)
-        {
             // TODO: Handle TV show metadata
             _logger.LogDebug("Found TV show match for {Title}, TV handling not yet implemented", title);
-        }
 
         return null;
     }
 
     /// <summary>
-    /// Find the best matching result from search results.
+    ///     Find the best matching result from search results.
     /// </summary>
     private TmdbSearchResult? FindBestMatch(
         List<TmdbSearchResult> results,
@@ -158,43 +150,40 @@ public class MediaMetadataService
 
         // Score each result
         var scored = results.Select(r =>
-        {
-            double score = 0;
-
-            // Title similarity
-            var titleSimilarity = ComputeTitleSimilarity(
-                searchTitle,
-                r.Title ?? r.OriginalTitle ?? "");
-            score += titleSimilarity * 50;
-
-            // Year match
-            if (searchYear.HasValue && r.ReleaseDate?.Year == searchYear.Value)
             {
-                score += 30;
-            }
-            else if (searchYear.HasValue && r.ReleaseDate.HasValue)
-            {
-                var yearDiff = Math.Abs(r.ReleaseDate.Value.Year - searchYear.Value);
-                score += Math.Max(0, 20 - yearDiff * 5);
-            }
+                double score = 0;
 
-            // Popularity boost
-            score += Math.Min(r.Popularity / 10, 10);
+                // Title similarity
+                var titleSimilarity = ComputeTitleSimilarity(
+                    searchTitle,
+                    r.Title ?? r.OriginalTitle ?? "");
+                score += titleSimilarity * 50;
 
-            // Vote count boost (more votes = more reliable)
-            score += Math.Min(r.VoteCount / 1000.0, 10);
+                // Year match
+                if (searchYear.HasValue && r.ReleaseDate?.Year == searchYear.Value)
+                {
+                    score += 30;
+                }
+                else if (searchYear.HasValue && r.ReleaseDate.HasValue)
+                {
+                    var yearDiff = Math.Abs(r.ReleaseDate.Value.Year - searchYear.Value);
+                    score += Math.Max(0, 20 - yearDiff * 5);
+                }
 
-            return (Result: r, Score: score);
-        })
-        .OrderByDescending(x => x.Score)
-        .ToList();
+                // Popularity boost
+                score += Math.Min(r.Popularity / 10, 10);
+
+                // Vote count boost (more votes = more reliable)
+                score += Math.Min(r.VoteCount / 1000.0, 10);
+
+                return (Result: r, Score: score);
+            })
+            .OrderByDescending(x => x.Score)
+            .ToList();
 
         // Return best match if score is above threshold
         var best = scored.FirstOrDefault();
-        if (best.Score >= 40)
-        {
-            return best.Result;
-        }
+        if (best.Score >= 40) return best.Result;
 
         _logger.LogDebug("No confident TMDB match for '{Title}' ({Year}), best score: {Score}",
             searchTitle, searchYear, best.Score);
@@ -202,7 +191,7 @@ public class MediaMetadataService
     }
 
     /// <summary>
-    /// Compute title similarity score (0-1).
+    ///     Compute title similarity score (0-1).
     /// </summary>
     private static double ComputeTitleSimilarity(string title1, string title2)
     {
@@ -241,41 +230,29 @@ public class MediaMetadataService
     }
 
     /// <summary>
-    /// Merge OMDB data into TMDB metadata (for ratings).
+    ///     Merge OMDB data into TMDB metadata (for ratings).
     /// </summary>
     private static ExternalMediaMetadata MergeOmdbData(ExternalMediaMetadata tmdb, OmdbResult omdb)
     {
-        double? imdbRating = tmdb.ImdbRating;
-        int? imdbVotes = tmdb.ImdbVotes;
-        int? rtScore = tmdb.RottenTomatoesScore;
+        var imdbRating = tmdb.ImdbRating;
+        var imdbVotes = tmdb.ImdbVotes;
+        var rtScore = tmdb.RottenTomatoesScore;
 
         // Parse IMDB rating from OMDB
         if (!string.IsNullOrEmpty(omdb.ImdbRating) && omdb.ImdbRating != "N/A")
-        {
             if (double.TryParse(omdb.ImdbRating, out var rating))
-            {
                 imdbRating = rating;
-            }
-        }
 
         // Parse IMDB votes from OMDB
         if (!string.IsNullOrEmpty(omdb.ImdbVotes) && omdb.ImdbVotes != "N/A")
-        {
             if (int.TryParse(omdb.ImdbVotes.Replace(",", ""), out var votes))
-            {
                 imdbVotes = votes;
-            }
-        }
 
         // Parse Rotten Tomatoes
         var rtRating = omdb.Ratings?.FirstOrDefault(r => r.Source == "Rotten Tomatoes");
         if (rtRating != null && rtRating.Value?.EndsWith("%") == true)
-        {
             if (int.TryParse(rtRating.Value.TrimEnd('%'), out var rt))
-            {
                 rtScore = rt;
-            }
-        }
 
         return tmdb with
         {
@@ -289,7 +266,7 @@ public class MediaMetadataService
     }
 
     /// <summary>
-    /// Download subtitles for a media file.
+    ///     Download subtitles for a media file.
     /// </summary>
     public async Task<List<SubtitleFile>> DownloadSubtitlesAsync(
         MediaFile mediaFile,
@@ -367,7 +344,6 @@ public class MediaMetadataService
                         ct);
 
                     if (downloadedPath != null)
-                    {
                         subtitles.Add(new SubtitleFile
                         {
                             Id = Guid.NewGuid(),
@@ -382,7 +358,6 @@ public class MediaMetadataService
                             Fps = best.Attributes.Fps,
                             Status = SubtitleStatus.Downloaded
                         });
-                    }
                 }
             }
 

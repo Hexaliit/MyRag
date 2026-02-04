@@ -3,8 +3,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for EntityProfileService.InferEntityType - static method that doesn't require ONNX model.
-/// These tests can run in CI without any model downloads.
+///     Tests for EntityProfileService.InferEntityType - static method that doesn't require ONNX model.
+///     These tests can run in CI without any model downloads.
 /// </summary>
 public class EntityTypeInferenceTests
 {

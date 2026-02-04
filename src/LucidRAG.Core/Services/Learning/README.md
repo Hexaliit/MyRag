@@ -1,6 +1,7 @@
 # Learning Pipeline - Background Document Reprocessing
 
-**Pattern:** Like BotDetection's learning pipeline - singleton coordinator runs WHOLE stack (no early exit) to find better results, updates only if improved.
+**Pattern:** Like BotDetection's learning pipeline - singleton coordinator runs WHOLE stack (no early exit) to find
+better results, updates only if improved.
 
 **Runtime:** Hosted mode only (DocSummarizer, LucidRAG web) - NOT in CLI mode
 
@@ -9,6 +10,7 @@
 ## Architecture Differences from ConfidenceBooster
 
 ### ConfidenceBooster (Targeted LLM Refinement)
+
 ```
 Problem: Low-confidence SIGNALS need LLM refinement
 Approach: Extract BOUNDED ARTIFACTS → Query LLM → Update specific signals
@@ -17,6 +19,7 @@ Cost: Moderate (one LLM call per artifact)
 ```
 
 ### Learning Pipeline (Full Stack Reprocessing)
+
 ```
 Problem: Entire DOCUMENT may have poor results
 Approach: Rerun FULL STACK → Compare results → Update if better
@@ -24,7 +27,8 @@ Example: Document has 5 entities → Reprocess → finds 12 entities → UPDATE
 Cost: High (full reprocessing) but finds systematic improvements
 ```
 
-**Key difference:** ConfidenceBooster fixes individual low-confidence signals. Learning Pipeline reruns everything to find better overall results.
+**Key difference:** ConfidenceBooster fixes individual low-confidence signals. Learning Pipeline reruns everything to
+find better overall results.
 
 ---
 
@@ -48,6 +52,7 @@ SLOW PATH (Background Learning):
 ### Keyed Sequential Processing (Multi-Tenant)
 
 Like BotDetection's keyed learning, with multi-tenant support:
+
 - **One queue per (tenant, document) pair** (composite key: "tenantId:documentId")
 - **Sequential per document** (no conflicts, ensures consistency)
 - **Parallel across documents and tenants** (global throughput)
@@ -55,6 +60,7 @@ Like BotDetection's keyed learning, with multi-tenant support:
 - **Low-priority background execution** (BelowNormal thread priority)
 
 Example:
+
 ```
 Tenant A, Doc 1: Task 1 (priority 10) → Task 2 (priority 50) → Task 3 (priority 80)
 Tenant A, Doc 2: Task 1 (priority 20) → Task 2 (priority 50) (parallel to Doc 1)
@@ -62,6 +68,7 @@ Tenant B, Doc 1: Task 1 (priority 30) (parallel to Tenant A)
 ```
 
 **Priority Guidelines:**
+
 - `0-20`: Critical (user feedback, high-value documents)
 - `40-60`: Normal (low confidence, low entity count)
 - `70-100`: Low (periodic refresh, background optimization)
@@ -80,6 +87,7 @@ To prevent wasteful reprocessing of unchanged documents:
 4. **Update on Success**: After successful learning, update hash to track version processed
 
 **Benefits:**
+
 - No redundant full-stack processing
 - Efficient resource usage
 - Fast path for unchanged documents (hash check takes milliseconds)
@@ -134,6 +142,7 @@ stats.LastProcessedHash = currentHash; // Track for next time
 ## What "Full Stack" Means
 
 ### Normal Processing (Fast Path)
+
 ```csharp
 ProcessingOptions {
     ExtractEntities = true,
@@ -143,6 +152,7 @@ ProcessingOptions {
 ```
 
 ### Learning Reprocessing (Slow Path)
+
 ```csharp
 ProcessingOptions {
     ExtractEntities = true,
@@ -154,6 +164,7 @@ ProcessingOptions {
 ```
 
 **Example:**
+
 - Fast path might use simple regex for dates
 - Learning mode uses LLM-based date normalization (slower, more accurate)
 
@@ -245,6 +256,7 @@ if (shouldUpdate) {
 ## Integration
 
 ### DocSummarizer (Hosted Mode)
+
 ```csharp
 // In Program.cs (hosted web service)
 builder.Services.AddDocSummarizerLearning(config =>
@@ -256,6 +268,7 @@ builder.Services.AddDocSummarizerLearning(config =>
 ```
 
 ### LucidRAG Web (Hosted Mode)
+
 ```csharp
 // In Program.cs (web app)
 builder.Services.AddLucidRagLearning(config =>
@@ -268,6 +281,7 @@ builder.Services.AddLucidRagLearning(config =>
 ```
 
 ### CLI (Disabled)
+
 ```csharp
 // In CLI Program.cs
 services.DisableLearning();  // No background service in CLI
@@ -349,6 +363,7 @@ Console.WriteLine($"  Average processing time: {stats.AverageProcessingTime}");
 ```
 
 **Efficiency Metrics:**
+
 - High `SkippedUnchanged` count = good (documents stable, no waste)
 - High `NoImprovementRuns` with low `SkippedUnchanged` = potential issue (reprocessing but not finding improvements)
 - `LastProcessedHash` useful for debugging (compare with current document hash)
@@ -371,30 +386,31 @@ LucidRAG.Core/Services/Learning/
 ## Next Steps
 
 1. **Implement remaining handlers:**
-   - `ImageLearningHandler` - Reprocess images with slower but better OCR/object detection
-   - `AudioLearningHandler` - Reprocess audio with better transcription models
-   - `DataLearningHandler` - Reprocess data with more sophisticated schema inference
+    - `ImageLearningHandler` - Reprocess images with slower but better OCR/object detection
+    - `AudioLearningHandler` - Reprocess audio with better transcription models
+    - `DataLearningHandler` - Reprocess data with more sophisticated schema inference
 
 2. **Add repository implementations:**
-   - `DocumentRepository.FindByConfidenceAsync`
-   - `DocumentRepository.FindByEntityCountAsync`
-   - `DocumentRepository.FindWithNegativeFeedbackAsync`
-   - `DocumentRepository.FindProcessedBeforeAsync`
+    - `DocumentRepository.FindByConfidenceAsync`
+    - `DocumentRepository.FindByEntityCountAsync`
+    - `DocumentRepository.FindWithNegativeFeedbackAsync`
+    - `DocumentRepository.FindProcessedBeforeAsync`
 
 3. **Add processing service extensions:**
-   - `IDocumentProcessingService.ReprocessFullStackAsync`
-   - Support for `RunAllExtractors` and `LearningMode` options
+    - `IDocumentProcessingService.ReprocessFullStackAsync`
+    - Support for `RunAllExtractors` and `LearningMode` options
 
 4. **Testing:**
-   - Unit tests for comparison logic
-   - Integration tests for learning flow
-   - Verify no updates when results are worse
+    - Unit tests for comparison logic
+    - Integration tests for learning flow
+    - Verify no updates when results are worse
 
 ---
 
 ## Pattern Summary
 
 **Like BotDetection:**
+
 - ✅ Singleton coordinator
 - ✅ Keyed sequential processing (one doc at a time per key)
 - ✅ Multi-tenant support (composite key: "tenantId:documentId")
@@ -404,18 +420,21 @@ LucidRAG.Core/Services/Learning/
 - ✅ Low-priority thread execution (BelowNormal)
 
 **Unlike ConfidenceBooster:**
+
 - ❌ NOT about LLM refinement of individual signals
 - ✅ About rerunning FULL processing stack
 - ✅ Compares entire result sets
 - ✅ Updates only if objectively better
 
 **New Features (Beyond BotDetection):**
+
 - ✅ Priority queue (0-100 scale, user feedback = highest priority)
 - ✅ Document hash tracking (skip if unchanged)
 - ✅ Multi-tenant isolation (parallel across tenants, sequential per document)
 - ✅ Efficiency metrics (SkippedUnchanged counter)
 
 **Cost Model:**
+
 - High per-document (full reprocessing)
 - But infrequent (periodic scans, selective triggering)
 - Mitigated by deduplication (hash-based skip for unchanged docs)

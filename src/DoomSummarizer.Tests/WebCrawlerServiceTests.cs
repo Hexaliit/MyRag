@@ -1,11 +1,11 @@
-using DoomSummarizer.Services;
 using System.Reflection;
+using DoomSummarizer.Services;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for WebCrawlerService static helpers: URL normalization, blocked extensions.
-/// Uses reflection to access private static methods since they don't warrant being public.
+///     Tests for WebCrawlerService static helpers: URL normalization, blocked extensions.
+///     Uses reflection to access private static methods since they don't warrant being public.
 /// </summary>
 public class WebCrawlerServiceTests
 {
@@ -29,6 +29,33 @@ public class WebCrawlerServiceTests
             BindingFlags.NonPublic | BindingFlags.Static)!;
         return (string)method.Invoke(null, [url, maxLen])!;
     }
+
+    #region Blocked Extensions
+
+    [Theory]
+    [InlineData("https://example.com/file.pdf", true)]
+    [InlineData("https://example.com/image.png", true)]
+    [InlineData("https://example.com/image.jpg", true)]
+    [InlineData("https://example.com/image.jpeg", true)]
+    [InlineData("https://example.com/image.gif", true)]
+    [InlineData("https://example.com/image.svg", true)]
+    [InlineData("https://example.com/image.webp", true)]
+    [InlineData("https://example.com/archive.zip", true)]
+    [InlineData("https://example.com/style.css", true)]
+    [InlineData("https://example.com/script.js", true)]
+    [InlineData("https://example.com/data.json", true)]
+    [InlineData("https://example.com/feed.rss", true)]
+    [InlineData("https://example.com/feed.atom", true)]
+    [InlineData("https://example.com/video.mp4", true)]
+    [InlineData("https://example.com/page.html", false)]
+    [InlineData("https://example.com/article", false)]
+    [InlineData("https://example.com/docs/getting-started", false)]
+    public void IsBlockedExtension_CorrectlyFilters(string url, bool expected)
+    {
+        IsBlockedExtension(url).Should().Be(expected);
+    }
+
+    #endregion
 
     #region URL Normalization
 
@@ -71,33 +98,6 @@ public class WebCrawlerServiceTests
 
     #endregion
 
-    #region Blocked Extensions
-
-    [Theory]
-    [InlineData("https://example.com/file.pdf", true)]
-    [InlineData("https://example.com/image.png", true)]
-    [InlineData("https://example.com/image.jpg", true)]
-    [InlineData("https://example.com/image.jpeg", true)]
-    [InlineData("https://example.com/image.gif", true)]
-    [InlineData("https://example.com/image.svg", true)]
-    [InlineData("https://example.com/image.webp", true)]
-    [InlineData("https://example.com/archive.zip", true)]
-    [InlineData("https://example.com/style.css", true)]
-    [InlineData("https://example.com/script.js", true)]
-    [InlineData("https://example.com/data.json", true)]
-    [InlineData("https://example.com/feed.rss", true)]
-    [InlineData("https://example.com/feed.atom", true)]
-    [InlineData("https://example.com/video.mp4", true)]
-    [InlineData("https://example.com/page.html", false)]
-    [InlineData("https://example.com/article", false)]
-    [InlineData("https://example.com/docs/getting-started", false)]
-    public void IsBlockedExtension_CorrectlyFilters(string url, bool expected)
-    {
-        IsBlockedExtension(url).Should().Be(expected);
-    }
-
-    #endregion
-
     #region URL Truncation
 
     [Fact]
@@ -132,9 +132,9 @@ public class WebCrawlerServiceTests
     }
 
     [Theory]
-    [InlineData("https://github.com/owner/repo")]  // no blob/tree segment
-    [InlineData("https://example.com/page")]        // not GitHub
-    [InlineData("not-a-url")]                       // invalid
+    [InlineData("https://github.com/owner/repo")] // no blob/tree segment
+    [InlineData("https://example.com/page")] // not GitHub
+    [InlineData("not-a-url")] // invalid
     public void ConvertToRawGitHubUrl_ReturnsNullForInvalid(string input)
     {
         WebCrawlerService.ConvertToRawGitHubUrl(input).Should().BeNull();
@@ -147,8 +147,8 @@ public class WebCrawlerServiceTests
     [InlineData("README.MD", true)]
     [InlineData("page.html", false)]
     [InlineData("script.js", false)]
-    [InlineData("readme.md#section", true)]   // fragment stripped before check
-    [InlineData("readme.md?v=2", true)]       // query stripped before check
+    [InlineData("readme.md#section", true)] // fragment stripped before check
+    [InlineData("readme.md?v=2", true)] // query stripped before check
     public void IsMarkdownUrl_CorrectlyIdentifies(string url, bool expected)
     {
         var method = typeof(WebCrawlerService).GetMethod("IsMarkdownUrl",

@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -6,18 +5,20 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Mostlylucid.DoomSummarizer.Plugin.Books.Splitters;
 
 /// <summary>
-/// A named pattern (novel, play, anthology, academic) with compiled regex markers.
-/// Loaded from embedded YAML resources.
+///     A named pattern (novel, play, anthology, academic) with compiled regex markers.
+///     Loaded from embedded YAML resources.
 /// </summary>
 public class StructuralPattern
 {
     public required string Name { get; init; }
     public required string Description { get; init; }
-    public IReadOnlyDictionary<string, List<Regex>> MarkersByLevel { get; init; } = new Dictionary<string, List<Regex>>();
+
+    public IReadOnlyDictionary<string, List<Regex>> MarkersByLevel { get; init; } =
+        new Dictionary<string, List<Regex>>();
 }
 
 /// <summary>
-/// Loads and caches structural patterns from embedded YAML resources.
+///     Loads and caches structural patterns from embedded YAML resources.
 /// </summary>
 public static class StructuralPatterns
 {
@@ -29,11 +30,13 @@ public static class StructuralPatterns
 
     /// <summary>Get a specific pattern by name, or null if not found.</summary>
     public static StructuralPattern? Get(string name)
-        => All.GetValueOrDefault(name);
+    {
+        return All.GetValueOrDefault(name);
+    }
 
     /// <summary>
-    /// Get the level hierarchy for a pattern.
-    /// Returns levels in descending order of scope (broadest first).
+    ///     Get the level hierarchy for a pattern.
+    ///     Returns levels in descending order of scope (broadest first).
     /// </summary>
     public static IReadOnlyList<string> GetLevelHierarchy(string patternName)
     {
@@ -61,7 +64,6 @@ public static class StructuralPatterns
         foreach (var resourceName in assembly.GetManifestResourceNames()
                      .Where(n => n.StartsWith(prefix, StringComparison.Ordinal)
                                  && n.EndsWith(".yaml", StringComparison.Ordinal)))
-        {
             try
             {
                 using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -74,20 +76,22 @@ public static class StructuralPatterns
 
                 var markersByLevel = new Dictionary<string, List<Regex>>();
                 if (raw.Markers != null)
-                {
                     foreach (var (level, regexStrings) in raw.Markers)
-                    {
                         markersByLevel[level] = regexStrings
                             .Select(r =>
                             {
-                                try { return new Regex(r, RegexOptions.Compiled | RegexOptions.Multiline); }
-                                catch { return null; }
+                                try
+                                {
+                                    return new Regex(r, RegexOptions.Compiled | RegexOptions.Multiline);
+                                }
+                                catch
+                                {
+                                    return null;
+                                }
                             })
                             .Where(r => r != null)
                             .Cast<Regex>()
                             .ToList();
-                    }
-                }
 
                 patterns[raw.Name] = new StructuralPattern
                 {
@@ -100,7 +104,6 @@ public static class StructuralPatterns
             {
                 // Skip invalid pattern files
             }
-        }
 
         return patterns;
     }
@@ -108,13 +111,10 @@ public static class StructuralPatterns
     // YAML deserialization model
     private class PatternYaml
     {
-        [YamlMember(Alias = "name")]
-        public string Name { get; set; } = "";
+        [YamlMember(Alias = "name")] public string Name { get; } = "";
 
-        [YamlMember(Alias = "description")]
-        public string? Description { get; set; }
+        [YamlMember(Alias = "description")] public string? Description { get; set; }
 
-        [YamlMember(Alias = "markers")]
-        public Dictionary<string, List<string>>? Markers { get; set; }
+        [YamlMember(Alias = "markers")] public Dictionary<string, List<string>>? Markers { get; set; }
     }
 }

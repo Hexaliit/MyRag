@@ -3,8 +3,8 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// A splitter breaks structured content into a tree of <see cref="DocumentNode"/>s.
-/// Different splitters handle different document structures (novels, plays, papers, etc.).
+///     A splitter breaks structured content into a tree of <see cref="DocumentNode" />s.
+///     Different splitters handle different document structures (novels, plays, papers, etc.).
 /// </summary>
 public interface IDocumentSplitter
 {
@@ -12,8 +12,8 @@ public interface IDocumentSplitter
     string Name { get; }
 
     /// <summary>
-    /// Estimate the best split depth for this content.
-    /// Returns 0 if the splitter cannot handle this content.
+    ///     Estimate the best split depth for this content.
+    ///     Returns 0 if the splitter cannot handle this content.
     /// </summary>
     int EstimateDepth(string markdown, SplitContext context);
 
@@ -22,7 +22,7 @@ public interface IDocumentSplitter
 }
 
 /// <summary>
-/// Context for depth estimation — helps the splitter decide how deep to split.
+///     Context for depth estimation — helps the splitter decide how deep to split.
 /// </summary>
 public record SplitContext
 {
@@ -40,7 +40,7 @@ public record SplitContext
 }
 
 /// <summary>
-/// Options controlling how splitting is performed.
+///     Options controlling how splitting is performed.
 /// </summary>
 public record SplitOptions
 {

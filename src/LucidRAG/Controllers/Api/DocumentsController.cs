@@ -261,7 +261,7 @@ public class DocumentsController(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var documents = await documentService.GetDocumentsAsync(collectionId, readyOnly: false, ct);
+        var documents = await documentService.GetDocumentsAsync(collectionId, false, ct);
 
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<DocumentStatus>(status, true, out var statusEnum))
             documents = documents.Where(d => d.Status == statusEnum).ToList();
@@ -436,7 +436,6 @@ public class DocumentsController(
         {
             // Try to parse as JSON for structured display
             if (strValue.StartsWith("{") || strValue.StartsWith("["))
-            {
                 try
                 {
                     return JsonSerializer.Deserialize<object>(strValue);
@@ -445,10 +444,11 @@ public class DocumentsController(
                 {
                     return strValue;
                 }
-            }
+
             // Truncate long string values
             return strValue.Length > 1000 ? strValue[..1000] + "..." : strValue;
         }
+
         return value;
     }
 

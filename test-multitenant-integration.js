@@ -27,7 +27,7 @@ async function createTenant(page, tenantId, displayName) {
     const result = await page.evaluate(async (tid, name) => {
         const response = await fetch('/api/tenants', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 tenantId: tid,
                 displayName: name,
@@ -36,7 +36,7 @@ async function createTenant(page, tenantId, displayName) {
             })
         });
         const data = await response.json().catch(() => null);
-        return { ok: response.ok, status: response.status, data };
+        return {ok: response.ok, status: response.status, data};
     }, tenantId, displayName);
 
     console.log('Tenant creation result:', result);
@@ -49,11 +49,11 @@ async function createCollection(page, name, description) {
     const result = await page.evaluate(async (collName, collDesc) => {
         const response = await fetch('/api/collections', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: collName, description: collDesc })
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: collName, description: collDesc})
         });
         const data = await response.json().catch(() => null);
-        return { ok: response.ok, status: response.status, data };
+        return {ok: response.ok, status: response.status, data};
     }, name, description);
 
     console.log('Collection creation result:', result);
@@ -79,7 +79,7 @@ async function uploadMarkdownFiles(page, collectionId, maxFiles = 20) {
 
         const result = await page.evaluate(async (name, content, collId) => {
             const formData = new FormData();
-            const blob = new Blob([content], { type: 'text/markdown' });
+            const blob = new Blob([content], {type: 'text/markdown'});
             formData.append('file', blob, name);  // Note: 'file' not 'files'
             if (collId) formData.append('collectionId', collId);
 
@@ -88,7 +88,7 @@ async function uploadMarkdownFiles(page, collectionId, maxFiles = 20) {
                 body: formData
             });
             const data = await response.json().catch(() => null);
-            return { ok: response.ok, status: response.status, data };
+            return {ok: response.ok, status: response.status, data};
         }, fileName, content, collectionId);
 
         if (result.ok) {
@@ -103,7 +103,7 @@ async function uploadMarkdownFiles(page, collectionId, maxFiles = 20) {
     }
 
     console.log(`Upload complete: ${uploaded} succeeded, ${failed} failed`);
-    return { uploaded, failed };
+    return {uploaded, failed};
 }
 
 async function waitForProcessing(page, maxWaitSec = 120) {
@@ -117,7 +117,7 @@ async function waitForProcessing(page, maxWaitSec = 120) {
             const response = await fetch('/api/documents?pageSize=100');
             const result = await response.json();
             const docs = result.data || result.items || result || [];
-            if (!Array.isArray(docs)) return { total: 0, pending: 0, completed: 0, failed: 0 };
+            if (!Array.isArray(docs)) return {total: 0, pending: 0, completed: 0, failed: 0};
             return {
                 total: result.pagination?.totalItems || docs.length,
                 pending: docs.filter(d => d.status?.toLowerCase() === 'pending' || d.status?.toLowerCase() === 'processing').length,
@@ -151,23 +151,26 @@ async function testExplorerUI(page) {
     await delay(1500);
 
     // Take initial screenshot
-    await page.screenshot({ path: 'test-1-admin-page.png', fullPage: true });
+    await page.screenshot({path: 'test-1-admin-page.png', fullPage: true});
     console.log('Screenshot: test-1-admin-page.png');
 
     // Click Explorer tab - use XPath to find button containing "Explorer" text
     try {
-        const explorerTab = await page.waitForSelector('button', { timeout: 5000 });
+        const explorerTab = await page.waitForSelector('button', {timeout: 5000});
         // Find button with Explorer text using evaluate
         const clicked = await page.evaluate(() => {
             const buttons = Array.from(document.querySelectorAll('button'));
             const explorerBtn = buttons.find(b => b.textContent.includes('Explorer'));
-            if (explorerBtn) { explorerBtn.click(); return true; }
+            if (explorerBtn) {
+                explorerBtn.click();
+                return true;
+            }
             return false;
         });
         if (!clicked) throw new Error('Explorer button not found');
         await delay(1500);
 
-        await page.screenshot({ path: 'test-2-explorer-view.png', fullPage: true });
+        await page.screenshot({path: 'test-2-explorer-view.png', fullPage: true});
         console.log('Screenshot: test-2-explorer-view.png');
 
         // Check for documents in view
@@ -181,7 +184,7 @@ async function testExplorerUI(page) {
         if (firstDoc) {
             await firstDoc.click();
             await delay(500);
-            await page.screenshot({ path: 'test-3-doc-selected.png', fullPage: true });
+            await page.screenshot({path: 'test-3-doc-selected.png', fullPage: true});
             console.log('Screenshot: test-3-doc-selected.png (document selected)');
         }
 
@@ -200,14 +203,17 @@ async function testSearch(page, query) {
         try {
             const response = await fetch('/api/search', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: q, maxResults: 5 })
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query: q, maxResults: 5})
             });
             const text = await response.text();
-            try { return { status: response.status, data: JSON.parse(text) }; }
-            catch { return { status: response.status, text, error: 'JSON parse failed' }; }
+            try {
+                return {status: response.status, data: JSON.parse(text)};
+            } catch {
+                return {status: response.status, text, error: 'JSON parse failed'};
+            }
         } catch (e) {
-            return { error: e.message };
+            return {error: e.message};
         }
     }, query);
 
@@ -237,7 +243,10 @@ async function testChatUI(page, query) {
     const chatClicked = await page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
         const chatBtn = buttons.find(b => b.textContent.includes('Chat'));
-        if (chatBtn) { chatBtn.click(); return true; }
+        if (chatBtn) {
+            chatBtn.click();
+            return true;
+        }
         return false;
     });
     if (chatClicked) {
@@ -249,7 +258,7 @@ async function testChatUI(page, query) {
     if (chatInput) {
         await chatInput.click();
         await chatInput.type(query);
-        await page.screenshot({ path: 'test-4-chat-query.png', fullPage: true });
+        await page.screenshot({path: 'test-4-chat-query.png', fullPage: true});
         console.log('Screenshot: test-4-chat-query.png (query entered)');
 
         // Submit
@@ -259,7 +268,7 @@ async function testChatUI(page, query) {
         // Wait for response
         await delay(10000);
 
-        await page.screenshot({ path: 'test-5-chat-response.png', fullPage: true });
+        await page.screenshot({path: 'test-5-chat-response.png', fullPage: true});
         console.log('Screenshot: test-5-chat-response.png (response)');
 
         return true;
@@ -280,7 +289,7 @@ async function main() {
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setViewport({width: 1920, height: 1080});
 
     try {
         // Step 1: Login
@@ -317,7 +326,7 @@ async function main() {
 
     } catch (error) {
         console.error('\nTest failed:', error);
-        await page.screenshot({ path: 'test-error.png', fullPage: true });
+        await page.screenshot({path: 'test-error.png', fullPage: true});
     } finally {
         console.log('\nBrowser left open for inspection (30s)...');
         await delay(30000);

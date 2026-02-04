@@ -3,13 +3,13 @@ using DoomSummarizer.Plugins.Adapters;
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// Registers all built-in source and output plugins.
-/// Called at startup before runtime plugins are loaded.
+///     Registers all built-in source and output plugins.
+///     Called at startup before runtime plugins are loaded.
 /// </summary>
 public static class BuiltinPlugins
 {
     /// <summary>
-    /// Register all built-in source plugins with the registry.
+    ///     Register all built-in source plugins with the registry.
     /// </summary>
     public static void RegisterAllSources(SourcePluginRegistry registry)
     {
@@ -26,7 +26,7 @@ public static class BuiltinPlugins
     }
 
     /// <summary>
-    /// Register all built-in output plugins with the registry.
+    ///     Register all built-in output plugins with the registry.
     /// </summary>
     public static void RegisterAllOutputs(OutputPluginRegistry registry)
     {

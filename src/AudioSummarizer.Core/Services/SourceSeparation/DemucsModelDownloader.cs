@@ -3,15 +3,14 @@ using Mostlylucid.Summarizer.Core.Capabilities;
 namespace AudioSummarizer.Core.Services.SourceSeparation;
 
 /// <summary>
-/// Downloads and manages the Demucs ONNX model for source separation.
-/// Model source: HuggingFace gentij/htdemucs-ort (~210MB)
-/// Uses the central ModelManifest for model definitions and paths.
+///     Downloads and manages the Demucs ONNX model for source separation.
+///     Model source: HuggingFace gentij/htdemucs-ort (~210MB)
+///     Uses the central ModelManifest for model definitions and paths.
 /// </summary>
 public class DemucsModelDownloader
 {
-    private readonly ILogger<DemucsModelDownloader> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly string _modelPath;
+    private readonly ILogger<DemucsModelDownloader> _logger;
     private readonly ModelDefinition _modelDefinition;
 
     public DemucsModelDownloader(
@@ -23,26 +22,27 @@ public class DemucsModelDownloader
 
         // Get model definition from central manifest
         _modelDefinition = ModelManifest.Instance.GetModel(ModelIds.HtDemucs)
-            ?? throw new InvalidOperationException("HTDemucs model not found in ModelManifest");
+                           ?? throw new InvalidOperationException("HTDemucs model not found in ModelManifest");
 
         // Use centralized models directory
-        _modelPath = Path.Combine(ModelManifest.Instance.ModelsDirectory, _modelDefinition.RelativePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(_modelPath)!);
+        ModelPath = Path.Combine(ModelManifest.Instance.ModelsDirectory, _modelDefinition.RelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(ModelPath)!);
     }
 
-    public string ModelPath => _modelPath;
+    public string ModelPath { get; }
 
-    public bool IsModelAvailable => File.Exists(_modelPath) &&
-        new FileInfo(_modelPath).Length > (_modelDefinition.ExpectedSizeBytes ?? 100_000_000) / 2;
+    public bool IsModelAvailable => File.Exists(ModelPath) &&
+                                    new FileInfo(ModelPath).Length >
+                                    (_modelDefinition.ExpectedSizeBytes ?? 100_000_000) / 2;
 
     /// <summary>
-    /// Ensure the Demucs model is downloaded
+    ///     Ensure the Demucs model is downloaded
     /// </summary>
     public async Task EnsureModelDownloadedAsync(CancellationToken cancellationToken = default)
     {
         if (IsModelAvailable)
         {
-            _logger.LogDebug("Demucs model already exists at {ModelPath}", _modelPath);
+            _logger.LogDebug("Demucs model already exists at {ModelPath}", ModelPath);
             return;
         }
 
@@ -52,18 +52,21 @@ public class DemucsModelDownloader
 
         var client = _httpClientFactory.CreateClient("HuggingFace");
 
-        var tempPath = _modelPath + ".tmp";
+        var tempPath = ModelPath + ".tmp";
 
         try
         {
-            using var response = await client.GetAsync(_modelDefinition.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            using var response = await client.GetAsync(_modelDefinition.DownloadUrl,
+                HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
 
-            var totalBytes = response.Content.Headers.ContentLength ?? _modelDefinition.ExpectedSizeBytes ?? 220_000_000;
+            var totalBytes = response.Content.Headers.ContentLength ??
+                             _modelDefinition.ExpectedSizeBytes ?? 220_000_000;
 
             // Download to temp file
             await using (var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken))
-            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            await using (var fileStream =
+                         new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
             {
                 var buffer = new byte[81920];
                 long totalBytesRead = 0;
@@ -86,17 +89,23 @@ public class DemucsModelDownloader
             }
 
             // Move temp file to final location (streams are now closed)
-            if (File.Exists(_modelPath))
-                File.Delete(_modelPath);
-            File.Move(tempPath, _modelPath);
+            if (File.Exists(ModelPath))
+                File.Delete(ModelPath);
+            File.Move(tempPath, ModelPath);
 
-            _logger.LogInformation("Demucs model downloaded successfully to {ModelPath}", _modelPath);
+            _logger.LogInformation("Demucs model downloaded successfully to {ModelPath}", ModelPath);
         }
         catch (Exception ex)
         {
             // Clean up temp file on error
-            try { if (File.Exists(tempPath)) File.Delete(tempPath); }
-            catch { /* Ignore cleanup errors */ }
+            try
+            {
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+            }
+            catch
+            {
+                /* Ignore cleanup errors */
+            }
 
             _logger.LogError(ex, "Failed to download Demucs model from {Url}", _modelDefinition.DownloadUrl);
             throw new InvalidOperationException($"Failed to download Demucs model: {ex.Message}", ex);

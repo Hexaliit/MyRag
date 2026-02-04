@@ -15,10 +15,6 @@ namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 /// </summary>
 public class ChartDetectionWave : IAnalysisWave
 {
-    private readonly ClipZeroShotService _clipService;
-    private readonly ImageConfig _config;
-    private readonly ILogger<ChartDetectionWave>? _logger;
-
     /// <summary>
     ///     Chart-specific labels for CLIP zero-shot classification.
     ///     Natural language descriptions that CLIP text encoder can match against image embeddings.
@@ -58,9 +54,9 @@ public class ChartDetectionWave : IAnalysisWave
         ["a treemap with nested rectangles"] = ChartType.Treemap
     };
 
-    public string Name => "ChartDetectionWave";
-    public int Priority => 47; // After ClipClassificationWave (46)
-    public IReadOnlyList<string> Tags => [SignalTags.Content, "chart", "detection", "clip"];
+    private readonly ClipZeroShotService _clipService;
+    private readonly ImageConfig _config;
+    private readonly ILogger<ChartDetectionWave>? _logger;
 
     public ChartDetectionWave(
         ClipZeroShotService clipService,
@@ -71,6 +67,10 @@ public class ChartDetectionWave : IAnalysisWave
         _config = config.Value;
         _logger = logger;
     }
+
+    public string Name => "ChartDetectionWave";
+    public int Priority => 47; // After ClipClassificationWave (46)
+    public IReadOnlyList<string> Tags => [SignalTags.Content, "chart", "detection", "clip"];
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -135,8 +135,8 @@ public class ChartDetectionWave : IAnalysisWave
             var classifications = await _clipService.ClassifyWithLabelsAsync(
                 embedding,
                 ChartLabels,
-                topK: 5,
-                ct: ct);
+                5,
+                ct);
 
             if (classifications.Count == 0)
             {
@@ -214,7 +214,6 @@ public class ChartDetectionWave : IAnalysisWave
                 // Check if Vision LLM extraction is needed (for data extraction)
                 // Request extraction if confidence is reasonably high
                 if (topMatch.Confidence > 0.3)
-                {
                     signals.Add(new Signal
                     {
                         Key = "chart.needs_extraction",
@@ -228,7 +227,6 @@ public class ChartDetectionWave : IAnalysisWave
                             ["extraction_priority"] = topMatch.Confidence > 0.6 ? "high" : "medium"
                         }
                     });
-                }
 
                 _logger?.LogInformation(
                     "Chart detected: {ChartType} ({Confidence:P0})",
@@ -253,7 +251,6 @@ public class ChartDetectionWave : IAnalysisWave
 
             // Check for low-confidence results that may need Vision LLM verification
             if (topMatch.Confidence < 0.4 && isChart)
-            {
                 signals.Add(new Signal
                 {
                     Key = "chart.needs_verification",
@@ -267,7 +264,6 @@ public class ChartDetectionWave : IAnalysisWave
                         ["suggested_method"] = "vision_llm"
                     }
                 });
-            }
         }
         catch (Exception ex)
         {

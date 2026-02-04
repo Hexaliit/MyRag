@@ -1,13 +1,12 @@
-using Xunit;
+using Mostlylucid.DataSummarizer.Configuration;
 using Mostlylucid.DataSummarizer.Models;
 using Mostlylucid.DataSummarizer.Services;
-using Mostlylucid.DataSummarizer.Configuration;
 
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for interactive mode command parsing and execution.
-/// These test the helper functions directly without requiring TTY.
+///     Tests for interactive mode command parsing and execution.
+///     These test the helper functions directly without requiring TTY.
 /// </summary>
 public class InteractiveCommandTests
 {
@@ -187,10 +186,10 @@ public class InteractiveCommandTests
     public void DataProfile_CanFindColumnByName()
     {
         var report = CreateTestReport();
-        
-        var ageCol = report.Profile.Columns.FirstOrDefault(c => 
+
+        var ageCol = report.Profile.Columns.FirstOrDefault(c =>
             c.Name.Equals("Age", StringComparison.OrdinalIgnoreCase));
-        
+
         Assert.NotNull(ageCol);
         Assert.Equal(ColumnType.Numeric, ageCol.InferredType);
         Assert.Equal(35.5, ageCol.Mean);
@@ -200,11 +199,11 @@ public class InteractiveCommandTests
     public void DataProfile_CanGroupAlertsBySeverity()
     {
         var report = CreateTestReport();
-        
+
         var grouped = report.Profile.Alerts
             .GroupBy(a => a.Severity)
             .ToDictionary(g => g.Key, g => g.Count());
-        
+
         Assert.Equal(1, grouped[AlertSeverity.Warning]);
         Assert.Equal(1, grouped[AlertSeverity.Info]);
     }
@@ -213,11 +212,11 @@ public class InteractiveCommandTests
     public void DataProfile_CanCountColumnTypes()
     {
         var report = CreateTestReport();
-        
+
         var numericCount = report.Profile.Columns.Count(c => c.InferredType == ColumnType.Numeric);
         var categoricalCount = report.Profile.Columns.Count(c => c.InferredType == ColumnType.Categorical);
         var idCount = report.Profile.Columns.Count(c => c.InferredType == ColumnType.Id);
-        
+
         Assert.Equal(1, numericCount);
         Assert.Equal(1, categoricalCount);
         Assert.Equal(1, idCount);
@@ -233,19 +232,19 @@ public class InteractiveCommandTests
             ("/profile Brief", "profile", "Brief"),
             ("/column Age", "column", "Age"),
             ("/column Customer Name", "column", "Customer Name"),
-            ("/", "", ""),
+            ("/", "", "")
         };
 
         foreach (var (input, expectedCmd, expectedArg) in inputs)
         {
             var trimmed = input.Trim();
             Assert.True(trimmed.StartsWith('/'), $"Input should start with /: {input}");
-            
+
             var cmd = trimmed[1..].ToLowerInvariant();
             var parts = cmd.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             var command = parts.Length > 0 ? parts[0] : "";
             var arg = parts.Length > 1 ? parts[1] : "";
-            
+
             Assert.Equal(expectedCmd.ToLowerInvariant(), command);
             Assert.Equal(expectedArg.ToLowerInvariant(), arg.ToLowerInvariant());
         }
@@ -263,8 +262,6 @@ public class InteractiveCommandTests
         };
 
         foreach (var input in inputs)
-        {
             Assert.False(input.Trim().StartsWith('/'), $"Data question should not start with /: {input}");
-        }
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Coordination;
 using VideoSummarizer.Core.Models;
@@ -6,33 +7,16 @@ using VideoSummarizer.Core.Services;
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// GPU-accelerated shot detection using FFmpeg's scene filter with NVDEC.
-/// Much faster than OpenCV-based detection (5-10x on NVIDIA GPUs).
-/// Emits: shots.detected, shots.count
+///     GPU-accelerated shot detection using FFmpeg's scene filter with NVDEC.
+///     Much faster than OpenCV-based detection (5-10x on NVIDIA GPUs).
+///     Emits: shots.detected, shots.count
 /// </summary>
 public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
 {
-    private readonly FFmpegAnalysisService _ffmpegService;
-    private readonly ILogger<FFmpegShotDetectionWave> _logger;
-
     // Detection threshold (0.0-1.0, higher = fewer cuts detected)
     private const double SceneThreshold = 0.3;
-
-    public string Name => "ffmpeg_shot_detection";
-    public int Priority => 900; // Same as OpenCV version
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Shot, VideoSignalTags.Visual];
-
-    // Signal contracts
-    public IReadOnlyList<string> RequiredSignals => [VideoSignals.VideoNormalized];
-    public IReadOnlyList<string> OptionalSignals => [];
-    public IReadOnlyList<string> EmittedSignals => [
-        VideoSignals.ShotsDetected,
-        VideoSignals.ShotsCount,
-        VideoSignals.ShotsAvgDuration,
-        VideoSignals.ShotsDetectionMethod
-    ];
-    public IReadOnlyList<string> CacheEmits => [];
-    public IReadOnlyList<string> CacheUses => [];
+    private readonly FFmpegAnalysisService _ffmpegService;
+    private readonly ILogger<FFmpegShotDetectionWave> _logger;
 
     public FFmpegShotDetectionWave(
         FFmpegAnalysisService ffmpegService,
@@ -42,11 +26,33 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) => context.Metadata != null;
+    // Signal contracts
+    public IReadOnlyList<string> RequiredSignals => [VideoSignals.VideoNormalized];
+    public IReadOnlyList<string> OptionalSignals => [];
+
+    public IReadOnlyList<string> EmittedSignals =>
+    [
+        VideoSignals.ShotsDetected,
+        VideoSignals.ShotsCount,
+        VideoSignals.ShotsAvgDuration,
+        VideoSignals.ShotsDetectionMethod
+    ];
+
+    public IReadOnlyList<string> CacheEmits => [];
+    public IReadOnlyList<string> CacheUses => [];
+
+    public string Name => "ffmpeg_shot_detection";
+    public int Priority => 900; // Same as OpenCV version
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Shot, VideoSignalTags.Visual];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null;
+    }
 
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
-        var totalSw = System.Diagnostics.Stopwatch.StartNew();
+        var totalSw = Stopwatch.StartNew();
         context.ReportProgress("Detecting shots (FFmpeg GPU)", 0);
 
         // Emit wave started signal
@@ -66,7 +72,7 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
 
         // Detect scene changes using FFmpeg (with NVDEC if available)
         context.ReportProgress("Running FFmpeg scene filter", 10);
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var sceneChanges = await _ffmpegService.DetectSceneChangesAsync(videoPath, SceneThreshold, ct);
         sw.Stop();
 
@@ -91,13 +97,13 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
         // Merge scene changes with black frame boundaries
         context.ReportProgress("Building shot segments", 60);
         var allBoundaries = sceneChanges
-            .Select(s => (Timestamp: s.Timestamp, Confidence: s.Confidence, Type: CutType.HardCut))
+            .Select(s => (s.Timestamp, s.Confidence, Type: CutType.HardCut))
             .Concat(blackFrames.Select(b => (Timestamp: b.StartTime, Confidence: 0.8, Type: CutType.Fade)))
             .OrderBy(b => b.Timestamp)
             .ToList();
 
         // Filter boundaries too close together
-        var filteredBoundaries = FilterCloseBoundaries(allBoundaries, minGap: 0.5);
+        var filteredBoundaries = FilterCloseBoundaries(allBoundaries, 0.5);
 
         // Create shots
         context.ReportProgress("Creating shots", 80);
@@ -170,10 +176,9 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
         double minGap)
     {
         var filtered = new List<(double, double, CutType)>();
-        double lastTime = -minGap * 2;
+        var lastTime = -minGap * 2;
 
         foreach (var boundary in boundaries)
-        {
             if (boundary.Timestamp - lastTime >= minGap)
             {
                 filtered.Add(boundary);
@@ -185,7 +190,6 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
                 filtered[^1] = boundary;
                 lastTime = boundary.Timestamp;
             }
-        }
 
         return filtered;
     }
@@ -199,7 +203,7 @@ public class FFmpegShotDetectionWave : IVideoWave, ISignalAwareVideoWave
         var duration = context.Metadata.Duration;
         var lastTime = 0.0;
 
-        for (int i = 0; i <= boundaries.Count; i++)
+        for (var i = 0; i <= boundaries.Count; i++)
         {
             var startTime = lastTime;
             var endTime = i < boundaries.Count ? boundaries[i].Timestamp : duration;

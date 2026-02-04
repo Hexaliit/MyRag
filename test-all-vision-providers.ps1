@@ -11,7 +11,7 @@ $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
 
 # Define all models to test across providers
 $testModels = @(
-    # Ollama models (local, free)
+# Ollama models (local, free)
     @{ Provider = "Ollama"; Model = "minicpm-v:8b"; Tier = "Balanced"; Cost = "Free" },
     @{ Provider = "Ollama"; Model = "llava:7b"; Tier = "Fast"; Cost = "Free" },
     @{ Provider = "Ollama"; Model = "llava:13b"; Tier = "Powerful"; Cost = "Free" },
@@ -71,14 +71,16 @@ $testGifs = @(
 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
 # Function to score caption quality
-function Get-CaptionQuality {
+function Get-CaptionQuality
+{
     param(
         [string]$Caption,
         [array]$Keywords,
         [string]$ExpectedCaption
     )
 
-    if (-not $Caption) {
+    if (-not $Caption)
+    {
         return @{
             Score = 0
             MatchedKeywords = 0
@@ -90,23 +92,35 @@ function Get-CaptionQuality {
 
     # Count keyword matches (case-insensitive)
     $matchedCount = 0
-    foreach ($keyword in $Keywords) {
-        if ($Caption -match [regex]::Escape($keyword)) {
+    foreach ($keyword in $Keywords)
+    {
+        if ($Caption -match [regex]::Escape($keyword))
+        {
             $matchedCount++
         }
     }
 
     # Calculate score
-    $keywordScore = if ($Keywords.Count -gt 0) {
+    $keywordScore = if ($Keywords.Count -gt 0)
+    {
         ($matchedCount / $Keywords.Count) * 100
-    } else { 0 }
+    }
+    else
+    {
+        0
+    }
 
     # Bonus for length (captions should be descriptive, 50-200 chars is good)
-    $lengthBonus = if ($Caption.Length -ge 50 -and $Caption.Length -le 200) {
+    $lengthBonus = if ($Caption.Length -ge 50 -and $Caption.Length -le 200)
+    {
         10
-    } elseif ($Caption.Length -gt 200) {
+    }
+    elseif ($Caption.Length -gt 200)
+    {
         5
-    } else {
+    }
+    else
+    {
         0
     }
 
@@ -130,55 +144,69 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Check provider availability
 Write-Host "Checking provider availability..." -ForegroundColor Yellow
-$providerStatus = @{}
+$providerStatus = @{ }
 
 # Check Ollama
-try {
+try
+{
     $ollamaCheck = ollama list 2>&1
-    if ($LASTEXITCODE -eq 0) {
+    if ($LASTEXITCODE -eq 0)
+    {
         $providerStatus["Ollama"] = "Available"
         Write-Host "  ✓ Ollama: Available" -ForegroundColor Green
-    } else {
+    }
+    else
+    {
         $providerStatus["Ollama"] = "Not Available"
         Write-Host "  ✗ Ollama: Not Available" -ForegroundColor Red
     }
-} catch {
+}
+catch
+{
     $providerStatus["Ollama"] = "Not Available"
     Write-Host "  ✗ Ollama: Not Available" -ForegroundColor Red
 }
 
 # Check Anthropic (via env var)
-if ($env:ANTHROPIC_API_KEY) {
+if ($env:ANTHROPIC_API_KEY)
+{
     $providerStatus["Anthropic"] = "Available (API key found)"
     Write-Host "  ✓ Anthropic: Available (API key found)" -ForegroundColor Green
-} else {
+}
+else
+{
     $providerStatus["Anthropic"] = "Not Available (no API key)"
     Write-Host "  ⚠ Anthropic: Not Available (set ANTHROPIC_API_KEY)" -ForegroundColor Yellow
 }
 
 # Check OpenAI (via env var)
-if ($env:OPENAI_API_KEY) {
+if ($env:OPENAI_API_KEY)
+{
     $providerStatus["OpenAI"] = "Available (API key found)"
     Write-Host "  ✓ OpenAI: Available (API key found)" -ForegroundColor Green
-} else {
+}
+else
+{
     $providerStatus["OpenAI"] = "Not Available (no API key)"
     Write-Host "  ⚠ OpenAI: Not Available (set OPENAI_API_KEY)" -ForegroundColor Yellow
 }
 
 Write-Host ""
 
-foreach ($modelSpec in $testModels) {
+foreach ($modelSpec in $testModels)
+{
     $provider = $modelSpec.Provider
     $model = $modelSpec.Model
-    $fullModelSpec = "$($provider.ToLower()):$model"
+    $fullModelSpec = "$($provider.ToLower() ):$model"
 
     # Skip if provider not available
-    if ($providerStatus[$provider] -notlike "Available*") {
+    if ($providerStatus[$provider] -notlike "Available*")
+    {
         Write-Host "`n=== Skipping $fullModelSpec (provider not available) ===" -ForegroundColor Gray
         continue
     }
 
-    $tierInfo = "$($modelSpec.Tier) tier, $($modelSpec.Cost)"
+    $tierInfo = "$( $modelSpec.Tier ) tier, $( $modelSpec.Cost )"
     Write-Host "`n=== Testing: $fullModelSpec ($tierInfo) ===" -ForegroundColor Yellow
 
     $modelResults = @{
@@ -193,19 +221,22 @@ foreach ($modelSpec in $testModels) {
         FailureCount = 0
     }
 
-    foreach ($gif in $testGifs) {
+    foreach ($gif in $testGifs)
+    {
         $gifFullPath = Join-Path $gifPath $gif.Name
 
-        if (-not (Test-Path $gifFullPath)) {
+        if (-not (Test-Path $gifFullPath))
+        {
             Write-Host "  WARNING: GIF not found: $gifFullPath" -ForegroundColor Red
             continue
         }
 
-        Write-Host "`n  Testing: $($gif.Name)..." -ForegroundColor White
+        Write-Host "`n  Testing: $( $gif.Name )..." -ForegroundColor White
 
         $startTime = Get-Date
 
-        try {
+        try
+        {
             # Run ImageCli with provider:model format
             $output = & dotnet run --project src/LucidRAG.ImageCli/LucidRAG.ImageCli.csproj -- `
                 analyze "$gifFullPath" `
@@ -221,19 +252,22 @@ foreach ($modelSpec in $testModels) {
             # Parse JSON output
             $jsonOutput = $output | Out-String | ConvertFrom-Json -ErrorAction SilentlyContinue
 
-            if ($jsonOutput) {
+            if ($jsonOutput)
+            {
                 $extractedText = $jsonOutput.extracted_text
                 $llmCaption = $jsonOutput.llm_caption
 
                 # Check OCR success
                 $ocrSuccess = $false
-                if ($extractedText -and $gif.ExpectedText) {
+                if ($extractedText -and $gif.ExpectedText)
+                {
                     $ocrSuccess = $extractedText -match [regex]::Escape($gif.ExpectedText)
                 }
 
                 # Check error correction
                 $errorCorrected = $false
-                if ($gif.KnownError -and $extractedText) {
+                if ($gif.KnownError -and $extractedText)
+                {
                     $errorCorrected = $extractedText -notmatch [regex]::Escape($gif.KnownError)
                 }
 
@@ -250,7 +284,7 @@ foreach ($modelSpec in $testModels) {
                     OcrSuccess = $ocrSuccess
                     ErrorCorrected = $errorCorrected
                     CaptionScore = $captionQuality.Score
-                    CaptionMatches = "$($captionQuality.MatchedKeywords)/$($captionQuality.TotalKeywords)"
+                    CaptionMatches = "$( $captionQuality.MatchedKeywords )/$( $captionQuality.TotalKeywords )"
                     CaptionLength = $captionQuality.Length
                     Success = $true
                 }
@@ -259,32 +293,53 @@ foreach ($modelSpec in $testModels) {
                 $modelResults.TotalTime += $duration
                 $modelResults.SuccessCount++
 
-                Write-Host "    Time: $($duration)s" -ForegroundColor Green
+                Write-Host "    Time: $( $duration )s" -ForegroundColor Green
                 Write-Host "    Extracted: $extractedText" -ForegroundColor Cyan
-                if ($ocrSuccess) {
+                if ($ocrSuccess)
+                {
                     Write-Host "    OCR: CORRECT" -ForegroundColor Green
-                } else {
+                }
+                else
+                {
                     Write-Host "    OCR: INCORRECT/PARTIAL" -ForegroundColor Yellow
                 }
-                $scoreColor = if ($captionQuality.Score -ge 70) { "Green" } elseif ($captionQuality.Score -ge 50) { "Yellow" } else { "Red" }
+                $scoreColor = if ($captionQuality.Score -ge 70)
+                {
+                    "Green"
+                }
+                elseif ($captionQuality.Score -ge 50)
+                {
+                    "Yellow"
+                }
+                else
+                {
+                    "Red"
+                }
                 Write-Host ("    Caption Score: " + $captionQuality.Score + "/100 (" + $captionQuality.MatchedKeywords + "/" + $captionQuality.TotalKeywords + " kw)") -ForegroundColor $scoreColor
-                if ($llmCaption -and $llmCaption.Length -le 100) {
+                if ($llmCaption -and $llmCaption.Length -le 100)
+                {
                     Write-Host "    Caption: $llmCaption" -ForegroundColor Gray
-                } elseif ($llmCaption) {
-                    Write-Host "    Caption: $($llmCaption.Substring(0, 100))..." -ForegroundColor Gray
+                }
+                elseif ($llmCaption)
+                {
+                    Write-Host "    Caption: $($llmCaption.Substring(0, 100) )..." -ForegroundColor Gray
                 }
 
-            } else {
+            }
+            else
+            {
                 Write-Host "    ERROR: Failed to parse JSON output" -ForegroundColor Red
                 Write-Host "    Raw output: $output" -ForegroundColor DarkGray
                 $modelResults.FailureCount++
             }
 
-        } catch {
+        }
+        catch
+        {
             $endTime = Get-Date
             $duration = ($endTime - $startTime).TotalSeconds
 
-            Write-Host "    ERROR: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "    ERROR: $( $_.Exception.Message )" -ForegroundColor Red
 
             $testResult = @{
                 GifName = $gif.Name
@@ -299,7 +354,8 @@ foreach ($modelSpec in $testModels) {
     }
 
     # Calculate average time
-    if ($modelResults.Tests.Count -gt 0) {
+    if ($modelResults.Tests.Count -gt 0)
+    {
         $modelResults.AverageTime = [math]::Round($modelResults.TotalTime / $modelResults.Tests.Count, 2)
     }
 
@@ -318,46 +374,82 @@ Write-Host "Comparison Summary" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 $comparisonTable = @()
-foreach ($result in $allResults) {
-    $successRate = if ($result.Tests.Count -gt 0) {
+foreach ($result in $allResults)
+{
+    $successRate = if ($result.Tests.Count -gt 0)
+    {
         [math]::Round(($result.SuccessCount / $result.Tests.Count) * 100, 1)
-    } else { 0 }
+    }
+    else
+    {
+        0
+    }
 
     $ocrCorrectCount = ($result.Tests | Where-Object { $_.OcrSuccess -eq $true }).Count
-    $ocrAccuracy = if ($result.Tests.Count -gt 0) {
+    $ocrAccuracy = if ($result.Tests.Count -gt 0)
+    {
         [math]::Round(($ocrCorrectCount / $result.Tests.Count) * 100, 1)
-    } else { 0 }
+    }
+    else
+    {
+        0
+    }
 
-    $avgCaptionScore = if ($result.Tests.Count -gt 0) {
+    $avgCaptionScore = if ($result.Tests.Count -gt 0)
+    {
         $captionScores = $result.Tests | Where-Object { $_.CaptionScore -ne $null } | ForEach-Object { $_.CaptionScore }
-        if ($captionScores.Count -gt 0) {
+        if ($captionScores.Count -gt 0)
+        {
             [math]::Round(($captionScores | Measure-Object -Average).Average, 1)
-        } else { 0 }
-    } else { 0 }
+        }
+        else
+        {
+            0
+        }
+    }
+    else
+    {
+        0
+    }
 
     $comparisonTable += [PSCustomObject]@{
         Provider = $result.Provider
         Model = $result.Model
         Tier = $result.Tier
         Cost = $result.Cost
-        AvgTime = "$($result.AverageTime)s"
+        AvgTime = "$( $result.AverageTime )s"
         OcrAccuracy = "$ocrAccuracy%"
         CaptionScore = "$avgCaptionScore/100"
-        Corrections = "$($result.Tests.Where({$_.ErrorCorrected}).Count)/$($result.Tests.Count)"
+        Corrections = "$( $result.Tests.Where({ $_.ErrorCorrected }).Count )/$( $result.Tests.Count )"
     }
 }
 
 # Sort by provider, then tier
-$comparisonTable = $comparisonTable | Sort-Object Provider, @{Expression={
-    switch ($_.Tier) {
-        "Fast" { 1 }
-        "Balanced" { 2 }
-        "Powerful" { 3 }
-        "Frontier" { 4 }
-        "Frontier+" { 5 }
-        default { 99 }
+$comparisonTable = $comparisonTable | Sort-Object Provider, @{
+    Expression = {
+        switch ($_.Tier)
+        {
+            "Fast" {
+                1
+            }
+            "Balanced" {
+                2
+            }
+            "Powerful" {
+                3
+            }
+            "Frontier" {
+                4
+            }
+            "Frontier+" {
+                5
+            }
+            default {
+                99
+            }
+        }
     }
-}}
+}
 
 $comparisonTable | Format-Table -AutoSize
 
@@ -377,19 +469,23 @@ $markdownFile = Join-Path $outputDir "ALL-PROVIDERS-RESULTS-$timestamp.md"
 $markdown = @"
 # Multi-Provider Vision Model Comparison Results
 
-**Date**: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-**Test Corpus**: $($testGifs.Count) GIFs with varying OCR difficulty
+**Date**: $( Get-Date -Format "yyyy-MM-dd HH:mm:ss" )
+**Test Corpus**: $( $testGifs.Count ) GIFs with varying OCR difficulty
 **Providers**: Ollama (local), Anthropic (API), OpenAI (API)
 
 ## Provider Status
 
 "@
 
-foreach ($provider in $providerStatus.Keys | Sort-Object) {
+foreach ($provider in $providerStatus.Keys | Sort-Object)
+{
     $status = $providerStatus[$provider]
-    if ($status -like "Available*") {
+    if ($status -like "Available*")
+    {
         $icon = "+"
-    } else {
+    }
+    else
+    {
         $icon = "-"
     }
     $markdown += "- [$icon] **$provider**: $status`n"
@@ -403,8 +499,9 @@ $markdown += @"
 |----------|-------|------|------|----------|--------------|---------------|-------------|
 "@
 
-foreach ($row in $comparisonTable) {
-    $markdown += "| $($row.Provider) | $($row.Model) | $($row.Tier) | $($row.Cost) | $($row.AvgTime) | $($row.OcrAccuracy) | $($row.CaptionScore) | $($row.Corrections) |`n"
+foreach ($row in $comparisonTable)
+{
+    $markdown += "| $( $row.Provider ) | $( $row.Model ) | $( $row.Tier ) | $( $row.Cost ) | $( $row.AvgTime ) | $( $row.OcrAccuracy ) | $( $row.CaptionScore ) | $( $row.Corrections ) |`n"
 }
 
 $markdown += @"
@@ -412,14 +509,14 @@ $markdown += @"
 ## Key Findings
 
 ### Speed
-- **Fastest**: $(($comparisonTable | Sort-Object {[double]($_.AvgTime -replace 's','')} | Select-Object -First 1).Provider):$(($comparisonTable | Sort-Object {[double]($_.AvgTime -replace 's','')} | Select-Object -First 1).Model)
-- **Slowest**: $(($comparisonTable | Sort-Object {[double]($_.AvgTime -replace 's','')} -Descending | Select-Object -First 1).Provider):$(($comparisonTable | Sort-Object {[double]($_.AvgTime -replace 's','')} -Descending | Select-Object -First 1).Model)
+- **Fastest**: $( ($comparisonTable | Sort-Object { [double]($_.AvgTime -replace 's', '') } | Select-Object -First 1).Provider ):$( ($comparisonTable | Sort-Object { [double]($_.AvgTime -replace 's', '') } | Select-Object -First 1).Model )
+- **Slowest**: $( ($comparisonTable | Sort-Object { [double]($_.AvgTime -replace 's', '') } -Descending | Select-Object -First 1).Provider ):$( ($comparisonTable | Sort-Object { [double]($_.AvgTime -replace 's', '') } -Descending | Select-Object -First 1).Model )
 
 ### OCR Accuracy
-- **Best**: $(($comparisonTable | Sort-Object {[double]($_.OcrAccuracy -replace '%','')} -Descending | Select-Object -First 1).Provider):$(($comparisonTable | Sort-Object {[double]($_.OcrAccuracy -replace '%','')} -Descending | Select-Object -First 1).Model)
+- **Best**: $( ($comparisonTable | Sort-Object { [double]($_.OcrAccuracy -replace '%', '') } -Descending | Select-Object -First 1).Provider ):$( ($comparisonTable | Sort-Object { [double]($_.OcrAccuracy -replace '%', '') } -Descending | Select-Object -First 1).Model )
 
 ### Caption Quality
-- **Best**: $(($comparisonTable | Sort-Object {[double]($_.CaptionScore -replace '/100','')} -Descending | Select-Object -First 1).Provider):$(($comparisonTable | Sort-Object {[double]($_.CaptionScore -replace '/100','')} -Descending | Select-Object -First 1).Model)
+- **Best**: $( ($comparisonTable | Sort-Object { [double]($_.CaptionScore -replace '/100', '') } -Descending | Select-Object -First 1).Provider ):$( ($comparisonTable | Sort-Object { [double]($_.CaptionScore -replace '/100', '') } -Descending | Select-Object -First 1).Model )
 
 ## Recommendations
 

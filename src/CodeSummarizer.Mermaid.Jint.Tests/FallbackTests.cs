@@ -1,28 +1,30 @@
-using CodeSummarizer.Mermaid.Jint;
 using CodeSummarizer.Parsing;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeSummarizer.Mermaid.Jint.Tests;
 
 /// <summary>
-///     Tests that <see cref="JintMermaidParser"/> correctly falls back to
-///     <see cref="RegexMermaidParser"/> when Jint parsing fails.
+///     Tests that <see cref="JintMermaidParser" /> correctly falls back to
+///     <see cref="RegexMermaidParser" /> when Jint parsing fails.
 /// </summary>
 public class FallbackTests : IDisposable
 {
     private readonly JintMermaidParser _parser = new(NullLogger<JintMermaidParser>.Instance);
 
-    public void Dispose() => _parser.Dispose();
+    public void Dispose()
+    {
+        _parser.Dispose();
+    }
 
     [Fact]
     public void Parse_InvalidSyntax_FallsBackToRegex()
     {
         // This is complete gibberish — Jint should fail and regex should still extract something
         var mermaid = """
-            graph TD
-                A[Start] --> B{Decision}
-                $$$ INVALID SYNTAX @@@
-            """;
+                      graph TD
+                          A[Start] --> B{Decision}
+                          $$$ INVALID SYNTAX @@@
+                      """;
 
         var result = _parser.Parse(mermaid);
 

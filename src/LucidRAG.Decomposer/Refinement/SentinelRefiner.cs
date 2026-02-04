@@ -4,17 +4,16 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.Decomposer.Refinement;
 
 /// <summary>
-/// Merges deterministic Phase 1 analysis with LLM sentinel output.
-/// Deterministic structure wins; LLM enhances wording, keywords, and spell correction.
-///
-/// Merge rules:
-/// | Deterministic     | LLM Sentinel      | Result                                          |
-/// |-------------------|--------------------|------------------------------------------------|
-/// | Both agree on split | 2+ subqueries    | Use deterministic nodes, apply sentinel keywords |
-/// | Only deterministic | No composite       | Keep deterministic split                        |
-/// | Only LLM splits   | 2+ subqueries      | Accept LLM split (validated via embedding)      |
-/// | Neither splits    | Single query        | Single query with sentinel enhancement          |
-/// | Conflicting splits | Different count    | Keep deterministic, use LLM wording refinement  |
+///     Merges deterministic Phase 1 analysis with LLM sentinel output.
+///     Deterministic structure wins; LLM enhances wording, keywords, and spell correction.
+///     Merge rules:
+///     | Deterministic     | LLM Sentinel      | Result                                          |
+///     |-------------------|--------------------|------------------------------------------------|
+///     | Both agree on split | 2+ subqueries    | Use deterministic nodes, apply sentinel keywords |
+///     | Only deterministic | No composite       | Keep deterministic split                        |
+///     | Only LLM splits   | 2+ subqueries      | Accept LLM split (validated via embedding)      |
+///     | Neither splits    | Single query        | Single query with sentinel enhancement          |
+///     | Conflicting splits | Different count    | Keep deterministic, use LLM wording refinement  |
 /// </summary>
 public class SentinelRefiner : IDecompositionRefiner
 {
@@ -26,16 +25,14 @@ public class SentinelRefiner : IDecompositionRefiner
     }
 
     /// <summary>
-    /// Refine decomposition. sentinelData is expected to be a SentinelRefinementInput
-    /// (adapter DTO from DoomSummarizer.Core).
+    ///     Refine decomposition. sentinelData is expected to be a SentinelRefinementInput
+    ///     (adapter DTO from DoomSummarizer.Core).
     /// </summary>
     public DecompositionResult Refine(QuerySignals signals, object? sentinelData)
     {
         if (sentinelData is not SentinelRefinementInput sentinel)
-        {
             // No sentinel data  -  fall back to deterministic
             return new DeterministicRefiner().Refine(signals, null);
-        }
 
         var deterministicNodes = signals.ProposedNodes;
         var sentinelSubqueries = sentinel.Subqueries ?? [];
@@ -92,13 +89,9 @@ public class SentinelRefiner : IDecompositionRefiner
             .Where(n => n.Type == QueryNodeType.ContentReference)
             .ToList();
         foreach (var refNode in referenceNodes)
-        {
             if (!finalNodes.Any(n => n.Type == QueryNodeType.ContentReference
                                      && n.Reference?.Uri == refNode.Reference?.Uri))
-            {
                 finalNodes.Add(refNode);
-            }
-        }
 
         // Build execution plan
         var plan = new ExecutionPlan
@@ -145,21 +138,25 @@ public class SentinelRefiner : IDecompositionRefiner
         {
             FilterKeywords = MergeDistinct(node.FilterKeywords, sentinel.FilterKeywords ?? []),
             SearchQueries = MergeDistinct(node.SearchQueries, sentinel.SearchQueries ?? []),
-            TimeScope = node.TimeScope ?? (sentinel.RequiresFresh ? new TemporalScope
-            {
-                RequiresFresh = true,
-                TimeSensitivity = sentinel.TimeSensitivity
-            } : null)
+            TimeScope = node.TimeScope ?? (sentinel.RequiresFresh
+                ? new TemporalScope
+                {
+                    RequiresFresh = true,
+                    TimeSensitivity = sentinel.TimeSensitivity
+                }
+                : null)
         };
     }
 
-    private static List<string> MergeDistinct(List<string> a, IEnumerable<string> b) =>
-        a.Concat(b).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    private static List<string> MergeDistinct(List<string> a, IEnumerable<string> b)
+    {
+        return a.Concat(b).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
 }
 
 /// <summary>
-/// Adapter DTO carrying sentinel LLM output into the decomposer.
-/// Decouples from DoomSummarizer.Core's SentinelIntent type.
+///     Adapter DTO carrying sentinel LLM output into the decomposer.
+///     Decouples from DoomSummarizer.Core's SentinelIntent type.
 /// </summary>
 public record SentinelRefinementInput
 {

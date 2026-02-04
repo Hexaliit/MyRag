@@ -6,13 +6,6 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Video.Commands;
 
 public sealed class VideoScenesCommand : AsyncCommand<VideoScenesCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [Description("Path to the video file")]
-        [CommandArgument(0, "<file>")]
-        public string FilePath { get; set; } = "";
-    }
-
     public override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
         if (!File.Exists(settings.FilePath))
@@ -24,5 +17,12 @@ public sealed class VideoScenesCommand : AsyncCommand<VideoScenesCommand.Setting
         AnsiConsole.MarkupLine($"[cyan]Segmenting scenes:[/] {Markup.Escape(Path.GetFileName(settings.FilePath))}");
         AnsiConsole.MarkupLine("[yellow]Scene segmentation not yet implemented.[/]");
         return Task.FromResult(0);
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [Description("Path to the video file")]
+        [CommandArgument(0, "<file>")]
+        public string FilePath { get; set; } = "";
     }
 }

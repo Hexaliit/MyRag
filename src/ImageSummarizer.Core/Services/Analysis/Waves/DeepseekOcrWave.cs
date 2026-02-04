@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
@@ -10,19 +11,15 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// DeepSeek OCR wave (Ollama VLM via OpenAI-compatible API).
-/// Uses deepseek-ocr:latest for high-quality OCR with Markdown output.
-/// Priority: 53 (after NanonetsOcrWave at 54, before OlmOcr2Wave at 51).
+///     DeepSeek OCR wave (Ollama VLM via OpenAI-compatible API).
+///     Uses deepseek-ocr:latest for high-quality OCR with Markdown output.
+///     Priority: 53 (after NanonetsOcrWave at 54, before OlmOcr2Wave at 51).
 /// </summary>
 public class DeepseekOcrWave : IAnalysisWave
 {
     private readonly OcrConfig _config;
     private readonly HttpClient _httpClient;
     private readonly ILogger<DeepseekOcrWave>? _logger;
-
-    public string Name => "DeepseekOcrWave";
-    public int Priority => 53;
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "deepseek" };
 
     public DeepseekOcrWave(
         IOptions<ImageConfig> imageConfig,
@@ -38,11 +35,13 @@ public class DeepseekOcrWave : IAnalysisWave
         };
 
         if (!string.IsNullOrWhiteSpace(_config.DeepseekOcrApiKey))
-        {
             _httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", _config.DeepseekOcrApiKey);
-        }
     }
+
+    public string Name => "DeepseekOcrWave";
+    public int Priority => 53;
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "deepseek" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -87,7 +86,7 @@ public class DeepseekOcrWave : IAnalysisWave
         CancellationToken ct = default)
     {
         var signals = new List<Signal>();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         // Use preprocessed image if available (from OcrPreprocessingWave)
         var effectivePath = context.GetCached<string>("preprocessing.enhanced_image_path") ?? imagePath;
@@ -203,7 +202,6 @@ public class DeepseekOcrWave : IAnalysisWave
             // Emit content signals if not already present
             var existingContent = context.GetValue<string>("content.extracted_text");
             if (string.IsNullOrWhiteSpace(existingContent))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.extracted_text",
@@ -212,10 +210,8 @@ public class DeepseekOcrWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "text" }
                 });
-            }
 
             if (!string.IsNullOrWhiteSpace(cleanedMarkdown))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.extracted_markdown",
@@ -224,7 +220,6 @@ public class DeepseekOcrWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "markdown" }
                 });
-            }
 
             _logger?.LogInformation(
                 "DeepSeek OCR completed: {Chars} chars, {Words} words in {Duration}ms",
@@ -289,13 +284,6 @@ public class DeepseekOcrWave : IAnalysisWave
         return result?.Message?.Content?.Trim() ?? string.Empty;
     }
 
-    // Ollama native API response format
-    private record OllamaChatResponse(
-        [property: JsonPropertyName("message")] OllamaMessage? Message);
-
-    private record OllamaMessage(
-        [property: JsonPropertyName("content")] string Content);
-
     private static string StripCodeFences(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -332,12 +320,24 @@ public class DeepseekOcrWave : IAnalysisWave
         return text.Trim();
     }
 
+    // Ollama native API response format
+    private record OllamaChatResponse(
+        [property: JsonPropertyName("message")]
+        OllamaMessage? Message);
+
+    private record OllamaMessage(
+        [property: JsonPropertyName("content")]
+        string Content);
+
     private record OpenAiChatResponse(
-        [property: JsonPropertyName("choices")] List<OpenAiChoice> Choices);
+        [property: JsonPropertyName("choices")]
+        List<OpenAiChoice> Choices);
 
     private record OpenAiChoice(
-        [property: JsonPropertyName("message")] OpenAiMessage Message);
+        [property: JsonPropertyName("message")]
+        OpenAiMessage Message);
 
     private record OpenAiMessage(
-        [property: JsonPropertyName("content")] string Content);
+        [property: JsonPropertyName("content")]
+        string Content);
 }

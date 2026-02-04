@@ -4,18 +4,16 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Extracts temporal constraints from query using RecognizedSignals (TextRecognizerService).
-/// Detects temporal comparisons ("X before vs after 2024") and splits into
-/// time-bounded sub-queries.
+///     Extracts temporal constraints from query using RecognizedSignals (TextRecognizerService).
+///     Detects temporal comparisons ("X before vs after 2024") and splits into
+///     time-bounded sub-queries.
 /// </summary>
 public class TemporalAnalyzer : IQueryAnalyzer
 {
-    private readonly ILogger<TemporalAnalyzer>? _logger;
-
     /// <summary>
-    /// Patterns indicating temporal comparison intent.
-    /// These are checked against the query to determine if the user wants
-    /// a before/after or trend analysis.
+    ///     Patterns indicating temporal comparison intent.
+    ///     These are checked against the query to determine if the user wants
+    ///     a before/after or trend analysis.
     /// </summary>
     private static readonly string[] TemporalComparisonMarkers =
     [
@@ -30,6 +28,8 @@ public class TemporalAnalyzer : IQueryAnalyzer
         "trend in",
         "evolution of"
     ];
+
+    private readonly ILogger<TemporalAnalyzer>? _logger;
 
     public TemporalAnalyzer(ILogger<TemporalAnalyzer>? logger = null)
     {

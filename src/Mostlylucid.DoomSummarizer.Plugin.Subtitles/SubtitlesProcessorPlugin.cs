@@ -1,23 +1,29 @@
 using DoomSummarizer.Models;
-using DoomSummarizer.Plugins;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Plugins.Subtitles;
 
 /// <summary>
-/// Processor plugin for subtitle files (SRT, VTT, ASS, SSA).
-/// Provides chapter-aware splitting using gap detection and marker analysis.
-/// Also registers a document handler for the ingestion pipeline.
+///     Processor plugin for subtitle files (SRT, VTT, ASS, SSA).
+///     Provides chapter-aware splitting using gap detection and marker analysis.
+///     Also registers a document handler for the ingestion pipeline.
 /// </summary>
 public sealed class SubtitlesProcessorPlugin : IProcessorPlugin
 {
     private readonly SubtitleDocumentHandler _handler = new();
 
+    /// <summary>
+    ///     The document handler for subtitle files. Can be registered with
+    ///     <see cref="IDocumentHandlerRegistry" /> for ingestion pipeline support.
+    /// </summary>
+    public IDocumentHandler DocumentHandler => _handler;
+
     public ProcessorPluginMetadata Metadata { get; } = new()
     {
         Name = "subtitles",
         DisplayName = "Subtitle Processor",
-        Description = "Parses SRT, VTT, ASS, and SSA subtitle files into chapter-aware markdown with gap-based chapter detection.",
+        Description =
+            "Parses SRT, VTT, ASS, and SSA subtitle files into chapter-aware markdown with gap-based chapter detection.",
         Version = "1.0.0",
         SupportedExtensions = [".srt", ".vtt", ".ass", ".ssa"],
         MinActivationWords = 50,
@@ -28,14 +34,10 @@ public sealed class SubtitlesProcessorPlugin : IProcessorPlugin
     public IReadOnlyList<IDocumentSplitter> Splitters { get; } = [];
     public IReadOnlyList<TemplateDefinition> Templates { get; } = [];
 
-    /// <summary>
-    /// The document handler for subtitle files. Can be registered with
-    /// <see cref="IDocumentHandlerRegistry"/> for ingestion pipeline support.
-    /// </summary>
-    public IDocumentHandler DocumentHandler => _handler;
-
     public Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default)
-        => Task.CompletedTask;
+    {
+        return Task.CompletedTask;
+    }
 
     public bool CanProcess(string markdown, ProcessingContext context)
     {
@@ -69,7 +71,6 @@ public sealed class SubtitlesProcessorPlugin : IProcessorPlugin
         // Split on ## headings (chapters detected by the handler)
         var sections = markdown.Split("\n## ", StringSplitOptions.RemoveEmptyEntries);
         if (sections.Length > 1)
-        {
             // First section is the title (# heading), rest are chapters
             for (var i = 1; i < sections.Length; i++)
             {
@@ -87,9 +88,7 @@ public sealed class SubtitlesProcessorPlugin : IProcessorPlugin
                     Content = content
                 });
             }
-        }
         else
-        {
             // No chapters — single leaf node
             children.Add(new DocumentNode
             {
@@ -99,7 +98,6 @@ public sealed class SubtitlesProcessorPlugin : IProcessorPlugin
                 LevelLabel = "section",
                 Content = markdown
             });
-        }
 
         var root = new DocumentNode
         {

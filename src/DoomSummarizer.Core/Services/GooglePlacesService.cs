@@ -1,15 +1,21 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Web;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Google Places API (Text Search).
-/// Useful for entity disambiguation (company identification), location-based queries,
-/// and enriching news stories with business/location context.
-/// Cost: ~$17/1000 requests (Text Search), ~$32/1000 (Details).
+///     Google Places API (Text Search).
+///     Useful for entity disambiguation (company identification), location-based queries,
+///     and enriching news stories with business/location context.
+///     Cost: ~$17/1000 requests (Text Search), ~$32/1000 (Details).
 /// </summary>
-public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class GooglePlacesService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "google_places";
     private const string TextSearchEndpoint = "https://maps.googleapis.com/maps/api/place/textsearch/json";
@@ -18,7 +24,7 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
     public bool IsAvailable => keys.HasGooglePlaces && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search for places/businesses matching a query. Returns ContentItems for pipeline integration.
+    ///     Search for places/businesses matching a query. Returns ContentItems for pipeline integration.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 5, Action<string>? progress = null, CancellationToken ct = default)
@@ -63,13 +69,13 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Google Places error: {ex.Message}");
+            Debug.WriteLine($"Google Places error: {ex.Message}");
             return [];
         }
     }
 
     /// <summary>
-    /// Get detailed place info by place_id. Useful for entity disambiguation.
+    ///     Get detailed place info by place_id. Useful for entity disambiguation.
     /// </summary>
     public async Task<PlaceDetails?> GetDetailsAsync(string placeId, CancellationToken ct = default)
     {
@@ -93,7 +99,8 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var fields = "name,formatted_address,types,website,url,rating,user_ratings_total,business_status,opening_hours";
+            var fields =
+                "name,formatted_address,types,website,url,rating,user_ratings_total,business_status,opening_hours";
             var url = $"{DetailsEndpoint}?place_id={placeId}&fields={fields}&key={apiKey}";
 
             var response = await httpClient.GetAsync(url, cts.Token);
@@ -130,11 +137,9 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
 
             var types = new List<string>();
             if (result.TryGetProperty("types", out var typesEl))
-            {
                 foreach (var t in typesEl.EnumerateArray())
                     if (t.GetString() is { } typeStr)
                         types.Add(typeStr.Replace('_', ' '));
-            }
 
             var description = address ?? "";
             if (rating > 0)
@@ -143,7 +148,6 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
                 description += $" | Type: {string.Join(", ", types.Take(3))}";
 
             if (!string.IsNullOrEmpty(name))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"places_{placeId ?? name.GetHashCode().ToString()}",
@@ -160,7 +164,6 @@ public class GooglePlacesService(HttpClient httpClient, ApiKeyService keys, ApiB
                         ["types"] = string.Join(",", types)
                     }
                 });
-            }
         }
 
         return items;

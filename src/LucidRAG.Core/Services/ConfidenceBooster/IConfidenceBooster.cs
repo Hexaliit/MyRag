@@ -1,14 +1,14 @@
 namespace LucidRAG.Core.Services.ConfidenceBooster;
 
 /// <summary>
-/// Generic interface for confidence boosting across different artifact types.
-/// Implementations provide domain-specific artifact extraction and prompt generation.
+///     Generic interface for confidence boosting across different artifact types.
+///     Implementations provide domain-specific artifact extraction and prompt generation.
 /// </summary>
 /// <typeparam name="TArtifact">The specific artifact type (ImageCropArtifact, AudioSegmentArtifact, etc.)</typeparam>
 public interface IConfidenceBooster<TArtifact> where TArtifact : IArtifact
 {
     /// <summary>
-    /// Scan a processed document for low-confidence signals that need boosting.
+    ///     Scan a processed document for low-confidence signals that need boosting.
     /// </summary>
     /// <param name="documentId">The document to scan.</param>
     /// <param name="confidenceThreshold">Signals below this threshold are candidates for boosting (default: 0.75).</param>
@@ -22,7 +22,7 @@ public interface IConfidenceBooster<TArtifact> where TArtifact : IArtifact
         CancellationToken ct = default);
 
     /// <summary>
-    /// Boost confidence for a batch of artifacts using LLM inference.
+    ///     Boost confidence for a batch of artifacts using LLM inference.
     /// </summary>
     /// <param name="artifacts">Artifacts to boost.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -32,7 +32,7 @@ public interface IConfidenceBooster<TArtifact> where TArtifact : IArtifact
         CancellationToken ct = default);
 
     /// <summary>
-    /// Update the signal ledger with boosted values.
+    ///     Update the signal ledger with boosted values.
     /// </summary>
     /// <param name="documentId">The document to update.</param>
     /// <param name="results">Boost results to persist.</param>

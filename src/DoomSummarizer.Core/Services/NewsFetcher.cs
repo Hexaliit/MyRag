@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
@@ -5,23 +8,26 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches news from various RSS-based news sources.
-/// Supports BBC, The Guardian, Ars Technica, The Verge, and more.
+///     Fetches news from various RSS-based news sources.
+///     Supports BBC, The Guardian, Ars Technica, The Verge, and more.
 /// </summary>
 public partial class NewsFetcher(HttpClient httpClient)
 {
     // Known news source RSS feeds
     private static readonly Dictionary<string, string[]> KnownFeeds = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["bbc"] = [
+        ["bbc"] =
+        [
             "https://feeds.bbci.co.uk/news/technology/rss.xml",
             "https://feeds.bbci.co.uk/news/rss.xml"
         ],
-        ["guardian"] = [
+        ["guardian"] =
+        [
             "https://www.theguardian.com/technology/rss",
             "https://www.theguardian.com/world/rss"
         ],
-        ["cnn"] = [
+        ["cnn"] =
+        [
             "http://rss.cnn.com/rss/cnn_tech.rss",
             "http://rss.cnn.com/rss/cnn_topstories.rss"
         ],
@@ -55,8 +61,13 @@ public partial class NewsFetcher(HttpClient httpClient)
     };
 
     /// <summary>
-    /// Fetch from a known news source by name.
-    /// Supports category-specific feeds from sources.yaml routing.
+    ///     List known news sources.
+    /// </summary>
+    public static IEnumerable<string> KnownSources => KnownFeeds.Keys;
+
+    /// <summary>
+    ///     Fetch from a known news source by name.
+    ///     Supports category-specific feeds from sources.yaml routing.
     /// </summary>
     public async Task<List<ContentItem>> FetchSourceAsync(string sourceName, int limit = 25, string? query = null)
     {
@@ -82,6 +93,7 @@ public partial class NewsFetcher(HttpClient httpClient)
                     items.AddRange(feedItems);
                     if (items.Count >= limit) break;
                 }
+
                 if (items.Count > 0)
                     return items.Take(limit).ToList();
             }
@@ -94,14 +106,13 @@ public partial class NewsFetcher(HttpClient httpClient)
         // Fallback to hardcoded KnownFeeds
         if (!KnownFeeds.TryGetValue(sourceName, out var feeds))
         {
-            System.Diagnostics.Debug.WriteLine($"Unknown news source: {sourceName}. Known: {string.Join(", ", KnownFeeds.Keys)}");
+            Debug.WriteLine($"Unknown news source: {sourceName}. Known: {string.Join(", ", KnownFeeds.Keys)}");
             return [];
         }
 
         var allItems = new List<ContentItem>();
 
         foreach (var feedUrl in feeds)
-        {
             try
             {
                 var feedItems = await FetchRssAsync(feedUrl, sourceName, limit);
@@ -123,17 +134,17 @@ public partial class NewsFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch {feedUrl}: {ex.Message}");
+                Debug.WriteLine($"Warning: Failed to fetch {feedUrl}: {ex.Message}");
             }
-        }
 
         return allItems.Take(limit).ToList();
     }
 
     /// <summary>
-    /// Fetch from a search API (like mostlylucid typeahead).
+    ///     Fetch from a search API (like mostlylucid typeahead).
     /// </summary>
-    private async Task<List<ContentItem>> FetchFromSearchApiAsync(string sourceName, string apiBaseUrl, string query, int limit)
+    private async Task<List<ContentItem>> FetchFromSearchApiAsync(string sourceName, string apiBaseUrl, string query,
+        int limit)
     {
         var items = new List<ContentItem>();
 
@@ -150,13 +161,11 @@ public partial class NewsFetcher(HttpClient httpClient)
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
-            var results = System.Text.Json.JsonSerializer.Deserialize<List<TypeaheadResult>>(json,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var results = JsonSerializer.Deserialize<List<TypeaheadResult>>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (results != null)
-            {
                 foreach (var result in results.Take(limit))
-                {
                     items.Add(new ContentItem
                     {
                         Id = $"{sourceName}_{result.Slug?.GetHashCode() ?? result.Title?.GetHashCode() ?? 0}",
@@ -166,21 +175,17 @@ public partial class NewsFetcher(HttpClient httpClient)
                         Score = (int)(result.Score * 100), // Convert 0-1 to 0-100
                         CreatedAt = DateTimeOffset.UtcNow
                     });
-                }
-            }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: API search failed for {sourceName}: {ex.Message}");
+            Debug.WriteLine($"Warning: API search failed for {sourceName}: {ex.Message}");
         }
 
         return items;
     }
 
-    private record TypeaheadResult(string? Title, string? Slug, string? Url, double Score);
-
     /// <summary>
-    /// Fetch from a raw RSS URL.
+    ///     Fetch from a raw RSS URL.
     /// </summary>
     public async Task<List<ContentItem>> FetchRssAsync(string feedUrl, string sourceName, int limit = 25)
     {
@@ -210,28 +215,24 @@ public partial class NewsFetcher(HttpClient httpClient)
                 // Try to get image from enclosure or media:content
                 var imageUrl = item.Element("enclosure")?.Attribute("url")?.Value;
                 if (string.IsNullOrEmpty(imageUrl))
-                {
-                    imageUrl = item.Element(XName.Get("thumbnail", "http://search.yahoo.com/mrss/"))?.Attribute("url")?.Value;
-                }
+                    imageUrl = item.Element(XName.Get("thumbnail", "http://search.yahoo.com/mrss/"))?.Attribute("url")
+                        ?.Value;
                 if (string.IsNullOrEmpty(imageUrl))
-                {
-                    imageUrl = item.Element(XName.Get("content", "http://search.yahoo.com/mrss/"))?.Attribute("url")?.Value;
-                }
+                    imageUrl = item.Element(XName.Get("content", "http://search.yahoo.com/mrss/"))?.Attribute("url")
+                        ?.Value;
 
                 if (!string.IsNullOrEmpty(title))
-                {
                     items.Add(new ContentItem
                     {
                         Id = $"{sourceName}_{link?.GetHashCode() ?? title.GetHashCode()}",
                         Source = sourceName,
-                        Title = System.Net.WebUtility.HtmlDecode(title),
+                        Title = WebUtility.HtmlDecode(title),
                         Url = link,
                         Content = StripHtml(description ?? ""),
                         Author = creator,
                         CreatedAt = TryParseDate(pubDate),
                         ImageUrl = imageUrl
                     });
-                }
             }
 
             // If no RSS items, try Atom format
@@ -249,38 +250,31 @@ public partial class NewsFetcher(HttpClient httpClient)
                     var author = entry.Element(ns + "author")?.Element(ns + "name")?.Value;
 
                     if (!string.IsNullOrEmpty(title))
-                    {
                         items.Add(new ContentItem
                         {
                             Id = $"{sourceName}_{link?.GetHashCode() ?? title.GetHashCode()}",
                             Source = sourceName,
-                            Title = System.Net.WebUtility.HtmlDecode(title),
+                            Title = WebUtility.HtmlDecode(title),
                             Url = link,
                             Content = StripHtml(summary ?? ""),
                             Author = author,
                             CreatedAt = TryParseDate(updated)
                         });
-                    }
                 }
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: RSS parse error for {feedUrl}: {ex.Message}");
+            Debug.WriteLine($"Warning: RSS parse error for {feedUrl}: {ex.Message}");
         }
 
         return items;
     }
 
-    /// <summary>
-    /// List known news sources.
-    /// </summary>
-    public static IEnumerable<string> KnownSources => KnownFeeds.Keys;
-
     private static string StripHtml(string html)
     {
         var text = HtmlTagRegex().Replace(html, " ");
-        text = System.Net.WebUtility.HtmlDecode(text);
+        text = WebUtility.HtmlDecode(text);
         text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
@@ -300,4 +294,6 @@ public partial class NewsFetcher(HttpClient httpClient)
 
         return DateTimeOffset.UtcNow;
     }
+
+    private record TypeaheadResult(string? Title, string? Slug, string? Url, double Score);
 }

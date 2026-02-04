@@ -4,7 +4,7 @@ using Mostlylucid.Summarizer.Core.Utilities;
 namespace Mostlylucid.Summarizer.Core.Pipeline;
 
 /// <summary>
-/// Base class providing common pipeline functionality.
+///     Base class providing common pipeline functionality.
 /// </summary>
 public abstract class PipelineBase : IPipeline
 {
@@ -57,7 +57,7 @@ public abstract class PipelineBase : IPipeline
     }
 
     /// <summary>
-    /// Core processing logic to be implemented by derived classes.
+    ///     Core processing logic to be implemented by derived classes.
     /// </summary>
     protected abstract Task<IReadOnlyList<ContentChunk>> ProcessCoreAsync(
         string filePath,
@@ -66,14 +66,18 @@ public abstract class PipelineBase : IPipeline
         CancellationToken ct);
 
     /// <summary>
-    /// Generate a unique chunk ID.
+    ///     Generate a unique chunk ID.
     /// </summary>
     protected static string GenerateChunkId(string filePath, int index)
-        => $"{Path.GetFileNameWithoutExtension(filePath)}_{index:D4}";
+    {
+        return $"{Path.GetFileNameWithoutExtension(filePath)}_{index:D4}";
+    }
 
     /// <summary>
-    /// Compute a content hash using XxHash64.
+    ///     Compute a content hash using XxHash64.
     /// </summary>
     protected static string ComputeHash(string content)
-        => ContentHasher.ComputeHash(content);
+    {
+        return ContentHasher.ComputeHash(content);
+    }
 }

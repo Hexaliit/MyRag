@@ -1,26 +1,43 @@
 using System.Text.RegularExpressions;
+using ReverseMarkdown;
 using RmConfig = ReverseMarkdown.Config;
 
 namespace Mostlylucid.DocSummarizer.Content;
 
 /// <summary>
-/// Converts HTML to Markdown and analyzes structural signals for content quality scoring.
-/// Uses Markdown structure (headings, lists, code blocks, tables, paragraphs) as proxy
-/// signals for content type and quality — cheaper than ML, more precise than raw text length.
+///     Converts HTML to Markdown and analyzes structural signals for content quality scoring.
+///     Uses Markdown structure (headings, lists, code blocks, tables, paragraphs) as proxy
+///     signals for content type and quality — cheaper than ML, more precise than raw text length.
 /// </summary>
 public static partial class MarkdownContentAnalyzer
 {
-    private static readonly ReverseMarkdown.Converter MdConverter = new(new RmConfig
+    private static readonly Converter MdConverter = new(new RmConfig
     {
         GithubFlavored = true,
         RemoveComments = true,
         SmartHrefHandling = true,
         UnknownTags = RmConfig.UnknownTagsOption.Bypass,
-        TableWithoutHeaderRowHandling = RmConfig.TableWithoutHeaderRowHandlingOption.Default,
+        TableWithoutHeaderRowHandling = RmConfig.TableWithoutHeaderRowHandlingOption.Default
     });
 
+    // Common English stop words for density calculation
+    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+        "being", "have", "has", "had", "do", "does", "did", "will", "would",
+        "could", "should", "may", "might", "can", "shall", "not", "no",
+        "it", "its", "this", "that", "these", "those", "he", "she", "they",
+        "we", "you", "i", "me", "my", "your", "his", "her", "our", "their",
+        "as", "if", "so", "than", "then", "also", "more", "most", "some",
+        "any", "all", "each", "every", "both", "few", "many", "much",
+        "about", "up", "out", "into", "over", "after", "before", "between",
+        "under", "such", "very", "just", "only", "when", "where", "how",
+        "what", "which", "who", "whom", "why", "because", "while"
+    };
+
     /// <summary>
-    /// Convert HTML to clean Markdown, preserving structural elements.
+    ///     Convert HTML to clean Markdown, preserving structural elements.
     /// </summary>
     public static string HtmlToMarkdown(string html)
     {
@@ -40,7 +57,7 @@ public static partial class MarkdownContentAnalyzer
     }
 
     /// <summary>
-    /// Analyze Markdown structure and return content quality signals.
+    ///     Analyze Markdown structure and return content quality signals.
     /// </summary>
     public static ContentStructure Analyze(string markdown)
     {
@@ -76,6 +93,7 @@ public static partial class MarkdownContentAnalyzer
                     FlushParagraph(currentParagraph, structure);
                     inCodeBlock = true;
                 }
+
                 continue;
             }
 
@@ -94,11 +112,13 @@ public static partial class MarkdownContentAnalyzer
                     inTable = true;
                     tableRows = 0;
                 }
+
                 // Skip separator rows (|---|---|)
                 if (!TableSeparator().IsMatch(trimmed))
                     tableRows++;
                 continue;
             }
+
             if (inTable)
             {
                 structure.Tables++;
@@ -180,6 +200,7 @@ public static partial class MarkdownContentAnalyzer
             structure.CodeBlocks++;
             structure.CodeBlockLines += codeBlockLines;
         }
+
         if (inTable)
         {
             structure.Tables++;
@@ -199,9 +220,9 @@ public static partial class MarkdownContentAnalyzer
     }
 
     /// <summary>
-    /// Quick extraction: convert HTML to Markdown, analyze structure, return
-    /// the structured Markdown content (preserving headings, lists, etc.)
-    /// plus quality signals.
+    ///     Quick extraction: convert HTML to Markdown, analyze structure, return
+    ///     the structured Markdown content (preserving headings, lists, etc.)
+    ///     plus quality signals.
     /// </summary>
     public static (string markdown, ContentStructure structure) ExtractStructured(string html)
     {
@@ -231,26 +252,10 @@ public static partial class MarkdownContentAnalyzer
         lines.Clear();
     }
 
-    // Common English stop words for density calculation
-    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-        "being", "have", "has", "had", "do", "does", "did", "will", "would",
-        "could", "should", "may", "might", "can", "shall", "not", "no",
-        "it", "its", "this", "that", "these", "those", "he", "she", "they",
-        "we", "you", "i", "me", "my", "your", "his", "her", "our", "their",
-        "as", "if", "so", "than", "then", "also", "more", "most", "some",
-        "any", "all", "each", "every", "both", "few", "many", "much",
-        "about", "up", "out", "into", "over", "after", "before", "between",
-        "under", "such", "very", "just", "only", "when", "where", "how",
-        "what", "which", "who", "whom", "why", "because", "while"
-    };
-
     /// <summary>
-    /// Compute text quality signals: stop word density, sentence completeness,
-    /// paragraph CV, and duplicate line ratio.
-    /// Called after structural analysis is complete.
+    ///     Compute text quality signals: stop word density, sentence completeness,
+    ///     paragraph CV, and duplicate line ratio.
+    ///     Called after structural analysis is complete.
     /// </summary>
     internal static void ComputeTextQualitySignals(string markdown, ContentStructure structure)
     {
@@ -307,9 +312,7 @@ public static partial class MarkdownContentAnalyzer
 
         // Sentence completeness ratio
         if (structure.TotalSentenceLines > 0)
-        {
             structure.SentenceCompleteness = (float)structure.CompleteSentences / structure.TotalSentenceLines;
-        }
     }
 
     [GeneratedRegex(@"\b[\w'-]+\b")]
@@ -336,8 +339,8 @@ public static partial class MarkdownContentAnalyzer
 }
 
 /// <summary>
-/// Structural analysis of Markdown content.
-/// Captures document structure signals for content quality assessment.
+///     Structural analysis of Markdown content.
+///     Captures document structure signals for content quality assessment.
 /// </summary>
 public class ContentStructure
 {
@@ -362,12 +365,12 @@ public class ContentStructure
     public int Images { get; set; }
 
     // Text quality signals (research-backed)
-    public float StopWordDensity { get; set; }    // 0.35-0.50 = natural prose
+    public float StopWordDensity { get; set; } // 0.35-0.50 = natural prose
     public float SentenceCompleteness { get; set; } // Ratio of lines ending with .!?
-    public float ParagraphLengthCV { get; set; }   // Coefficient of variation (0 = uniform, >1 = varied)
-    public float DuplicateLineRatio { get; set; }  // 0 = all unique, 1 = all duplicates
-    public int CompleteSentences { get; set; }     // Internal counter
-    public int TotalSentenceLines { get; set; }    // Internal counter
+    public float ParagraphLengthCV { get; set; } // Coefficient of variation (0 = uniform, >1 = varied)
+    public float DuplicateLineRatio { get; set; } // 0 = all unique, 1 = all duplicates
+    public int CompleteSentences { get; set; } // Internal counter
+    public int TotalSentenceLines { get; set; } // Internal counter
     public int WordCount { get; set; }
 
     // Derived quality metrics
@@ -375,7 +378,7 @@ public class ContentStructure
     public string ContentType { get; set; } = "unknown";
 
     /// <summary>
-    /// Compute an overall content quality score (0-1) and classify content type.
+    ///     Compute an overall content quality score (0-1) and classify content type.
     /// </summary>
     public void ComputeQualityScore()
     {
@@ -479,7 +482,7 @@ public class ContentStructure
     }
 
     /// <summary>
-    /// Short structural summary for debug/display.
+    ///     Short structural summary for debug/display.
     /// </summary>
     public string ToSummary()
     {

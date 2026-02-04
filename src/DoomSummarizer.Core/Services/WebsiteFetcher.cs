@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using AngleSharp;
 using AngleSharp.Dom;
 using DoomSummarizer.Models;
@@ -9,8 +12,8 @@ namespace DoomSummarizer.Services;
 public class WebsiteFetcher : IAsyncDisposable
 {
     private readonly HttpClient _httpClient;
-    private IPlaywright? _playwright;
     private IBrowser? _browser;
+    private IPlaywright? _playwright;
     private bool _playwrightInitialized;
 
     public WebsiteFetcher(HttpClient httpClient)
@@ -18,15 +21,22 @@ public class WebsiteFetcher : IAsyncDisposable
         _httpClient = httpClient;
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (_browser != null) await _browser.CloseAsync();
+        _playwright?.Dispose();
+    }
+
     /// <summary>
-    /// Extract full article content from a URL using SmartReader (ML-based readability).
+    ///     Extract full article content from a URL using SmartReader (ML-based readability).
     /// </summary>
     public async Task<(string title, string content, string? author, string? image)> ExtractArticleAsync(string url)
     {
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
+            request.Headers.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
             request.Headers.Add("Accept", "text/html,application/xhtml+xml");
 
             using var response = await _httpClient.SendAsync(request);
@@ -40,14 +50,12 @@ public class WebsiteFetcher : IAsyncDisposable
             var article = await reader.GetArticleAsync();
 
             if (article != null && article.IsReadable)
-            {
                 return (
                     article.Title ?? "",
                     article.TextContent ?? "",
                     article.Author,
                     article.FeaturedImage
                 );
-            }
 
             // Fallback to basic extraction
             return FallbackExtractArticle(html, url);
@@ -58,7 +66,8 @@ public class WebsiteFetcher : IAsyncDisposable
         }
     }
 
-    private static (string title, string content, string? author, string? image) FallbackExtractArticle(string html, string url)
+    private static (string title, string content, string? author, string? image) FallbackExtractArticle(string html,
+        string url)
     {
         var config = Configuration.Default;
         var context = BrowsingContext.New(config);
@@ -104,7 +113,7 @@ public class WebsiteFetcher : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch {site.Url}: {ex.Message}");
+                Debug.WriteLine($"Warning: Failed to fetch {site.Url}: {ex.Message}");
             }
         }
 
@@ -144,15 +153,9 @@ public class WebsiteFetcher : IAsyncDisposable
         var uri = new Uri(baseUrl);
 
         // Known site patterns
-        if (baseUrl.Contains("news.ycombinator.com"))
-        {
-            return ExtractHackerNewsStyle(document, baseUrl);
-        }
+        if (baseUrl.Contains("news.ycombinator.com")) return ExtractHackerNewsStyle(document, baseUrl);
 
-        if (baseUrl.Contains("reddit.com"))
-        {
-            return ExtractRedditStyle(document, baseUrl);
-        }
+        if (baseUrl.Contains("reddit.com")) return ExtractRedditStyle(document, baseUrl);
 
         // Try custom selector first
         if (!string.IsNullOrEmpty(selector))
@@ -163,6 +166,7 @@ public class WebsiteFetcher : IAsyncDisposable
                 var item = ExtractItemFromElement(el, baseUrl);
                 if (item != null) items.Add(item);
             }
+
             if (items.Count > 0) return items;
         }
 
@@ -355,7 +359,6 @@ public class WebsiteFetcher : IAsyncDisposable
         };
 
         foreach (var sel in selectors)
-        {
             try
             {
                 var elements = document.QuerySelectorAll(sel).ToList();
@@ -367,16 +370,12 @@ public class WebsiteFetcher : IAsyncDisposable
                     return text.Length > 20 && text.Length < 5000;
                 }).ToList();
 
-                if (elements.Count >= 3 && elements.Count <= 100)
-                {
-                    return elements;
-                }
+                if (elements.Count >= 3 && elements.Count <= 100) return elements;
             }
             catch
             {
                 // Invalid selector, skip
             }
-        }
 
         return [];
     }
@@ -384,20 +383,20 @@ public class WebsiteFetcher : IAsyncDisposable
     private static string ExtractMainContent(IDocument document)
     {
         // Remove script, style, nav, footer, aside
-        foreach (var element in document.QuerySelectorAll("script, style, nav, footer, aside, header, .sidebar, .menu, .advertisement, .ad, .nav"))
-        {
+        foreach (var element in document.QuerySelectorAll(
+                     "script, style, nav, footer, aside, header, .sidebar, .menu, .advertisement, .ad, .nav"))
             element.Remove();
-        }
 
         // Try main content selectors
-        var mainSelectors = new[] { "main", "article", "[role='main']", ".content", "#content", ".post-content", ".article-content", ".entry-content" };
+        var mainSelectors = new[]
+        {
+            "main", "article", "[role='main']", ".content", "#content", ".post-content", ".article-content",
+            ".entry-content"
+        };
         foreach (var sel in mainSelectors)
         {
             var main = document.QuerySelector(sel);
-            if (main != null && main.TextContent.Length > 100)
-            {
-                return CleanText(main.TextContent);
-            }
+            if (main != null && main.TextContent.Length > 100) return CleanText(main.TextContent);
         }
 
         // Fall back to body
@@ -428,16 +427,7 @@ public class WebsiteFetcher : IAsyncDisposable
 
     private static string GenerateId(string input)
     {
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input)))[..16].ToLowerInvariant();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_browser != null)
-        {
-            await _browser.CloseAsync();
-        }
-        _playwright?.Dispose();
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input)))[..16].ToLowerInvariant();
     }
 }

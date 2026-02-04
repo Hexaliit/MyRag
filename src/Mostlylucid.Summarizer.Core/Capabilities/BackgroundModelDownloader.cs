@@ -5,24 +5,24 @@ using Microsoft.Extensions.Logging;
 namespace Mostlylucid.Summarizer.Core.Capabilities;
 
 /// <summary>
-/// Background coordinator for lazy model downloads.
-/// Downloads models only when first needed by a component.
-/// Emits signals when models become available.
+///     Background coordinator for lazy model downloads.
+///     Downloads models only when first needed by a component.
+///     Emits signals when models become available.
 /// </summary>
 public class BackgroundModelDownloader : IDisposable
 {
-    private readonly ILogger<BackgroundModelDownloader> _logger;
-    private readonly CapabilityRegistry _registry;
-    private readonly ICapabilitySignalSink _signalSink;
-    private readonly string _modelsDirectory;
-    private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _downloadLock = new(1, 1);
 
     // Track download states
     private readonly ConcurrentDictionary<string, DownloadState> _downloadStates = new();
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<BackgroundModelDownloader> _logger;
+    private readonly string _modelsDirectory;
 
     // Pending download requests (deduplicated)
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ModelDownloadResult>> _pendingDownloads = new();
+    private readonly CapabilityRegistry _registry;
+    private readonly ICapabilitySignalSink _signalSink;
 
     public BackgroundModelDownloader(
         ILogger<BackgroundModelDownloader> logger,
@@ -39,22 +39,26 @@ public class BackgroundModelDownloader : IDisposable
         Directory.CreateDirectory(_modelsDirectory);
     }
 
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _downloadLock.Dispose();
+    }
+
     /// <summary>
-    /// Request a model, downloading if necessary. Returns immediately if already downloaded.
-    /// Multiple requests for the same model are deduplicated.
+    ///     Request a model, downloading if necessary. Returns immediately if already downloaded.
+    ///     Multiple requests for the same model are deduplicated.
     /// </summary>
     public async Task<ModelDownloadResult> EnsureModelAsync(string modelId, CancellationToken ct = default)
     {
         var model = ModelManifest.Instance.GetModel(modelId);
         if (model == null)
-        {
             return new ModelDownloadResult
             {
                 ModelId = modelId,
                 Success = false,
                 Error = $"Unknown model: {modelId}"
             };
-        }
 
         var localPath = Path.Combine(_modelsDirectory, model.RelativePath);
 
@@ -107,7 +111,7 @@ public class BackgroundModelDownloader : IDisposable
     }
 
     /// <summary>
-    /// Get all models required by a component.
+    ///     Get all models required by a component.
     /// </summary>
     public async Task<List<ModelDownloadResult>> EnsureModelsForComponentAsync(
         string componentName,
@@ -126,7 +130,7 @@ public class BackgroundModelDownloader : IDisposable
     }
 
     /// <summary>
-    /// Check which models are available locally (no download).
+    ///     Check which models are available locally (no download).
     /// </summary>
     public Dictionary<string, bool> CheckModelAvailability()
     {
@@ -142,10 +146,12 @@ public class BackgroundModelDownloader : IDisposable
     }
 
     /// <summary>
-    /// Get download state for a model (if downloading).
+    ///     Get download state for a model (if downloading).
     /// </summary>
-    public DownloadState? GetDownloadState(string modelId) =>
-        _downloadStates.GetValueOrDefault(modelId);
+    public DownloadState? GetDownloadState(string modelId)
+    {
+        return _downloadStates.GetValueOrDefault(modelId);
+    }
 
     private async Task<ModelDownloadResult> DownloadModelAsync(
         ModelDefinition model,
@@ -175,13 +181,11 @@ public class BackgroundModelDownloader : IDisposable
         {
             // Ensure directory exists
             var directory = Path.GetDirectoryName(localPath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
             // Download with progress
-            using var response = await _httpClient.GetAsync(model.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+            using var response =
+                await _httpClient.GetAsync(model.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
 
             var totalBytes = response.Content.Headers.ContentLength ?? model.ExpectedSizeBytes ?? 0;
@@ -189,7 +193,8 @@ public class BackgroundModelDownloader : IDisposable
 
             var tempPath = localPath + ".tmp";
             await using (var contentStream = await response.Content.ReadAsStreamAsync(ct))
-            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            await using (var fileStream =
+                         new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
             {
                 var buffer = new byte[81920];
                 var totalRead = 0L;
@@ -205,7 +210,6 @@ public class BackgroundModelDownloader : IDisposable
 
                     // Emit progress every 10%
                     if (totalBytes > 0 && totalRead % (totalBytes / 10 + 1) < bytesRead)
-                    {
                         await _signalSink.EmitAsync(new CapabilitySignal
                         {
                             SignalType = CapabilitySignalType.ModelDownloadProgress,
@@ -213,7 +217,6 @@ public class BackgroundModelDownloader : IDisposable
                             Progress = state.Progress,
                             Timestamp = DateTimeOffset.UtcNow
                         }, ct);
-                    }
                 }
             }
 
@@ -226,12 +229,13 @@ public class BackgroundModelDownloader : IDisposable
                 if (!string.Equals(hash, model.Sha256Hash, StringComparison.OrdinalIgnoreCase))
                 {
                     File.Delete(tempPath);
-                    throw new InvalidOperationException($"Hash mismatch for {model.Id}. Expected: {model.Sha256Hash}, Got: {hash}");
+                    throw new InvalidOperationException(
+                        $"Hash mismatch for {model.Id}. Expected: {model.Sha256Hash}, Got: {hash}");
                 }
             }
 
             // Move to final location
-            File.Move(tempPath, localPath, overwrite: true);
+            File.Move(tempPath, localPath, true);
 
             state.Status = DownloadStatus.Completed;
             state.CompletedAt = DateTimeOffset.UtcNow;
@@ -291,16 +295,10 @@ public class BackgroundModelDownloader : IDisposable
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return Path.Combine(appData, "lucidrag", "models");
     }
-
-    public void Dispose()
-    {
-        _httpClient.Dispose();
-        _downloadLock.Dispose();
-    }
 }
 
 /// <summary>
-/// Result of a model download request.
+///     Result of a model download request.
 /// </summary>
 public record ModelDownloadResult
 {
@@ -313,7 +311,7 @@ public record ModelDownloadResult
 }
 
 /// <summary>
-/// Current state of a model download.
+///     Current state of a model download.
 /// </summary>
 public class DownloadState
 {
@@ -328,7 +326,7 @@ public class DownloadState
 }
 
 /// <summary>
-/// Download status enum.
+///     Download status enum.
 /// </summary>
 public enum DownloadStatus
 {

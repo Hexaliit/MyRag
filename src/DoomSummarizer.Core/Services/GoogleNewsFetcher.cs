@@ -1,3 +1,8 @@
+using System.Diagnostics;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
 using System.Xml.Linq;
@@ -6,16 +11,31 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Google News RSS search - no API key required.
-/// Supports full-text search with time filtering.
-/// Primary source for non-tech topic queries.
+///     Google News RSS search - no API key required.
+///     Supports full-text search with time filtering.
+///     Primary source for non-tech topic queries.
 /// </summary>
 public partial class GoogleNewsFetcher(HttpClient httpClient)
 {
     private const string BaseUrl = "https://news.google.com/rss/search";
 
     /// <summary>
-    /// Search Google News via RSS feed. Returns real news articles from major outlets.
+    ///     Google News topic names that map to RSS topic feeds.
+    /// </summary>
+    public static readonly Dictionary<string, string> TopicMapping = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["health"] = "HEALTH",
+        ["science"] = "SCIENCE",
+        ["business"] = "BUSINESS",
+        ["technology"] = "TECHNOLOGY",
+        ["entertainment"] = "ENTERTAINMENT",
+        ["sports"] = "SPORTS",
+        ["world"] = "WORLD",
+        ["nation"] = "NATION"
+    };
+
+    /// <summary>
+    ///     Search Google News via RSS feed. Returns real news articles from major outlets.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(string query, int maxResults = 20, int? daysBack = null)
     {
@@ -59,7 +79,7 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
                 {
                     Id = $"gnews_{GenerateId(actualUrl ?? link ?? title)}",
                     Source = "gnews",
-                    Title = System.Net.WebUtility.HtmlDecode(title),
+                    Title = WebUtility.HtmlDecode(title),
                     Url = actualUrl ?? link,
                     Content = StripHtml(description ?? ""),
                     Author = source,
@@ -71,7 +91,7 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
         {
             // Don't use AnsiConsole here — this runs from background tasks during Progress rendering
             // and AnsiConsole is not thread-safe, causing IndexOutOfRange crashes
-            System.Diagnostics.Debug.WriteLine($"Google News search failed: {ex.Message}");
+            Debug.WriteLine($"Google News search failed: {ex.Message}");
         }
 
         // Resolve Google News redirect URLs to actual article URLs
@@ -81,7 +101,7 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Fetch a Google News topic feed (HEALTH, SCIENCE, BUSINESS, etc.)
+    ///     Fetch a Google News topic feed (HEALTH, SCIENCE, BUSINESS, etc.)
     /// </summary>
     public async Task<List<ContentItem>> FetchTopicAsync(string topic, int maxResults = 20)
     {
@@ -89,7 +109,8 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
 
         try
         {
-            var url = $"https://news.google.com/rss/headlines/section/topic/{topic.ToUpperInvariant()}?hl=en-US&gl=US&ceid=US:en";
+            var url =
+                $"https://news.google.com/rss/headlines/section/topic/{topic.ToUpperInvariant()}?hl=en-US&gl=US&ceid=US:en";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent",
@@ -117,7 +138,7 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
                 {
                     Id = $"gnews_{GenerateId(actualUrl ?? link ?? title)}",
                     Source = "gnews",
-                    Title = System.Net.WebUtility.HtmlDecode(title),
+                    Title = WebUtility.HtmlDecode(title),
                     Url = actualUrl ?? link,
                     Content = StripHtml(description ?? ""),
                     Author = source,
@@ -128,10 +149,10 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
         catch (Exception ex)
         {
             // Don't use AnsiConsole here — this runs from background tasks during Progress rendering
-            System.Diagnostics.Debug.WriteLine($"Google News topic '{topic}' feed failed, falling back to search: {ex.Message}");
+            Debug.WriteLine($"Google News topic '{topic}' feed failed, falling back to search: {ex.Message}");
             // Fall back to keyword search — topic feeds can be unreliable
             // (SearchAsync already resolves redirect URLs)
-            return await SearchAsync(topic.ToLowerInvariant().Replace("_", " "), maxResults, daysBack: 7);
+            return await SearchAsync(topic.ToLowerInvariant().Replace("_", " "), maxResults, 7);
         }
 
         // Resolve Google News redirect URLs to actual article URLs
@@ -141,24 +162,9 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Google News topic names that map to RSS topic feeds.
-    /// </summary>
-    public static readonly Dictionary<string, string> TopicMapping = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["health"] = "HEALTH",
-        ["science"] = "SCIENCE",
-        ["business"] = "BUSINESS",
-        ["technology"] = "TECHNOLOGY",
-        ["entertainment"] = "ENTERTAINMENT",
-        ["sports"] = "SPORTS",
-        ["world"] = "WORLD",
-        ["nation"] = "NATION"
-    };
-
-    /// <summary>
-    /// Google News RSS provides redirect URLs (news.google.com/rss/articles/...).
-    /// Tries offline base64/protobuf decoding first; returns original URL as fallback
-    /// for HTTP redirect resolution in ResolveRedirectUrlsAsync.
+    ///     Google News RSS provides redirect URLs (news.google.com/rss/articles/...).
+    ///     Tries offline base64/protobuf decoding first; returns original URL as fallback
+    ///     for HTTP redirect resolution in ResolveRedirectUrlsAsync.
     /// </summary>
     private static string? ExtractActualUrl(string? url)
     {
@@ -167,9 +173,9 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Decode a Google News redirect URL by extracting the real article URL from
-    /// the base64-encoded protobuf payload in /articles/{encoded} or /rss/articles/{encoded}.
-    /// Returns null if decoding fails (falls through to HTTP redirect resolution).
+    ///     Decode a Google News redirect URL by extracting the real article URL from
+    ///     the base64-encoded protobuf payload in /articles/{encoded} or /rss/articles/{encoded}.
+    ///     Returns null if decoding fails (falls through to HTTP redirect resolution).
     /// </summary>
     internal static string? DecodeGoogleNewsUrl(string googleUrl)
     {
@@ -191,8 +197,14 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
         if (padding < 4) encoded += new string('=', padding);
 
         byte[] bytes;
-        try { bytes = Convert.FromBase64String(encoded); }
-        catch { return null; }
+        try
+        {
+            bytes = Convert.FromBase64String(encoded);
+        }
+        catch
+        {
+            return null;
+        }
 
         // Strategy 1: Protobuf-aware parsing
         // The payload is typically: 0x08 (field 1, varint) + value + 0x22 (field 4, length-delimited) + URL
@@ -205,8 +217,8 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Parse the protobuf structure to extract the URL string field.
-    /// Expected layout: field 1 (varint) + field 4 (length-delimited string = URL).
+    ///     Parse the protobuf structure to extract the URL string field.
+    ///     Expected layout: field 1 (varint) + field 4 (length-delimited string = URL).
     /// </summary>
     private static string? TryExtractProtobufUrl(byte[] bytes)
     {
@@ -231,12 +243,10 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
             var len = ReadVarint(bytes, ref offset);
             if (len <= 0 || offset + len > bytes.Length) return null;
 
-            var candidate = System.Text.Encoding.UTF8.GetString(bytes, offset, len);
+            var candidate = Encoding.UTF8.GetString(bytes, offset, len);
             if (candidate.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                 candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
                 return Uri.TryCreate(candidate, UriKind.Absolute, out _) ? candidate : null;
-            }
         }
         catch
         {
@@ -247,12 +257,12 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Fallback: scan decoded bytes for "http://" or "https://" and extract the URL.
-    /// Handles cases where the protobuf structure doesn't match our expected layout.
+    ///     Fallback: scan decoded bytes for "http://" or "https://" and extract the URL.
+    ///     Handles cases where the protobuf structure doesn't match our expected layout.
     /// </summary>
     private static string? TryExtractUrlByScanning(byte[] bytes)
     {
-        var text = System.Text.Encoding.UTF8.GetString(bytes);
+        var text = Encoding.UTF8.GetString(bytes);
         string? bestUrl = null;
 
         var searchPos = 0;
@@ -270,11 +280,9 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
             if (Uri.TryCreate(candidate, UriKind.Absolute, out var uri)
                 && uri.Scheme is "http" or "https"
                 && !uri.Host.Contains("google.com", StringComparison.OrdinalIgnoreCase))
-            {
                 // Prefer the longest non-Google URL (the article URL is typically longer)
                 if (bestUrl == null || candidate.Length > bestUrl.Length)
                     bestUrl = candidate;
-            }
 
             searchPos = end;
         }
@@ -282,8 +290,10 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
         return bestUrl;
     }
 
-    private static bool IsUrlChar(char c) =>
-        c > 0x20 && c < 0x7F && c != '"' && c != '\'' && c != '<' && c != '>' && c != ' ';
+    private static bool IsUrlChar(char c)
+    {
+        return c > 0x20 && c < 0x7F && c != '"' && c != '\'' && c != '<' && c != '>' && c != ' ';
+    }
 
     private static int ReadVarint(byte[] bytes, ref int offset)
     {
@@ -296,14 +306,15 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
             if ((b & 0x80) == 0) break;
             shift += 7;
         }
+
         return result;
     }
 
     /// <summary>
-    /// Resolve any remaining Google News redirect URLs using three strategies:
-    /// Strategy 1: batchexecute API (works for new "AU_yqL" format, post-July 2024).
-    /// Strategy 2: HTTP 3xx redirect following (works for older format).
-    /// Strategy 3: HTML body parsing for JS-redirect pages.
+    ///     Resolve any remaining Google News redirect URLs using three strategies:
+    ///     Strategy 1: batchexecute API (works for new "AU_yqL" format, post-July 2024).
+    ///     Strategy 2: HTTP 3xx redirect following (works for older format).
+    ///     Strategy 3: HTML body parsing for JS-redirect pages.
     /// </summary>
     private async Task ResolveRedirectUrlsAsync(List<ContentItem> items)
     {
@@ -328,8 +339,8 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
         {
             AllowAutoRedirect = true,
             UseCookies = true,
-            CookieContainer = new System.Net.CookieContainer(),
-            AutomaticDecompression = System.Net.DecompressionMethods.All
+            CookieContainer = new CookieContainer(),
+            AutomaticDecompression = DecompressionMethods.All
         };
         using var redirectClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
 
@@ -361,10 +372,7 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
                 {
                     var html = await response.Content.ReadAsStringAsync(cts.Token);
                     var extractedUrl = ExtractUrlFromGoogleNewsHtml(html);
-                    if (extractedUrl != null)
-                    {
-                        item.Url = extractedUrl;
-                    }
+                    if (extractedUrl != null) item.Url = extractedUrl;
                 }
             }
             catch
@@ -381,9 +389,9 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Resolve Google News URLs via the batchexecute API (DotsSplashUi endpoint).
-    /// This handles the new "AU_yqL" URL format introduced in July 2024 where
-    /// the article URL is no longer embedded in the base64 payload.
+    ///     Resolve Google News URLs via the batchexecute API (DotsSplashUi endpoint).
+    ///     This handles the new "AU_yqL" URL format introduced in July 2024 where
+    ///     the article URL is no longer embedded in the base64 payload.
     /// </summary>
     private async Task ResolveBatchExecuteAsync(List<ContentItem> items)
     {
@@ -411,13 +419,14 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
                 // Build the garturlreq RPC payload
-                var innerPayload = $"""["garturlreq",[["en-US","US",["FINANCE_TOP_INDICES","WEB_TEST_1_0_0"]],"{articleId}"]]""";
-                var outerPayload = $"""[[["Fbv4je",{System.Text.Json.JsonSerializer.Serialize(innerPayload)},"generic"]]]""";
+                var innerPayload =
+                    $"""["garturlreq",[["en-US","US",["FINANCE_TOP_INDICES","WEB_TEST_1_0_0"]],"{articleId}"]]""";
+                var outerPayload = $"""[[["Fbv4je",{JsonSerializer.Serialize(innerPayload)},"generic"]]]""";
                 var formData = $"f.req={HttpUtility.UrlEncode(outerPayload)}";
 
                 var request = new HttpRequestMessage(HttpMethod.Post, batchUrl)
                 {
-                    Content = new StringContent(formData, System.Text.Encoding.UTF8,
+                    Content = new StringContent(formData, Encoding.UTF8,
                         "application/x-www-form-urlencoded")
                 };
                 request.Headers.Add("User-Agent",
@@ -456,12 +465,12 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
 
         // Don't use AnsiConsole here — this runs from background tasks during Progress rendering
         if (resolved > 0 || failed > 0)
-            System.Diagnostics.Debug.WriteLine($"Google News URL resolution: {resolved} resolved, {failed} failed (batchexecute)");
+            Debug.WriteLine($"Google News URL resolution: {resolved} resolved, {failed} failed (batchexecute)");
     }
 
     /// <summary>
-    /// Extract the article ID from a Google News URL.
-    /// URL format: https://news.google.com/rss/articles/{ARTICLE_ID}?oc=5
+    ///     Extract the article ID from a Google News URL.
+    ///     URL format: https://news.google.com/rss/articles/{ARTICLE_ID}?oc=5
     /// </summary>
     private static string? ExtractArticleId(string url)
     {
@@ -476,9 +485,9 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Parse the batchexecute response for the decoded article URL.
-    /// Response format is a multi-line structure with nested JSON arrays.
-    /// The URL appears in a "garturlres" response after the RPC ID "Fbv4je".
+    ///     Parse the batchexecute response for the decoded article URL.
+    ///     Response format is a multi-line structure with nested JSON arrays.
+    ///     The URL appears in a "garturlres" response after the RPC ID "Fbv4je".
     /// </summary>
     private static string? ExtractUrlFromBatchResponse(string body)
     {
@@ -516,26 +525,26 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Extract the actual article URL from a Google News redirect page's HTML.
-    /// Google News uses JavaScript redirects, but the target URL often appears in:
-    /// - data-n-au attributes
-    /// - data-n-au attributes in anchor tags
-    /// - anchor tags with article links
-    /// - script blocks with window.location or redirect URLs
-    /// - noscript sections with direct links
+    ///     Extract the actual article URL from a Google News redirect page's HTML.
+    ///     Google News uses JavaScript redirects, but the target URL often appears in:
+    ///     - data-n-au attributes
+    ///     - data-n-au attributes in anchor tags
+    ///     - anchor tags with article links
+    ///     - script blocks with window.location or redirect URLs
+    ///     - noscript sections with direct links
     /// </summary>
     private static string? ExtractUrlFromGoogleNewsHtml(string html)
     {
         // Pattern 1: data-n-au attribute (Google News article URL)
         var dataNauMatch = DataNauRegex().Match(html);
         if (dataNauMatch.Success && IsValidArticleUrl(dataNauMatch.Groups[1].Value))
-            return System.Net.WebUtility.HtmlDecode(dataNauMatch.Groups[1].Value);
+            return WebUtility.HtmlDecode(dataNauMatch.Groups[1].Value);
 
         // Pattern 2: <a href="..."> with class containing "article" or rel="noopener"
         var anchorMatches = AnchorHrefRegex().Matches(html);
         foreach (Match match in anchorMatches)
         {
-            var href = System.Net.WebUtility.HtmlDecode(match.Groups[1].Value);
+            var href = WebUtility.HtmlDecode(match.Groups[1].Value);
             if (IsValidArticleUrl(href))
                 return href;
         }
@@ -553,20 +562,22 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
         return null;
     }
 
-    private static bool IsValidArticleUrl(string? url) =>
-        !string.IsNullOrEmpty(url)
-        && !url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
-        && !url.Contains("consent.google.com", StringComparison.OrdinalIgnoreCase)
-        && !url.Contains("policies.google.com", StringComparison.OrdinalIgnoreCase)
-        && !url.Contains("accounts.google.com", StringComparison.OrdinalIgnoreCase)
-        && !url.Contains("google.com/sorry", StringComparison.OrdinalIgnoreCase)
-        && (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-            || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+    private static bool IsValidArticleUrl(string? url)
+    {
+        return !string.IsNullOrEmpty(url)
+               && !url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
+               && !url.Contains("consent.google.com", StringComparison.OrdinalIgnoreCase)
+               && !url.Contains("policies.google.com", StringComparison.OrdinalIgnoreCase)
+               && !url.Contains("accounts.google.com", StringComparison.OrdinalIgnoreCase)
+               && !url.Contains("google.com/sorry", StringComparison.OrdinalIgnoreCase)
+               && (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                   || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+    }
 
     private static string StripHtml(string html)
     {
         var text = HtmlTagRegex().Replace(html, " ");
-        text = System.Net.WebUtility.HtmlDecode(text);
+        text = WebUtility.HtmlDecode(text);
         text = WhitespaceRegex().Replace(text, " ").Trim();
         return text.Length > 1500 ? text[..1500] : text;
     }
@@ -579,8 +590,8 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
 
     private static string GenerateId(string input)
     {
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
     }
 
     [GeneratedRegex(@"https?://[^""\\]+")]

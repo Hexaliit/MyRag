@@ -1,71 +1,66 @@
-﻿using System;
+﻿#nullable disable
+
 using Microsoft.EntityFrameworkCore.Migrations;
 
-#nullable disable
+namespace LucidRAG.Migrations.Tenant;
 
-namespace LucidRAG.Migrations.Tenant
+/// <inheritdoc />
+public partial class InitialTenants : Migration
 {
     /// <inheritdoc />
-    public partial class InitialTenants : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.EnsureSchema(
-                name: "public");
+        migrationBuilder.EnsureSchema(
+            "public");
 
-            migrationBuilder.CreateTable(
-                name: "tenants",
-                schema: "public",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TenantId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    SchemaName = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    QdrantCollection = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    DisplayName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    ContactEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    IsProvisioned = table.Column<bool>(type: "boolean", nullable: false),
-                    Settings = table.Column<string>(type: "text", nullable: true),
-                    Plan = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    ProvisionedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    LastAccessedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_tenants", x => x.Id);
-                });
+        migrationBuilder.CreateTable(
+            "tenants",
+            schema: "public",
+            columns: table => new
+            {
+                Id = table.Column<Guid>("uuid", nullable: false),
+                TenantId = table.Column<string>("character varying(64)", maxLength: 64, nullable: false),
+                SchemaName = table.Column<string>("character varying(128)", maxLength: 128, nullable: false),
+                QdrantCollection = table.Column<string>("character varying(128)", maxLength: 128, nullable: false),
+                DisplayName = table.Column<string>("character varying(256)", maxLength: 256, nullable: true),
+                ContactEmail = table.Column<string>("character varying(256)", maxLength: 256, nullable: true),
+                IsActive = table.Column<bool>("boolean", nullable: false),
+                IsProvisioned = table.Column<bool>("boolean", nullable: false),
+                Settings = table.Column<string>("text", nullable: true),
+                Plan = table.Column<string>("character varying(32)", maxLength: 32, nullable: true),
+                CreatedAt = table.Column<DateTimeOffset>("timestamp with time zone", nullable: false),
+                UpdatedAt = table.Column<DateTimeOffset>("timestamp with time zone", nullable: false),
+                ProvisionedAt = table.Column<DateTimeOffset>("timestamp with time zone", nullable: true),
+                LastAccessedAt = table.Column<DateTimeOffset>("timestamp with time zone", nullable: true)
+            },
+            constraints: table => { table.PrimaryKey("PK_tenants", x => x.Id); });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_tenants_IsActive",
-                schema: "public",
-                table: "tenants",
-                column: "IsActive");
+        migrationBuilder.CreateIndex(
+            "IX_tenants_IsActive",
+            schema: "public",
+            table: "tenants",
+            column: "IsActive");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_tenants_SchemaName",
-                schema: "public",
-                table: "tenants",
-                column: "SchemaName",
-                unique: true);
+        migrationBuilder.CreateIndex(
+            "IX_tenants_SchemaName",
+            schema: "public",
+            table: "tenants",
+            column: "SchemaName",
+            unique: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_tenants_TenantId",
-                schema: "public",
-                table: "tenants",
-                column: "TenantId",
-                unique: true);
-        }
+        migrationBuilder.CreateIndex(
+            "IX_tenants_TenantId",
+            schema: "public",
+            table: "tenants",
+            column: "TenantId",
+            unique: true);
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropTable(
-                name: "tenants",
-                schema: "public");
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable(
+            "tenants",
+            "public");
     }
 }

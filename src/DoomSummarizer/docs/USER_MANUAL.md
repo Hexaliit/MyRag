@@ -8,25 +8,30 @@
 
 ### What is DoomSummarizer?
 
-DoomSummarizer is a command-line tool that aggregates content from multiple sources (Hacker News, Reddit, RSS feeds, web pages, local files), processes it through an AI pipeline (embeddings, NER, sentiment analysis, topic detection), and generates ranked, summarized digests. It also builds persistent knowledge bases for Q&A.
+DoomSummarizer is a command-line tool that aggregates content from multiple sources (Hacker News, Reddit, RSS feeds, web
+pages, local files), processes it through an AI pipeline (embeddings, NER, sentiment analysis, topic detection), and
+generates ranked, summarized digests. It also builds persistent knowledge bases for Q&A.
 
 ### Build Variants
 
 Two binaries are produced from the same codebase. Both have the same commands — the difference is the dependency chain.
 
-| Binary | Description | Size | Includes |
-|--------|-------------|------|----------|
-| **`doomsummarizer`** (slim, default) | The "it just works" version — minimal web-oriented deep research and knowledge base tool | ~76 MB | Web crawling, KB Q&A, ONNX embeddings, local LLM (LLamaSharp), DuckDB vector search, BM25 full-text, NER, LLM routing, MCP server |
-| **`lucidrag`** (complete) | All the bells and whistles | ~112 MB | Everything above + all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription (Whisper), audio analysis, subtitle processing (SRT/VTT/ASS), email delivery |
+| Binary                               | Description                                                                              | Size    | Includes                                                                                                                                                                       |
+|--------------------------------------|------------------------------------------------------------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`doomsummarizer`** (slim, default) | The "it just works" version — minimal web-oriented deep research and knowledge base tool | ~76 MB  | Web crawling, KB Q&A, ONNX embeddings, local LLM (LLamaSharp), DuckDB vector search, BM25 full-text, NER, LLM routing, MCP server                                              |
+| **`lucidrag`** (complete)            | All the bells and whistles                                                               | ~112 MB | Everything above + all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription (Whisper), audio analysis, subtitle processing (SRT/VTT/ASS), email delivery |
 
 Build slim: `dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release` (produces `doomsummarizer`)
-Build complete: `dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release -p:CompleteBuild=true` (produces `lucidrag`)
+Build complete: `dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release -p:CompleteBuild=true` (produces
+`lucidrag`)
 
-The binary name tells you which variant you're running. All examples in this manual use `doomsummarizer` — substitute `lucidrag` if using the complete variant.
+The binary name tells you which variant you're running. All examples in this manual use `doomsummarizer` — substitute
+`lucidrag` if using the complete variant.
 
 ### Smart Routing
 
 If you run DoomSummarizer with no recognized command, it routes intelligently:
+
 - No arguments: shows help
 - A URL: routes to `page` command
 - A local file/directory path: routes to `scroll` with `-s` (auto-ingest)
@@ -43,6 +48,7 @@ doomsummarizer setup [--playwright] [--ner]
 ```
 
 **What it does:**
+
 1. Creates configuration directory (`~/.doomsummarizer/`)
 2. Downloads ONNX embedding model (`all-MiniLM-L6-v2`) for local semantic search
 3. Initializes SQLite database
@@ -50,12 +56,14 @@ doomsummarizer setup [--playwright] [--ner]
 5. Creates templates directory
 
 **Optional flags:**
+
 - `--playwright` — Install Chromium browser for JavaScript-heavy site crawling
 - `--ner` — Download BERT-NER model (~430 MB) for named entity extraction
 - `--local-llm` — Download local GGUF models for LLamaSharp inference (~2.7 GB)
 - `--skip-local-llm` — Skip local LLM model download
 
 **Recommended first run:**
+
 ```
 doomsummarizer setup --playwright --ner
 lucidrag setup --playwright --ner
@@ -69,15 +77,17 @@ lucidrag setup --playwright --ner
 
 The two variants default to different LLM providers:
 
-| | `doomsummarizer` | `lucidrag` |
-|---|---|---|
-| **Default** | LLamaSharp (local GGUF — zero-config, no server needed) | Ollama (local server at localhost:11434) |
-| **Setup** | Auto-downloads GGUF models (~2.7 GB) | Does not download GGUF models (use `--local-llm` to opt in) |
-| **Fallback chain** | LLamaSharp → Ollama → Cloud | LLamaSharp → Ollama → Cloud |
+|                    | `doomsummarizer`                                        | `lucidrag`                                                  |
+|--------------------|---------------------------------------------------------|-------------------------------------------------------------|
+| **Default**        | LLamaSharp (local GGUF — zero-config, no server needed) | Ollama (local server at localhost:11434)                    |
+| **Setup**          | Auto-downloads GGUF models (~2.7 GB)                    | Does not download GGUF models (use `--local-llm` to opt in) |
+| **Fallback chain** | LLamaSharp → Ollama → Cloud                             | LLamaSharp → Ollama → Cloud                                 |
 
-**`doomsummarizer`** works out of the box after `setup` — no Ollama or API keys needed. To use Ollama instead, install it and start it; it will be detected automatically.
+**`doomsummarizer`** works out of the box after `setup` — no Ollama or API keys needed. To use Ollama instead, install
+it and start it; it will be detected automatically.
 
 **`lucidrag`** expects Ollama to be running. Install from https://ollama.com, then pull models:
+
 ```
 ollama serve
 ollama pull gemma3:4b
@@ -96,12 +106,12 @@ To use local GGUF models with `lucidrag` instead: `lucidrag setup --local-llm`
 doomsummarizer config [--init] [--full] [--show] [--reference]
 ```
 
-| Flag | Effect |
-|------|--------|
-| `--init` | Create starter config at `~/.doomsummarizer/config.json` |
-| `--init --full` | Create complete config with every setting |
-| `--show` | Display current effective config (default) |
-| `--reference` | Print full YAML reference with all available options |
+| Flag            | Effect                                                   |
+|-----------------|----------------------------------------------------------|
+| `--init`        | Create starter config at `~/.doomsummarizer/config.json` |
+| `--init --full` | Create complete config with every setting                |
+| `--show`        | Display current effective config (default)               |
+| `--reference`   | Print full YAML reference with all available options     |
 
 ### Config File Locations (highest priority wins)
 
@@ -114,6 +124,7 @@ Deep merge: object properties merge recursively; scalars and arrays replace enti
 ### Key Configuration Sections
 
 #### Ollama (Local LLM)
+
 ```json
 {
   "ollama": {
@@ -131,6 +142,7 @@ Deep merge: object properties merge recursively; scalars and arrays replace enti
 - `sentinelModel` — Fast triage model (planning, filtering, quality checks)
 
 #### Embedding
+
 ```json
 {
   "embedding": {
@@ -144,6 +156,7 @@ Deep merge: object properties merge recursively; scalars and arrays replace enti
 Backends: `onnx` (local, no API key), `ollama`
 
 #### Storage
+
 ```json
 {
   "storage": {
@@ -154,6 +167,7 @@ Backends: `onnx` (local, no API key), `ollama`
 ```
 
 #### Sources
+
 ```json
 {
   "sources": {
@@ -164,6 +178,7 @@ Backends: `onnx` (local, no API key), `ollama`
 ```
 
 #### Source Filtering and Weighting
+
 ```json
 {
   "sourceFilter": {
@@ -177,6 +192,7 @@ Backends: `onnx` (local, no API key), `ollama`
 Weights multiply RRF scores: >1.0 boosts, <1.0 penalizes, 1.0 neutral.
 
 #### API Keys (Cloud LLM providers)
+
 ```json
 {
   "keys": [
@@ -191,11 +207,13 @@ Weights multiply RRF scores: >1.0 boosts, <1.0 penalizes, 1.0 neutral.
 }
 ```
 
-Supported providers: `anthropic`, `openai`, `google_search`, `brave_search`, `newsapi`, `tavily`, `jina`, `serper`, `duckduckgo`, `newsdata`, `currents`, `google_places`.
+Supported providers: `anthropic`, `openai`, `google_search`, `brave_search`, `newsapi`, `tavily`, `jina`, `serper`,
+`duckduckgo`, `newsdata`, `currents`, `google_places`.
 
 **Best practice:** Set API keys via environment variables (`DOOM_ANTHROPIC`, `DOOM_OPENAI`, etc.), not in config files.
 
 #### Global API Budget
+
 ```json
 {
   "apiBudget": {
@@ -210,6 +228,7 @@ Supported providers: `anthropic`, `openai`, `google_search`, `brave_search`, `ne
 Built-in vibes: `neutral`, `doom`, `hopeful`, `snarky`, `funny`, `upbeat`, `friendly`, `toon`
 
 Custom vibes can be added in config:
+
 ```json
 {
   "vibes": {
@@ -219,6 +238,7 @@ Custom vibes can be added in config:
 ```
 
 #### Email (Newsletter Delivery)
+
 ```json
 {
   "email": {
@@ -233,6 +253,7 @@ Custom vibes can be added in config:
 ```
 
 #### Link Following
+
 ```json
 {
   "linkFollowing": {
@@ -258,42 +279,42 @@ The primary command. Fetches content from configured sources, ranks it, and gene
 
 ### Arguments
 
-| Argument | Description |
-|----------|-------------|
+| Argument   | Description                                                                     |
+|------------|---------------------------------------------------------------------------------|
 | `[prompt]` | Natural language prompt (e.g., "summarize bbc and hacker news about AI") or URL |
 
 ### Options
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-s\|--source` | Sources: `hn`, `reddit`, `search:query`, URL, or local file path (repeatable) | All enabled |
-| `-l\|--limit` | Maximum items to fetch | 30 |
-| `-v\|--vibe` | Output tone: neutral, doom, hopeful, snarky, funny, upbeat, friendly, toon, or custom text | neutral |
-| `-o\|--output` | Write output to file (.md, .txt, .html, .json) | stdout |
-| `-t\|--template` | Output template name | default |
-| `-q\|--quiet` | Minimal console output | false |
-| `--json` | Output as structured JSON (for LLM tool consumption) | false |
-| `--graph` | Enable knowledge graph build and display | false |
-| `--images` | Display inline ASCII art images for important items | false |
-| `--local` | Query ONLY local knowledge base — no fetching | false |
-| `--no-llm\|--nollm` | Skip LLM summarization (still runs embeddings, sentiment, topic inference) | false |
-| `--no-links` | Skip one-hop link following | false |
-| `--no-entities` | Disable NER entity extraction | false |
-| `--raw` | Show raw extracted content before LLM processing | false |
-| `-f\|--force` | Ignore cache and re-process all content | false |
-| `--full` | Show full diagnostic output: startup panel, status lines, NER, decomposer, evidence briefing | false |
-| `--briefing` | Show evidence briefing panel with themes, entities, and coverage metrics | false |
-| `--debug\|--debug-pipeline` | Show detailed pipeline diagnostics: RRF scores, discards, salience | false |
-| `--model` | Override LLM model for generation (e.g., qwen3:8b) | from config |
-| `--sentinel-model` | Override sentinel LLM model | from config |
-| `--parallel` | Enable parallel section generation for long-form articles | true |
-| `--locale` | Locale for date/number parsing (e.g., en-gb, de-de) | en-us |
-| `--email` | Send digest via email | false |
-| `--email-to` | Override email recipients | from config |
-| `--list-templates` | List available output templates | false |
-| `--clear-storage` | Delete all cached data and exit | false |
-| `--ee\|--easter-egg` | Play the DoomSummarizer animation | false |
-| `-n\|--name` | Named knowledge base collection | none |
+| Flag                        | Description                                                                                  | Default     |
+|-----------------------------|----------------------------------------------------------------------------------------------|-------------|
+| `-s\|--source`              | Sources: `hn`, `reddit`, `search:query`, URL, or local file path (repeatable)                | All enabled |
+| `-l\|--limit`               | Maximum items to fetch                                                                       | 30          |
+| `-v\|--vibe`                | Output tone: neutral, doom, hopeful, snarky, funny, upbeat, friendly, toon, or custom text   | neutral     |
+| `-o\|--output`              | Write output to file (.md, .txt, .html, .json)                                               | stdout      |
+| `-t\|--template`            | Output template name                                                                         | default     |
+| `-q\|--quiet`               | Minimal console output                                                                       | false       |
+| `--json`                    | Output as structured JSON (for LLM tool consumption)                                         | false       |
+| `--graph`                   | Enable knowledge graph build and display                                                     | false       |
+| `--images`                  | Display inline ASCII art images for important items                                          | false       |
+| `--local`                   | Query ONLY local knowledge base — no fetching                                                | false       |
+| `--no-llm\|--nollm`         | Skip LLM summarization (still runs embeddings, sentiment, topic inference)                   | false       |
+| `--no-links`                | Skip one-hop link following                                                                  | false       |
+| `--no-entities`             | Disable NER entity extraction                                                                | false       |
+| `--raw`                     | Show raw extracted content before LLM processing                                             | false       |
+| `-f\|--force`               | Ignore cache and re-process all content                                                      | false       |
+| `--full`                    | Show full diagnostic output: startup panel, status lines, NER, decomposer, evidence briefing | false       |
+| `--briefing`                | Show evidence briefing panel with themes, entities, and coverage metrics                     | false       |
+| `--debug\|--debug-pipeline` | Show detailed pipeline diagnostics: RRF scores, discards, salience                           | false       |
+| `--model`                   | Override LLM model for generation (e.g., qwen3:8b)                                           | from config |
+| `--sentinel-model`          | Override sentinel LLM model                                                                  | from config |
+| `--parallel`                | Enable parallel section generation for long-form articles                                    | true        |
+| `--locale`                  | Locale for date/number parsing (e.g., en-gb, de-de)                                          | en-us       |
+| `--email`                   | Send digest via email                                                                        | false       |
+| `--email-to`                | Override email recipients                                                                    | from config |
+| `--list-templates`          | List available output templates                                                              | false       |
+| `--clear-storage`           | Delete all cached data and exit                                                              | false       |
+| `--ee\|--easter-egg`        | Play the DoomSummarizer animation                                                            | false       |
+| `-n\|--name`                | Named knowledge base collection                                                              | none        |
 
 ### Examples
 
@@ -335,28 +356,34 @@ doomsummarizer "/home/me/thesis.docx"
 
 ### Local File Ingestion via scroll
 
-When you pass a local file or directory path — either as the argument or via `-s` — scroll auto-ingests the content into a named knowledge base collection before running the retrieval pipeline.
+When you pass a local file or directory path — either as the argument or via `-s` — scroll auto-ingests the content into
+a named knowledge base collection before running the retrieval pipeline.
 
 **How it works:**
 
-1. **Smart routing** — Running `doomsummarizer "/path/to/file.pdf"` auto-detects the path is a file and routes to `scroll -s "/path/to/file.pdf"`
-2. **Auto-naming** — The collection name is derived from the filename or directory (e.g., `invoice.pdf` → collection `invoice-pdf`). Override with `-n/--name`.
-3. **Document processing** — Files are processed through the full pipeline: format extraction → document type detection → adaptive chunking → batch embedding → indexing → NER
-4. **Retrieval** — After ingestion, scroll runs the standard retrieval pipeline against the newly-created collection and generates an LLM summary
-5. **Persistence** — The ingested content is stored in SQLite with source tag `file:<name>`, so subsequent `ask` queries can access it
+1. **Smart routing** — Running `doomsummarizer "/path/to/file.pdf"` auto-detects the path is a file and routes to
+   `scroll -s "/path/to/file.pdf"`
+2. **Auto-naming** — The collection name is derived from the filename or directory (e.g., `invoice.pdf` → collection
+   `invoice-pdf`). Override with `-n/--name`.
+3. **Document processing** — Files are processed through the full pipeline: format extraction → document type
+   detection → adaptive chunking → batch embedding → indexing → NER
+4. **Retrieval** — After ingestion, scroll runs the standard retrieval pipeline against the newly-created collection and
+   generates an LLM summary
+5. **Persistence** — The ingested content is stored in SQLite with source tag `file:<name>`, so subsequent `ask` queries
+   can access it
 
 **Supported formats:**
 
-| Format | Slim (`doomsummarizer`) | Complete (`lucidrag`) |
-|--------|:-:|:-:|
-| Markdown (`.md`) | Yes | Yes |
-| Plain text (`.txt`) | Yes | Yes |
-| PDF (`.pdf`) | Yes | Yes |
-| Word (`.docx`) | Yes | Yes |
-| HTML (`.html`) | Yes | Yes |
-| PowerPoint (`.pptx`) | - | Yes |
-| Images (`.jpg`, `.png`, `.gif`, `.webp`) | - | Yes |
-| Plugin formats (`.srt`, `.vtt`, etc.) | - | Yes |
+| Format                                   | Slim (`doomsummarizer`) | Complete (`lucidrag`) |
+|------------------------------------------|:-----------------------:|:---------------------:|
+| Markdown (`.md`)                         |           Yes           |          Yes          |
+| Plain text (`.txt`)                      |           Yes           |          Yes          |
+| PDF (`.pdf`)                             |           Yes           |          Yes          |
+| Word (`.docx`)                           |           Yes           |          Yes          |
+| HTML (`.html`)                           |           Yes           |          Yes          |
+| PowerPoint (`.pptx`)                     |            -            |          Yes          |
+| Images (`.jpg`, `.png`, `.gif`, `.webp`) |            -            |          Yes          |
+| Plugin formats (`.srt`, `.vtt`, etc.)    |            -            |          Yes          |
 
 **Examples:**
 
@@ -377,16 +404,17 @@ doomsummarizer ask -s file:research "summarize the findings"
 
 **Difference between `scroll -s file` and `crawl file`:**
 
-| | `scroll -s /path` or `doomsummarizer /path` | `crawl /path` |
-|---|---|---|
-| **Primary purpose** | Ingest + immediate summary | Ingest into persistent KB |
-| **After ingestion** | Runs retrieval pipeline → LLM synthesis | Shows stats, optionally enters `--ask` loop |
-| **Best for** | Quick "what's in this file?" answers | Building a corpus for repeated Q&A |
-| **Re-run behavior** | Re-ingests (unless already cached) | Incremental (skips unchanged files) |
+|                     | `scroll -s /path` or `doomsummarizer /path` | `crawl /path`                               |
+|---------------------|---------------------------------------------|---------------------------------------------|
+| **Primary purpose** | Ingest + immediate summary                  | Ingest into persistent KB                   |
+| **After ingestion** | Runs retrieval pipeline → LLM synthesis     | Shows stats, optionally enters `--ask` loop |
+| **Best for**        | Quick "what's in this file?" answers        | Building a corpus for repeated Q&A          |
+| **Re-run behavior** | Re-ingests (unless already cached)          | Incremental (skips unchanged files)         |
 
 ### Extending with Plugins
 
-The `plugin` command lets you install additional format support and data sources from NuGet at runtime — no rebuild needed.
+The `plugin` command lets you install additional format support and data sources from NuGet at runtime — no rebuild
+needed.
 
 ```bash
 # List known plugin shorthands
@@ -409,20 +437,21 @@ doomsummarizer plugin uninstall plugin-image
 
 **Available plugin shorthands:**
 
-| Shorthand | Package | Adds |
-|-----------|---------|------|
-| `plugin-image` | `Mostlylucid.LucidRAG.Plugins.Image` | Image analysis (ML vision, OCR) |
-| `plugin-audio` | `Mostlylucid.LucidRAG.Plugins.Audio` | Audio transcription & analysis |
-| `plugin-video` | `Mostlylucid.LucidRAG.Plugins.Video` | Video processing |
-| `plugin-books` | `Mostlylucid.LucidRAG.Plugins.Books` | Long-form book processing |
-| `plugin-data` | `Mostlylucid.LucidRAG.Plugins.Data` | CSV, Excel, Parquet profiling |
-| `plugins-complete` | `Mostlylucid.LucidRAG.Plugins.Complete` | All plugins in one package |
-| `source-imap` | `Mostlylucid.DoomSummarizer.Source.Imap` | Email inbox as data source |
+| Shorthand          | Package                                  | Adds                            |
+|--------------------|------------------------------------------|---------------------------------|
+| `plugin-image`     | `Mostlylucid.LucidRAG.Plugins.Image`     | Image analysis (ML vision, OCR) |
+| `plugin-audio`     | `Mostlylucid.LucidRAG.Plugins.Audio`     | Audio transcription & analysis  |
+| `plugin-video`     | `Mostlylucid.LucidRAG.Plugins.Video`     | Video processing                |
+| `plugin-books`     | `Mostlylucid.LucidRAG.Plugins.Books`     | Long-form book processing       |
+| `plugin-data`      | `Mostlylucid.LucidRAG.Plugins.Data`      | CSV, Excel, Parquet profiling   |
+| `plugins-complete` | `Mostlylucid.LucidRAG.Plugins.Complete`  | All plugins in one package      |
+| `source-imap`      | `Mostlylucid.DoomSummarizer.Source.Imap` | Email inbox as data source      |
 
 **How plugins work:**
 
 1. NuGet package is downloaded and extracted to `~/.doomsummarizer/plugins/`
-2. On startup, plugin DLLs are loaded and scanned for `ISourcePlugin`, `IProcessorPlugin`, or `ICliPlugin` implementations
+2. On startup, plugin DLLs are loaded and scanned for `ISourcePlugin`, `IProcessorPlugin`, or `ICliPlugin`
+   implementations
 3. Source plugins add new `-s <key>` data sources
 4. Processor plugins add document format support (extensions registered automatically)
 5. CLI plugins contribute additional commands to the CLI
@@ -457,7 +486,8 @@ public sealed class MyPlugin : IProcessorPlugin
 }
 ```
 
-Reference `DoomSummarizer.Core` (or the NuGet `Mostlylucid.LucidRAG.DoomSummarizer.Core`) for the plugin interfaces. Publish to NuGet, then install with `doomsummarizer plugin install Your.Package.Id`.
+Reference `DoomSummarizer.Core` (or the NuGet `Mostlylucid.LucidRAG.DoomSummarizer.Core`) for the plugin interfaces.
+Publish to NuGet, then install with `doomsummarizer plugin install Your.Package.Id`.
 
 ### Pipeline Stages
 
@@ -494,25 +524,25 @@ Crawls a website to build a persistent, searchable knowledge base with increment
 
 ### Arguments
 
-| Argument | Description |
-|----------|-------------|
+| Argument   | Description                           |
+|------------|---------------------------------------|
 | `<source>` | Seed URL or local file/directory path |
 
 ### Options
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-d\|--depth` | Maximum crawl depth from seed URL | 3 |
-| `-m\|--max-pages` | Maximum pages to crawl | 200 |
-| `--delay` | Minimum delay between requests in ms (adaptive) | 1000 |
-| `--concurrency` | Maximum concurrent requests (hard cap: 5) | 3 |
-| `-g\|--glob` | URL path filter (e.g., `/blog/*`, `/docs/*`) | all paths |
-| `--no-entities` | Disable NER entity extraction | false |
-| `-f\|--force` | Re-process all pages regardless of cache | false |
-| `--ask` | Drop to interactive Q&A mode while crawling in background | false |
-| `-r\|--recurse` | Recurse into subdirectories (local paths only) | false |
-| `-q\|--quiet` | Minimal console output | false |
-| `-n\|--name` | Named knowledge base collection | auto from URL |
+| Flag              | Description                                               | Default       |
+|-------------------|-----------------------------------------------------------|---------------|
+| `-d\|--depth`     | Maximum crawl depth from seed URL                         | 3             |
+| `-m\|--max-pages` | Maximum pages to crawl                                    | 200           |
+| `--delay`         | Minimum delay between requests in ms (adaptive)           | 1000          |
+| `--concurrency`   | Maximum concurrent requests (hard cap: 5)                 | 3             |
+| `-g\|--glob`      | URL path filter (e.g., `/blog/*`, `/docs/*`)              | all paths     |
+| `--no-entities`   | Disable NER entity extraction                             | false         |
+| `-f\|--force`     | Re-process all pages regardless of cache                  | false         |
+| `--ask`           | Drop to interactive Q&A mode while crawling in background | false         |
+| `-r\|--recurse`   | Recurse into subdirectories (local paths only)            | false         |
+| `-q\|--quiet`     | Minimal console output                                    | false         |
+| `-n\|--name`      | Named knowledge base collection                           | auto from URL |
 
 ### Examples
 
@@ -538,11 +568,13 @@ doomsummarizer crawl https://www.youtube.com/watch?v=VIDEO_ID
 
 ### Incremental Updates
 
-Crawl uses ETag and content-hash caching. Re-running `crawl` on the same URL only processes changed pages. Use `-f` to force full re-crawl.
+Crawl uses ETag and content-hash caching. Re-running `crawl` on the same URL only processes changed pages. Use `-f` to
+force full re-crawl.
 
 ### YouTube Support (`lucidrag` Only)
 
 In the `lucidrag` (complete) build, `crawl` detects YouTube URLs and extracts:
+
 - Video metadata (title, author, channel, duration)
 - Subtitles/transcript
 - Audio transcription via Whisper (if subtitles unavailable)
@@ -563,15 +595,15 @@ Interactive Q&A over your stored knowledge base. Answers are grounded in evidenc
 
 ### Options
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `[question]` | Initial question (enters interactive mode after) | none |
-| `-s\|--source` | Filter to source(s) (repeatable) | all |
-| `--days` | How far back to search | 30 (general), 365 (crawl) |
-| `--top` | Number of evidence items to use | 10 |
-| `--once` | Answer once and exit (no interactive loop) | false |
-| `-q\|--quiet` | Minimal output | false |
-| `-n\|--name` | Named KB collection | none |
+| Flag           | Description                                      | Default                   |
+|----------------|--------------------------------------------------|---------------------------|
+| `[question]`   | Initial question (enters interactive mode after) | none                      |
+| `-s\|--source` | Filter to source(s) (repeatable)                 | all                       |
+| `--days`       | How far back to search                           | 30 (general), 365 (crawl) |
+| `--top`        | Number of evidence items to use                  | 10                        |
+| `--once`       | Answer once and exit (no interactive loop)       | false                     |
+| `-q\|--quiet`  | Minimal output                                   | false                     |
+| `-n\|--name`   | Named KB collection                              | none                      |
 
 ### Examples
 
@@ -603,15 +635,15 @@ Download and summarize a single web page.
 
 ### Options
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `<url>` | URL of the page to summarize | required |
-| `-v\|--vibe` | Output tone | neutral |
-| `-o\|--output` | Write to file | stdout |
-| `-t\|--template` | Output template | default |
-| `-q\|--quiet` | Minimal output | false |
-| `--no-llm` | Skip LLM summarization | false |
-| `--raw` | Show raw extracted content | false |
+| Flag             | Description                  | Default  |
+|------------------|------------------------------|----------|
+| `<url>`          | URL of the page to summarize | required |
+| `-v\|--vibe`     | Output tone                  | neutral  |
+| `-o\|--output`   | Write to file                | stdout   |
+| `-t\|--template` | Output template              | default  |
+| `-q\|--quiet`    | Minimal output               | false    |
+| `--no-llm`       | Skip LLM summarization       | false    |
+| `--raw`          | Show raw extracted content   | false    |
 
 ### Examples
 
@@ -640,14 +672,14 @@ Built-in manual: Q&A about DoomSummarizer itself. Auto-downloads documentation f
 
 ### Options
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `[question]` | Question about DoomSummarizer | none |
-| `--refresh` | Re-download and re-index the manual | false |
-| `--load-manual` | Load manual without asking a question | false |
-| `--top` | Number of evidence items | 8 |
-| `--once` | Answer once and exit | false |
-| `-q\|--quiet` | Minimal output | false |
+| Flag            | Description                           | Default |
+|-----------------|---------------------------------------|---------|
+| `[question]`    | Question about DoomSummarizer         | none    |
+| `--refresh`     | Re-download and re-index the manual   | false   |
+| `--load-manual` | Load manual without asking a question | false   |
+| `--top`         | Number of evidence items              | 8       |
+| `--once`        | Answer once and exit                  | false   |
+| `-q\|--quiet`   | Minimal output                        | false   |
 
 ### Examples
 
@@ -730,27 +762,28 @@ Manage source and output plugins. Plugins are NuGet packages loaded from `~/.doo
 doomsummarizer --mcp
 ```
 
-Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. This exposes the knowledge base to AI agents and tools.
+Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. This exposes the knowledge base to AI
+agents and tools.
 
 ### Available Tools (15)
 
-| Tool | Category | Description |
-|------|----------|-------------|
-| `search_kb` | Search | Full relevance pipeline (Lucene + embeddings + RRF fusion) |
-| `keyword_search` | Search | Fast Lucene-only search with stemming and fuzzy matching |
-| `semantic_search` | Search | Embedding cosine similarity search |
-| `get_item_content` | Content | Full text + summary + keywords + metadata by item ID |
-| `extract_keywords` | Content | Structure-weighted keyword extraction (no LLM) |
-| `compare_items` | Content | Cosine similarity + Jaccard index between two items |
-| `ingest_url` | Ingestion | Fetch URL → extract → embed → store in KB |
-| `list_collections` | Collections | Summary of all source collections |
-| `get_collection_items` | Collections | Items from specific source |
-| `list_entities` | Entity Graph | Top entities with mention counts and freshness |
-| `get_entity_details` | Entity Graph | Entity relationships and mentioning articles |
-| `get_entity_network` | Entity Graph | Multi-hop BFS traversal (up to depth 3) |
-| `find_related_by_entities` | Entity Graph | Discover documents sharing entities |
-| `get_kb_stats` | Analytics | Knowledge base overview and diagnostics |
-| `get_trends` | Analytics | Topic distribution and sentiment trends |
+| Tool                       | Category     | Description                                                |
+|----------------------------|--------------|------------------------------------------------------------|
+| `search_kb`                | Search       | Full relevance pipeline (Lucene + embeddings + RRF fusion) |
+| `keyword_search`           | Search       | Fast Lucene-only search with stemming and fuzzy matching   |
+| `semantic_search`          | Search       | Embedding cosine similarity search                         |
+| `get_item_content`         | Content      | Full text + summary + keywords + metadata by item ID       |
+| `extract_keywords`         | Content      | Structure-weighted keyword extraction (no LLM)             |
+| `compare_items`            | Content      | Cosine similarity + Jaccard index between two items        |
+| `ingest_url`               | Ingestion    | Fetch URL → extract → embed → store in KB                  |
+| `list_collections`         | Collections  | Summary of all source collections                          |
+| `get_collection_items`     | Collections  | Items from specific source                                 |
+| `list_entities`            | Entity Graph | Top entities with mention counts and freshness             |
+| `get_entity_details`       | Entity Graph | Entity relationships and mentioning articles               |
+| `get_entity_network`       | Entity Graph | Multi-hop BFS traversal (up to depth 3)                    |
+| `find_related_by_entities` | Entity Graph | Discover documents sharing entities                        |
+| `get_kb_stats`             | Analytics    | Knowledge base overview and diagnostics                    |
+| `get_trends`               | Analytics    | Topic distribution and sentiment trends                    |
 
 ### Integration Example (Claude Desktop)
 
@@ -772,11 +805,13 @@ Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. Th
 ### Problem: "No items found" or empty output
 
 **Causes:**
+
 - No sources configured or all disabled
 - Network connectivity issues
 - Source APIs returning empty results (e.g., HN min_score too high)
 
 **Fixes:**
+
 - Run `doomsummarizer sources` to see what's available
 - Try with explicit source: `doomsummarizer scroll -s hn`
 - Lower limits: `--limit 5`
@@ -785,11 +820,13 @@ Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. Th
 ### Problem: No LLM summary generated
 
 **Causes:**
+
 - Ollama not running
 - Model not pulled
 - API keys not configured
 
 **Fixes:**
+
 - Check Ollama: `curl http://localhost:11434/api/tags`
 - Pull model: `ollama pull gemma3:4b`
 - Run setup: `doomsummarizer setup`
@@ -805,7 +842,8 @@ Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. Th
 
 **Cause:** Default HTTP fetcher can't execute JavaScript.
 
-**Fix:** Install Playwright: `doomsummarizer setup --playwright`. Crawl will auto-detect JS-heavy pages and use Playwright.
+**Fix:** Install Playwright: `doomsummarizer setup --playwright`. Crawl will auto-detect JS-heavy pages and use
+Playwright.
 
 ### Problem: crawl keeps re-processing unchanged pages
 
@@ -828,11 +866,13 @@ Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. Th
 ### Problem: High memory usage
 
 **Causes:**
+
 - Large knowledge base with many embeddings
 - Multiple concurrent crawl operations
 - TorchSharp/ML.NET loaded (`lucidrag` / complete build)
 
 **Fixes:**
+
 - Reduce `retentionDays` in config
 - Use `doomsummarizer` (slim) if YouTube/audio not needed
 - Limit crawl concurrency: `--concurrency 1`
@@ -840,10 +880,12 @@ Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. Th
 ### Problem: API rate limits or budget exceeded
 
 **Causes:**
+
 - Too many requests to paid APIs
 - Daily budget cap reached
 
 **Fixes:**
+
 - Check budget: review `apiBudget` config section
 - Set per-API limits in `keys` config
 - Use local Ollama to avoid cloud API costs
@@ -851,7 +893,8 @@ Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. Th
 
 ### Problem: Config not loading
 
-**Fix:** Run `doomsummarizer config --show` to see which config files are loaded and their priority order. The output shows exactly which file each setting comes from.
+**Fix:** Run `doomsummarizer config --show` to see which config files are loaded and their priority order. The output
+shows exactly which file each setting comes from.
 
 ---
 
@@ -859,19 +902,20 @@ Launches DoomSummarizer as an MCP (Model Context Protocol) server over StdIO. Th
 
 ### Built-in Sources
 
-| Key | Description | Auth Required |
-|-----|-------------|---------------|
-| `hn` | Hacker News (top, best, new stories) | No |
-| `reddit` | Reddit (configured subreddits) | No |
-| `bbc` | BBC News RSS feeds | No |
-| `gnews` | Google News RSS | No |
+| Key            | Description                          | Auth Required  |
+|----------------|--------------------------------------|----------------|
+| `hn`           | Hacker News (top, best, new stories) | No             |
+| `reddit`       | Reddit (configured subreddits)       | No             |
+| `bbc`          | BBC News RSS feeds                   | No             |
+| `gnews`        | Google News RSS                      | No             |
 | `search:QUERY` | Web search via configured search API | Depends on API |
-| `URL` | Any web URL | No |
-| Local path | File or directory on disk | No |
+| `URL`          | Any web URL                          | No             |
+| Local path     | File or directory on disk            | No             |
 
 ### Crawl Collections
 
 After crawling a site, it appears as a source:
+
 ```bash
 doomsummarizer ask -s crawl:docs.example.com "how does X work?"
 doomsummarizer scroll -s crawl:my-collection --local
@@ -880,6 +924,7 @@ doomsummarizer scroll -s crawl:my-collection --local
 ### Plugin Sources
 
 Additional sources installable via `doomsummarizer plugin install`:
+
 - Academic paper search
 - Science journal feeds
 - Reference/encyclopedia
@@ -909,7 +954,8 @@ doomsummarizer scroll -t briefing "security updates"
 
 ### Custom Templates
 
-Place custom template files in `~/.doomsummarizer/templates/`. Templates support variable substitution: `{{DATE}}`, `{{QUERY}}`, `{{CONTENT}}`.
+Place custom template files in `~/.doomsummarizer/templates/`. Templates support variable substitution: `{{DATE}}`,
+`{{QUERY}}`, `{{CONTENT}}`.
 
 ---
 
@@ -920,6 +966,7 @@ Place custom template files in `~/.doomsummarizer/templates/`. Templates support
 SQLite database at `~/.doomsummarizer/doom.db` (configurable via `storage.dbPath`).
 
 Contains:
+
 - Crawled page content and metadata
 - Content segments with embeddings
 - Entity graph (nodes + relationships)
@@ -946,34 +993,34 @@ Deletes all cached segments, queries, and entities.
 
 ## SECTION: Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `DOOM_ANTHROPIC` | Anthropic API key |
-| `DOOM_OPENAI` | OpenAI API key |
+| Variable             | Purpose                      |
+|----------------------|------------------------------|
+| `DOOM_ANTHROPIC`     | Anthropic API key            |
+| `DOOM_OPENAI`        | OpenAI API key               |
 | `DOOM_GOOGLE_SEARCH` | Google Custom Search API key |
-| `DOOM_BRAVE_SEARCH` | Brave Search API key |
-| `DOOM_NEWSAPI` | NewsAPI.org key |
-| `DOOM_TAVILY` | Tavily AI Search key |
-| `DOOM_JINA` | Jina API key |
-| `DOOM_SENDGRID` | SendGrid API key (email) |
-| `DOOM_SERPER` | Serper API key |
-| `DOOM_NEWSDATA` | NewsData.io key |
-| `DOOM_CURRENTS` | Currents API key |
+| `DOOM_BRAVE_SEARCH`  | Brave Search API key         |
+| `DOOM_NEWSAPI`       | NewsAPI.org key              |
+| `DOOM_TAVILY`        | Tavily AI Search key         |
+| `DOOM_JINA`          | Jina API key                 |
+| `DOOM_SENDGRID`      | SendGrid API key (email)     |
+| `DOOM_SERPER`        | Serper API key               |
+| `DOOM_NEWSDATA`      | NewsData.io key              |
+| `DOOM_CURRENTS`      | Currents API key             |
 
 ---
 
 ## SECTION: Glossary
 
-| Term | Definition |
-|------|-----------|
-| **RRF** | Reciprocal Rank Fusion — combines multiple ranking signals (text match, semantic similarity, freshness, authority) into a single score |
-| **NER** | Named Entity Recognition — extracts people, organizations, and locations from text |
-| **Sentinel Model** | A smaller, faster LLM used for planning and quality checks before the main synthesis model runs |
-| **Vibe** | A personality/tone preset that controls how summaries are written |
-| **Knowledge Base (KB)** | The persistent local store of all indexed content, embeddings, and entity relationships |
-| **ONNX** | Open Neural Network Exchange — format used for the local embedding model (no API key needed) |
-| **MCP** | Model Context Protocol — standard for exposing tools to AI agents |
-| **Decomposer** | Component that breaks complex queries into sub-questions for better evidence retrieval |
-| **Circuit Breaker** | Fault tolerance pattern that pauses API calls after consecutive failures |
-| **Slim Build** | Default binary without YouTube/audio/subtitle processing (~163 MB) |
-| **Complete Build** | Full binary with all features including YouTube/Whisper/subtitles (~248 MB) |
+| Term                    | Definition                                                                                                                             |
+|-------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| **RRF**                 | Reciprocal Rank Fusion — combines multiple ranking signals (text match, semantic similarity, freshness, authority) into a single score |
+| **NER**                 | Named Entity Recognition — extracts people, organizations, and locations from text                                                     |
+| **Sentinel Model**      | A smaller, faster LLM used for planning and quality checks before the main synthesis model runs                                        |
+| **Vibe**                | A personality/tone preset that controls how summaries are written                                                                      |
+| **Knowledge Base (KB)** | The persistent local store of all indexed content, embeddings, and entity relationships                                                |
+| **ONNX**                | Open Neural Network Exchange — format used for the local embedding model (no API key needed)                                           |
+| **MCP**                 | Model Context Protocol — standard for exposing tools to AI agents                                                                      |
+| **Decomposer**          | Component that breaks complex queries into sub-questions for better evidence retrieval                                                 |
+| **Circuit Breaker**     | Fault tolerance pattern that pauses API calls after consecutive failures                                                               |
+| **Slim Build**          | Default binary without YouTube/audio/subtitle processing (~163 MB)                                                                     |
+| **Complete Build**      | Full binary with all features including YouTube/Whisper/subtitles (~248 MB)                                                            |

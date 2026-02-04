@@ -305,7 +305,7 @@ internal class ConversationSession
         }
 
         // Confirm
-        var confirm = AnsiConsole.Confirm($"Index {files.Count} file(s)?", true);
+        var confirm = AnsiConsole.Confirm($"Index {files.Count} file(s)?");
         if (!confirm)
         {
             AnsiConsole.MarkupLine("[dim]Cancelled[/]");
@@ -444,7 +444,7 @@ internal class ConversationSession
 
             AnsiConsole.Write(planPanel);
 
-            var confirm = AnsiConsole.Confirm("Execute this plan?", true);
+            var confirm = AnsiConsole.Confirm("Execute this plan?");
             if (!confirm)
             {
                 AnsiConsole.MarkupLine("[dim]Cancelled[/]");

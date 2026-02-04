@@ -13,7 +13,6 @@ using Microsoft.Extensions.Hosting;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.Services;
-using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
 using Spectre.Console;

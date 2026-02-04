@@ -1,38 +1,27 @@
 using System.IO.Hashing;
 using System.Text;
-using Mostlylucid.Summarizer.Core.Analysis;
 using DoomSummarizer.Services;
 using DoomWriter.Models;
 using DoomWriter.Waves;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace DoomWriter.Services;
 
 /// <summary>
-/// Reactive document analysis pipeline using WaveCoordinator.
-/// On every content change (debounced), runs analysis waves that produce signals:
-/// headings, segments, entities, topics, drift.
-/// Uses XxHash64 for content change detection to skip re-analysis of unchanged content.
-/// Waves execute with concurrency lanes: fast (regex/text), ml (ONNX NER).
+///     Reactive document analysis pipeline using WaveCoordinator.
+///     On every content change (debounced), runs analysis waves that produce signals:
+///     headings, segments, entities, topics, drift.
+///     Uses XxHash64 for content change detection to skip re-analysis of unchanged content.
+///     Waves execute with concurrency lanes: fast (regex/text), ml (ONNX NER).
 /// </summary>
 public class DocumentAnalysisService
 {
-    private readonly WriterSettingsService _settings;
-    private readonly WaveCoordinator _coordinator;
-    private CancellationTokenSource? _debounceCts;
     private readonly SemaphoreSlim _analysisLock = new(1, 1);
-    private ulong _lastContentHash;
+    private readonly WaveCoordinator _coordinator;
+    private readonly WriterSettingsService _settings;
     private DocumentSignals? _cachedSignals;
-    private CoordinatorResult? _lastCoordinatorResult;
-
-    /// <summary>
-    /// Raised when analysis completes with new signals.
-    /// </summary>
-    public event EventHandler<DocumentSignals>? AnalysisCompleted;
-
-    /// <summary>
-    /// The last coordinator result with execution telemetry (wave durations, lanes, errors).
-    /// </summary>
-    public CoordinatorResult? LastCoordinatorResult => _lastCoordinatorResult;
+    private CancellationTokenSource? _debounceCts;
+    private ulong _lastContentHash;
 
     public DocumentAnalysisService(WriterSettingsService settings, NerService nerService)
     {
@@ -41,16 +30,26 @@ public class DocumentAnalysisService
         // Build wave coordinator with all analysis waves
         _coordinator = new WaveCoordinator();
         _coordinator.RegisterWaves([
-            new HeadingExtractionWave(),     // Priority 90, fast lane
-            new SegmentExtractionWave(),     // Priority 85, fast lane
-            new WordCountWave(),             // Priority 80, fast lane
+            new HeadingExtractionWave(), // Priority 90, fast lane
+            new SegmentExtractionWave(), // Priority 85, fast lane
+            new WordCountWave(), // Priority 80, fast lane
             new EntityExtractionWave(nerService), // Priority 60, ml lane
-            new TopicInferenceWave()         // Priority 50, fast lane (depends on headings + segments)
+            new TopicInferenceWave() // Priority 50, fast lane (depends on headings + segments)
         ]);
     }
 
     /// <summary>
-    /// Compute XxHash64 of the content for change detection.
+    ///     The last coordinator result with execution telemetry (wave durations, lanes, errors).
+    /// </summary>
+    public CoordinatorResult? LastCoordinatorResult { get; private set; }
+
+    /// <summary>
+    ///     Raised when analysis completes with new signals.
+    /// </summary>
+    public event EventHandler<DocumentSignals>? AnalysisCompleted;
+
+    /// <summary>
+    ///     Compute XxHash64 of the content for change detection.
     /// </summary>
     private static ulong ComputeHash(string content)
     {
@@ -59,8 +58,8 @@ public class DocumentAnalysisService
     }
 
     /// <summary>
-    /// Analyze markdown content. Debounced — cancels any pending analysis.
-    /// Skips analysis if content hash hasn't changed.
+    ///     Analyze markdown content. Debounced — cancels any pending analysis.
+    ///     Skips analysis if content hash hasn't changed.
     /// </summary>
     public async Task AnalyzeAsync(string markdown)
     {
@@ -102,9 +101,9 @@ public class DocumentAnalysisService
     }
 
     /// <summary>
-    /// Analyze markdown content immediately (no debounce).
-    /// Use for initial document load — populates signal panel right away.
-    /// Still uses XxHash64 to skip if content is unchanged.
+    ///     Analyze markdown content immediately (no debounce).
+    ///     Use for initial document load — populates signal panel right away.
+    ///     Still uses XxHash64 to skip if content is unchanged.
     /// </summary>
     public async Task AnalyzeImmediateAsync(string markdown)
     {
@@ -132,7 +131,7 @@ public class DocumentAnalysisService
     }
 
     /// <summary>
-    /// Execute the wave coordinator and map results to DocumentSignals.
+    ///     Execute the wave coordinator and map results to DocumentSignals.
     /// </summary>
     private async Task<DocumentSignals> RunWavePipelineAsync(string markdown, CancellationToken ct)
     {
@@ -141,7 +140,7 @@ public class DocumentAnalysisService
             profile: CoordinatorProfile.Default,
             ct: ct);
 
-        _lastCoordinatorResult = result;
+        LastCoordinatorResult = result;
         var ctx = result.Context;
 
         // Map wave signals → DocumentSignals

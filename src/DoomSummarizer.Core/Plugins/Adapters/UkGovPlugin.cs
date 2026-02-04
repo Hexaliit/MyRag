@@ -4,9 +4,9 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Plugins.Adapters;
 
 /// <summary>
-/// Adapts UK Government data fetchers to the <see cref="ISourcePlugin"/> contract.
-/// Routes to Parliament (Hansard), Police Crime Data, and Environment Agency Flood Monitoring APIs.
-/// All free, no authentication required.
+///     Adapts UK Government data fetchers to the <see cref="ISourcePlugin" /> contract.
+///     Routes to Parliament (Hansard), Police Crime Data, and Environment Agency Flood Monitoring APIs.
+///     All free, no authentication required.
 /// </summary>
 public sealed class UkGovPlugin : ISourcePlugin
 {
@@ -18,7 +18,8 @@ public sealed class UkGovPlugin : ISourcePlugin
         Keys = ["parliament", "hansard", "ukpolice", "ukflood", "ukgov"],
         DisplayName = "UK Government",
         Description = "UK Parliament Hansard debates, Police crime data, and Environment Agency flood monitoring.",
-        Capabilities = SourceCapabilities.Search | SourceCapabilities.Feed | SourceCapabilities.SubSource | SourceCapabilities.NoAuth,
+        Capabilities = SourceCapabilities.Search | SourceCapabilities.Feed | SourceCapabilities.SubSource |
+                       SourceCapabilities.NoAuth,
         Examples =
         [
             "-s parliament",
@@ -78,8 +79,8 @@ public sealed class UkGovPlugin : ISourcePlugin
     }
 
     /// <summary>
-    /// Fetch from all UK Gov sources (used when -s ukgov is specified).
-    /// Returns a combined set focused on the most operationally relevant data.
+    ///     Fetch from all UK Gov sources (used when -s ukgov is specified).
+    ///     Returns a combined set focused on the most operationally relevant data.
     /// </summary>
     private async Task<List<ContentItem>> FetchAllUkGovAsync(SourceFetchContext context)
     {

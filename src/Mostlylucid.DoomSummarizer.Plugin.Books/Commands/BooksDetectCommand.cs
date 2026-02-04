@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using DoomSummarizer.Helpers;
-using DoomSummarizer.Services;
 using Mostlylucid.DoomSummarizer.Plugin.Books.Detection;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -8,23 +7,12 @@ using Spectre.Console.Cli;
 namespace Mostlylucid.DoomSummarizer.Plugin.Books.Commands;
 
 /// <summary>
-/// Detect the book type of a file (Fiction, NonFiction, Academic, Play, etc.).
-/// When heuristic confidence is low and a sentinel LLM is available, automatically
-/// falls back to LLM classification for better accuracy.
+///     Detect the book type of a file (Fiction, NonFiction, Academic, Play, etc.).
+///     When heuristic confidence is low and a sentinel LLM is available, automatically
+///     falls back to LLM classification for better accuracy.
 /// </summary>
 public sealed class BooksDetectCommand : AsyncCommand<BooksDetectCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [Description("Path to the book file")]
-        [CommandArgument(0, "<file>")]
-        public string FilePath { get; set; } = "";
-
-        [Description("Skip LLM fallback (heuristic only)")]
-        [CommandOption("--no-llm")]
-        public bool NoLlm { get; set; }
-    }
-
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
         if (!File.Exists(settings.FilePath))
@@ -50,7 +38,8 @@ public sealed class BooksDetectCommand : AsyncCommand<BooksDetectCommand.Setting
 
         // Heuristic result
         var typeColor = GetTypeColor(detection.Type);
-        AnsiConsole.MarkupLine($"[bold {typeColor}]{detection.Type.ToUpperInvariant()}[/] ({detection.Confidence:P0} confidence) [dim]\\[heuristic][/]");
+        AnsiConsole.MarkupLine(
+            $"[bold {typeColor}]{detection.Type.ToUpperInvariant()}[/] ({detection.Confidence:P0} confidence) [dim]\\[heuristic][/]");
 
         // Classify with sentinel fallback (detector owns the threshold decision)
         var result = await AnsiConsole.Status()
@@ -62,8 +51,10 @@ public sealed class BooksDetectCommand : AsyncCommand<BooksDetectCommand.Setting
         if (result.Source == "sentinel")
         {
             var sentinelColor = GetTypeColor(result.Type);
-            AnsiConsole.MarkupLine($"[bold {sentinelColor}]{result.Type.ToUpperInvariant()}[/] ({result.Confidence:P0} confidence) [dim]\\[sentinel][/]");
+            AnsiConsole.MarkupLine(
+                $"[bold {sentinelColor}]{result.Type.ToUpperInvariant()}[/] ({result.Confidence:P0} confidence) [dim]\\[sentinel][/]");
         }
+
         AnsiConsole.WriteLine();
 
         // Score breakdown
@@ -80,6 +71,7 @@ public sealed class BooksDetectCommand : AsyncCommand<BooksDetectCommand.Setting
                 isWinner ? $"[bold]{type}[/]" : type,
                 isWinner ? $"[bold]{score:F2}[/] {bar}" : $"{score:F2} [dim]{bar}[/]");
         }
+
         AnsiConsole.Write(scoreTable);
 
         // Signals
@@ -97,28 +89,40 @@ public sealed class BooksDetectCommand : AsyncCommand<BooksDetectCommand.Setting
                 .AddColumn("Reason");
 
             foreach (var signal in detection.Signals)
-            {
                 signalTable.AddRow(
                     signal.Name,
                     $"[dim]{signal.Category}[/]",
                     signal.VotedType,
                     $"{signal.Weight:F2}",
                     Markup.Escape(signal.Reason));
-            }
             AnsiConsole.Write(signalTable);
         }
 
         return 0;
     }
 
-    private static string GetTypeColor(string type) => type switch
+    private static string GetTypeColor(string type)
     {
-        "fiction" => "green",
-        "nonfiction" => "blue",
-        "academic" => "yellow",
-        "technical" => "magenta",
-        "play" => "cyan",
-        "anthology" or "collection" => "orange1",
-        _ => "grey"
-    };
+        return type switch
+        {
+            "fiction" => "green",
+            "nonfiction" => "blue",
+            "academic" => "yellow",
+            "technical" => "magenta",
+            "play" => "cyan",
+            "anthology" or "collection" => "orange1",
+            _ => "grey"
+        };
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [Description("Path to the book file")]
+        [CommandArgument(0, "<file>")]
+        public string FilePath { get; set; } = "";
+
+        [Description("Skip LLM fallback (heuristic only)")]
+        [CommandOption("--no-llm")]
+        public bool NoLlm { get; set; }
+    }
 }

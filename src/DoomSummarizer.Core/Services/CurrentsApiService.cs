@@ -1,15 +1,23 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Web;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Currents API — aggregated latest news from 17,000+ sources in 18 languages.
-/// Free tier: 600 requests/day. Response includes title, description, url, image, category.
-/// Endpoint: https://api.currentsapi.services/v1/latest-news or /search
-/// Docs: https://currentsapi.services/en/docs/
+///     Currents API — aggregated latest news from 17,000+ sources in 18 languages.
+///     Free tier: 600 requests/day. Response includes title, description, url, image, category.
+///     Endpoint: https://api.currentsapi.services/v1/latest-news or /search
+///     Docs: https://currentsapi.services/en/docs/
 /// </summary>
-public class CurrentsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class CurrentsApiService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "currents";
     private const string SearchEndpoint = "https://api.currentsapi.services/v1/search";
@@ -18,7 +26,7 @@ public class CurrentsApiService(HttpClient httpClient, ApiKeyService keys, ApiBu
     public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search Currents API for news articles matching a query.
+    ///     Search Currents API for news articles matching a query.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 10, string? category = null,
@@ -67,7 +75,7 @@ public class CurrentsApiService(HttpClient httpClient, ApiKeyService keys, ApiBu
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Diagnostics.Debug.WriteLine($"Currents {(int)response.StatusCode}: {Truncate(body, 200)}");
+                Debug.WriteLine($"Currents {(int)response.StatusCode}: {Truncate(body, 200)}");
                 await circuit.ReportFailureAsync(ServiceName, CircuitFailureType.ServerError,
                     $"HTTP {(int)response.StatusCode}");
                 return [];
@@ -82,13 +90,13 @@ public class CurrentsApiService(HttpClient httpClient, ApiKeyService keys, ApiBu
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("Currents API timed out");
+            Debug.WriteLine("Currents API timed out");
             await circuit.ReportFailureAsync(ServiceName, CircuitFailureType.ServerError, "Timeout");
             return [];
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Currents API error: {ex.Message}");
+            Debug.WriteLine($"Currents API error: {ex.Message}");
             await circuit.ReportFailureAsync(ServiceName, CircuitFailureType.ServerError, ex.Message);
             return [];
         }
@@ -112,7 +120,8 @@ public class CurrentsApiService(HttpClient httpClient, ApiKeyService keys, ApiBu
             var url = article.TryGetProperty("url", out var u) ? u.GetString() : null;
             var description = article.TryGetProperty("description", out var d) ? d.GetString() : null;
             var image = article.TryGetProperty("image", out var img) && img.GetString() != "None"
-                ? img.GetString() : null;
+                ? img.GetString()
+                : null;
             var author = article.TryGetProperty("author", out var a) ? a.GetString() : null;
 
             var createdAt = DateTimeOffset.UtcNow;
@@ -123,14 +132,12 @@ public class CurrentsApiService(HttpClient httpClient, ApiKeyService keys, ApiBu
             // Extract category as keyword
             var keywords = new List<string>();
             if (article.TryGetProperty("category", out var cat) && cat.ValueKind == JsonValueKind.Array)
-            {
                 foreach (var c in cat.EnumerateArray())
                 {
                     var catStr = c.GetString();
                     if (!string.IsNullOrEmpty(catStr) && catStr != "Uncategorized")
                         keywords.Add(catStr);
                 }
-            }
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(url))
             {
@@ -151,13 +158,18 @@ public class CurrentsApiService(HttpClient httpClient, ApiKeyService keys, ApiBu
                 });
             }
         }
+
         return items;
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

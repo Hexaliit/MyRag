@@ -1,23 +1,20 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using FluentAssertions;
 using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.DocSummarizer.Services.Onnx;
-using Xunit;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Integration tests for RetrievalPipeline.ScoreItemsAsync — the unified scoring path.
-/// Uses real ONNX embeddings and temp SQLite DB per test.
+///     Integration tests for RetrievalPipeline.ScoreItemsAsync — the unified scoring path.
+///     Uses real ONNX embeddings and temp SQLite DB per test.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class RetrievalPipelineTests : IAsyncLifetime
 {
+    private string _dbPath = null!;
     private IEmbeddingService _embedding = null!;
     private StorageService _storage = null!;
-    private string _dbPath = null!;
 
     public async Task InitializeAsync()
     {
@@ -31,7 +28,13 @@ public class RetrievalPipelineTests : IAsyncLifetime
     {
         await _storage.DisposeAsync();
         (_embedding as IDisposable)?.Dispose();
-        try { File.Delete(_dbPath); } catch { }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+        }
     }
 
     private static ContentItem MakeItem(string id, string title, string? content = null,
@@ -49,216 +52,6 @@ public class RetrievalPipelineTests : IAsyncLifetime
         };
     }
 
-    #region ScoreItemsAsync — Basic Behavior
-
-    [Fact]
-    public async Task ScoreItemsAsync_EmptyList_ReturnsEmpty()
-    {
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-        var queryEmbed = await _embedding.EmbedAsync("test query");
-
-        var result = await pipeline.ScoreItemsAsync([], new ScoringOptions
-        {
-            Query = "test query",
-            QueryEmbedding = queryEmbed,
-
-        });
-
-        result.Items.Should().BeEmpty();
-        result.QueryType.Should().Be(QueryType.General);
-    }
-
-    [Fact]
-    public async Task ScoreItemsAsync_ReturnsAllItemsScored()
-    {
-        var items = new List<ContentItem>
-        {
-            MakeItem("1", "Machine learning advances", "Deep learning models improve at natural language processing"),
-            MakeItem("2", "Climate change report", "Global temperatures continue to rise according to scientists"),
-            MakeItem("3", "Stock market update", "Markets react to Federal Reserve interest rate decision"),
-        };
-
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-        var queryEmbed = await _embedding.EmbedAsync("artificial intelligence");
-
-        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
-        {
-            Query = "artificial intelligence",
-            QueryEmbedding = queryEmbed,
-
-        });
-
-        result.Items.Should().NotBeEmpty();
-        result.Items.Should().HaveCountGreaterThanOrEqualTo(1);
-        // All items should have non-zero relevance scores
-        result.Items.Should().OnlyContain(i => i.RelevanceScore > 0);
-    }
-
-    [Fact]
-    public async Task ScoreItemsAsync_RanksRelevantItemsHigher()
-    {
-        var items = new List<ContentItem>
-        {
-            MakeItem("ai", "Neural networks and deep learning",
-                "Researchers demonstrate new transformer architecture for natural language understanding using attention mechanisms"),
-            MakeItem("climate", "Global warming accelerates",
-                "Climate scientists report record temperatures in the Arctic ice sheet measurements"),
-            MakeItem("sports", "Championship basketball game",
-                "Lakers defeat Celtics in overtime thriller during NBA Finals championship series"),
-        };
-
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-        var queryEmbed = await _embedding.EmbedAsync("machine learning AI");
-
-        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
-        {
-            Query = "machine learning AI",
-            QueryEmbedding = queryEmbed,
-
-        });
-
-        // AI item should rank first
-        result.Items.First().Id.Should().Be("ai");
-    }
-
-    [Fact]
-    public async Task ScoreItemsAsync_ItemsSortedByRelevanceDescending()
-    {
-        var items = new List<ContentItem>
-        {
-            MakeItem("1", "Tech news", "Software engineering tools and practices"),
-            MakeItem("2", "More tech", "Programming languages and frameworks for web development"),
-            MakeItem("3", "Healthcare", "Medical research findings on cancer treatment approaches"),
-            MakeItem("4", "Finance", "Stock market analysis and investment strategies"),
-            MakeItem("5", "Weather", "Forecast shows rain expected next week across the region"),
-            MakeItem("6", "Cooking", "Recipe for homemade pasta with tomato sauce and basil"),
-        };
-
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-        var queryEmbed = await _embedding.EmbedAsync("software development");
-
-        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
-        {
-            Query = "software development",
-            QueryEmbedding = queryEmbed,
-
-        });
-
-        // Items should be in descending relevance order
-        for (var i = 1; i < result.Items.Count; i++)
-        {
-            result.Items[i].RelevanceScore.Should()
-                .BeLessThanOrEqualTo(result.Items[i - 1].RelevanceScore,
-                    $"item {i} should not score higher than item {i - 1}");
-        }
-    }
-
-    #endregion
-
-    #region ScoreItemsAsync — Embedding & Keyword Assignment
-
-    [Fact]
-    public async Task ScoreItemsAsync_AssignsEmbeddingsToItemsWithout()
-    {
-        var items = new List<ContentItem>
-        {
-            MakeItem("1", "Test item one", "Content for testing embedding assignment"),
-            MakeItem("2", "Test item two", "More content for testing embedding assignment"),
-        };
-
-        // Items start without embeddings
-        items.Should().OnlyContain(i => i.Embedding == null);
-
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-        var queryEmbed = await _embedding.EmbedAsync("testing");
-
-        await pipeline.ScoreItemsAsync(items, new ScoringOptions
-        {
-            Query = "testing",
-            QueryEmbedding = queryEmbed,
-
-        });
-
-        // Items should now have embeddings assigned
-        items.Should().OnlyContain(i => i.Embedding != null);
-    }
-
-    [Fact]
-    public async Task ScoreItemsAsync_AssignsKeywordsToItemsWithout()
-    {
-        var items = new List<ContentItem>
-        {
-            MakeItem("1", "Machine learning advances", "Deep learning improves natural language processing"),
-        };
-
-        // Items start without keywords
-        items[0].Keywords.Should().BeNullOrEmpty();
-
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-        var queryEmbed = await _embedding.EmbedAsync("AI");
-
-        await pipeline.ScoreItemsAsync(items, new ScoringOptions
-        {
-            Query = "AI",
-            QueryEmbedding = queryEmbed,
-
-        });
-
-        // Items should now have keywords
-        items[0].Keywords.Should().NotBeNullOrEmpty();
-    }
-
-    #endregion
-
-    #region ScoreItemsAsync — Query Type Detection
-
-    [Fact]
-    public async Task ScoreItemsAsync_DetectsQueryType()
-    {
-        var items = new List<ContentItem>
-        {
-            MakeItem("1", "AI news", "Recent advances in artificial intelligence"),
-        };
-
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-
-        // Roundup-style query
-        var queryEmbed = await _embedding.EmbedAsync("what happened today");
-        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
-        {
-            Query = "what happened today",
-            QueryEmbedding = queryEmbed,
-
-        });
-
-        // Query type should be detected (not null)
-        result.QueryType.Should().NotBe((QueryType)(-1));
-    }
-
-    [Fact]
-    public async Task ScoreItemsAsync_RespectsQueryTypeOverride()
-    {
-        var items = new List<ContentItem>
-        {
-            MakeItem("1", "AI safety", "Research on AI alignment and safety"),
-        };
-
-        var pipeline = new RetrievalPipeline(_embedding, _storage);
-        var queryEmbed = await _embedding.EmbedAsync("AI safety");
-
-        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
-        {
-            Query = "AI safety",
-            QueryEmbedding = queryEmbed,
-            QueryType = QueryType.Explainer,
-
-        });
-
-        result.QueryType.Should().Be(QueryType.Explainer);
-    }
-
-    #endregion
-
     #region ScoreItemsAsync — KB vs Web Mode
 
     [Fact]
@@ -269,13 +62,13 @@ public class RetrievalPipelineTests : IAsyncLifetime
         {
             MakeItem("bbc", "AI regulation frameworks by governments worldwide",
                 "Governments worldwide implement artificial intelligence regulation frameworks for public safety and accountability",
-                source: "bbc", createdAt: DateTimeOffset.UtcNow.AddDays(-30)),
+                "bbc", DateTimeOffset.UtcNow.AddDays(-30)),
             MakeItem("reddit", "AI regulation discussion and debate",
                 "Communities worldwide debate artificial intelligence regulation frameworks and accountability policies",
-                source: "reddit", createdAt: DateTimeOffset.UtcNow.AddHours(-1)),
+                "reddit", DateTimeOffset.UtcNow.AddHours(-1)),
             MakeItem("tech", "Machine learning model governance",
                 "Technology companies adopt machine learning governance practices for responsible AI deployment",
-                source: "techcrunch", createdAt: DateTimeOffset.UtcNow.AddDays(-7)),
+                "techcrunch", DateTimeOffset.UtcNow.AddDays(-7))
         };
 
         var pipeline = new RetrievalPipeline(_embedding, _storage);
@@ -288,7 +81,7 @@ public class RetrievalPipelineTests : IAsyncLifetime
             QueryEmbedding = queryEmbed,
             IsKnowledgeBase = true,
 
-            UseEmbeddingDedup = false,
+            UseEmbeddingDedup = false
         });
 
         // Web mode should also work
@@ -298,7 +91,7 @@ public class RetrievalPipelineTests : IAsyncLifetime
             QueryEmbedding = queryEmbed,
             IsKnowledgeBase = false,
 
-            UseEmbeddingDedup = false,
+            UseEmbeddingDedup = false
         });
 
         // Both modes produce scored results
@@ -327,7 +120,7 @@ public class RetrievalPipelineTests : IAsyncLifetime
             MakeItem("2", "Machine learning progress in 2024",
                 "Deep learning models keep improving at natural language processing tasks"),
             MakeItem("3", "Stock market update",
-                "Financial markets react to Federal Reserve interest rate decision"),
+                "Financial markets react to Federal Reserve interest rate decision")
         };
 
         var pipeline = new RetrievalPipeline(_embedding, _storage);
@@ -337,16 +130,14 @@ public class RetrievalPipelineTests : IAsyncLifetime
         {
             Query = "machine learning",
             QueryEmbedding = queryEmbed,
-            UseEmbeddingDedup = true,
-
+            UseEmbeddingDedup = true
         });
 
         var withoutDedup = await pipeline.ScoreItemsAsync(items, new ScoringOptions
         {
             Query = "machine learning",
             QueryEmbedding = queryEmbed,
-            UseEmbeddingDedup = false,
-
+            UseEmbeddingDedup = false
         });
 
         // With dedup should remove one of the near-duplicate ML items
@@ -365,7 +156,7 @@ public class RetrievalPipelineTests : IAsyncLifetime
             MakeItem("doom", "Global disaster looms",
                 "Catastrophic climate change threatens civilization with extreme weather events and rising sea levels"),
             MakeItem("hope", "Breakthrough renewable energy",
-                "Scientists achieve major breakthrough in solar energy efficiency, promising clean sustainable future"),
+                "Scientists achieve major breakthrough in solar energy efficiency, promising clean sustainable future")
         };
 
         var pipeline = new RetrievalPipeline(_embedding, _storage);
@@ -375,16 +166,14 @@ public class RetrievalPipelineTests : IAsyncLifetime
         {
             Query = "energy news",
             QueryEmbedding = queryEmbed,
-            VibeText = "Pessimistic, alarming, catastrophic, doom and gloom perspective",
-
+            VibeText = "Pessimistic, alarming, catastrophic, doom and gloom perspective"
         });
 
         var hopeResult = await pipeline.ScoreItemsAsync(items, new ScoringOptions
         {
             Query = "energy news",
             QueryEmbedding = queryEmbed,
-            VibeText = "Optimistic, hopeful, promising breakthrough perspective",
-
+            VibeText = "Optimistic, hopeful, promising breakthrough perspective"
         });
 
         // Both should return items
@@ -397,6 +186,206 @@ public class RetrievalPipelineTests : IAsyncLifetime
         // At minimum they should both produce valid scores
         doomTopScore.Should().BeGreaterThan(0);
         hopeTopScore.Should().BeGreaterThan(0);
+    }
+
+    #endregion
+
+    #region ScoreItemsAsync — Basic Behavior
+
+    [Fact]
+    public async Task ScoreItemsAsync_EmptyList_ReturnsEmpty()
+    {
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+        var queryEmbed = await _embedding.EmbedAsync("test query");
+
+        var result = await pipeline.ScoreItemsAsync([], new ScoringOptions
+        {
+            Query = "test query",
+            QueryEmbedding = queryEmbed
+        });
+
+        result.Items.Should().BeEmpty();
+        result.QueryType.Should().Be(QueryType.General);
+    }
+
+    [Fact]
+    public async Task ScoreItemsAsync_ReturnsAllItemsScored()
+    {
+        var items = new List<ContentItem>
+        {
+            MakeItem("1", "Machine learning advances", "Deep learning models improve at natural language processing"),
+            MakeItem("2", "Climate change report", "Global temperatures continue to rise according to scientists"),
+            MakeItem("3", "Stock market update", "Markets react to Federal Reserve interest rate decision")
+        };
+
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+        var queryEmbed = await _embedding.EmbedAsync("artificial intelligence");
+
+        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
+        {
+            Query = "artificial intelligence",
+            QueryEmbedding = queryEmbed
+        });
+
+        result.Items.Should().NotBeEmpty();
+        result.Items.Should().HaveCountGreaterThanOrEqualTo(1);
+        // All items should have non-zero relevance scores
+        result.Items.Should().OnlyContain(i => i.RelevanceScore > 0);
+    }
+
+    [Fact]
+    public async Task ScoreItemsAsync_RanksRelevantItemsHigher()
+    {
+        var items = new List<ContentItem>
+        {
+            MakeItem("ai", "Neural networks and deep learning",
+                "Researchers demonstrate new transformer architecture for natural language understanding using attention mechanisms"),
+            MakeItem("climate", "Global warming accelerates",
+                "Climate scientists report record temperatures in the Arctic ice sheet measurements"),
+            MakeItem("sports", "Championship basketball game",
+                "Lakers defeat Celtics in overtime thriller during NBA Finals championship series")
+        };
+
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+        var queryEmbed = await _embedding.EmbedAsync("machine learning AI");
+
+        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
+        {
+            Query = "machine learning AI",
+            QueryEmbedding = queryEmbed
+        });
+
+        // AI item should rank first
+        result.Items.First().Id.Should().Be("ai");
+    }
+
+    [Fact]
+    public async Task ScoreItemsAsync_ItemsSortedByRelevanceDescending()
+    {
+        var items = new List<ContentItem>
+        {
+            MakeItem("1", "Tech news", "Software engineering tools and practices"),
+            MakeItem("2", "More tech", "Programming languages and frameworks for web development"),
+            MakeItem("3", "Healthcare", "Medical research findings on cancer treatment approaches"),
+            MakeItem("4", "Finance", "Stock market analysis and investment strategies"),
+            MakeItem("5", "Weather", "Forecast shows rain expected next week across the region"),
+            MakeItem("6", "Cooking", "Recipe for homemade pasta with tomato sauce and basil")
+        };
+
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+        var queryEmbed = await _embedding.EmbedAsync("software development");
+
+        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
+        {
+            Query = "software development",
+            QueryEmbedding = queryEmbed
+        });
+
+        // Items should be in descending relevance order
+        for (var i = 1; i < result.Items.Count; i++)
+            result.Items[i].RelevanceScore.Should()
+                .BeLessThanOrEqualTo(result.Items[i - 1].RelevanceScore,
+                    $"item {i} should not score higher than item {i - 1}");
+    }
+
+    #endregion
+
+    #region ScoreItemsAsync — Embedding & Keyword Assignment
+
+    [Fact]
+    public async Task ScoreItemsAsync_AssignsEmbeddingsToItemsWithout()
+    {
+        var items = new List<ContentItem>
+        {
+            MakeItem("1", "Test item one", "Content for testing embedding assignment"),
+            MakeItem("2", "Test item two", "More content for testing embedding assignment")
+        };
+
+        // Items start without embeddings
+        items.Should().OnlyContain(i => i.Embedding == null);
+
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+        var queryEmbed = await _embedding.EmbedAsync("testing");
+
+        await pipeline.ScoreItemsAsync(items, new ScoringOptions
+        {
+            Query = "testing",
+            QueryEmbedding = queryEmbed
+        });
+
+        // Items should now have embeddings assigned
+        items.Should().OnlyContain(i => i.Embedding != null);
+    }
+
+    [Fact]
+    public async Task ScoreItemsAsync_AssignsKeywordsToItemsWithout()
+    {
+        var items = new List<ContentItem>
+        {
+            MakeItem("1", "Machine learning advances", "Deep learning improves natural language processing")
+        };
+
+        // Items start without keywords
+        items[0].Keywords.Should().BeNullOrEmpty();
+
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+        var queryEmbed = await _embedding.EmbedAsync("AI");
+
+        await pipeline.ScoreItemsAsync(items, new ScoringOptions
+        {
+            Query = "AI",
+            QueryEmbedding = queryEmbed
+        });
+
+        // Items should now have keywords
+        items[0].Keywords.Should().NotBeNullOrEmpty();
+    }
+
+    #endregion
+
+    #region ScoreItemsAsync — Query Type Detection
+
+    [Fact]
+    public async Task ScoreItemsAsync_DetectsQueryType()
+    {
+        var items = new List<ContentItem>
+        {
+            MakeItem("1", "AI news", "Recent advances in artificial intelligence")
+        };
+
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+
+        // Roundup-style query
+        var queryEmbed = await _embedding.EmbedAsync("what happened today");
+        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
+        {
+            Query = "what happened today",
+            QueryEmbedding = queryEmbed
+        });
+
+        // Query type should be detected (not null)
+        result.QueryType.Should().NotBe((QueryType)(-1));
+    }
+
+    [Fact]
+    public async Task ScoreItemsAsync_RespectsQueryTypeOverride()
+    {
+        var items = new List<ContentItem>
+        {
+            MakeItem("1", "AI safety", "Research on AI alignment and safety")
+        };
+
+        var pipeline = new RetrievalPipeline(_embedding, _storage);
+        var queryEmbed = await _embedding.EmbedAsync("AI safety");
+
+        var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
+        {
+            Query = "AI safety",
+            QueryEmbedding = queryEmbed,
+            QueryType = QueryType.Explainer
+        });
+
+        result.QueryType.Should().Be(QueryType.Explainer);
     }
 
     #endregion
@@ -418,8 +407,7 @@ public class RetrievalPipelineTests : IAsyncLifetime
         var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
         {
             Query = "technology computing",
-            QueryEmbedding = queryEmbed,
-
+            QueryEmbedding = queryEmbed
         });
 
         // With >= 5 items, PRF centroid should be computed
@@ -433,7 +421,7 @@ public class RetrievalPipelineTests : IAsyncLifetime
     {
         var items = new List<ContentItem>
         {
-            MakeItem("1", "Single article", "Just one article about testing"),
+            MakeItem("1", "Single article", "Just one article about testing")
         };
 
         var pipeline = new RetrievalPipeline(_embedding, _storage);
@@ -442,8 +430,7 @@ public class RetrievalPipelineTests : IAsyncLifetime
         var result = await pipeline.ScoreItemsAsync(items, new ScoringOptions
         {
             Query = "testing",
-            QueryEmbedding = queryEmbed,
-
+            QueryEmbedding = queryEmbed
         });
 
         // With < 5 items, PRF centroid should equal original query embedding

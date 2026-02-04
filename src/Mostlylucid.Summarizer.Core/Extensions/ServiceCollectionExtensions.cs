@@ -6,13 +6,13 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 namespace Mostlylucid.Summarizer.Core.Extensions;
 
 /// <summary>
-/// Extension methods for registering Summarizer.Core services.
+///     Extension methods for registering Summarizer.Core services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add the FileSummarizer service for universal file metadata extraction.
-    /// This is automatically called by AddPipelineRegistry.
+    ///     Add the FileSummarizer service for universal file metadata extraction.
+    ///     This is automatically called by AddPipelineRegistry.
     /// </summary>
     public static IServiceCollection AddFileSummarizer(this IServiceCollection services)
     {
@@ -21,9 +21,9 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add the pipeline registry. Call this after registering all IPipeline implementations.
-    /// Must be scoped because some pipelines (Video, Data) are registered as scoped.
-    /// Also registers the FileSummarizer service.
+    ///     Add the pipeline registry. Call this after registering all IPipeline implementations.
+    ///     Must be scoped because some pipelines (Video, Data) are registered as scoped.
+    ///     Also registers the FileSummarizer service.
     /// </summary>
     public static IServiceCollection AddPipelineRegistry(this IServiceCollection services)
     {
@@ -40,7 +40,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Register a pipeline implementation.
+    ///     Register a pipeline implementation.
     /// </summary>
     public static IServiceCollection AddPipeline<TPipeline>(this IServiceCollection services)
         where TPipeline : class, IPipeline

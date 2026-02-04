@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Resilience;
@@ -5,12 +6,12 @@ using Mostlylucid.DocSummarizer.Resilience;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Loads and manages API service definitions.
-/// Keys are loaded from (in priority order):
-/// 1. .NET user secrets (highest — explicitly managed per-project)
-/// 2. Environment variables (DOOM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY)
-/// 3. DoomConfig JSON (keys array)
-/// Implements <see cref="IServiceBudgetLookup"/> to provide budget info to the shared ApiBudgetService.
+///     Loads and manages API service definitions.
+///     Keys are loaded from (in priority order):
+///     1. .NET user secrets (highest — explicitly managed per-project)
+///     2. Environment variables (DOOM_*, OPENAI_API_KEY, ANTHROPIC_API_KEY)
+///     3. DoomConfig JSON (keys array)
+///     Implements <see cref="IServiceBudgetLookup" /> to provide budget info to the shared ApiBudgetService.
 /// </summary>
 public class ApiKeyService : IServiceBudgetLookup
 {
@@ -18,22 +19,41 @@ public class ApiKeyService : IServiceBudgetLookup
 
     private readonly Dictionary<string, ApiKeyEntry> _services = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Get a service definition by name. Returns null if not configured.</summary>
-    public ApiKeyEntry? GetService(string name) =>
-        _services.TryGetValue(name, out var svc) ? svc : null;
-
-    /// <summary>Check if a named service has a valid API key and is enabled.</summary>
-    public bool IsAvailable(string name) =>
-        _services.TryGetValue(name, out var svc) && svc.Enabled && !string.IsNullOrEmpty(svc.ApiKey);
-
     /// <summary>Shortcut: Google Search needs both key and CX.</summary>
     public bool HasGoogleSearch =>
         IsAvailable("google_search") && !string.IsNullOrEmpty(GetService("google_search")?.SearchEngineId);
 
     public bool HasGooglePlaces => IsAvailable("google_places");
 
+    /// <inheritdoc />
+    public ServiceBudgetInfo? GetServiceBudgetInfo(string service)
+    {
+        var entry = GetService(service);
+        if (entry == null) return null;
+        return new ServiceBudgetInfo
+        {
+            Enabled = entry.Enabled,
+            MaxRequestsPerDay = entry.MaxRequestsPerDay,
+            MaxRequests = entry.MaxRequests,
+            DailyBudgetUsd = entry.DailyBudgetUsd,
+            CostPerRequest = entry.CostPerRequest
+        };
+    }
+
+    /// <summary>Get a service definition by name. Returns null if not configured.</summary>
+    public ApiKeyEntry? GetService(string name)
+    {
+        return _services.TryGetValue(name, out var svc) ? svc : null;
+    }
+
+    /// <summary>Check if a named service has a valid API key and is enabled.</summary>
+    public bool IsAvailable(string name)
+    {
+        return _services.TryGetValue(name, out var svc) && svc.Enabled && !string.IsNullOrEmpty(svc.ApiKey);
+    }
+
     /// <summary>
-    /// Load services from all sources (env > user-secrets > config).
+    ///     Load services from all sources (env > user-secrets > config).
     /// </summary>
     public static ApiKeyService Load(IEnumerable<ApiKeyEntry> configKeys)
     {
@@ -41,10 +61,8 @@ public class ApiKeyService : IServiceBudgetLookup
 
         // 1. Config JSON entries (lowest priority)
         foreach (var entry in configKeys)
-        {
             if (!string.IsNullOrEmpty(entry.Name))
                 svc._services[entry.Name] = entry;
-        }
 
         // Ensure known services exist with defaults even if not in config
         svc.EnsureDefaults();
@@ -111,33 +129,19 @@ public class ApiKeyService : IServiceBudgetLookup
                     ? $"ready ({entry.MaxRequestsPerDay}/day, ${entry.CostPerRequest:F3}/req)"
                     : "no API key";
 
-            System.Diagnostics.Debug.WriteLine($"  {name}: {status}");
+            Debug.WriteLine($"  {name}: {status}");
         }
     }
 
-    /// <inheritdoc/>
-    public ServiceBudgetInfo? GetServiceBudgetInfo(string service)
-    {
-        var entry = GetService(service);
-        if (entry == null) return null;
-        return new ServiceBudgetInfo
-        {
-            Enabled = entry.Enabled,
-            MaxRequestsPerDay = entry.MaxRequestsPerDay,
-            MaxRequests = entry.MaxRequests,
-            DailyBudgetUsd = entry.DailyBudgetUsd,
-            CostPerRequest = entry.CostPerRequest
-        };
-    }
-
     /// <summary>Get all enabled and configured services.</summary>
-    public IEnumerable<ApiKeyEntry> GetConfiguredServices() =>
-        _services.Values.Where(s => s.Enabled && !string.IsNullOrEmpty(s.ApiKey));
+    public IEnumerable<ApiKeyEntry> GetConfiguredServices()
+    {
+        return _services.Values.Where(s => s.Enabled && !string.IsNullOrEmpty(s.ApiKey));
+    }
 
     private void EnsureDefaults()
     {
         if (!_services.ContainsKey("google_search"))
-        {
             _services["google_search"] = new ApiKeyEntry
             {
                 Name = "google_search",
@@ -145,10 +149,8 @@ public class ApiKeyService : IServiceBudgetLookup
                 MaxRequestsPerDay = 100,
                 CostPerRequest = 0.005 // $5/1000
             };
-        }
 
         if (!_services.ContainsKey("google_places"))
-        {
             _services["google_places"] = new ApiKeyEntry
             {
                 Name = "google_places",
@@ -156,10 +158,8 @@ public class ApiKeyService : IServiceBudgetLookup
                 MaxRequestsPerDay = 50,
                 CostPerRequest = 0.017 // $17/1000
             };
-        }
 
         if (!_services.ContainsKey("openai"))
-        {
             _services["openai"] = new ApiKeyEntry
             {
                 Name = "openai",
@@ -168,10 +168,8 @@ public class ApiKeyService : IServiceBudgetLookup
                 MaxRequestsPerDay = 200,
                 CostPerRequest = 0.0003 // ~$0.30/1M input tokens for gpt-4o-mini
             };
-        }
 
         if (!_services.ContainsKey("anthropic"))
-        {
             _services["anthropic"] = new ApiKeyEntry
             {
                 Name = "anthropic",
@@ -180,80 +178,67 @@ public class ApiKeyService : IServiceBudgetLookup
                 MaxRequestsPerDay = 200,
                 CostPerRequest = 0.003 // ~$3/1M input tokens for Sonnet 3.5
             };
-        }
 
         // Free search APIs — strict free-tier budgets
         if (!_services.ContainsKey("brave_search"))
-        {
             _services["brave_search"] = new ApiKeyEntry
             {
                 Name = "brave_search",
                 Enabled = true,
-                MaxRequestsPerDay = 60,  // Free: 2,000/month ≈ 66/day, stay under
-                MaxRequests = 0,         // Unlimited lifetime on free tier
-                CostPerRequest = 0       // Free
+                MaxRequestsPerDay = 60, // Free: 2,000/month ≈ 66/day, stay under
+                MaxRequests = 0, // Unlimited lifetime on free tier
+                CostPerRequest = 0 // Free
             };
-        }
 
         if (!_services.ContainsKey("serper"))
-        {
             _services["serper"] = new ApiKeyEntry
             {
                 Name = "serper",
                 Enabled = true,
-                MaxRequestsPerDay = 40,  // Conservative: 2,500 total free queries
-                MaxRequests = 2400,      // Stay under 2,500 lifetime cap
-                CostPerRequest = 0       // Free tier
+                MaxRequestsPerDay = 40, // Conservative: 2,500 total free queries
+                MaxRequests = 2400, // Stay under 2,500 lifetime cap
+                CostPerRequest = 0 // Free tier
             };
-        }
 
         if (!_services.ContainsKey("newsapi"))
-        {
             _services["newsapi"] = new ApiKeyEntry
             {
                 Name = "newsapi",
                 Enabled = true,
-                MaxRequestsPerDay = 90,  // Free: 100/day, stay under
+                MaxRequestsPerDay = 90, // Free: 100/day, stay under
                 MaxRequests = 0,
-                CostPerRequest = 0       // Free dev tier
+                CostPerRequest = 0 // Free dev tier
             };
-        }
 
         if (!_services.ContainsKey("newsdata"))
-        {
             _services["newsdata"] = new ApiKeyEntry
             {
                 Name = "newsdata",
                 Enabled = true,
                 MaxRequestsPerDay = 180, // Free: 200 credits/day, stay under
                 MaxRequests = 0,
-                CostPerRequest = 0       // Free tier
+                CostPerRequest = 0 // Free tier
             };
-        }
 
         if (!_services.ContainsKey("tavily"))
-        {
             _services["tavily"] = new ApiKeyEntry
             {
                 Name = "tavily",
                 Enabled = true,
-                MaxRequestsPerDay = 30,  // Free: 1,000/month ≈ 33/day, stay under
+                MaxRequestsPerDay = 30, // Free: 1,000/month ≈ 33/day, stay under
                 MaxRequests = 0,
-                CostPerRequest = 0       // Free tier
+                CostPerRequest = 0 // Free tier
             };
-        }
 
         if (!_services.ContainsKey("jina"))
-        {
             _services["jina"] = new ApiKeyEntry
             {
                 Name = "jina",
                 Enabled = true,
-                MaxRequestsPerDay = 50,  // Conservative — free tier rate-limited
+                MaxRequestsPerDay = 50, // Conservative — free tier rate-limited
                 MaxRequests = 0,
-                CostPerRequest = 0       // Free
+                CostPerRequest = 0 // Free
             };
-        }
     }
 
     private void MergeKey(string name, string? apiKey, string? searchEngineId)
@@ -270,22 +255,14 @@ public class ApiKeyService : IServiceBudgetLookup
         };
     }
 
-    private static string? Env(string name) =>
-        Environment.GetEnvironmentVariable(name) is { Length: > 0 } v ? v : null;
+    private static string? Env(string name)
+    {
+        return Environment.GetEnvironmentVariable(name) is { Length: > 0 } v ? v : null;
+    }
 
     /// <summary>
-    /// Parsed secrets from the .NET user secrets file.
-    /// </summary>
-    private record SecretValues(
-        string? GoogleSearch, string? GoogleSearchCx, string? GooglePlaces,
-        string? OpenAi, string? OpenAiModels,
-        string? Anthropic, string? AnthropicModels,
-        string? BraveSearch, string? Serper, string? NewsApi,
-        string? NewsData, string? Tavily, string? Jina);
-
-    /// <summary>
-    /// Read the .NET user secrets JSON file directly.
-    /// Maps flat key names to service definitions.
+    ///     Read the .NET user secrets JSON file directly.
+    ///     Maps flat key names to service definitions.
     /// </summary>
     private static SecretValues? LoadUserSecrets()
     {
@@ -347,4 +324,22 @@ public class ApiKeyService : IServiceBudgetLookup
             openAiKey, openAiModels, anthropicKey, anthropicModels,
             braveKey, serperKey, newsApiKey, newsDataKey, tavilyKey, jinaKey);
     }
+
+    /// <summary>
+    ///     Parsed secrets from the .NET user secrets file.
+    /// </summary>
+    private record SecretValues(
+        string? GoogleSearch,
+        string? GoogleSearchCx,
+        string? GooglePlaces,
+        string? OpenAi,
+        string? OpenAiModels,
+        string? Anthropic,
+        string? AnthropicModels,
+        string? BraveSearch,
+        string? Serper,
+        string? NewsApi,
+        string? NewsData,
+        string? Tavily,
+        string? Jina);
 }

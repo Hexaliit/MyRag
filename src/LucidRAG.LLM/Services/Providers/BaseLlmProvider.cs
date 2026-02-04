@@ -10,16 +10,16 @@ using Polly.Retry;
 namespace LucidRAG.LLM.Services.Providers;
 
 /// <summary>
-/// Base class for named LLM providers with shared functionality.
-/// Includes Polly resilience (retry + circuit breaker) and OpenTelemetry observability.
+///     Base class for named LLM providers with shared functionality.
+///     Includes Polly resilience (retry + circuit breaker) and OpenTelemetry observability.
 /// </summary>
 public abstract class BaseLlmProvider : INamedLlmProvider
 {
-    protected readonly ILlmService Inner;
-    protected readonly IPromptService PromptService;
-    protected readonly ModelConfig ModelConfig;
     protected readonly BackendConfig BackendConfig;
+    protected readonly ILlmService Inner;
     protected readonly ILogger Logger;
+    protected readonly ModelConfig ModelConfig;
+    protected readonly IPromptService PromptService;
     protected readonly ResiliencePipeline<string> ResiliencePipeline;
 
     protected BaseLlmProvider(
@@ -54,94 +54,9 @@ public abstract class BaseLlmProvider : INamedLlmProvider
     /// <inheritdoc />
     public string ProviderName => $"{Name}:{Inner.ProviderName}";
 
-    /// <summary>
-    /// Build Polly resilience pipeline with retry (exponential backoff + jitter) and circuit breaker.
-    /// </summary>
-    private ResiliencePipeline<string> BuildResiliencePipeline()
-    {
-        return new ResiliencePipelineBuilder<string>()
-            // Retry with exponential backoff and jitter
-            .AddRetry(new RetryStrategyOptions<string>
-            {
-                MaxRetryAttempts = BackendConfig.MaxRetries,
-                BackoffType = DelayBackoffType.Exponential,
-                UseJitter = true,
-                Delay = TimeSpan.FromMilliseconds(BackendConfig.InitialRetryDelayMs),
-                MaxDelay = TimeSpan.FromMilliseconds(BackendConfig.MaxRetryDelayMs),
-                ShouldHandle = new PredicateBuilder<string>()
-                    .Handle<HttpRequestException>()
-                    .Handle<TaskCanceledException>()
-                    .Handle<TimeoutException>()
-                    .Handle<InvalidOperationException>(ex =>
-                        ex.Message.Contains("unavailable", StringComparison.OrdinalIgnoreCase) ||
-                        ex.Message.Contains("rate limit", StringComparison.OrdinalIgnoreCase)),
-                OnRetry = args =>
-                {
-                    Logger.LogWarning(
-                        "LLM request retry {Attempt}/{MaxAttempts} for provider {Provider} after {Delay:F1}s - {Error}",
-                        args.AttemptNumber,
-                        BackendConfig.MaxRetries,
-                        Name,
-                        args.RetryDelay.TotalSeconds,
-                        args.Outcome.Exception?.Message ?? "Unknown error");
-
-                    RetryCounter.Add(1,
-                        new KeyValuePair<string, object?>("provider", Name),
-                        new KeyValuePair<string, object?>("attempt", args.AttemptNumber));
-
-                    return ValueTask.CompletedTask;
-                }
-            })
-            // Circuit breaker to fail fast when provider is consistently failing
-            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<string>
-            {
-                FailureRatio = 0.8, // Open circuit if 80% of requests fail
-                MinimumThroughput = BackendConfig.CircuitBreakerThreshold,
-                SamplingDuration = TimeSpan.FromSeconds(30),
-                BreakDuration = TimeSpan.FromSeconds(BackendConfig.CircuitBreakerDurationSeconds),
-                ShouldHandle = new PredicateBuilder<string>()
-                    .Handle<HttpRequestException>()
-                    .Handle<TaskCanceledException>()
-                    .Handle<TimeoutException>()
-                    .Handle<InvalidOperationException>(),
-                OnOpened = args =>
-                {
-                    Logger.LogWarning(
-                        "Circuit breaker OPENED for provider {Provider} - will retry after {Duration}s",
-                        Name, args.BreakDuration.TotalSeconds);
-
-                    CircuitBreakerCounter.Add(1,
-                        new KeyValuePair<string, object?>("provider", Name),
-                        new KeyValuePair<string, object?>("state", "opened"));
-
-                    return ValueTask.CompletedTask;
-                },
-                OnClosed = _ =>
-                {
-                    Logger.LogInformation("Circuit breaker CLOSED for provider {Provider}", Name);
-
-                    CircuitBreakerCounter.Add(1,
-                        new KeyValuePair<string, object?>("provider", Name),
-                        new KeyValuePair<string, object?>("state", "closed"));
-
-                    return ValueTask.CompletedTask;
-                },
-                OnHalfOpened = _ =>
-                {
-                    Logger.LogInformation("Circuit breaker HALF-OPEN for provider {Provider} - testing availability", Name);
-
-                    CircuitBreakerCounter.Add(1,
-                        new KeyValuePair<string, object?>("provider", Name),
-                        new KeyValuePair<string, object?>("state", "half_open"));
-
-                    return ValueTask.CompletedTask;
-                }
-            })
-            .Build();
-    }
-
     /// <inheritdoc />
-    public virtual async Task<string> GenerateAsync(string prompt, LlmOptions? options = null, CancellationToken ct = default)
+    public virtual async Task<string> GenerateAsync(string prompt, LlmOptions? options = null,
+        CancellationToken ct = default)
     {
         using var activity = ActivitySource.StartActivity("LlmGenerate", ActivityKind.Client);
         activity?.SetTag("llm.provider", Name);
@@ -223,7 +138,8 @@ public abstract class BaseLlmProvider : INamedLlmProvider
     }
 
     /// <inheritdoc />
-    public virtual async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null, CancellationToken ct = default)
+    public virtual async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null,
+        CancellationToken ct = default)
         where T : class
     {
         using var activity = ActivitySource.StartActivity("LlmGenerateJson", ActivityKind.Client);
@@ -353,7 +269,94 @@ public abstract class BaseLlmProvider : INamedLlmProvider
     }
 
     /// <summary>
-    /// Merge user options with model defaults.
+    ///     Build Polly resilience pipeline with retry (exponential backoff + jitter) and circuit breaker.
+    /// </summary>
+    private ResiliencePipeline<string> BuildResiliencePipeline()
+    {
+        return new ResiliencePipelineBuilder<string>()
+            // Retry with exponential backoff and jitter
+            .AddRetry(new RetryStrategyOptions<string>
+            {
+                MaxRetryAttempts = BackendConfig.MaxRetries,
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                Delay = TimeSpan.FromMilliseconds(BackendConfig.InitialRetryDelayMs),
+                MaxDelay = TimeSpan.FromMilliseconds(BackendConfig.MaxRetryDelayMs),
+                ShouldHandle = new PredicateBuilder<string>()
+                    .Handle<HttpRequestException>()
+                    .Handle<TaskCanceledException>()
+                    .Handle<TimeoutException>()
+                    .Handle<InvalidOperationException>(ex =>
+                        ex.Message.Contains("unavailable", StringComparison.OrdinalIgnoreCase) ||
+                        ex.Message.Contains("rate limit", StringComparison.OrdinalIgnoreCase)),
+                OnRetry = args =>
+                {
+                    Logger.LogWarning(
+                        "LLM request retry {Attempt}/{MaxAttempts} for provider {Provider} after {Delay:F1}s - {Error}",
+                        args.AttemptNumber,
+                        BackendConfig.MaxRetries,
+                        Name,
+                        args.RetryDelay.TotalSeconds,
+                        args.Outcome.Exception?.Message ?? "Unknown error");
+
+                    RetryCounter.Add(1,
+                        new KeyValuePair<string, object?>("provider", Name),
+                        new KeyValuePair<string, object?>("attempt", args.AttemptNumber));
+
+                    return ValueTask.CompletedTask;
+                }
+            })
+            // Circuit breaker to fail fast when provider is consistently failing
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<string>
+            {
+                FailureRatio = 0.8, // Open circuit if 80% of requests fail
+                MinimumThroughput = BackendConfig.CircuitBreakerThreshold,
+                SamplingDuration = TimeSpan.FromSeconds(30),
+                BreakDuration = TimeSpan.FromSeconds(BackendConfig.CircuitBreakerDurationSeconds),
+                ShouldHandle = new PredicateBuilder<string>()
+                    .Handle<HttpRequestException>()
+                    .Handle<TaskCanceledException>()
+                    .Handle<TimeoutException>()
+                    .Handle<InvalidOperationException>(),
+                OnOpened = args =>
+                {
+                    Logger.LogWarning(
+                        "Circuit breaker OPENED for provider {Provider} - will retry after {Duration}s",
+                        Name, args.BreakDuration.TotalSeconds);
+
+                    CircuitBreakerCounter.Add(1,
+                        new KeyValuePair<string, object?>("provider", Name),
+                        new KeyValuePair<string, object?>("state", "opened"));
+
+                    return ValueTask.CompletedTask;
+                },
+                OnClosed = _ =>
+                {
+                    Logger.LogInformation("Circuit breaker CLOSED for provider {Provider}", Name);
+
+                    CircuitBreakerCounter.Add(1,
+                        new KeyValuePair<string, object?>("provider", Name),
+                        new KeyValuePair<string, object?>("state", "closed"));
+
+                    return ValueTask.CompletedTask;
+                },
+                OnHalfOpened = _ =>
+                {
+                    Logger.LogInformation("Circuit breaker HALF-OPEN for provider {Provider} - testing availability",
+                        Name);
+
+                    CircuitBreakerCounter.Add(1,
+                        new KeyValuePair<string, object?>("provider", Name),
+                        new KeyValuePair<string, object?>("state", "half_open"));
+
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+    }
+
+    /// <summary>
+    ///     Merge user options with model defaults.
     /// </summary>
     protected LlmOptions MergeOptions(LlmOptions? userOptions, LlmOptions? promptOptions = null)
     {

@@ -1,5 +1,5 @@
-using Xunit;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Images.Tests.Services.Ocr;
 

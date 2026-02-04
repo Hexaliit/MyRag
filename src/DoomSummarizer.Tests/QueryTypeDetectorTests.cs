@@ -4,7 +4,7 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for QueryTypeDetector: roundup detection, date-gating, topic drift.
+///     Tests for QueryTypeDetector: roundup detection, date-gating, topic drift.
 /// </summary>
 public class QueryTypeDetectorTests
 {

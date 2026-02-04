@@ -1,9 +1,7 @@
-using AudioSummarizer.Core.Config;
-
 namespace AudioSummarizer.Core.Services.Transcription;
 
 /// <summary>
-/// Downloads and caches Whisper ONNX models from HuggingFace
+///     Downloads and caches Whisper ONNX models from HuggingFace
 /// </summary>
 public class WhisperModelDownloader
 {
@@ -19,7 +17,7 @@ public class WhisperModelDownloader
     }
 
     /// <summary>
-    /// Ensure Whisper model is downloaded and return local path
+    ///     Ensure Whisper model is downloaded and return local path
     /// </summary>
     public async Task<string> EnsureModelAsync(
         string modelPath,
@@ -35,10 +33,7 @@ public class WhisperModelDownloader
 
         // Create directory if needed
         var modelDir = Path.GetDirectoryName(modelPath);
-        if (!string.IsNullOrEmpty(modelDir))
-        {
-            Directory.CreateDirectory(modelDir);
-        }
+        if (!string.IsNullOrEmpty(modelDir)) Directory.CreateDirectory(modelDir);
 
         // Determine model URL
         var url = GetModelUrl(modelSize, language);
@@ -69,7 +64,8 @@ public class WhisperModelDownloader
             var totalBytes = response.Content.Headers.ContentLength ?? 0;
 
             await using (var contentStream = await response.Content.ReadAsStreamAsync(ct))
-            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            await using (var fileStream =
+                         new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
             {
                 var buffer = new byte[81920];
                 long totalRead = 0;
@@ -82,24 +78,19 @@ public class WhisperModelDownloader
 
                     if (totalBytes > 0)
                     {
-                        var progress = (int)((totalRead * 100) / totalBytes);
+                        var progress = (int)(totalRead * 100 / totalBytes);
                         if (progress % 10 == 0) // Log every 10%
-                        {
                             _logger.LogDebug("Download progress: {Progress}%", progress);
-                        }
                     }
                 }
             }
 
             // Move after streams are closed
-            File.Move(tempPath, localPath, overwrite: true);
+            File.Move(tempPath, localPath, true);
         }
         catch
         {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
+            if (File.Exists(tempPath)) File.Delete(tempPath);
             throw;
         }
     }
@@ -119,7 +110,6 @@ public class WhisperModelDownloader
 
         // English-specific models are smaller and faster
         if (lang == "en")
-        {
             return size switch
             {
                 "tiny" => "ggml-tiny.en.bin",
@@ -128,7 +118,6 @@ public class WhisperModelDownloader
                 "medium" => "ggml-medium.en.bin",
                 _ => "ggml-base.en.bin"
             };
-        }
 
         // Multi-language models
         return size switch

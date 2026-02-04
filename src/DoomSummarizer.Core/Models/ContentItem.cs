@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Services;
 
@@ -11,10 +12,12 @@ public record ContentItem
     public string? Url { get; set; }
     public string? Content { get; set; }
     public string? Author { get; init; }
+
     /// <summary>
-    /// True if Content has been enriched from the actual page (replacing RSS description).
+    ///     True if Content has been enriched from the actual page (replacing RSS description).
     /// </summary>
     public bool IsEnriched { get; set; }
+
     public int Score { get; init; }
     public int CommentCount { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
@@ -46,25 +49,25 @@ public record ContentItem
     // === Hierarchical document fields (for chapter/section-aware ingestion) ===
 
     /// <summary>
-    /// Parent document ID for hierarchical grouping.
-    /// Null = top-level item (or legacy item without hierarchy).
+    ///     Parent document ID for hierarchical grouping.
+    ///     Null = top-level item (or legacy item without hierarchy).
     /// </summary>
     public string? ParentDocumentId { get; set; }
 
     /// <summary>
-    /// Position within parent (0-based). Enables ordered reconstruction of reading order.
+    ///     Position within parent (0-based). Enables ordered reconstruction of reading order.
     /// </summary>
     public int ChunkSequence { get; set; }
 
     /// <summary>
-    /// Hierarchy level label: "work", "part", "chapter", "act", "section", "scene", "passage".
-    /// Null for legacy items without hierarchy.
+    ///     Hierarchy level label: "work", "part", "chapter", "act", "section", "scene", "passage".
+    ///     Null for legacy items without hierarchy.
     /// </summary>
     public string? UnitLevel { get; set; }
 }
 
 /// <summary>
-/// Content extracted from a linked page (one-hop follow).
+///     Content extracted from a linked page (one-hop follow).
 /// </summary>
 public record LinkedPage
 {
@@ -98,41 +101,44 @@ public record StoredItem
     public string? UnitLevel { get; init; }
 
     /// <summary>
-    /// Timestamp when a web search confirmed this URL still exists online.
-    /// KB items with a recent WebValidatedAt are included in general queries.
+    ///     Timestamp when a web search confirmed this URL still exists online.
+    ///     KB items with a recent WebValidatedAt are included in general queries.
     /// </summary>
     public DateTimeOffset? WebValidatedAt { get; init; }
 
     /// <summary>
-    /// Convert a stored item back to a ContentItem for ranking/display.
+    ///     Convert a stored item back to a ContentItem for ranking/display.
     /// </summary>
-    public ContentItem ToContentItem() => new()
+    public ContentItem ToContentItem()
     {
-        Id = Id,
-        Source = Source,
-        Title = Title,
-        Url = Url,
-        Content = Content ?? Summary ?? Title,
-        Summary = Summary,
-        DetectedTopic = DetectedTopic,
-        SentimentScore = SentimentScore,
-        Score = Score,
-        CreatedAt = CreatedAt,
-        FetchedAt = FetchedAt,
-        Embedding = Embedding != null ? EmbeddingCompat.FromBytes(Embedding) : null,
-        Keywords = Keywords,
-        Tags = DeserializeTags(Tags),
-        ParentDocumentId = ParentDocumentId,
-        ChunkSequence = ChunkSequence,
-        UnitLevel = UnitLevel
-    };
+        return new ContentItem
+        {
+            Id = Id,
+            Source = Source,
+            Title = Title,
+            Url = Url,
+            Content = Content ?? Summary ?? Title,
+            Summary = Summary,
+            DetectedTopic = DetectedTopic,
+            SentimentScore = SentimentScore,
+            Score = Score,
+            CreatedAt = CreatedAt,
+            FetchedAt = FetchedAt,
+            Embedding = Embedding != null ? EmbeddingCompat.FromBytes(Embedding) : null,
+            Keywords = Keywords,
+            Tags = DeserializeTags(Tags),
+            ParentDocumentId = ParentDocumentId,
+            ChunkSequence = ChunkSequence,
+            UnitLevel = UnitLevel
+        };
+    }
 
     private static List<string> DeserializeTags(string? tagsJson)
     {
         if (string.IsNullOrWhiteSpace(tagsJson)) return [];
         try
         {
-            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(tagsJson) ?? [];
+            return JsonSerializer.Deserialize<List<string>>(tagsJson) ?? [];
         }
         catch
         {
@@ -173,7 +179,7 @@ public record GraphEntity
     public DateTimeOffset LastSeen { get; init; }
 
     /// <summary>
-    /// Freshness-weighted score: recent mentions count more.
+    ///     Freshness-weighted score: recent mentions count more.
     /// </summary>
     public double FreshnessScore
     {

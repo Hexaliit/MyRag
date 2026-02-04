@@ -99,7 +99,9 @@ function extractStructure(text, diagramType) {
     var edges = [];
 
     try {
-        var lines = text.split('\n').slice(1).filter(function(l) { return l.trim().length > 0; });
+        var lines = text.split('\n').slice(1).filter(function (l) {
+            return l.trim().length > 0;
+        });
 
         switch (diagramType) {
             case 'flowchart':
@@ -122,17 +124,17 @@ function extractStructure(text, diagramType) {
         // Best-effort: return what we have
     }
 
-    return { nodes: nodes, edges: edges };
+    return {nodes: nodes, edges: edges};
 }
 
 function extractFlowchart(lines, nodes, edges) {
     var nodeSet = {};
-    lines.forEach(function(line) {
+    lines.forEach(function (line) {
         line = line.trim();
         // Node definitions: A[label], B{label}, C((label))
         var nodeMatch = line.match(/(\w+)\s*[\[\({]/g);
         if (nodeMatch) {
-            nodeMatch.forEach(function(m) {
+            nodeMatch.forEach(function (m) {
                 var id = m.match(/(\w+)/)[1];
                 if (id && !nodeSet[id]) {
                     nodeSet[id] = true;
@@ -144,8 +146,14 @@ function extractFlowchart(lines, nodes, edges) {
         var edgeMatch = line.match(/(\w+)\s*(-->|-.->|==>|---)\s*(?:\|[^|]*\|)?\s*(\w+)/);
         if (edgeMatch) {
             edges.push(edgeMatch[1] + ' -> ' + edgeMatch[3]);
-            if (!nodeSet[edgeMatch[1]]) { nodeSet[edgeMatch[1]] = true; nodes.push(edgeMatch[1]); }
-            if (!nodeSet[edgeMatch[3]]) { nodeSet[edgeMatch[3]] = true; nodes.push(edgeMatch[3]); }
+            if (!nodeSet[edgeMatch[1]]) {
+                nodeSet[edgeMatch[1]] = true;
+                nodes.push(edgeMatch[1]);
+            }
+            if (!nodeSet[edgeMatch[3]]) {
+                nodeSet[edgeMatch[3]] = true;
+                nodes.push(edgeMatch[3]);
+            }
         }
         // Subgraph
         var subMatch = line.match(/^subgraph\s+(.+)$/i);
@@ -157,18 +165,27 @@ function extractFlowchart(lines, nodes, edges) {
 
 function extractSequence(lines, nodes, edges) {
     var participants = {};
-    lines.forEach(function(line) {
+    lines.forEach(function (line) {
         line = line.trim();
         var partMatch = line.match(/^participant\s+(\S+)(?:\s+as\s+(.+))?$/i);
         if (partMatch) {
             var name = partMatch[2] || partMatch[1];
-            if (!participants[name]) { participants[name] = true; nodes.push(name); }
+            if (!participants[name]) {
+                participants[name] = true;
+                nodes.push(name);
+            }
             return;
         }
         var msgMatch = line.match(/^(\w+)\s*(->>|-->>|->|-->|-x|--x|-\)|--\))\+?-?\s*(\w+)\s*:\s*(.+)$/);
         if (msgMatch) {
-            if (!participants[msgMatch[1]]) { participants[msgMatch[1]] = true; nodes.push(msgMatch[1]); }
-            if (!participants[msgMatch[3]]) { participants[msgMatch[3]] = true; nodes.push(msgMatch[3]); }
+            if (!participants[msgMatch[1]]) {
+                participants[msgMatch[1]] = true;
+                nodes.push(msgMatch[1]);
+            }
+            if (!participants[msgMatch[3]]) {
+                participants[msgMatch[3]] = true;
+                nodes.push(msgMatch[3]);
+            }
             edges.push(msgMatch[1] + ' -> ' + msgMatch[3] + ': ' + msgMatch[4].trim());
         }
     });
@@ -176,17 +193,26 @@ function extractSequence(lines, nodes, edges) {
 
 function extractClass(lines, nodes, edges) {
     var classes = {};
-    lines.forEach(function(line) {
+    lines.forEach(function (line) {
         line = line.trim();
         var classMatch = line.match(/^\s*class\s+(\w+)/i);
         if (classMatch) {
-            if (!classes[classMatch[1]]) { classes[classMatch[1]] = true; nodes.push(classMatch[1]); }
+            if (!classes[classMatch[1]]) {
+                classes[classMatch[1]] = true;
+                nodes.push(classMatch[1]);
+            }
             return;
         }
         var relMatch = line.match(/^(\w+)\s+(<\|--|--\|>|\*--|\*-|o--|--o|<\.\.>|\.\.\>|<\.\.|--)\s+(\w+)/);
         if (relMatch) {
-            if (!classes[relMatch[1]]) { classes[relMatch[1]] = true; nodes.push(relMatch[1]); }
-            if (!classes[relMatch[3]]) { classes[relMatch[3]] = true; nodes.push(relMatch[3]); }
+            if (!classes[relMatch[1]]) {
+                classes[relMatch[1]] = true;
+                nodes.push(relMatch[1]);
+            }
+            if (!classes[relMatch[3]]) {
+                classes[relMatch[3]] = true;
+                nodes.push(relMatch[3]);
+            }
             edges.push(relMatch[1] + ' -> ' + relMatch[3]);
         }
     });
@@ -194,13 +220,19 @@ function extractClass(lines, nodes, edges) {
 
 function extractState(lines, nodes, edges) {
     var states = {};
-    lines.forEach(function(line) {
+    lines.forEach(function (line) {
         line = line.trim();
         var transMatch = line.match(/^(\[?\*?\]?|\w+)\s*-->\s*(\[?\*?\]?|\w+)\s*(?::\s*(.+))?$/);
         if (transMatch) {
             var from = transMatch[1], to = transMatch[2];
-            if (from !== '[*]' && !states[from]) { states[from] = true; nodes.push(from); }
-            if (to !== '[*]' && !states[to]) { states[to] = true; nodes.push(to); }
+            if (from !== '[*]' && !states[from]) {
+                states[from] = true;
+                nodes.push(from);
+            }
+            if (to !== '[*]' && !states[to]) {
+                states[to] = true;
+                nodes.push(to);
+            }
             edges.push(from + ' -> ' + to + (transMatch[3] ? ' (' + transMatch[3].trim() + ')' : ''));
         }
     });
@@ -219,4 +251,4 @@ function buildDescription(diagramType, extracted) {
 }
 
 // Export for IIFE global access
-globalThis.MermaidParser = { parse: parse };
+globalThis.MermaidParser = {parse: parse};

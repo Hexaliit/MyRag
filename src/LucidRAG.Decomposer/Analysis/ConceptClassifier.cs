@@ -5,16 +5,14 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Classifies query concept type using embedding archetype matching.
-/// Replaces regex word-list detection with semantic similarity to pre-embedded archetypes.
-/// The concept type drives both retrieval strategy and response shape.
+///     Classifies query concept type using embedding archetype matching.
+///     Replaces regex word-list detection with semantic similarity to pre-embedded archetypes.
+///     The concept type drives both retrieval strategy and response shape.
 /// </summary>
 public class ConceptClassifier
 {
-    private readonly IEmbeddingService? _embedding;
-    private readonly ILogger<ConceptClassifier>? _logger;
-
-    private Dictionary<ConceptType, float[][]>? _archetypeEmbeddings;
+    /// <summary>Minimum similarity score to assign a concept type.</summary>
+    private const float MinConceptScore = 0.45f;
 
     /// <summary>Archetype texts for each concept type.</summary>
     private static readonly Dictionary<ConceptType, string[]> Archetypes = new()
@@ -93,8 +91,10 @@ public class ConceptClassifier
         ]
     };
 
-    /// <summary>Minimum similarity score to assign a concept type.</summary>
-    private const float MinConceptScore = 0.45f;
+    private readonly IEmbeddingService? _embedding;
+    private readonly ILogger<ConceptClassifier>? _logger;
+
+    private Dictionary<ConceptType, float[][]>? _archetypeEmbeddings;
 
     public ConceptClassifier(IEmbeddingService? embedding = null, ILogger<ConceptClassifier>? logger = null)
     {
@@ -103,8 +103,8 @@ public class ConceptClassifier
     }
 
     /// <summary>
-    /// Classify the concept type of a query using embedding archetype matching.
-    /// Returns the best matching concept type and all scores.
+    ///     Classify the concept type of a query using embedding archetype matching.
+    ///     Returns the best matching concept type and all scores.
     /// </summary>
     public async Task<(ConceptType concept, Dictionary<string, float> scores)> ClassifyAsync(
         string query,
@@ -169,8 +169,6 @@ public class ConceptClassifier
 
         _archetypeEmbeddings = new Dictionary<ConceptType, float[][]>();
         foreach (var (concept, offset, count) in slices)
-        {
             _archetypeEmbeddings[concept] = allEmbeddings[offset..(offset + count)];
-        }
     }
 }

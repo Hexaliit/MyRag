@@ -1,7 +1,7 @@
 namespace LucidRAG.Core.Services.Learning;
 
 /// <summary>
-/// Document repository interface for learning queries.
+///     Document repository interface for learning queries.
 /// </summary>
 public interface IDocumentRepository
 {
@@ -25,7 +25,7 @@ public interface IDocumentRepository
 }
 
 /// <summary>
-/// Entity repository interface.
+///     Entity repository interface.
 /// </summary>
 public interface IEntityRepository
 {
@@ -35,7 +35,7 @@ public interface IEntityRepository
 }
 
 /// <summary>
-/// Evidence repository interface.
+///     Evidence repository interface.
 /// </summary>
 public interface IEvidenceRepository
 {
@@ -44,7 +44,7 @@ public interface IEvidenceRepository
 }
 
 /// <summary>
-/// Document entity model.
+///     Document entity model.
 /// </summary>
 public class DocumentEntity
 {
@@ -58,7 +58,7 @@ public class DocumentEntity
 }
 
 /// <summary>
-/// Evidence artifact model.
+///     Evidence artifact model.
 /// </summary>
 public class EvidenceArtifact
 {
@@ -70,7 +70,7 @@ public class EvidenceArtifact
 }
 
 /// <summary>
-/// Extracted entity model.
+///     Extracted entity model.
 /// </summary>
 public class ExtractedEntity
 {
@@ -80,7 +80,7 @@ public class ExtractedEntity
 }
 
 /// <summary>
-/// Entity relationship model.
+///     Entity relationship model.
 /// </summary>
 public class EntityRelationship
 {

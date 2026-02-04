@@ -7,17 +7,6 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Image;
 
 public class ImageProcessorPlugin : IProcessorPlugin, ICliPlugin
 {
-    public ProcessorPluginMetadata Metadata { get; } = new()
-    {
-        Name = "image",
-        DisplayName = "Image Analyzer",
-        Description = "OCR, captioning, and multi-wave ML analysis for image files",
-        Version = "1.0.0",
-        SupportedExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff"],
-        MinActivationWords = 0,
-        DocumentTypes = ["image"]
-    };
-
     public PluginCliMetadata CliMetadata { get; } = new()
     {
         CommandName = "image",
@@ -42,12 +31,25 @@ public class ImageProcessorPlugin : IProcessorPlugin, ICliPlugin
         });
     }
 
+    public ProcessorPluginMetadata Metadata { get; } = new()
+    {
+        Name = "image",
+        DisplayName = "Image Analyzer",
+        Description = "OCR, captioning, and multi-wave ML analysis for image files",
+        Version = "1.0.0",
+        SupportedExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff"],
+        MinActivationWords = 0,
+        DocumentTypes = ["image"]
+    };
+
     public IReadOnlyList<IDocumentReader> Readers => [];
     public IReadOnlyList<IDocumentSplitter> Splitters => [];
     public IReadOnlyList<TemplateDefinition> Templates => [];
 
     public Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default)
-        => Task.CompletedTask;
+    {
+        return Task.CompletedTask;
+    }
 
     public bool CanProcess(string markdown, ProcessingContext context)
     {
@@ -57,5 +59,7 @@ public class ImageProcessorPlugin : IProcessorPlugin, ICliPlugin
     }
 
     public Task<ProcessorResult> ProcessAsync(string markdown, ProcessorOptions options, CancellationToken ct = default)
-        => throw new NotSupportedException("Image processing uses IPipeline. Use CLI commands for direct image analysis.");
+    {
+        throw new NotSupportedException("Image processing uses IPipeline. Use CLI commands for direct image analysis.");
+    }
 }

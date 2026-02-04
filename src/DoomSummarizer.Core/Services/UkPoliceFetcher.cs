@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
@@ -5,9 +8,9 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches crime data from the UK Police Data API — free, no auth, no rate limits.
-/// Covers street-level crime, police force info, and neighbourhood data.
-/// https://data.police.uk/docs/
+///     Fetches crime data from the UK Police Data API — free, no auth, no rate limits.
+///     Covers street-level crime, police force info, and neighbourhood data.
+///     https://data.police.uk/docs/
 /// </summary>
 public class UkPoliceFetcher(HttpClient httpClient)
 {
@@ -15,16 +18,17 @@ public class UkPoliceFetcher(HttpClient httpClient)
     private const string UserAgent = "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)";
 
     /// <summary>
-    /// Available sub-parameter sections.
-    /// Usage: -s ukpolice, -s ukpolice:forces, -s ukpolice:crime:52.629729,-1.131592
+    ///     Available sub-parameter sections.
+    ///     Usage: -s ukpolice, -s ukpolice:forces, -s ukpolice:crime:52.629729,-1.131592
     /// </summary>
     public static readonly IReadOnlyList<string> AvailableSections =
         ["forces", "crime", "outcomes", "neighbourhoods"];
 
     /// <summary>
-    /// Fetch police data based on section and optional parameters.
+    ///     Fetch police data based on section and optional parameters.
     /// </summary>
-    public async Task<List<ContentItem>> FetchAsync(int limit = 20, string? section = null, IReadOnlyList<string>? subParams = null)
+    public async Task<List<ContentItem>> FetchAsync(int limit = 20, string? section = null,
+        IReadOnlyList<string>? subParams = null)
     {
         return section switch
         {
@@ -36,8 +40,8 @@ public class UkPoliceFetcher(HttpClient httpClient)
     }
 
     /// <summary>
-    /// Fetch a summary of recent crime categories and totals.
-    /// Used as the default when no specific section is requested.
+    ///     Fetch a summary of recent crime categories and totals.
+    ///     Used as the default when no specific section is requested.
     /// </summary>
     public async Task<List<ContentItem>> FetchCrimeSummaryAsync(int limit = 20)
     {
@@ -68,7 +72,7 @@ public class UkPoliceFetcher(HttpClient httpClient)
                     Id = $"ukpolice_cat_{GenerateId(cat.Url ?? cat.Name)}",
                     Source = "ukpolice",
                     Title = $"[Crime Category] {cat.Name}",
-                    Url = $"https://data.police.uk/docs/method/crime-categories/",
+                    Url = "https://data.police.uk/docs/method/crime-categories/",
                     Content = $"Crime category: {cat.Name}. Data available for {latestDate}. " +
                               "Use -s ukpolice:crime:LAT,LNG to search street-level crime by location.",
                     Author = "UK Police Data",
@@ -84,15 +88,15 @@ public class UkPoliceFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: UK Police crime summary failed: {ex.Message}");
+            Debug.WriteLine($"Warning: UK Police crime summary failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch street-level crime data for a location.
-    /// Expects subParams[0] = "lat,lng" (e.g. "52.629729,-1.131592" for Leicester).
+    ///     Fetch street-level crime data for a location.
+    ///     Expects subParams[0] = "lat,lng" (e.g. "52.629729,-1.131592" for Leicester).
     /// </summary>
     public async Task<List<ContentItem>> FetchStreetCrimeAsync(int limit = 20, IReadOnlyList<string>? subParams = null)
     {
@@ -143,7 +147,7 @@ public class UkPoliceFetcher(HttpClient httpClient)
                     Id = $"ukpolice_crime_{GenerateId(category + lat + lng)}",
                     Source = "ukpolice",
                     Title = $"{count}x {category} near {lat},{lng}",
-                    Url = $"https://data.police.uk/",
+                    Url = "https://data.police.uk/",
                     Content = $"{count} incidents of {category} reported near coordinates ({lat}, {lng}). " +
                               $"Month: {sample.Month ?? "recent"}. " +
                               locationText,
@@ -163,14 +167,14 @@ public class UkPoliceFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: UK Police street crime fetch failed: {ex.Message}");
+            Debug.WriteLine($"Warning: UK Police street crime fetch failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch all police forces in England, Wales, and Northern Ireland.
+    ///     Fetch all police forces in England, Wales, and Northern Ireland.
     /// </summary>
     public async Task<List<ContentItem>> FetchForcesAsync(int limit = 20)
     {
@@ -205,14 +209,14 @@ public class UkPoliceFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: UK Police forces fetch failed: {ex.Message}");
+            Debug.WriteLine($"Warning: UK Police forces fetch failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch crime outcome statistics for a police force area.
+    ///     Fetch crime outcome statistics for a police force area.
     /// </summary>
     public async Task<List<ContentItem>> FetchOutcomesAsync(int limit = 20, IReadOnlyList<string>? subParams = null)
     {
@@ -258,7 +262,7 @@ public class UkPoliceFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: UK Police outcomes fetch failed: {ex.Message}");
+            Debug.WriteLine($"Warning: UK Police outcomes fetch failed: {ex.Message}");
         }
 
         return items;
@@ -277,12 +281,16 @@ public class UkPoliceFetcher(HttpClient httpClient)
         return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
-    private static string FormatCategory(string category) =>
-        category.Replace('-', ' ').Replace("anti social", "anti-social");
+    private static string FormatCategory(string category)
+    {
+        return category.Replace('-', ' ').Replace("anti social", "anti-social");
+    }
 
-    private static string GenerateId(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string GenerateId(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
     private static DateTimeOffset TryParseMonth(string? month)
     {
@@ -301,11 +309,14 @@ public class UkPoliceFetcher(HttpClient httpClient)
 
     private record StreetCrime(
         string? Category,
-        [property: JsonPropertyName("location_type")] string? LocationType,
+        [property: JsonPropertyName("location_type")]
+        string? LocationType,
         CrimeLocation? Location,
         string? Context,
-        [property: JsonPropertyName("outcome_status")] OutcomeStatus? OutcomeStatus,
-        [property: JsonPropertyName("persistent_id")] string? PersistentId,
+        [property: JsonPropertyName("outcome_status")]
+        OutcomeStatus? OutcomeStatus,
+        [property: JsonPropertyName("persistent_id")]
+        string? PersistentId,
         string? Month);
 
     private record CrimeLocation(
@@ -320,7 +331,8 @@ public class UkPoliceFetcher(HttpClient httpClient)
     private record CrimeOutcome(
         OutcomeCategory? Category,
         string? Date,
-        [property: JsonPropertyName("person_id")] string? PersonId);
+        [property: JsonPropertyName("person_id")]
+        string? PersonId);
 
     private record OutcomeCategory(string? Name);
 }

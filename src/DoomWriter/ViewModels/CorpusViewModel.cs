@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DoomSummarizer.Models;
@@ -14,27 +15,23 @@ public partial class CorpusViewModel : ObservableObject
     private readonly CorpusService _corpus;
     private readonly CrawlService _crawlService;
     private readonly WriterSettingsService _settings;
-    private Window? _window;
-    private CancellationTokenSource? _indexCts;
-
-    public ObservableCollection<string> Directories { get; } = [];
-    public ObservableCollection<CrawlSourceItem> CrawlSources { get; } = [];
-    public ObservableCollection<CorpusCheckItem> CorpusCheckItems { get; } = [];
-
-    [ObservableProperty] private string? _selectedDirectory;
-    [ObservableProperty] private CrawlSourceItem? _selectedCrawlSource;
-    [ObservableProperty] private int _totalDocuments;
-    [ObservableProperty] private int _totalSegments;
-    [ObservableProperty] private string _indexingStatus = "";
-    [ObservableProperty] private bool _isIndexing;
-    [ObservableProperty] private float _indexProgress;
     [ObservableProperty] private bool _autoIndexOnChange;
+    [ObservableProperty] private float _crawlProgress;
+    [ObservableProperty] private string _crawlStatus = "";
+    [ObservableProperty] private bool _hasCrawlSourceSelected;
+    private CancellationTokenSource? _indexCts;
+    [ObservableProperty] private string _indexingStatus = "";
+    [ObservableProperty] private float _indexProgress;
 
     // Crawl state
     [ObservableProperty] private bool _isCrawling;
-    [ObservableProperty] private string _crawlStatus = "";
-    [ObservableProperty] private float _crawlProgress;
-    [ObservableProperty] private bool _hasCrawlSourceSelected;
+    [ObservableProperty] private bool _isIndexing;
+    [ObservableProperty] private CrawlSourceItem? _selectedCrawlSource;
+
+    [ObservableProperty] private string? _selectedDirectory;
+    [ObservableProperty] private int _totalDocuments;
+    [ObservableProperty] private int _totalSegments;
+    private Window? _window;
 
     public CorpusViewModel(CorpusService corpus, CrawlService crawlService, WriterSettingsService settings)
     {
@@ -45,10 +42,7 @@ public partial class CorpusViewModel : ObservableObject
         foreach (var dir in settings.Config.CorpusDirectories)
             Directories.Add(dir);
 
-        foreach (var src in settings.Config.CrawlSources)
-        {
-            CrawlSources.Add(new CrawlSourceItem(src));
-        }
+        foreach (var src in settings.Config.CrawlSources) CrawlSources.Add(new CrawlSourceItem(src));
 
         AutoIndexOnChange = settings.Config.AutoIndexOnChange;
         TotalDocuments = corpus.TotalDocuments;
@@ -61,6 +55,10 @@ public partial class CorpusViewModel : ObservableObject
 
         RebuildCorpusCheckItems();
     }
+
+    public ObservableCollection<string> Directories { get; } = [];
+    public ObservableCollection<CrawlSourceItem> CrawlSources { get; } = [];
+    public ObservableCollection<CorpusCheckItem> CorpusCheckItems { get; } = [];
 
     partial void OnSelectedCrawlSourceChanged(CrawlSourceItem? value)
     {
@@ -85,7 +83,10 @@ public partial class CorpusViewModel : ObservableObject
         }
     }
 
-    public void SetWindow(Window window) => _window = window;
+    public void SetWindow(Window window)
+    {
+        _window = window;
+    }
 
     [RelayCommand]
     private async Task AddDirectory()
@@ -227,7 +228,7 @@ public partial class CorpusViewModel : ObservableObject
 
     private void OnCrawlProgress(object? sender, CrawlProgressUpdate progress)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             CrawlStatus = progress.Message;
             if (progress.Total > 0)
@@ -239,7 +240,7 @@ public partial class CorpusViewModel : ObservableObject
 
     private void OnCrawlCompleted(object? sender, CrawlSessionResult result)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             IsCrawling = false;
             CrawlStatus = $"Crawl complete: {result.NewChanged} pages indexed from {result.KbName}";
@@ -265,13 +266,10 @@ public partial class CorpusViewModel : ObservableObject
 
 public partial class CrawlSourceItem : ObservableObject
 {
-    public CrawlSource Source { get; }
-
-    public string Url => Source.Url;
-
-    [ObservableProperty] private string? _pathFilter;
     [ObservableProperty] private int _maxDepth;
     [ObservableProperty] private int _maxPages;
+
+    [ObservableProperty] private string? _pathFilter;
     [ObservableProperty] private bool _recurse;
     [ObservableProperty] private string _statusText = "";
 
@@ -287,15 +285,34 @@ public partial class CrawlSourceItem : ObservableObject
             : "Not yet crawled";
     }
 
-    partial void OnPathFilterChanged(string? value) => Source.PathFilter = value;
-    partial void OnMaxDepthChanged(int value) => Source.MaxDepth = value;
-    partial void OnMaxPagesChanged(int value) => Source.MaxPages = value;
-    partial void OnRecurseChanged(bool value) => Source.Recurse = value;
+    public CrawlSource Source { get; }
+
+    public string Url => Source.Url;
+
+    partial void OnPathFilterChanged(string? value)
+    {
+        Source.PathFilter = value;
+    }
+
+    partial void OnMaxDepthChanged(int value)
+    {
+        Source.MaxDepth = value;
+    }
+
+    partial void OnMaxPagesChanged(int value)
+    {
+        Source.MaxPages = value;
+    }
+
+    partial void OnRecurseChanged(bool value)
+    {
+        Source.Recurse = value;
+    }
 }
 
 public partial class CorpusCheckItem : ObservableObject
 {
+    [ObservableProperty] private bool _isSelected;
     public required string Name { get; init; }
     public required string Path { get; init; }
-    [ObservableProperty] private bool _isSelected;
 }

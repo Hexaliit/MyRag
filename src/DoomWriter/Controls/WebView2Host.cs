@@ -1,20 +1,33 @@
-using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.Drawing;
 using System.Text.Json;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
+using Avalonia.Threading;
+using Microsoft.Web.WebView2.Core;
+using Size = Avalonia.Size;
 
 namespace DoomWriter.Controls;
 
 /// <summary>
-/// Hosts a WebView2 (Edge Chromium) control inside Avalonia via NativeControlHost.
-/// Windows-only. Falls back to a message if WebView2 runtime is not installed.
+///     Hosts a WebView2 (Edge Chromium) control inside Avalonia via NativeControlHost.
+///     Windows-only. Falls back to a message if WebView2 runtime is not installed.
 /// </summary>
 public class WebView2Host : NativeControlHost, IDisposable
 {
-    private Microsoft.Web.WebView2.Core.CoreWebView2Controller? _controller;
-    private Microsoft.Web.WebView2.Core.CoreWebView2? _webView;
+    private CoreWebView2Controller? _controller;
     private IntPtr _hostHwnd;
+    private CoreWebView2? _webView;
+
+    public bool IsReady => _webView != null;
+
+    public void Dispose()
+    {
+        _controller?.Close();
+        _controller = null;
+        _webView = null;
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>Fires when the CoreWebView2 is created and ready to navigate.</summary>
     public event EventHandler? WebViewReady;
@@ -28,13 +41,11 @@ public class WebView2Host : NativeControlHost, IDisposable
     /// <summary>Fires if WebView2 runtime is not available.</summary>
     public event EventHandler<string>? InitializationFailed;
 
-    public bool IsReady => _webView != null;
-
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
     {
         var handle = base.CreateNativeControlCore(parent);
         _hostHwnd = handle.Handle;
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = InitWebViewAsync());
+        Dispatcher.UIThread.Post(() => _ = InitWebViewAsync());
         return handle;
     }
 
@@ -55,7 +66,7 @@ public class WebView2Host : NativeControlHost, IDisposable
                 "DoomWriter", "webview2-data");
             Directory.CreateDirectory(userDataFolder);
 
-            var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
+            var env = await CoreWebView2Environment.CreateAsync(
                 userDataFolder: userDataFolder);
 
             _controller = await env.CreateCoreWebView2ControllerAsync(_hostHwnd);
@@ -81,10 +92,7 @@ public class WebView2Host : NativeControlHost, IDisposable
             };
 
             // Wire navigation completed
-            _webView.NavigationCompleted += (s, e) =>
-            {
-                NavigationCompleted?.Invoke(this, EventArgs.Empty);
-            };
+            _webView.NavigationCompleted += (s, e) => { NavigationCompleted?.Invoke(this, EventArgs.Empty); };
 
 
             // Set initial bounds
@@ -94,7 +102,7 @@ public class WebView2Host : NativeControlHost, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WebView2 init failed: {ex}");
+            Debug.WriteLine($"WebView2 init failed: {ex}");
             InitializationFailed?.Invoke(this,
                 $"WebView2 runtime not available: {ex.Message}. Install from https://developer.microsoft.com/en-us/microsoft-edge/webview2/");
         }
@@ -113,8 +121,8 @@ public class WebView2Host : NativeControlHost, IDisposable
     }
 
     /// <summary>
-    /// Execute JavaScript and return the result.
-    /// Results are JSON-decoded: strings are unquoted, null/undefined return null.
+    ///     Execute JavaScript and return the result.
+    ///     Results are JSON-decoded: strings are unquoted, null/undefined return null.
     /// </summary>
     public async Task<string?> ExecuteScriptAsync(string script)
     {
@@ -129,17 +137,21 @@ public class WebView2Host : NativeControlHost, IDisposable
 
         // String results are JSON-quoted: "\"hello\"" → "hello"
         if (result.StartsWith('"') && result.EndsWith('"'))
-        {
-            try { return JsonSerializer.Deserialize<string>(result); }
-            catch { return result; }
-        }
+            try
+            {
+                return JsonSerializer.Deserialize<string>(result);
+            }
+            catch
+            {
+                return result;
+            }
 
         return result;
     }
 
     /// <summary>
-    /// Execute JavaScript without caring about the return value.
-    /// Faster than ExecuteScriptAsync since it doesn't wait for results.
+    ///     Execute JavaScript without caring about the return value.
+    ///     Faster than ExecuteScriptAsync since it doesn't wait for results.
     /// </summary>
     public void PostScript(string script)
     {
@@ -157,7 +169,7 @@ public class WebView2Host : NativeControlHost, IDisposable
 
         if (w > 0 && h > 0)
         {
-            _controller.Bounds = new System.Drawing.Rectangle(0, 0, w, h);
+            _controller.Bounds = new Rectangle(0, 0, w, h);
             _controller.IsVisible = true;
         }
     }
@@ -167,13 +179,5 @@ public class WebView2Host : NativeControlHost, IDisposable
         var result = base.ArrangeOverride(finalSize);
         UpdateBounds(result);
         return result;
-    }
-
-    public void Dispose()
-    {
-        _controller?.Close();
-        _controller = null;
-        _webView = null;
-        GC.SuppressFinalize(this);
     }
 }

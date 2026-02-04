@@ -1,15 +1,23 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Web;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// NewsAPI.org — purpose-built news search API.
-/// Free tier: 100 requests/day, max 100 articles/request, 1-month historical.
-/// Returns news articles from 150,000+ sources worldwide.
-/// Note: Free tier is dev-only (no production use, returns cached/delayed results).
+///     NewsAPI.org — purpose-built news search API.
+///     Free tier: 100 requests/day, max 100 articles/request, 1-month historical.
+///     Returns news articles from 150,000+ sources worldwide.
+///     Note: Free tier is dev-only (no production use, returns cached/delayed results).
 /// </summary>
-public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class NewsApiService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "newsapi";
     private const string EverythingEndpoint = "https://newsapi.org/v2/everything";
@@ -18,7 +26,7 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
     public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search news via NewsAPI.org.
+    ///     Search news via NewsAPI.org.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 10, bool headlinesOnly = false,
@@ -45,15 +53,11 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
 
         string url;
         if (headlinesOnly)
-        {
             url = $"{TopHeadlinesEndpoint}?q={HttpUtility.UrlEncode(query)}" +
                   $"&pageSize={Math.Min(maxResults, 100)}&language=en";
-        }
         else
-        {
             url = $"{EverythingEndpoint}?q={HttpUtility.UrlEncode(query)}" +
                   $"&pageSize={Math.Min(maxResults, 100)}&sortBy=publishedAt&language=en";
-        }
 
         progress?.Invoke($"Searching NewsAPI{(headlinesOnly ? " Headlines" : "")} for: {query}");
 
@@ -73,7 +77,7 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Diagnostics.Debug.WriteLine($"NewsAPI {(int)response.StatusCode}: {Truncate(body, 200)}");
+                Debug.WriteLine($"NewsAPI {(int)response.StatusCode}: {Truncate(body, 200)}");
                 return [];
             }
 
@@ -85,12 +89,12 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("NewsAPI timed out");
+            Debug.WriteLine("NewsAPI timed out");
             return [];
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"NewsAPI error: {ex.Message}");
+            Debug.WriteLine($"NewsAPI error: {ex.Message}");
             return [];
         }
     }
@@ -117,7 +121,8 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
             var author = a.TryGetProperty("author", out var au) ? au.GetString() : null;
 
             var sourceName = a.TryGetProperty("source", out var src) && src.TryGetProperty("name", out var sn)
-                ? sn.GetString() : null;
+                ? sn.GetString()
+                : null;
 
             var createdAt = DateTimeOffset.UtcNow;
             if (a.TryGetProperty("publishedAt", out var pub) &&
@@ -151,13 +156,18 @@ public class NewsApiService(HttpClient httpClient, ApiKeyService keys, ApiBudget
                 });
             }
         }
+
         return items;
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

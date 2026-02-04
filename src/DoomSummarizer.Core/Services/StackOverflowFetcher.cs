@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -7,8 +8,8 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches questions and answers from StackOverflow API.
-/// Supports tag-based queries, hot questions, and search.
+///     Fetches questions and answers from StackOverflow API.
+///     Supports tag-based queries, hot questions, and search.
 /// </summary>
 public partial class StackOverflowFetcher
 {
@@ -20,7 +21,7 @@ public partial class StackOverflowFetcher
     {
         var handler = new HttpClientHandler
         {
-            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
         };
         var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
         client.DefaultRequestHeaders.Add("User-Agent", UserAgentValue);
@@ -28,7 +29,7 @@ public partial class StackOverflowFetcher
     });
 
     /// <summary>
-    /// Fetch hot questions from StackOverflow.
+    ///     Fetch hot questions from StackOverflow.
     /// </summary>
     public async Task<List<ContentItem>> FetchHotAsync(int limit = 25)
     {
@@ -41,23 +42,19 @@ public partial class StackOverflowFetcher
             var response = JsonSerializer.Deserialize(json, SoJsonContext.Default.SoResponse);
 
             if (response?.Items != null)
-            {
                 foreach (var q in response.Items)
-                {
                     items.Add(ToContentItem(q));
-                }
-            }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch SO hot questions: {ex.Message}");
+            Debug.WriteLine($"Warning: Failed to fetch SO hot questions: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch questions by tag (e.g., "c#", "dotnet", "python").
+    ///     Fetch questions by tag (e.g., "c#", "dotnet", "python").
     /// </summary>
     public async Task<List<ContentItem>> FetchByTagAsync(string tag, int limit = 25, string sort = "votes")
     {
@@ -66,28 +63,25 @@ public partial class StackOverflowFetcher
         try
         {
             var encodedTag = Uri.EscapeDataString(tag);
-            var url = $"{ApiBase}/questions?order=desc&sort={sort}&tagged={encodedTag}&site=stackoverflow&pagesize={limit}&filter=withbody";
+            var url =
+                $"{ApiBase}/questions?order=desc&sort={sort}&tagged={encodedTag}&site=stackoverflow&pagesize={limit}&filter=withbody";
             var json = await FetchCompressedAsync(url);
             var response = JsonSerializer.Deserialize(json, SoJsonContext.Default.SoResponse);
 
             if (response?.Items != null)
-            {
                 foreach (var q in response.Items)
-                {
                     items.Add(ToContentItem(q));
-                }
-            }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch SO tag '{tag}': {ex.Message}");
+            Debug.WriteLine($"Warning: Failed to fetch SO tag '{tag}': {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Search StackOverflow for a query.
+    ///     Search StackOverflow for a query.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(string query, int limit = 25)
     {
@@ -96,21 +90,18 @@ public partial class StackOverflowFetcher
         try
         {
             var encodedQuery = Uri.EscapeDataString(query);
-            var url = $"{ApiBase}/search/advanced?order=desc&sort=relevance&q={encodedQuery}&site=stackoverflow&pagesize={limit}&filter=withbody";
+            var url =
+                $"{ApiBase}/search/advanced?order=desc&sort=relevance&q={encodedQuery}&site=stackoverflow&pagesize={limit}&filter=withbody";
             var json = await FetchCompressedAsync(url);
             var response = JsonSerializer.Deserialize(json, SoJsonContext.Default.SoResponse);
 
             if (response?.Items != null)
-            {
                 foreach (var q in response.Items)
-                {
                     items.Add(ToContentItem(q));
-                }
-            }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Failed to search SO for '{query}': {ex.Message}");
+            Debug.WriteLine($"Warning: Failed to search SO for '{query}': {ex.Message}");
         }
 
         return items;

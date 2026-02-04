@@ -3,9 +3,9 @@ using DoomSummarizer.Helpers;
 namespace DoomSummarizer.Models;
 
 /// <summary>
-/// A node in a hierarchical document tree produced by <see cref="Plugins.IDocumentSplitter"/>.
-/// The tree represents the structural decomposition of a document:
-/// Root → Parts/Works → Chapters/Acts → Sections/Scenes → Passages.
+///     A node in a hierarchical document tree produced by <see cref="Plugins.IDocumentSplitter" />.
+///     The tree represents the structural decomposition of a document:
+///     Root → Parts/Works → Chapters/Acts → Sections/Scenes → Passages.
 /// </summary>
 public record DocumentNode
 {
@@ -37,17 +37,17 @@ public record DocumentNode
     public int WordCount => WordCounter.Count(Content);
 
     /// <summary>
-    /// Total word count of this subtree (this node + all descendants).
+    ///     Total word count of this subtree (this node + all descendants).
     /// </summary>
     public int TotalWordCount => WordCount + Children.Sum(c => c.TotalWordCount);
 
     /// <summary>
-    /// Total number of leaf nodes in this subtree.
+    ///     Total number of leaf nodes in this subtree.
     /// </summary>
     public int LeafCount => IsLeaf ? 1 : Children.Sum(c => c.LeafCount);
 
     /// <summary>
-    /// Enumerate all leaf nodes in reading order (depth-first).
+    ///     Enumerate all leaf nodes in reading order (depth-first).
     /// </summary>
     public IEnumerable<DocumentNode> EnumerateLeaves()
     {
@@ -63,7 +63,7 @@ public record DocumentNode
     }
 
     /// <summary>
-    /// Enumerate all nodes in reading order (depth-first, pre-order).
+    ///     Enumerate all nodes in reading order (depth-first, pre-order).
     /// </summary>
     public IEnumerable<DocumentNode> EnumerateAll()
     {
@@ -74,9 +74,11 @@ public record DocumentNode
     }
 
     /// <summary>
-    /// Build a breadcrumb path from root to this node (e.g. "Hamlet > Act I > Scene 1").
-    /// This requires the caller to track the path; this helper builds from a provided ancestry.
+    ///     Build a breadcrumb path from root to this node (e.g. "Hamlet > Act I > Scene 1").
+    ///     This requires the caller to track the path; this helper builds from a provided ancestry.
     /// </summary>
     public static string BuildBreadcrumb(IEnumerable<DocumentNode> ancestry)
-        => string.Join(" > ", ancestry.Select(n => n.Title));
+    {
+        return string.Join(" > ", ancestry.Select(n => n.Title));
+    }
 }

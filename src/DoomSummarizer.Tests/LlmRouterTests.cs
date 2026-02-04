@@ -3,8 +3,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for LlmRouter static helper methods:
-/// InferContextSize (model name → context window mapping).
+///     Tests for LlmRouter static helper methods:
+///     InferContextSize (model name → context window mapping).
 /// </summary>
 public class LlmRouterTests
 {

@@ -6,35 +6,26 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// HunyuanOCR VLM Wave - Future implementation for local OCR using tencent/HunyuanOCR
-///
-/// HunyuanOCR is a 1B parameter Vision Language Model from Tencent available on HuggingFace:
-/// https://huggingface.co/tencent/HunyuanOCR
-///
-/// Capabilities (when implemented):
-/// - Text spotting with bounding box coordinates
-/// - Document parsing (tables→HTML, formulas→LaTeX, flowcharts→Mermaid)
-/// - Key-value information extraction (→JSON)
-/// - Video subtitle extraction
-/// - Multilingual support
-///
-/// Requirements:
-/// - vLLM server: vllm serve tencent/HunyuanOCR --port 8000
-/// - GPU with ~4GB VRAM for inference
-/// - Python environment with transformers (special branch required)
-///
-/// Priority: 55 (runs after OcrQualityWave at 58, before VisionLlmWave at 50)
-///
-/// STATUS: NOT YET IMPLEMENTED - Placeholder for future development
+///     HunyuanOCR VLM Wave - Future implementation for local OCR using tencent/HunyuanOCR
+///     HunyuanOCR is a 1B parameter Vision Language Model from Tencent available on HuggingFace:
+///     https://huggingface.co/tencent/HunyuanOCR
+///     Capabilities (when implemented):
+///     - Text spotting with bounding box coordinates
+///     - Document parsing (tables→HTML, formulas→LaTeX, flowcharts→Mermaid)
+///     - Key-value information extraction (→JSON)
+///     - Video subtitle extraction
+///     - Multilingual support
+///     Requirements:
+///     - vLLM server: vllm serve tencent/HunyuanOCR --port 8000
+///     - GPU with ~4GB VRAM for inference
+///     - Python environment with transformers (special branch required)
+///     Priority: 55 (runs after OcrQualityWave at 58, before VisionLlmWave at 50)
+///     STATUS: NOT YET IMPLEMENTED - Placeholder for future development
 /// </summary>
 public class HunyuanOcrWave : IAnalysisWave
 {
     private readonly OcrConfig _config;
     private readonly ILogger<HunyuanOcrWave>? _logger;
-
-    public string Name => "HunyuanOcrWave";
-    public int Priority => 55; // After OcrQualityWave (58), before VisionLlmWave (50)
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "hunyuan", "future" };
 
     public HunyuanOcrWave(
         IOptions<ImageConfig> imageConfig,
@@ -44,9 +35,13 @@ public class HunyuanOcrWave : IAnalysisWave
         _logger = logger;
     }
 
+    public string Name => "HunyuanOcrWave";
+    public int Priority => 55; // After OcrQualityWave (58), before VisionLlmWave (50)
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "vlm", "hunyuan", "future" };
+
     /// <summary>
-    /// Check if HunyuanOCR should run.
-    /// Currently always returns false as this is a future feature.
+    ///     Check if HunyuanOCR should run.
+    ///     Currently always returns false as this is a future feature.
     /// </summary>
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -55,7 +50,8 @@ public class HunyuanOcrWave : IAnalysisWave
             return false;
 
         // Log that this feature is not yet available
-        _logger?.LogDebug("HunyuanOcrWave: Feature enabled but NOT YET IMPLEMENTED. See: https://huggingface.co/tencent/HunyuanOCR");
+        _logger?.LogDebug(
+            "HunyuanOcrWave: Feature enabled but NOT YET IMPLEMENTED. See: https://huggingface.co/tencent/HunyuanOCR");
 
         return false; // Always skip until implemented
     }

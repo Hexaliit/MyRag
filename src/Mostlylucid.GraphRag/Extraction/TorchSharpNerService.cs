@@ -82,7 +82,7 @@ public sealed class TorchSharpNerService : IDisposable
 
             // Create prediction engine - ignoreMissingColumns=true because inference doesn't have Labels
             _predictionEngine = _mlContext.Model.CreatePredictionEngine<NerInput, NerPrediction>(
-                _trainedModel, true);
+                _trainedModel);
 
             _initialized = true;
             Console.WriteLine("[TorchSharp NER] Initialized successfully");

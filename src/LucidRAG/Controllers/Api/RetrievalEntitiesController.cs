@@ -24,7 +24,7 @@ public class RetrievalEntitiesController(
         var entity = new RetrievalEntity
         {
             Id = Guid.NewGuid().ToString(),
-            ContentType = Enum.Parse<ContentType>(request.ContentType, ignoreCase: true),
+            ContentType = Enum.Parse<ContentType>(request.ContentType, true),
             Source = request.Source,
             Title = request.Title,
             Summary = request.Summary,
@@ -73,7 +73,7 @@ public class RetrievalEntitiesController(
         ContentType[]? types = null;
         if (contentTypes is { Length: > 0 })
             types = contentTypes
-                .Select(t => Enum.Parse<ContentType>(t, ignoreCase: true))
+                .Select(t => Enum.Parse<ContentType>(t, true))
                 .ToArray();
 
         var entities = await entityService.GetByCollectionAsync(

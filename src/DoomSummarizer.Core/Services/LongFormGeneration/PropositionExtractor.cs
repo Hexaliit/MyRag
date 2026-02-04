@@ -4,17 +4,15 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Extracts atomic propositions from evidence segments.
-/// Based on Dense-X Retrieval: propositions are atomic, self-contained facts
-/// that improve retrieval precision and reduce repetition.
-///
-/// Each proposition is:
-/// - Unique: a distinct piece of meaning
-/// - Atomic: cannot be further split
-/// - Self-contained: includes necessary context
-///
-/// Reference: "Dense X Retrieval: What Retrieval Granularity Should We Use?"
-/// (Chen et al., University of Washington / Tencent AI Lab)
+///     Extracts atomic propositions from evidence segments.
+///     Based on Dense-X Retrieval: propositions are atomic, self-contained facts
+///     that improve retrieval precision and reduce repetition.
+///     Each proposition is:
+///     - Unique: a distinct piece of meaning
+///     - Atomic: cannot be further split
+///     - Self-contained: includes necessary context
+///     Reference: "Dense X Retrieval: What Retrieval Granularity Should We Use?"
+///     (Chen et al., University of Washington / Tencent AI Lab)
 /// </summary>
 public static partial class PropositionExtractor
 {
@@ -23,7 +21,8 @@ public static partial class PropositionExtractor
     private static partial Regex SentenceBoundaryRx();
 
     // Patterns for extracting factual claims
-    [GeneratedRegex(@"^(.*?(?:is|are|was|were|has|have|had|can|could|will|would|should|must|may|might)\s+.+?)[.!?]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(.*?(?:is|are|was|were|has|have|had|can|could|will|would|should|must|may|might)\s+.+?)[.!?]",
+        RegexOptions.IgnoreCase)]
     private static partial Regex FactualClaimRx();
 
     // Quote extraction pattern
@@ -35,8 +34,8 @@ public static partial class PropositionExtractor
     private static partial Regex NamedEntityRx();
 
     /// <summary>
-    /// Extract propositions from a segment's text.
-    /// Returns atomic facts that can be independently verified and matched.
+    ///     Extract propositions from a segment's text.
+    ///     Returns atomic facts that can be independently verified and matched.
     /// </summary>
     public static List<Proposition> ExtractPropositions(
         EvidenceSegment segment,
@@ -64,7 +63,7 @@ public static partial class PropositionExtractor
     }
 
     /// <summary>
-    /// Extract propositions from all segments in a corpus.
+    ///     Extract propositions from all segments in a corpus.
     /// </summary>
     public static List<Proposition> ExtractFromCorpus(EvidenceCorpus corpus)
     {
@@ -80,7 +79,7 @@ public static partial class PropositionExtractor
     }
 
     /// <summary>
-    /// Filter propositions to those most relevant to a section theme.
+    ///     Filter propositions to those most relevant to a section theme.
     /// </summary>
     public static List<Proposition> FilterForSection(
         List<Proposition> propositions,
@@ -107,8 +106,8 @@ public static partial class PropositionExtractor
     }
 
     /// <summary>
-    /// Remove propositions that were already used in previous sections.
-    /// Uses embedding similarity for semantic deduplication.
+    ///     Remove propositions that were already used in previous sections.
+    ///     Uses embedding similarity for semantic deduplication.
     /// </summary>
     public static List<Proposition> RemoveUsedPropositions(
         List<Proposition> candidates,
@@ -121,8 +120,8 @@ public static partial class PropositionExtractor
     }
 
     /// <summary>
-    /// Format propositions as bullet points for LLM prompt.
-    /// Groups by source article for better context.
+    ///     Format propositions as bullet points for LLM prompt.
+    ///     Groups by source article for better context.
     /// </summary>
     public static string FormatAsBullets(
         List<Proposition> propositions,
@@ -188,9 +187,7 @@ public static partial class PropositionExtractor
         // Also extract any quotes as separate propositions
         var quotes = QuoteRx().Matches(trimmed);
         foreach (Match quote in quotes)
-        {
             if (quote.Groups[1].Value.Length > 20)
-            {
                 props.Add(new Proposition
                 {
                     Text = quote.Groups[1].Value,
@@ -199,8 +196,6 @@ public static partial class PropositionExtractor
                     SourceArticle = articleTitle,
                     Salience = (float)(segment.Segment.SalienceScore * 1.2) // Boost quotes
                 });
-            }
-        }
 
         return props;
     }
@@ -277,7 +272,7 @@ public static partial class PropositionExtractor
 }
 
 /// <summary>
-/// An atomic proposition extracted from evidence.
+///     An atomic proposition extracted from evidence.
 /// </summary>
 public record Proposition
 {
@@ -291,10 +286,10 @@ public record Proposition
 
 public enum PropositionType
 {
-    Claim,      // General factual claim
-    Quote,      // Direct quote from source
-    Statistic,  // Number/percentage/metric
+    Claim, // General factual claim
+    Quote, // Direct quote from source
+    Statistic, // Number/percentage/metric
     Definition, // "X is Y" style definition
-    Process,    // Step-by-step or how-to
+    Process, // Step-by-step or how-to
     NamedEntity // Focuses on a specific entity
 }

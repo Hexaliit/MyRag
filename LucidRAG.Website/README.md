@@ -72,6 +72,7 @@ LucidRAG.Website/
 ## Deployment
 
 The site builds to the `dist/` folder and can be deployed to:
+
 - GitHub Pages
 - Netlify
 - Vercel

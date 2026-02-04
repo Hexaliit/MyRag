@@ -3,21 +3,17 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.EntityFrameworkCore;
+using LucidRAG.Config;
+using LucidRAG.Data;
+using LucidRAG.Entities;
+using LucidRAG.Lenses;
+using LucidRAG.Services.Lenses;
+using LucidRAG.Services.Sentinel;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
-using LucidRAG.Config;
-using LucidRAG.Data;
-using LucidRAG.Core.Services;
-using LucidRAG.Entities;
-using LucidRAG.Services.Sentinel;
-using LucidRAG.Services.Lenses;
-using static LucidRAG.Services.Sentinel.ISentinelService;
-using LucidRAG.Lenses;
-using StyloFlow.Retrieval;
 
 namespace LucidRAG.Services;
 
@@ -40,10 +36,10 @@ public class AgenticSearchService(
     IOptions<RagDocumentsConfig> ragDocumentsConfig,
     ILogger<AgenticSearchService> logger) : IAgenticSearchService
 {
-    private readonly PromptsConfig _prompts = promptsConfig.Value;
-    private readonly DocSummarizerConfig _docSummarizerConfig = docSummarizerConfig.Value;
-    private readonly RagDocumentsConfig _ragConfig = ragDocumentsConfig.Value;
     private readonly IBm25SearchService? _bm25Search = bm25Search;
+    private readonly DocSummarizerConfig _docSummarizerConfig = docSummarizerConfig.Value;
+    private readonly PromptsConfig _prompts = promptsConfig.Value;
+    private readonly RagDocumentsConfig _ragConfig = ragDocumentsConfig.Value;
 
     public async Task<SearchResult> SearchAsync(SearchRequest request, CancellationToken ct = default)
     {
@@ -54,17 +50,14 @@ public class AgenticSearchService(
         if (documentIds is null || documentIds.Length == 0)
         {
             var docs = await db.Documents
-                .Where(d => d.Status == Entities.DocumentStatus.Completed)
+                .Where(d => d.Status == DocumentStatus.Completed)
                 .Where(d => !request.CollectionId.HasValue || d.CollectionId == request.CollectionId)
                 .Select(d => d.Id)
                 .ToListAsync(ct);
             documentIds = docs.ToArray();
         }
 
-        if (documentIds.Length == 0)
-        {
-            return new SearchResult([], 0, sw.ElapsedMilliseconds);
-        }
+        if (documentIds.Length == 0) return new SearchResult([], 0, sw.ElapsedMilliseconds);
 
         // Build schema context for Sentinel
         var schema = await sentinelService.BuildSchemaContextAsync(request.CollectionId, ct);
@@ -116,20 +109,17 @@ public class AgenticSearchService(
                 collectionName,
                 queryEmbedding,
                 candidateCount,
-                docId: null,
+                null,
                 ct);
 
             // Store with dense score and priority
-            foreach (var s in segments)
-            {
-                allSegments.Add((s, s.QuerySimilarity, subQuery.Priority));
-            }
+            foreach (var s in segments) allSegments.Add((s, s.QuerySimilarity, subQuery.Priority));
         }
 
         // Deduplicate segments by ID, keeping best dense score
         var uniqueSegments = allSegments
             .GroupBy(x => x.Segment.Id)
-            .Select(g => (Segment: g.First().Segment, DenseScore: g.Max(x => x.DenseScore)))
+            .Select(g => (g.First().Segment, DenseScore: g.Max(x => x.DenseScore)))
             .ToList();
 
         // Hydrate segment text from evidence repository (vector store contains only embeddings)
@@ -152,13 +142,10 @@ public class AgenticSearchService(
                 string.Join(", ", textLookup.Keys.Take(3)));
 
             foreach (var (segment, _) in uniqueSegments)
-            {
                 if (!string.IsNullOrEmpty(segment.ContentHash) &&
                     textLookup.TryGetValue(segment.ContentHash, out var text))
-                {
                     segment.Text = text;
-                }
-            }
+
             logger.LogDebug("Hydrated {Count}/{Total} segments with text from evidence",
                 textLookup.Count, uniqueSegments.Count);
         }
@@ -200,10 +187,9 @@ public class AgenticSearchService(
         var beforeDedup = rankedResults.Count;
         var dedupedResults = DeduplicateByEmbeddingPostRanking(rankedResults, dedupConfig.SimilarityThreshold);
         if (beforeDedup != dedupedResults.Count)
-        {
-            logger.LogDebug("Post-ranking deduplication: {Before} → {After} segments (removed {Removed} cross-doc duplicates)",
+            logger.LogDebug(
+                "Post-ranking deduplication: {Before} → {After} segments (removed {Removed} cross-doc duplicates)",
                 beforeDedup, dedupedResults.Count, beforeDedup - dedupedResults.Count);
-        }
 
         // Take final TopK after deduplication
         var mergedResults = dedupedResults
@@ -216,10 +202,8 @@ public class AgenticSearchService(
         {
             logger.LogInformation("Top 3 results after {Mode} ranking:", request.SearchMode);
             foreach (var r in mergedResults.Take(3))
-            {
                 logger.LogInformation("  [{Score:F4}] {DocName}: {Text}",
                     r.Score, r.DocumentName, r.Text?.Substring(0, Math.Min(50, r.Text?.Length ?? 0)));
-            }
         }
 
         logger.LogInformation("Found {Count} merged results from {SubQueryCount} sub-queries",
@@ -253,7 +237,7 @@ public class AgenticSearchService(
         var context = await conversationService.BuildContextAsync(conversationId.Value, ct: ct);
 
         // Follow-up detection for existing conversations
-        string queryToSearch = request.Query;
+        var queryToSearch = request.Query;
         Guid[]? cachedDocumentIds = null;
         FollowUpDetectionResult? followUpResult = null;
 
@@ -262,7 +246,8 @@ public class AgenticSearchService(
             var previousQuery = await conversationService.GetLastTopicQueryAsync(conversationId.Value, ct);
             followUpResult = await sentinelService.DetectFollowUpAsync(request.Query, previousQuery, ct: ct);
 
-            logger.LogInformation("Follow-up detection: IsFollowUp={IsFollowUp}, Confidence={Confidence:F2}, Reason='{Reason}'",
+            logger.LogInformation(
+                "Follow-up detection: IsFollowUp={IsFollowUp}, Confidence={Confidence:F2}, Reason='{Reason}'",
                 followUpResult.IsFollowUp, followUpResult.Confidence, followUpResult.Reason);
 
             if (followUpResult.IsFollowUp)
@@ -279,9 +264,8 @@ public class AgenticSearchService(
                 {
                     cachedDocumentIds = await conversationService.GetActiveDocumentsAsync(conversationId.Value, ct);
                     if (cachedDocumentIds?.Length > 0)
-                    {
-                        logger.LogInformation("Using cached document set of {Count} documents for follow-up", cachedDocumentIds.Length);
-                    }
+                        logger.LogInformation("Using cached document set of {Count} documents for follow-up",
+                            cachedDocumentIds.Length);
                 }
             }
         }
@@ -348,7 +332,8 @@ public class AgenticSearchService(
         if (searchResult.QueryPlan?.NeedsClarification == true)
         {
             var clarificationQuestion = searchResult.QueryPlan.ClarificationQuestion
-                ?? "Could you please clarify your question? I want to make sure I understand what you're looking for.";
+                                        ??
+                                        "Could you please clarify your question? I want to make sure I understand what you're looking for.";
 
             logger.LogInformation("Sentinel requesting clarification for query: {Query}", request.Query);
 
@@ -358,8 +343,8 @@ public class AgenticSearchService(
                 clarificationQuestion,
                 [],
                 conversationId.Value,
-                AskedForClarification: true,
-                ClarificationQuestion: clarificationQuestion,
+                true,
+                clarificationQuestion,
                 Timestamp: DateTimeOffset.UtcNow);
         }
 
@@ -369,9 +354,9 @@ public class AgenticSearchService(
         if (searchResult.Results.Count == 0)
         {
             var noResultsMessage = "I couldn't find relevant information in the uploaded documents. Could you try:\n" +
-                "- Rephrasing your question\n" +
-                "- Being more specific about what you're looking for\n" +
-                "- Asking about topics covered in the documents";
+                                   "- Rephrasing your question\n" +
+                                   "- Being more specific about what you're looking for\n" +
+                                   "- Asking about topics covered in the documents";
 
             logger.LogInformation("No results found for query: {Query}", request.Query);
 
@@ -381,8 +366,8 @@ public class AgenticSearchService(
                 noResultsMessage,
                 [],
                 conversationId.Value,
-                AskedForClarification: true,
-                ClarificationQuestion: noResultsMessage,
+                true,
+                noResultsMessage,
                 Timestamp: DateTimeOffset.UtcNow);
         }
 
@@ -392,12 +377,14 @@ public class AgenticSearchService(
             var hasRelevantResults = searchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore);
             if (!hasRelevantResults)
             {
-                logger.LogInformation("Demo mode: Query '{Query}' appears off-topic (no results above {Threshold} threshold)",
+                logger.LogInformation(
+                    "Demo mode: Query '{Query}' appears off-topic (no results above {Threshold} threshold)",
                     request.Query, _ragConfig.DemoMode.MinRelevanceScore);
 
                 var offTopicAnswer = _ragConfig.DemoMode.OffTopicMessage;
                 await conversationService.AddMessageAsync(conversationId.Value, "assistant", offTopicAnswer, ct: ct);
-                return new ChatResponse(offTopicAnswer, [], conversationId.Value, IsOffTopic: true, Timestamp: DateTimeOffset.UtcNow);
+                return new ChatResponse(offTopicAnswer, [], conversationId.Value, IsOffTopic: true,
+                    Timestamp: DateTimeOffset.UtcNow);
             }
         }
 
@@ -415,10 +402,8 @@ public class AgenticSearchService(
 
         // If no results meet threshold, return empty (triggers "no info" response)
         if (relevantResults.Count == 0)
-        {
             logger.LogInformation("No results above relevance threshold {Threshold} for query: {Query}",
                 minRelevanceScore, request.Query);
-        }
 
         // Deduplicate by text similarity (greedy selection)
         var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
@@ -426,22 +411,22 @@ public class AgenticSearchService(
         var sources = dedupedResults
             .Take(5) // Final top 5 after dedup
             .Select((r, i) => new SourceCitation(
-                Number: i + 1,
-                DocumentId: r.DocumentId,
-                DocumentName: r.DocumentName,
-                SegmentId: r.SegmentId,
-                Text: r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text,
-                PageOrSection: r.SectionTitle))
+                i + 1,
+                r.DocumentId,
+                r.DocumentName,
+                r.SegmentId,
+                r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text,
+                r.SectionTitle))
             .ToList();
 
         // Build thinking/transparency output
         var thinking = BuildThinkingOutput(request.Query, searchResult);
 
         // Check if this is a keyword query - skip synthesis
-        var queryType = searchResult.QueryPlan?.QueryType ?? Sentinel.QueryType.Semantic;
+        var queryType = searchResult.QueryPlan?.QueryType ?? QueryType.Semantic;
         string answer;
 
-        if (queryType == Sentinel.QueryType.Keyword || queryType == Sentinel.QueryType.Navigation)
+        if (queryType == QueryType.Keyword || queryType == QueryType.Navigation)
         {
             // Keyword/navigation query - just list matching documents without synthesis
             logger.LogInformation("Query '{Query}' is {Type} - skipping synthesis", request.Query, queryType);
@@ -461,11 +446,11 @@ public class AgenticSearchService(
         // Build decomposition info for UI
         var decomposition = searchResult.QueryPlan != null
             ? new DecompositionInfo(
-                Confidence: searchResult.QueryPlan.Confidence,
-                SubQueries: searchResult.QueryPlan.SubQueries
+                searchResult.QueryPlan.Confidence,
+                searchResult.QueryPlan.SubQueries
                     .Select(sq => new SubQueryInfo(sq.Query, sq.Purpose ?? "", sq.Priority))
                     .ToList(),
-                NeedsApproval: searchResult.QueryPlan.Confidence < 0.7)
+                searchResult.QueryPlan.Confidence < 0.7)
             : null;
 
         return new ChatResponse(answer, sources, conversationId.Value, Timestamp: DateTimeOffset.UtcNow)
@@ -480,7 +465,8 @@ public class AgenticSearchService(
         };
     }
 
-    public async IAsyncEnumerable<string> ChatStreamAsync(ChatRequest request, [EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<string> ChatStreamAsync(ChatRequest request,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
         // For now, just return the full response in chunks
         // In production, this would stream from the LLM
@@ -510,15 +496,21 @@ public class AgenticSearchService(
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<ChatStreamChunk> ChatStreamWithSourcesAsync(ChatRequest request, [EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<ChatStreamChunk> ChatStreamWithSourcesAsync(ChatRequest request,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var lens = await ResolveLensAsync(request, ct);
         var conversationId = request.ConversationId;
         var isNewConversation = !conversationId.HasValue;
-        if (isNewConversation) { var conv = await conversationService.CreateConversationAsync(request.CollectionId, ct: ct); conversationId = conv.Id; }
+        if (isNewConversation)
+        {
+            var conv = await conversationService.CreateConversationAsync(request.CollectionId, ct: ct);
+            conversationId = conv.Id;
+        }
+
         await conversationService.AddMessageAsync(conversationId.Value, "user", request.Query, ct: ct);
-        string queryToSearch = request.Query;
+        var queryToSearch = request.Query;
         Guid[]? cachedDocumentIds = null;
         FollowUpDetectionResult? followUpResult = null;
         if (!isNewConversation)
@@ -528,33 +520,90 @@ public class AgenticSearchService(
             if (followUpResult.IsFollowUp)
             {
                 if (!string.IsNullOrEmpty(followUpResult.ResolvedQuery)) queryToSearch = followUpResult.ResolvedQuery;
-                if (followUpResult.UseSameDocumentSet) cachedDocumentIds = await conversationService.GetActiveDocumentsAsync(conversationId.Value, ct);
+                if (followUpResult.UseSameDocumentSet)
+                    cachedDocumentIds = await conversationService.GetActiveDocumentsAsync(conversationId.Value, ct);
             }
         }
-        var collection = request.CollectionId.HasValue ? await db.Collections.FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct) : null;
-        string sysPrompt = !string.IsNullOrEmpty(request.SystemPrompt) ? _prompts.SystemPrompts.GetValueOrDefault(request.SystemPrompt, _prompts.SystemPrompts["Default"]) : lensRender.RenderSystemPrompt(lens, new { tenant_name = "LucidRAG", collection_description = collection?.Description ?? "", collection_name = collection?.Name ?? "documents" });
-        var searchResult = await SearchAsync(new SearchRequest(queryToSearch, request.CollectionId, cachedDocumentIds ?? request.DocumentIds, SearchMode: request.SearchMode), ct);
+
+        var collection = request.CollectionId.HasValue
+            ? await db.Collections.FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct)
+            : null;
+        var sysPrompt = !string.IsNullOrEmpty(request.SystemPrompt)
+            ? _prompts.SystemPrompts.GetValueOrDefault(request.SystemPrompt, _prompts.SystemPrompts["Default"])
+            : lensRender.RenderSystemPrompt(lens,
+                new
+                {
+                    tenant_name = "LucidRAG", collection_description = collection?.Description ?? "",
+                    collection_name = collection?.Name ?? "documents"
+                });
+        var searchResult =
+            await SearchAsync(
+                new SearchRequest(queryToSearch, request.CollectionId, cachedDocumentIds ?? request.DocumentIds,
+                    SearchMode: request.SearchMode), ct);
         var searchTimeMs = (int)sw.ElapsedMilliseconds;
         if (!followUpResult?.UseSameDocumentSet == true || isNewConversation || cachedDocumentIds == null)
         {
-            var docIds = searchResult.Results.Select(r => r.DocumentId).Where(id => id != Guid.Empty).Distinct().ToArray();
-            if (docIds.Length > 0) await conversationService.SetActiveDocumentsAsync(conversationId.Value, docIds, queryToSearch, ct: ct);
+            var docIds = searchResult.Results.Select(r => r.DocumentId).Where(id => id != Guid.Empty).Distinct()
+                .ToArray();
+            if (docIds.Length > 0)
+                await conversationService.SetActiveDocumentsAsync(conversationId.Value, docIds, queryToSearch, ct: ct);
         }
 
         // Apply relevance filtering and deduplication (same as non-streaming)
         var streamDedupConfig = _docSummarizerConfig.Deduplication.Retrieval;
         const double textSimilarityThreshold = 0.7; // Jaccard similarity for text-based dedup
-        var relevantResults = searchResult.Results.Where(r => r.Score >= streamDedupConfig.MinRelevanceScore).Take(10).ToList();
+        var relevantResults = searchResult.Results.Where(r => r.Score >= streamDedupConfig.MinRelevanceScore).Take(10)
+            .ToList();
         var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
-        var sources = dedupedResults.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName, r.SegmentId, r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text, r.SectionTitle)).ToList();
+        var sources = dedupedResults.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName,
+            r.SegmentId, r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text, r.SectionTitle)).ToList();
 
         var thinking = BuildThinkingOutput(request.Query, searchResult);
-        yield return new ChatStreamChunk("sources", Sources: sources, ConversationId: conversationId, ThinkingNote: thinking, SearchTimeMs: searchTimeMs, SegmentCount: searchResult.Results.Count);
-        if (searchResult.QueryPlan?.NeedsClarification == true) { var msg = searchResult.QueryPlan.ClarificationQuestion ?? "Could you please clarify?"; await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct); yield return new ChatStreamChunk("text", Text: msg); yield return new ChatStreamChunk("done"); yield break; }
-        if (sources.Count == 0) { var msg = "I don't have relevant information in the available documents to answer that question."; await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct); yield return new ChatStreamChunk("text", Text: msg); yield return new ChatStreamChunk("done"); yield break; }
-        if (_ragConfig.DemoMode.Enabled && !searchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore)) { await conversationService.AddMessageAsync(conversationId.Value, "assistant", _ragConfig.DemoMode.OffTopicMessage, ct: ct); yield return new ChatStreamChunk("text", Text: _ragConfig.DemoMode.OffTopicMessage); yield return new ChatStreamChunk("done"); yield break; }
-        var queryType = searchResult.QueryPlan?.QueryType ?? Sentinel.QueryType.Semantic;
-        if (queryType == Sentinel.QueryType.Keyword || queryType == Sentinel.QueryType.Navigation) { var resp = BuildKeywordResponseNoThinking(sources); await conversationService.AddMessageAsync(conversationId.Value, "assistant", resp, ct: ct); foreach (var w in resp.Split(' ')) { if (ct.IsCancellationRequested) yield break; yield return new ChatStreamChunk("text", Text: w + " "); await Task.Delay(10, ct); } yield return new ChatStreamChunk("done"); yield break; }
+        yield return new ChatStreamChunk("sources", Sources: sources, ConversationId: conversationId,
+            ThinkingNote: thinking, SearchTimeMs: searchTimeMs, SegmentCount: searchResult.Results.Count);
+        if (searchResult.QueryPlan?.NeedsClarification == true)
+        {
+            var msg = searchResult.QueryPlan.ClarificationQuestion ?? "Could you please clarify?";
+            await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct);
+            yield return new ChatStreamChunk("text", msg);
+            yield return new ChatStreamChunk("done");
+            yield break;
+        }
+
+        if (sources.Count == 0)
+        {
+            var msg = "I don't have relevant information in the available documents to answer that question.";
+            await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct);
+            yield return new ChatStreamChunk("text", msg);
+            yield return new ChatStreamChunk("done");
+            yield break;
+        }
+
+        if (_ragConfig.DemoMode.Enabled &&
+            !searchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore))
+        {
+            await conversationService.AddMessageAsync(conversationId.Value, "assistant",
+                _ragConfig.DemoMode.OffTopicMessage, ct: ct);
+            yield return new ChatStreamChunk("text", _ragConfig.DemoMode.OffTopicMessage);
+            yield return new ChatStreamChunk("done");
+            yield break;
+        }
+
+        var queryType = searchResult.QueryPlan?.QueryType ?? QueryType.Semantic;
+        if (queryType == QueryType.Keyword || queryType == QueryType.Navigation)
+        {
+            var resp = BuildKeywordResponseNoThinking(sources);
+            await conversationService.AddMessageAsync(conversationId.Value, "assistant", resp, ct: ct);
+            foreach (var w in resp.Split(' '))
+            {
+                if (ct.IsCancellationRequested) yield break;
+                yield return new ChatStreamChunk("text", w + " ");
+                await Task.Delay(10, ct);
+            }
+
+            yield return new ChatStreamChunk("done");
+            yield break;
+        }
 
         // Build prompt for natural synthesis (not segment-by-segment description)
         // IMPORTANT: Never expose internal IDs, scores, or retrieval mechanics to user
@@ -578,11 +627,8 @@ ANSWER:";
         string? answerToStream = null;
         var evidenceHash = SynthesisCacheService.ComputeHash(sourceTextsStr);
         if (synthesisCache.TryGetSynthesis(request.Query, evidenceHash, out var cached))
-        {
             answerToStream = cached;
-        }
         else
-        {
             try
             {
                 var synthesisProfile = _docSummarizerConfig.Ollama.GetSynthesisProfile();
@@ -594,30 +640,33 @@ ANSWER:";
                 }, ct)).Trim();
                 logger.LogDebug("Synthesis using profile {Profile}: model={Model}",
                     _docSummarizerConfig.Ollama.DefaultSynthesisProfile, synthesisProfile.Model);
-                synthesisCache.SetSynthesis(request.Query, sourceTextsStr, answerToStream, sources.Select(s => s.DocumentId).Distinct().ToArray());
+                synthesisCache.SetSynthesis(request.Query, sourceTextsStr, answerToStream,
+                    sources.Select(s => s.DocumentId).Distinct().ToArray());
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Streaming LLM failed");
                 answerToStream = sources.Count > 0 ? sources[0].Text : "Error generating response.";
             }
-        }
+
         foreach (var w in answerToStream!.Split(' '))
         {
             if (ct.IsCancellationRequested) yield break;
-            yield return new ChatStreamChunk("text", Text: w + " ");
+            yield return new ChatStreamChunk("text", w + " ");
             await Task.Delay(20, ct);
         }
-        await conversationService.AddMessageAsync(conversationId.Value, "assistant", answerToStream, JsonSerializer.Serialize(new { sources = sources.Select(s => s.SegmentId) }), ct);
+
+        await conversationService.AddMessageAsync(conversationId.Value, "assistant", answerToStream,
+            JsonSerializer.Serialize(new { sources = sources.Select(s => s.SegmentId) }), ct);
         yield return new ChatStreamChunk("done");
     }
 
-    private async Task<string> BuildAnswerAsync(string query, List<SourceCitation> sources, string systemPrompt, CancellationToken ct)
+    private async Task<string> BuildAnswerAsync(string query, List<SourceCitation> sources, string systemPrompt,
+        CancellationToken ct)
     {
         if (sources.Count == 0)
-        {
-            return "I couldn't find relevant information in the uploaded documents to answer your question. Please try rephrasing or upload more documents.";
-        }
+            return
+                "I couldn't find relevant information in the uploaded documents to answer your question. Please try rephrasing or upload more documents.";
 
         // Build context from sources - use document name only once per document
         var sourceTexts = string.Join("\n\n", sources.Select(s => $"[{s.Number}] {s.Text}"));
@@ -683,30 +732,30 @@ ANSWER:";
             logger.LogWarning(ex, "Failed to generate LLM answer, falling back to simple response");
             // Fallback to simple response if LLM fails
             return $"Based on the documents:\n\n{sources[0].Text}\n\n" +
-                   (sources.Count > 1 ? $"Additional context from sources [{string.Join(", ", sources.Skip(1).Select(s => s.Number))}]." : "");
+                   (sources.Count > 1
+                       ? $"Additional context from sources [{string.Join(", ", sources.Skip(1).Select(s => s.Number))}]."
+                       : "");
         }
     }
 
     /// <summary>
-    /// Apply BM25 scoring and combine with dense scores using Reciprocal Rank Fusion.
-    /// RRF(d) = 1/(k + rank_dense) + 1/(k + rank_bm25) + 1/(k + rank_salience) + 1/(k + rank_freshness)
-    ///
-    /// This four-way fusion captures:
-    /// - Semantic similarity (dense embeddings)
-    /// - Lexical matching (BM25 sparse retrieval with query expansion)
-    /// - Document importance (salience from extraction)
-    /// - Freshness (recent documents boosted)
-    ///
-    /// Query expansion uses ML embeddings to find synonyms:
-    /// "golden sunset" → "golden yellow gold amber sunset sunrise evening"
-    /// This enables semantic-ish matching on signals at BM25 speed.
+    ///     Apply BM25 scoring and combine with dense scores using Reciprocal Rank Fusion.
+    ///     RRF(d) = 1/(k + rank_dense) + 1/(k + rank_bm25) + 1/(k + rank_salience) + 1/(k + rank_freshness)
+    ///     This four-way fusion captures:
+    ///     - Semantic similarity (dense embeddings)
+    ///     - Lexical matching (BM25 sparse retrieval with query expansion)
+    ///     - Document importance (salience from extraction)
+    ///     - Freshness (recent documents boosted)
+    ///     Query expansion uses ML embeddings to find synonyms:
+    ///     "golden sunset" → "golden yellow gold amber sunset sunrise evening"
+    ///     This enables semantic-ish matching on signals at BM25 speed.
     /// </summary>
     private async Task<List<(Segment Segment, double RrfScore)>> ApplyBm25RrfAsync(
         List<(Segment Segment, double DenseScore)> candidates,
         string query,
         SearchMode mode,
         int topK,
-        Dictionary<string, Entities.DocumentEntity>? documentLookup = null,
+        Dictionary<string, DocumentEntity>? documentLookup = null,
         CancellationToken ct = default)
     {
         if (candidates.Count == 0) return [];
@@ -715,7 +764,7 @@ ANSWER:";
 
         // Expand query terms using ML-based synonym detection
         // "golden" → ["golden", "yellow", "gold", "amber"]
-        var expandedQuery = await queryExpansion.ExpandQueryAsync(query, maxExpansionsPerTerm: 3, ct);
+        var expandedQuery = await queryExpansion.ExpandQueryAsync(query, 3, ct);
         var queryForBm25 = expandedQuery.ExpandedQueryText;
 
         logger.LogDebug("Query expansion: '{Original}' → '{Expanded}'", query, queryForBm25);
@@ -745,8 +794,8 @@ ANSWER:";
                 // Score via the registered BM25 service (Lucene or PostgreSQL)
                 var ftsResults = await _bm25Search.SearchWithScoresAsync(
                     queryForBm25,
-                    topK: evidenceArtifacts.Count,
-                    documentIds: null,
+                    evidenceArtifacts.Count,
+                    null,
                     ct);
 
                 // Build lookup: SegmentHash -> BM25 score
@@ -756,14 +805,10 @@ ANSWER:";
                 var idToScoreLookup = ftsResults.ToDictionary(r => r.artifact.Id, r => r.score);
 
                 foreach (var candidate in candidates)
-                {
                     if (!string.IsNullOrEmpty(candidate.Segment.ContentHash) &&
                         hashToIdLookup.TryGetValue(candidate.Segment.ContentHash, out var evidenceId) &&
                         idToScoreLookup.TryGetValue(evidenceId, out var score))
-                    {
                         bm25ScoreLookup[candidate.Segment.Id] = score;
-                    }
-                }
             }
         }
 
@@ -774,14 +819,13 @@ ANSWER:";
             var bm25Score = bm25ScoreLookup.GetValueOrDefault(c.Segment.Id, 0.0);
 
             // Get document creation date for freshness scoring
-            DateTimeOffset createdAt = DateTimeOffset.MinValue;
+            var createdAt = DateTimeOffset.MinValue;
             var segmentDocId = ExtractDocIdFromSegmentId(c.Segment.Id);
             if (segmentDocId != null && documentLookup?.TryGetValue(segmentDocId, out var doc) == true)
-            {
                 createdAt = doc.CreatedAt;
-            }
 
-            return (c.Segment, c.DenseScore, Bm25Score: bm25Score, Salience: c.Segment.SalienceScore, CreatedAt: createdAt);
+            return (c.Segment, c.DenseScore, Bm25Score: bm25Score, Salience: c.Segment.SalienceScore,
+                CreatedAt: createdAt);
         }).ToList();
 
         // Rank by each signal
@@ -814,28 +858,28 @@ ANSWER:";
         }
 
         // Dense ranking contribution
-        for (int i = 0; i < byDense.Count; i++)
+        for (var i = 0; i < byDense.Count; i++)
         {
             var id = byDense[i].Segment.Id;
             rrfScores[id] = denseWeight * (1.0 / (rrfK + i + 1));
         }
 
         // BM25 ranking contribution
-        for (int i = 0; i < byBm25.Count; i++)
+        for (var i = 0; i < byBm25.Count; i++)
         {
             var id = byBm25[i].Segment.Id;
             rrfScores[id] = rrfScores.GetValueOrDefault(id) + bm25Weight * (1.0 / (rrfK + i + 1));
         }
 
         // Salience ranking contribution
-        for (int i = 0; i < bySalience.Count; i++)
+        for (var i = 0; i < bySalience.Count; i++)
         {
             var id = bySalience[i].Segment.Id;
             rrfScores[id] = rrfScores.GetValueOrDefault(id) + salienceWeight * (1.0 / (rrfK + i + 1));
         }
 
         // Freshness ranking contribution (recent documents get boost)
-        for (int i = 0; i < byFreshness.Count; i++)
+        for (var i = 0; i < byFreshness.Count; i++)
         {
             var id = byFreshness[i].Segment.Id;
             rrfScores[id] = rrfScores.GetValueOrDefault(id) + freshnessWeight * (1.0 / (rrfK + i + 1));
@@ -850,44 +894,42 @@ ANSWER:";
     }
 
     /// <summary>
-    /// Create SearchResultItem from Segment with score.
+    ///     Create SearchResultItem from Segment with score.
     /// </summary>
     private static SearchResultItem CreateSearchResultItem(
         Segment segment,
         double score,
-        Dictionary<string, Entities.DocumentEntity> documentLookup)
+        Dictionary<string, DocumentEntity> documentLookup)
     {
         var segmentDocId = ExtractDocIdFromSegmentId(segment.Id);
         var doc = segmentDocId != null && documentLookup.TryGetValue(segmentDocId, out var d) ? d : null;
 
         return new SearchResultItem(
-            DocumentId: doc?.Id ?? Guid.Empty,
-            DocumentName: doc?.Name ?? segment.SectionTitle ?? segment.HeadingPath ?? "Unknown",
-            SegmentId: segment.Id,
-            Text: segment.Text,
-            Score: score,
-            SectionTitle: segment.SectionTitle);
+            doc?.Id ?? Guid.Empty,
+            doc?.Name ?? segment.SectionTitle ?? segment.HeadingPath ?? "Unknown",
+            segment.Id,
+            segment.Text,
+            score,
+            segment.SectionTitle);
     }
 
     /// <summary>
-    /// Extract docHash from segment ID (format: {docHash}_{type}_{index})
-    /// Example: "e586be1c8a7e5d02_s_42" -> "e586be1c8a7e5d02"
+    ///     Extract docHash from segment ID (format: {docHash}_{type}_{index})
+    ///     Example: "e586be1c8a7e5d02_s_42" -> "e586be1c8a7e5d02"
     /// </summary>
     private static string? ExtractDocIdFromSegmentId(string segmentId)
     {
         var parts = segmentId.Split('_');
         if (parts.Length >= 3)
-        {
             // Take all parts except the last two (type and index)
             return string.Join("_", parts.Take(parts.Length - 2));
-        }
         return null;
     }
 
     /// <summary>
-    /// Extract docHash from VectorStoreDocId (format: {name}_{docHash})
-    /// Example: "1025_e586be1c8a7e5d02" -> "e586be1c8a7e5d02"
-    /// The docHash is used to match against segment IDs from Qdrant.
+    ///     Extract docHash from VectorStoreDocId (format: {name}_{docHash})
+    ///     Example: "1025_e586be1c8a7e5d02" -> "e586be1c8a7e5d02"
+    ///     The docHash is used to match against segment IDs from Qdrant.
     /// </summary>
     private static string? ExtractDocHashFromVectorStoreDocId(string vectorStoreDocId)
     {
@@ -895,16 +937,14 @@ ANSWER:";
 
         var underscoreIndex = vectorStoreDocId.IndexOf('_');
         if (underscoreIndex > 0 && underscoreIndex < vectorStoreDocId.Length - 1)
-        {
             // Return everything after the first underscore (the docHash part)
             return vectorStoreDocId[(underscoreIndex + 1)..];
-        }
         return null;
     }
 
     /// <summary>
-    /// Extract significant keywords from query, filtering out common stopwords.
-    /// Includes stemming and compound term splitting for better matching.
+    ///     Extract significant keywords from query, filtering out common stopwords.
+    ///     Includes stemming and compound term splitting for better matching.
     /// </summary>
     private static HashSet<string> ExtractSignificantKeywords(string query)
     {
@@ -942,26 +982,19 @@ ANSWER:";
             // Split compound terms (GraphRAG -> graph, rag; EntityFramework -> entity, framework)
             var parts = SplitCompoundTerm(word);
             foreach (var part in parts)
-            {
                 if (part.Length >= 3 && !stopwords.Contains(part))
-                {
                     keywords.Add(part.ToLowerInvariant());
-                }
-            }
 
             // Add stemmed version (simple suffix stripping)
             var stemmed = SimpleStem(lower);
-            if (stemmed.Length >= 3 && stemmed != lower)
-            {
-                keywords.Add(stemmed);
-            }
+            if (stemmed.Length >= 3 && stemmed != lower) keywords.Add(stemmed);
         }
 
         return keywords;
     }
 
     /// <summary>
-    /// Split compound terms like GraphRAG, EntityFramework into components.
+    ///     Split compound terms like GraphRAG, EntityFramework into components.
     /// </summary>
     private static IEnumerable<string> SplitCompoundTerm(string term)
     {
@@ -971,52 +1004,47 @@ ANSWER:";
             .ToList();
 
         // If we got meaningful splits, return them
-        if (parts.Count > 1)
-        {
-            return parts;
-        }
+        if (parts.Count > 1) return parts;
 
         // Also try splitting on common boundaries (like numbers or known suffixes)
         return [term];
     }
 
     /// <summary>
-    /// Simple stemming by removing common suffixes.
-    /// Not a full Porter stemmer, but handles common cases.
+    ///     Simple stemming by removing common suffixes.
+    ///     Not a full Porter stemmer, but handles common cases.
     /// </summary>
     private static string SimpleStem(string word)
     {
         if (word.Length < 5) return word;
 
         // Order matters - check longer suffixes first
-        string[] suffixes = ["ization", "isation", "ational", "fulness", "ousness",
-                            "iveness", "ements", "ically", "ations", "abling",
-                            "izing", "ising", "ating", "ities", "ments", "ness",
-                            "ings", "tion", "sion", "ally", "ible", "able", "ment",
-                            "ive", "ful", "ous", "ing", "ies", "ied", "ion", "ers",
-                            "est", "ity", "ed", "ly", "er", "es", "s"];
+        string[] suffixes =
+        [
+            "ization", "isation", "ational", "fulness", "ousness",
+            "iveness", "ements", "ically", "ations", "abling",
+            "izing", "ising", "ating", "ities", "ments", "ness",
+            "ings", "tion", "sion", "ally", "ible", "able", "ment",
+            "ive", "ful", "ous", "ing", "ies", "ied", "ion", "ers",
+            "est", "ity", "ed", "ly", "er", "es", "s"
+        ];
 
         foreach (var suffix in suffixes)
-        {
             if (word.EndsWith(suffix) && word.Length - suffix.Length >= 3)
             {
                 var stem = word[..^suffix.Length];
                 // Handle doubling (e.g., running -> run)
-                if (stem.Length >= 3 && stem[^1] == stem[^2])
-                {
-                    stem = stem[..^1];
-                }
+                if (stem.Length >= 3 && stem[^1] == stem[^2]) stem = stem[..^1];
                 return stem;
             }
-        }
 
         return word;
     }
 
     /// <summary>
-    /// Deduplicate segments AFTER ranking, using final score (RRF or dense) to pick winners.
-    /// This enables cross-document deduplication at query time - if two documents have
-    /// nearly identical paragraphs, we keep the one with the higher relevance score.
+    ///     Deduplicate segments AFTER ranking, using final score (RRF or dense) to pick winners.
+    ///     This enables cross-document deduplication at query time - if two documents have
+    ///     nearly identical paragraphs, we keep the one with the higher relevance score.
     /// </summary>
     private static List<(Segment Segment, double Score)> DeduplicateByEmbeddingPostRanking(
         List<(Segment Segment, double Score)> rankedSegments,
@@ -1050,20 +1078,17 @@ ANSWER:";
                 }
             }
 
-            if (!isTooSimilar)
-            {
-                selected.Add((segment, score));
-            }
+            if (!isTooSimilar) selected.Add((segment, score));
         }
 
         return selected;
     }
 
     /// <summary>
-    /// Deduplicate segments by embedding cosine similarity.
-    /// Uses greedy selection: keeps highest-scoring segments, skips any subsequent
-    /// segments that are too similar (cosine similarity >= threshold) to already-selected ones.
-    /// This is the primary deduplication method when embeddings are available.
+    ///     Deduplicate segments by embedding cosine similarity.
+    ///     Uses greedy selection: keeps highest-scoring segments, skips any subsequent
+    ///     segments that are too similar (cosine similarity >= threshold) to already-selected ones.
+    ///     This is the primary deduplication method when embeddings are available.
     /// </summary>
     private static List<(Segment Segment, double DenseScore)> DeduplicateByEmbedding(
         List<(Segment Segment, double DenseScore)> segments,
@@ -1099,28 +1124,25 @@ ANSWER:";
                 }
             }
 
-            if (!isTooSimilar)
-            {
-                selected.Add((segment, score));
-            }
+            if (!isTooSimilar) selected.Add((segment, score));
         }
 
         return selected;
     }
 
     /// <summary>
-    /// Compute cosine similarity between two embedding vectors.
-    /// Returns value between -1 and 1, where 1 means identical direction.
+    ///     Compute cosine similarity between two embedding vectors.
+    ///     Returns value between -1 and 1, where 1 means identical direction.
     /// </summary>
     private static double CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length) return 0.0;
 
-        double dotProduct = 0.0;
-        double normA = 0.0;
-        double normB = 0.0;
+        var dotProduct = 0.0;
+        var normA = 0.0;
+        var normB = 0.0;
 
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];
@@ -1132,10 +1154,10 @@ ANSWER:";
     }
 
     /// <summary>
-    /// Deduplicate search results by text similarity using Jaccard index.
-    /// Uses greedy selection: keeps first result, skips any subsequent results
-    /// that are too similar to already-selected ones.
-    /// This is a fallback when embeddings are not available.
+    ///     Deduplicate search results by text similarity using Jaccard index.
+    ///     Uses greedy selection: keeps first result, skips any subsequent results
+    ///     that are too similar to already-selected ones.
+    ///     This is a fallback when embeddings are not available.
     /// </summary>
     private static List<SearchResultItem> DeduplicateByTextSimilarity(
         List<SearchResultItem> results,
@@ -1173,7 +1195,7 @@ ANSWER:";
     }
 
     /// <summary>
-    /// Tokenize text into a set of lowercase words for similarity comparison.
+    ///     Tokenize text into a set of lowercase words for similarity comparison.
     /// </summary>
     private static HashSet<string> TokenizeForSimilarity(string text)
     {
@@ -1182,14 +1204,14 @@ ANSWER:";
         return text
             .ToLowerInvariant()
             .Split([' ', '\t', '\n', '\r', '.', ',', '!', '?', ';', ':', '"', '\'', '(', ')', '[', ']'],
-                   StringSplitOptions.RemoveEmptyEntries)
+                StringSplitOptions.RemoveEmptyEntries)
             .Where(w => w.Length > 2) // Skip very short words
             .ToHashSet();
     }
 
     /// <summary>
-    /// Calculate Jaccard similarity between two token sets.
-    /// J(A,B) = |A ∩ B| / |A ∪ B|
+    ///     Calculate Jaccard similarity between two token sets.
+    ///     J(A,B) = |A ∩ B| / |A ∪ B|
     /// </summary>
     private static double JaccardSimilarity(HashSet<string> a, HashSet<string> b)
     {
@@ -1203,7 +1225,7 @@ ANSWER:";
     }
 
     /// <summary>
-    /// Build thinking/transparency output showing what the system is doing.
+    ///     Build thinking/transparency output showing what the system is doing.
     /// </summary>
     private static string BuildThinkingOutput(string query, SearchResult searchResult)
     {
@@ -1218,8 +1240,8 @@ ANSWER:";
         // Avoid showing hallucinated interpretations from small models
         var intent = plan.Intent ?? query;
         var showIntent = !string.IsNullOrEmpty(intent) &&
-            !intent.Equals(query, StringComparison.OrdinalIgnoreCase) &&
-            intent.Length < query.Length * 3; // Avoid verbose reinterpretations
+                         !intent.Equals(query, StringComparison.OrdinalIgnoreCase) &&
+                         intent.Length < query.Length * 3; // Avoid verbose reinterpretations
         if (showIntent)
             thinking.AppendLine($"- Interpreted as: {intent}");
         else
@@ -1227,31 +1249,23 @@ ANSWER:";
 
         thinking.AppendLine($"- Confidence: {plan.Confidence:P0}");
 
-        if (plan.SubQueries.Count > 0)
-        {
-            thinking.AppendLine($"- Searching with {plan.SubQueries.Count} sub-queries");
-        }
+        if (plan.SubQueries.Count > 0) thinking.AppendLine($"- Searching with {plan.SubQueries.Count} sub-queries");
 
         thinking.AppendLine($"- Found **{searchResult.Results.Count}** relevant segments");
 
         if (searchResult.ResponseTimeMs > 0)
-        {
             thinking.AppendLine($"- Search completed in {searchResult.ResponseTimeMs}ms");
-        }
 
         return thinking.ToString();
     }
 
     /// <summary>
-    /// Build response for keyword/navigation queries (no synthesis needed).
-    /// Thinking note is now returned separately.
+    ///     Build response for keyword/navigation queries (no synthesis needed).
+    ///     Thinking note is now returned separately.
     /// </summary>
     private static string BuildKeywordResponseNoThinking(List<SourceCitation> sources)
     {
-        if (sources.Count == 0)
-        {
-            return "No documents found matching your search.";
-        }
+        if (sources.Count == 0) return "No documents found matching your search.";
 
         var response = new StringBuilder();
         response.AppendLine($"Found **{sources.Count}** matching documents:");
@@ -1260,10 +1274,7 @@ ANSWER:";
         foreach (var source in sources)
         {
             response.AppendLine($"**[{source.Number}] {source.DocumentName}**");
-            if (!string.IsNullOrEmpty(source.PageOrSection))
-            {
-                response.AppendLine($"   *{source.PageOrSection}*");
-            }
+            if (!string.IsNullOrEmpty(source.PageOrSection)) response.AppendLine($"   *{source.PageOrSection}*");
             response.AppendLine($"   {source.Text}");
             response.AppendLine();
         }
@@ -1272,8 +1283,8 @@ ANSWER:";
     }
 
     /// <summary>
-    /// Resolves which lens to use for the request.
-    /// Priority: User override > Collection default > System default
+    ///     Resolves which lens to use for the request.
+    ///     Priority: User override > Collection default > System default
     /// </summary>
     private async Task<LensPackage> ResolveLensAsync(ChatRequest request, CancellationToken ct)
     {
@@ -1298,7 +1309,6 @@ ANSWER:";
                 .FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct);
 
             if (collection?.Settings != null)
-            {
                 try
                 {
                     var settings = JsonSerializer.Deserialize<Dictionary<string, object>>(collection.Settings);
@@ -1318,7 +1328,6 @@ ANSWER:";
                 {
                     logger.LogWarning(ex, "Failed to parse collection settings for lens default");
                 }
-            }
         }
 
         // 3. System default (lowest priority)

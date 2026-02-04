@@ -1,21 +1,16 @@
 using DoomSummarizer.Models;
+using Microsoft.Extensions.Logging;
 
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// A processor plugin bundles readers, splitters, templates, prompts, and strategies
-/// for a specific document domain (e.g. books, research papers, legal documents).
+///     A processor plugin bundles readers, splitters, templates, prompts, and strategies
+///     for a specific document domain (e.g. books, research papers, legal documents).
 /// </summary>
 public interface IProcessorPlugin
 {
     /// <summary>Plugin identity and capabilities.</summary>
     ProcessorPluginMetadata Metadata { get; }
-
-    /// <summary>
-    /// One-time initialization. Called once after registration.
-    /// Use to load embedded resources, validate dependencies, etc.
-    /// </summary>
-    Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default);
 
     /// <summary>Document readers this plugin provides or requires.</summary>
     IReadOnlyList<IDocumentReader> Readers { get; }
@@ -26,18 +21,24 @@ public interface IProcessorPlugin
     /// <summary>YAML template definitions shipped as embedded resources.</summary>
     IReadOnlyList<TemplateDefinition> Templates { get; }
 
+    /// <summary>
+    ///     One-time initialization. Called once after registration.
+    ///     Use to load embedded resources, validate dependencies, etc.
+    /// </summary>
+    Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default);
+
     /// <summary>Can this plugin handle the given content?</summary>
     bool CanProcess(string markdown, ProcessingContext context);
 
     /// <summary>
-    /// Process: split + enrich + return structured result.
-    /// The plugin decides the best splitting strategy based on content analysis.
+    ///     Process: split + enrich + return structured result.
+    ///     The plugin decides the best splitting strategy based on content analysis.
     /// </summary>
     Task<ProcessorResult> ProcessAsync(string markdown, ProcessorOptions options, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Describes a processor plugin's identity and capabilities.
+///     Describes a processor plugin's identity and capabilities.
 /// </summary>
 public record ProcessorPluginMetadata
 {
@@ -64,16 +65,16 @@ public record ProcessorPluginMetadata
 }
 
 /// <summary>
-/// Service bag injected into processor plugins during initialization.
+///     Service bag injected into processor plugins during initialization.
 /// </summary>
 public record ProcessorPluginServices
 {
     /// <summary>Logging.</summary>
-    public required Microsoft.Extensions.Logging.ILoggerFactory LoggerFactory { get; init; }
+    public required ILoggerFactory LoggerFactory { get; init; }
 }
 
 /// <summary>
-/// Context provided to <see cref="IProcessorPlugin.CanProcess"/> for activation decisions.
+///     Context provided to <see cref="IProcessorPlugin.CanProcess" /> for activation decisions.
 /// </summary>
 public record ProcessingContext
 {
@@ -91,7 +92,7 @@ public record ProcessingContext
 }
 
 /// <summary>
-/// Options for <see cref="IProcessorPlugin.ProcessAsync"/>.
+///     Options for <see cref="IProcessorPlugin.ProcessAsync" />.
 /// </summary>
 public record ProcessorOptions
 {
@@ -109,7 +110,7 @@ public record ProcessorOptions
 }
 
 /// <summary>
-/// Result of plugin processing.
+///     Result of plugin processing.
 /// </summary>
 public record ProcessorResult
 {
@@ -135,40 +136,42 @@ public record ProcessorResult
     public Dictionary<string, Dictionary<string, string>> NodeMetadata { get; init; } = new();
 
     private static int ComputeMaxDepth(DocumentNode node)
-        => node.IsLeaf ? node.Level : node.Children.Max(c => ComputeMaxDepth(c));
+    {
+        return node.IsLeaf ? node.Level : node.Children.Max(c => ComputeMaxDepth(c));
+    }
 }
 
 /// <summary>
-/// Structural weight assignments for position-aware retrieval.
-/// First/last chapters, climax sections, etc. get boosted during retrieval.
+///     Structural weight assignments for position-aware retrieval.
+///     First/last chapters, climax sections, etc. get boosted during retrieval.
 /// </summary>
 public record StructuralWeights
 {
     /// <summary>
-    /// Weight multipliers by node title or path.
-    /// Key: node breadcrumb path, Value: weight multiplier (1.0 = normal).
-    /// Opening/closing chapters, abstracts, conclusions get higher weights.
+    ///     Weight multipliers by node title or path.
+    ///     Key: node breadcrumb path, Value: weight multiplier (1.0 = normal).
+    ///     Opening/closing chapters, abstracts, conclusions get higher weights.
     /// </summary>
     public Dictionary<string, double> NodeWeights { get; init; } = new();
 
     /// <summary>
-    /// Weight multipliers by position category.
-    /// Standard categories: "opening", "closing", "climax", "introduction", "conclusion".
+    ///     Weight multipliers by position category.
+    ///     Standard categories: "opening", "closing", "climax", "introduction", "conclusion".
     /// </summary>
     public Dictionary<string, double> PositionWeights { get; init; } = new()
     {
-        ["opening"] = 1.3,      // First chapter/section — sets up context
-        ["closing"] = 1.3,      // Last chapter/section — resolution/conclusion
+        ["opening"] = 1.3, // First chapter/section — sets up context
+        ["closing"] = 1.3, // Last chapter/section — resolution/conclusion
         ["introduction"] = 1.2, // Formal introduction sections
-        ["conclusion"] = 1.2,   // Formal conclusion sections
-        ["abstract"] = 1.4,     // Academic abstracts — highest density
-        ["climax"] = 1.1        // Narrative climax (detected by position heuristic)
+        ["conclusion"] = 1.2, // Formal conclusion sections
+        ["abstract"] = 1.4, // Academic abstracts — highest density
+        ["climax"] = 1.1 // Narrative climax (detected by position heuristic)
     };
 
     /// <summary>
-    /// Get the structural weight for a node. Checks explicit NodeWeights first,
-    /// then falls back to position-based defaults from PositionWeights.
-    /// Title-based detection is done at ingestion time by the plugin's ComputeStructuralWeights.
+    ///     Get the structural weight for a node. Checks explicit NodeWeights first,
+    ///     then falls back to position-based defaults from PositionWeights.
+    ///     Title-based detection is done at ingestion time by the plugin's ComputeStructuralWeights.
     /// </summary>
     public double GetWeight(int sequence, int siblingCount, string? title = null)
     {

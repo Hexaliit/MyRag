@@ -1,51 +1,53 @@
+using VideoSummarizer.Core.Waves;
+
 namespace VideoSummarizer.Core.Coordination;
 
 /// <summary>
-/// Interface for waves that declare their signal contracts explicitly.
-/// Enables dynamic wave coordination based on signal dependencies.
+///     Interface for waves that declare their signal contracts explicitly.
+///     Enables dynamic wave coordination based on signal dependencies.
 /// </summary>
 public interface ISignalAwareVideoWave
 {
     /// <summary>
-    /// Signals this wave requires before it can run.
-    /// Wave will be skipped if any required signal is missing.
+    ///     Signals this wave requires before it can run.
+    ///     Wave will be skipped if any required signal is missing.
     /// </summary>
     IReadOnlyList<string> RequiredSignals { get; }
 
     /// <summary>
-    /// Signals this wave can optionally use if available.
-    /// Wave runs even if optional signals are missing.
+    ///     Signals this wave can optionally use if available.
+    ///     Wave runs even if optional signals are missing.
     /// </summary>
     IReadOnlyList<string> OptionalSignals { get; }
 
     /// <summary>
-    /// Signals this wave emits on successful completion.
+    ///     Signals this wave emits on successful completion.
     /// </summary>
     IReadOnlyList<string> EmittedSignals { get; }
 
     /// <summary>
-    /// Signals emitted when the wave starts processing.
+    ///     Signals emitted when the wave starts processing.
     /// </summary>
-    IReadOnlyList<string> StartSignals => [$"wave.started.{((Waves.IVideoWave)this).Name}"];
+    IReadOnlyList<string> StartSignals => [$"wave.started.{((IVideoWave)this).Name}"];
 
     /// <summary>
-    /// Signals emitted when the wave fails.
+    ///     Signals emitted when the wave fails.
     /// </summary>
-    IReadOnlyList<string> FailureSignals => [$"wave.failed.{((Waves.IVideoWave)this).Name}"];
+    IReadOnlyList<string> FailureSignals => [$"wave.failed.{((IVideoWave)this).Name}"];
 
     /// <summary>
-    /// Cache keys this wave produces for downstream waves.
+    ///     Cache keys this wave produces for downstream waves.
     /// </summary>
     IReadOnlyList<string> CacheEmits { get; }
 
     /// <summary>
-    /// Cache keys this wave consumes from upstream waves.
+    ///     Cache keys this wave consumes from upstream waves.
     /// </summary>
     IReadOnlyList<string> CacheUses { get; }
 }
 
 /// <summary>
-/// Signal event for reactive wave composition.
+///     Signal event for reactive wave composition.
 /// </summary>
 public readonly record struct VideoSignalEvent(
     string Signal,
@@ -55,13 +57,20 @@ public readonly record struct VideoSignalEvent(
     DateTimeOffset Timestamp
 )
 {
-    public bool Is(string name) => Signal.Equals(name, StringComparison.OrdinalIgnoreCase);
-    public bool StartsWith(string prefix) => Signal.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    public bool Is(string name)
+    {
+        return Signal.Equals(name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool StartsWith(string prefix)
+    {
+        return Signal.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>
-/// Well-known signal keys for VideoSummarizer.
-/// Using constants ensures consistency across waves.
+///     Well-known signal keys for VideoSummarizer.
+///     Using constants ensures consistency across waves.
 /// </summary>
 public static class VideoSignals
 {
@@ -135,7 +144,7 @@ public static class VideoSignals
 }
 
 /// <summary>
-/// Escalation condition for triggering additional analysis.
+///     Escalation condition for triggering additional analysis.
 /// </summary>
 public record EscalationCondition
 {
@@ -150,7 +159,7 @@ public record EscalationCondition
 }
 
 /// <summary>
-/// Escalation rule for a wave.
+///     Escalation rule for a wave.
 /// </summary>
 public record EscalationRule
 {

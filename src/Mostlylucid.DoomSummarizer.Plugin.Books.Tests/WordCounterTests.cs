@@ -13,7 +13,7 @@ public class WordCounterTests
     [Fact]
     public void Count_Null_ReturnsZero()
     {
-        WordCounter.Count((string?)null).Should().Be(0);
+        WordCounter.Count(null).Should().Be(0);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class WordCounterTests
             "trailing spaces  ",
             "multiple   spaces   between",
             "tabs\there",
-            "newlines\nhere\ntoo",
+            "newlines\nhere\ntoo"
         };
 
         foreach (var sample in samples)
@@ -72,7 +72,7 @@ public class WordCounterTests
                 [' ', '\t', '\n', '\r'],
                 StringSplitOptions.RemoveEmptyEntries).Length;
 
-            WordCounter.Count(sample).Should().Be(expected, because: $"sample: '{sample}'");
+            WordCounter.Count(sample).Should().Be(expected, $"sample: '{sample}'");
         }
     }
 }

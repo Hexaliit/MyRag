@@ -9,6 +9,12 @@ public class EdgeAnalyzerTests
 {
     private readonly EdgeAnalyzer _analyzer = new();
 
+    private static string GetTestImagePath(string filename)
+    {
+        var dir = Path.GetDirectoryName(typeof(EdgeAnalyzerTests).Assembly.Location)!;
+        return Path.Combine(dir, "TestImages", filename);
+    }
+
     #region CalculateEdgeDensity Tests
 
     [Fact]
@@ -24,7 +30,7 @@ public class EdgeAnalyzerTests
     [Fact]
     public void CalculateEdgeDensity_Checkerboard_ReturnsHighEdgeDensity()
     {
-        using var image = TestImageGenerator.CreateCheckerboard(200, 200, 10);
+        using var image = TestImageGenerator.CreateCheckerboard(200, 200);
 
         var edgeDensity = _analyzer.CalculateEdgeDensity(image);
 
@@ -169,10 +175,7 @@ public class EdgeAnalyzerTests
     public void CalculateEdgeDensity_RealScreenshot_DetectsEdges()
     {
         var testImagePath = GetTestImagePath("01-home.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var edgeDensity = _analyzer.CalculateEdgeDensity(image);
@@ -185,10 +188,7 @@ public class EdgeAnalyzerTests
     public void CalculateStraightEdgeRatio_RealScreenshot_DetectsStraightEdges()
     {
         var testImagePath = GetTestImagePath("03-chat-response.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var ratio = _analyzer.CalculateStraightEdgeRatio(image);
@@ -198,10 +198,4 @@ public class EdgeAnalyzerTests
     }
 
     #endregion
-
-    private static string GetTestImagePath(string filename)
-    {
-        var dir = Path.GetDirectoryName(typeof(EdgeAnalyzerTests).Assembly.Location)!;
-        return Path.Combine(dir, "TestImages", filename);
-    }
 }

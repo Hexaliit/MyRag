@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Multitenancy;
 
@@ -57,7 +56,8 @@ public static class MultitenancyExtensions
         try
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants'";
+            cmd.CommandText =
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants'";
             var tableExists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
 
             if (tableExists)

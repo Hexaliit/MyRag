@@ -17,12 +17,12 @@ async function takeExplorerScreenshot() {
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setViewport({width: 1920, height: 1080});
 
     try {
         // Navigate to admin page (will redirect to login)
         console.log('1. Navigating to admin page...');
-        await page.goto(`${BASE_URL}/admin`, { waitUntil: 'networkidle0', timeout: 30000 });
+        await page.goto(`${BASE_URL}/admin`, {waitUntil: 'networkidle0', timeout: 30000});
         console.log('   Page loaded successfully');
 
         // Check if we're on login page
@@ -48,7 +48,7 @@ async function takeExplorerScreenshot() {
             }
 
             // Wait for navigation
-            await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 }).catch(() => {
+            await page.waitForNavigation({waitUntil: 'networkidle0', timeout: 30000}).catch(() => {
                 console.log('   Navigation after login completed or timed out');
             });
 
@@ -76,7 +76,7 @@ async function takeExplorerScreenshot() {
                     buttons: [...toggleDiv.querySelectorAll('button')].map(b => b.textContent.trim())
                 };
             } else {
-                info.sidebarToggle = { found: false };
+                info.sidebarToggle = {found: false};
             }
 
             // Check aside element (sidebar)
@@ -98,8 +98,8 @@ async function takeExplorerScreenshot() {
                 text: b.textContent.trim().substring(0, 50),
                 classes: b.className.substring(0, 50)
             })).filter(b => b.text.toLowerCase().includes('chat') ||
-                           b.text.toLowerCase().includes('explorer') ||
-                           b.text.toLowerCase().includes('mode'));
+                b.text.toLowerCase().includes('explorer') ||
+                b.text.toLowerCase().includes('mode'));
 
             // Check Alpine.js components
             const alpineEls = document.querySelectorAll('[x-data]');
@@ -135,7 +135,7 @@ async function takeExplorerScreenshot() {
 
                 if (explorerBtn) {
                     explorerBtn.click();
-                    return { found: true, location: 'sidebar-mode-toggle', text: explorerBtn.textContent.trim() };
+                    return {found: true, location: 'sidebar-mode-toggle', text: explorerBtn.textContent.trim()};
                 }
             }
 
@@ -145,17 +145,17 @@ async function takeExplorerScreenshot() {
 
             if (explorerBtn) {
                 explorerBtn.click();
-                return { found: true, location: 'global', text: explorerBtn.textContent.trim() };
+                return {found: true, location: 'global', text: explorerBtn.textContent.trim()};
             }
 
             // Try setting Alpine.js sidebarMode directly
             const alpineRoot = document.querySelector('[x-data*="ragApp"]') ||
-                               document.querySelector('[x-data]');
+                document.querySelector('[x-data]');
             if (alpineRoot && alpineRoot._x_dataStack) {
                 const data = alpineRoot._x_dataStack[0];
                 if (typeof data.sidebarMode !== 'undefined') {
                     data.sidebarMode = 'explorer';
-                    return { found: true, location: 'alpine-direct', text: 'Set via Alpine.js' };
+                    return {found: true, location: 'alpine-direct', text: 'Set via Alpine.js'};
                 }
             }
 
@@ -183,7 +183,7 @@ async function takeExplorerScreenshot() {
 
         // Take screenshot
         console.log('6. Taking screenshot...');
-        await page.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
+        await page.screenshot({path: SCREENSHOT_PATH, fullPage: true});
         console.log('   Screenshot saved to:', SCREENSHOT_PATH);
 
         // Report what we see
@@ -199,7 +199,7 @@ async function takeExplorerScreenshot() {
 
             // Check Alpine.js sidebar mode
             const alpineRoot = document.querySelector('[x-data*="ragApp"]') ||
-                               document.querySelector('[x-data]');
+                document.querySelector('[x-data]');
             if (alpineRoot && alpineRoot._x_dataStack) {
                 const data = alpineRoot._x_dataStack[0];
                 if (typeof data.sidebarMode !== 'undefined') {
@@ -242,7 +242,7 @@ async function takeExplorerScreenshot() {
 
     } catch (error) {
         console.error('Error:', error.message);
-        await page.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
+        await page.screenshot({path: SCREENSHOT_PATH, fullPage: true});
         console.log('Error screenshot saved to:', SCREENSHOT_PATH);
     } finally {
         await browser.close();

@@ -13,24 +13,19 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Layout Detection Wave - Detects document layout elements using YOLOv10-DocLayNet.
-/// Identifies: Text, Title, Table, Figure, List, Caption, Footnote, Header, Footer.
-/// Auto-downloads YOLOv10-DocLayNet ONNX model on first use (~62MB).
-/// Priority: 64 (runs early, before OCR to guide text extraction).
+///     Layout Detection Wave - Detects document layout elements using YOLOv10-DocLayNet.
+///     Identifies: Text, Title, Table, Figure, List, Caption, Footnote, Header, Footer.
+///     Auto-downloads YOLOv10-DocLayNet ONNX model on first use (~62MB).
+///     Priority: 64 (runs early, before OCR to guide text extraction).
 /// </summary>
 public class LayoutDetectionWave : IAnalysisWave
 {
-    private readonly ImageConfig _config;
-    private readonly ModelDownloader? _modelDownloader;
-    private readonly OnnxSessionFactory? _sessionFactory;
-    private readonly ILogger<LayoutDetectionWave>? _logger;
-    private static InferenceSession? _layoutSession;
-    private static readonly object _modelLock = new();
-
     // YOLOv10-DocLayNet model constants
     private const int ModelInputSize = 640; // Standard YOLO input size
     private const float ConfidenceThreshold = 0.3f;
     private const float NmsThreshold = 0.5f;
+    private static InferenceSession? _layoutSession;
+    private static readonly object _modelLock = new();
 
     // DocLayNet class names (11 classes)
     private static readonly string[] ClassNames =
@@ -47,6 +42,23 @@ public class LayoutDetectionWave : IAnalysisWave
         "Text",
         "Title"
     };
+
+    private readonly ImageConfig _config;
+    private readonly ILogger<LayoutDetectionWave>? _logger;
+    private readonly ModelDownloader? _modelDownloader;
+    private readonly OnnxSessionFactory? _sessionFactory;
+
+    public LayoutDetectionWave(
+        IOptions<ImageConfig> config,
+        ModelDownloader? modelDownloader = null,
+        OnnxSessionFactory? sessionFactory = null,
+        ILogger<LayoutDetectionWave>? logger = null)
+    {
+        _config = config.Value;
+        _modelDownloader = modelDownloader;
+        _sessionFactory = sessionFactory;
+        _logger = logger;
+    }
 
     public string Name => "LayoutDetectionWave";
     public int Priority => 64; // Before OCR waves (60) to guide text extraction
@@ -67,18 +79,6 @@ public class LayoutDetectionWave : IAnalysisWave
             return false;
 
         return true;
-    }
-
-    public LayoutDetectionWave(
-        IOptions<ImageConfig> config,
-        ModelDownloader? modelDownloader = null,
-        OnnxSessionFactory? sessionFactory = null,
-        ILogger<LayoutDetectionWave>? logger = null)
-    {
-        _config = config.Value;
-        _modelDownloader = modelDownloader;
-        _sessionFactory = sessionFactory;
-        _logger = logger;
     }
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
@@ -296,7 +296,6 @@ public class LayoutDetectionWave : IAnalysisWave
     {
         // Try to get from ModelDownloader (auto-downloads if needed)
         if (_modelDownloader != null)
-        {
             try
             {
                 _logger?.LogInformation("Checking/downloading YOLOv10-DocLayNet model (~62MB on first run)...");
@@ -311,7 +310,6 @@ public class LayoutDetectionWave : IAnalysisWave
             {
                 _logger?.LogWarning(ex, "Failed to auto-download layout detection model");
             }
-        }
 
         // Fallback to checking default paths
         var fallbackPaths = new[]
@@ -322,9 +320,8 @@ public class LayoutDetectionWave : IAnalysisWave
         };
 
         foreach (var path in fallbackPaths)
-        {
-            if (File.Exists(path)) return path;
-        }
+            if (File.Exists(path))
+                return path;
 
         _logger?.LogDebug("Layout model not found in any default location");
         return null;
@@ -397,15 +394,13 @@ public class LayoutDetectionWave : IAnalysisWave
     {
         var tensor = new DenseTensor<float>(new[] { 1, 3, ModelInputSize, ModelInputSize });
 
-        for (int y = 0; y < ModelInputSize; y++)
+        for (var y = 0; y < ModelInputSize; y++)
+        for (var x = 0; x < ModelInputSize; x++)
         {
-            for (int x = 0; x < ModelInputSize; x++)
-            {
-                var pixel = image[x, y];
-                tensor[0, 0, y, x] = pixel.R / 255f;
-                tensor[0, 1, y, x] = pixel.G / 255f;
-                tensor[0, 2, y, x] = pixel.B / 255f;
-            }
+            var pixel = image[x, y];
+            tensor[0, 0, y, x] = pixel.R / 255f;
+            tensor[0, 1, y, x] = pixel.G / 255f;
+            tensor[0, 2, y, x] = pixel.B / 255f;
         }
 
         return tensor;
@@ -452,10 +447,10 @@ public class LayoutDetectionWave : IAnalysisWave
             return detections;
         }
 
-        for (int i = 0; i < numDetections; i++)
+        for (var i = 0; i < numDetections; i++)
         {
             float cx, cy, w, h;
-            float[] classScores = new float[ClassNames.Length];
+            var classScores = new float[ClassNames.Length];
 
             if (isTransposed)
             {
@@ -464,10 +459,7 @@ public class LayoutDetectionWave : IAnalysisWave
                 cy = output[0, 1, i];
                 w = output[0, 2, i];
                 h = output[0, 3, i];
-                for (int c = 0; c < ClassNames.Length && c + 4 < stride; c++)
-                {
-                    classScores[c] = output[0, c + 4, i];
-                }
+                for (var c = 0; c < ClassNames.Length && c + 4 < stride; c++) classScores[c] = output[0, c + 4, i];
             }
             else
             {
@@ -476,10 +468,7 @@ public class LayoutDetectionWave : IAnalysisWave
                 cy = output[0, i, 1];
                 w = output[0, i, 2];
                 h = output[0, i, 3];
-                for (int c = 0; c < ClassNames.Length && c + 4 < stride; c++)
-                {
-                    classScores[c] = output[0, i, c + 4];
-                }
+                for (var c = 0; c < ClassNames.Length && c + 4 < stride; c++) classScores[c] = output[0, i, c + 4];
             }
 
             // Find best class
@@ -490,10 +479,10 @@ public class LayoutDetectionWave : IAnalysisWave
                 continue;
 
             // Convert from model coordinates to original image coordinates
-            var x1 = ((cx - w / 2) - padX) / scale;
-            var y1 = ((cy - h / 2) - padY) / scale;
-            var x2 = ((cx + w / 2) - padX) / scale;
-            var y2 = ((cy + h / 2) - padY) / scale;
+            var x1 = (cx - w / 2 - padX) / scale;
+            var y1 = (cy - h / 2 - padY) / scale;
+            var x2 = (cx + w / 2 - padX) / scale;
+            var y2 = (cy + h / 2 - padY) / scale;
 
             // Clamp to image bounds
             x1 = Math.Max(0, Math.Min(originalWidth, x1));
@@ -505,7 +494,6 @@ public class LayoutDetectionWave : IAnalysisWave
             var height = y2 - y1;
 
             if (width > 5 && height > 5) // Skip tiny detections
-            {
                 detections.Add(new LayoutDetection
                 {
                     ClassName = ClassNames[classIdx],
@@ -516,7 +504,6 @@ public class LayoutDetectionWave : IAnalysisWave
                     Width = (int)width,
                     Height = (int)height
                 });
-            }
         }
 
         return detections;
@@ -569,7 +556,7 @@ public class LayoutDetectionWave : IAnalysisWave
 }
 
 /// <summary>
-/// Detected layout element with bounding box and class information.
+///     Detected layout element with bounding box and class information.
 /// </summary>
 public record LayoutDetection
 {

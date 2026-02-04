@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Core.Services.Caching;
 using LucidRAG.Data;
 using LucidRAG.Entities;
@@ -11,13 +11,13 @@ using Mostlylucid.DocSummarizer.Search;
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Repository for evidence artifacts.
-/// Coordinates between database metadata and blob storage.
+///     Repository for evidence artifacts.
+///     Coordinates between database metadata and blob storage.
 /// </summary>
 public interface IEvidenceRepository
 {
     /// <summary>
-    /// Store an evidence artifact for an entity.
+    ///     Store an evidence artifact for an entity.
     /// </summary>
     Task<Guid> StoreAsync(
         Guid entityId,
@@ -32,21 +32,21 @@ public interface IEvidenceRepository
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get the content stream for an artifact.
+    ///     Get the content stream for an artifact.
     /// </summary>
     Task<Stream?> GetStreamAsync(
         Guid artifactId,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get artifact metadata by ID.
+    ///     Get artifact metadata by ID.
     /// </summary>
     Task<EvidenceArtifact?> GetByIdAsync(
         Guid artifactId,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get all artifacts for an entity.
+    ///     Get all artifacts for an entity.
     /// </summary>
     Task<IReadOnlyList<EvidenceArtifact>> GetByEntityAsync(
         Guid entityId,
@@ -54,28 +54,28 @@ public interface IEvidenceRepository
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get available artifact types for an entity.
+    ///     Get available artifact types for an entity.
     /// </summary>
     Task<IReadOnlyList<string>> GetAvailableTypesAsync(
         Guid entityId,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Delete an artifact and its stored content.
+    ///     Delete an artifact and its stored content.
     /// </summary>
     Task<bool> DeleteAsync(
         Guid artifactId,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Delete all artifacts for an entity.
+    ///     Delete all artifacts for an entity.
     /// </summary>
     Task<int> DeleteAllForEntityAsync(
         Guid entityId,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Check if an artifact exists by content hash (for deduplication).
+    ///     Check if an artifact exists by content hash (for deduplication).
     /// </summary>
     Task<EvidenceArtifact?> FindByHashAsync(
         Guid entityId,
@@ -84,14 +84,14 @@ public interface IEvidenceRepository
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get segment text by content hash. Used for hydrating RAG results from vector store.
-    /// Queries segment_text evidence artifacts where metadata contains the content hash.
+    ///     Get segment text by content hash. Used for hydrating RAG results from vector store.
+    ///     Queries segment_text evidence artifacts where metadata contains the content hash.
     /// </summary>
     Task<string?> GetSegmentTextByHashAsync(string contentHash, CancellationToken ct = default);
 
     /// <summary>
-    /// Batch get segment texts by content hashes for efficient hydration.
-    /// Returns dictionary mapping contentHash to text.
+    ///     Batch get segment texts by content hashes for efficient hydration.
+    ///     Returns dictionary mapping contentHash to text.
     /// </summary>
     Task<Dictionary<string, string>> GetSegmentTextsByHashesAsync(
         IEnumerable<string> contentHashes,
@@ -123,10 +123,7 @@ public class EvidenceRepository(
         var contentHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
 
         // Reset stream position for storage
-        if (content.CanSeek)
-        {
-            content.Position = 0;
-        }
+        if (content.CanSeek) content.Position = 0;
 
         // Check for existing artifact with same hash
         var existing = await FindByHashAsync(entityId, artifactType, contentHash, ct);
@@ -137,7 +134,7 @@ public class EvidenceRepository(
         }
 
         // Determine storage strategy: inline for text artifacts, blob storage for others
-        bool storeInline = ShouldStoreInline(artifactType, mimeType);
+        var storeInline = ShouldStoreInline(artifactType, mimeType);
         string storagePath;
         long fileSize;
         string? inlineContent = null;
@@ -147,7 +144,7 @@ public class EvidenceRepository(
             // Store content inline in database for full-text search
             using var reader = new StreamReader(content);
             inlineContent = await reader.ReadToEndAsync(ct);
-            fileSize = System.Text.Encoding.UTF8.GetByteCount(inlineContent);
+            fileSize = Encoding.UTF8.GetByteCount(inlineContent);
             storagePath = $"inline:{artifactType}"; // Marker for inline storage
         }
         else
@@ -177,8 +174,8 @@ public class EvidenceRepository(
             StoragePath = storagePath,
             FileSizeBytes = fileSize,
             ContentHash = contentHash,
-            SegmentHash = segmentHash,  // For fast RAG text hydration lookups
-            Content = inlineContent,  // Store inline for text artifacts
+            SegmentHash = segmentHash, // For fast RAG text hydration lookups
+            Content = inlineContent, // Store inline for text artifacts
             ProducerSource = producerSource,
             ProducerVersion = producerVersion,
             Confidence = confidence,
@@ -190,7 +187,6 @@ public class EvidenceRepository(
 
         // Index text artifacts in Lucene for core FTS
         if (fullTextSearch != null && storeInline && !string.IsNullOrEmpty(inlineContent))
-        {
             try
             {
                 await fullTextSearch.IndexDocumentAsync(
@@ -203,7 +199,6 @@ public class EvidenceRepository(
             {
                 logger.LogWarning(ex, "Failed to index artifact {ArtifactId} in Lucene FTS", artifact.Id);
             }
-        }
 
         logger.LogInformation(
             "Stored evidence artifact {ArtifactId} type={Type} for entity {EntityId} ({Size} bytes), segmentHash={SegmentHash}",
@@ -227,7 +222,7 @@ public class EvidenceRepository(
         // If stored inline, return content from database
         if (artifact.StorageBackend == "inline" && artifact.Content != null)
         {
-            var bytes = System.Text.Encoding.UTF8.GetBytes(artifact.Content);
+            var bytes = Encoding.UTF8.GetBytes(artifact.Content);
             return new MemoryStream(bytes);
         }
 
@@ -251,10 +246,7 @@ public class EvidenceRepository(
             .AsNoTracking()
             .Where(a => a.EntityId == entityId);
 
-        if (artifactTypes is { Length: > 0 })
-        {
-            query = query.Where(a => artifactTypes.Contains(a.ArtifactType));
-        }
+        if (artifactTypes is { Length: > 0 }) query = query.Where(a => artifactTypes.Contains(a.ArtifactType));
 
         return await query
             .OrderBy(a => a.ArtifactType)
@@ -278,10 +270,7 @@ public class EvidenceRepository(
     public async Task<bool> DeleteAsync(Guid artifactId, CancellationToken ct = default)
     {
         var artifact = await db.EvidenceArtifacts.FindAsync([artifactId], ct);
-        if (artifact == null)
-        {
-            return false;
-        }
+        if (artifact == null) return false;
 
         // Delete from blob storage
         try
@@ -307,14 +296,10 @@ public class EvidenceRepository(
             .Where(a => a.EntityId == entityId)
             .ToListAsync(ct);
 
-        if (artifacts.Count == 0)
-        {
-            return 0;
-        }
+        if (artifacts.Count == 0) return 0;
 
         // Delete blobs
         foreach (var artifact in artifacts)
-        {
             try
             {
                 await storage.DeleteAsync(artifact.StoragePath, ct);
@@ -323,7 +308,6 @@ public class EvidenceRepository(
             {
                 logger.LogWarning(ex, "Failed to delete blob for artifact {ArtifactId}", artifact.Id);
             }
-        }
 
         // Delete database records
         db.EvidenceArtifacts.RemoveRange(artifacts);
@@ -338,10 +322,7 @@ public class EvidenceRepository(
                 .Select(a => a.SegmentHash!)
                 .ToList();
 
-            foreach (var hash in segmentHashes)
-            {
-                cache.InvalidateEvidence(tenantId, hash);
-            }
+            foreach (var hash in segmentHashes) cache.InvalidateEvidence(tenantId, hash);
 
             logger.LogDebug("Invalidated {Count} cache entries for tenant {TenantId}",
                 segmentHashes.Count, tenantId);
@@ -386,10 +367,7 @@ public class EvidenceRepository(
         }
 
         // If stored inline, return directly from database (fast!)
-        if (artifact.StorageBackend == "inline" && artifact.Content != null)
-        {
-            return artifact.Content;
-        }
+        if (artifact.StorageBackend == "inline" && artifact.Content != null) return artifact.Content;
 
         // Otherwise read from blob storage
         try
@@ -426,16 +404,10 @@ public class EvidenceRepository(
             var cachedResults = await cache.GetEvidenceTextsAsync(tenantId, hashList);
 
             foreach (var hash in hashList)
-            {
                 if (cachedResults.TryGetValue(hash, out var text))
-                {
                     result[hash] = text;
-                }
                 else
-                {
                     cacheMisses.Add(hash);
-                }
-            }
 
             logger.LogDebug("Evidence cache: {Hits} hits, {Misses} misses for tenant {TenantId}",
                 result.Count, cacheMisses.Count, tenantId);
@@ -487,9 +459,7 @@ public class EvidenceRepository(
 
                     // Cache for future queries (if cache available)
                     if (cache != null && tenantAccessor?.Current?.TenantId != null)
-                    {
                         cache.CacheEvidenceText(tenantAccessor.Current.TenantId, artifact.SegmentHash, text);
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -505,9 +475,9 @@ public class EvidenceRepository(
     }
 
     /// <summary>
-    /// Determine if content should be stored inline (database) or in blob storage.
-    /// Text artifacts (segment_text, transcript, etc.) are stored inline for PostgreSQL FTS.
-    /// Binary/large content (images, PDFs, etc.) uses blob storage.
+    ///     Determine if content should be stored inline (database) or in blob storage.
+    ///     Text artifacts (segment_text, transcript, etc.) are stored inline for PostgreSQL FTS.
+    ///     Binary/large content (images, PDFs, etc.) uses blob storage.
     /// </summary>
     private static bool ShouldStoreInline(string artifactType, string mimeType)
     {
@@ -518,7 +488,7 @@ public class EvidenceRepository(
             EvidenceTypes.DocumentText => true,
             EvidenceTypes.OcrText => true,
             EvidenceTypes.Transcript => true,
-            EvidenceTypes.TranscriptSegments => false,  // JSON, can be large
+            EvidenceTypes.TranscriptSegments => false, // JSON, can be large
             EvidenceTypes.LlmSummary => true,
             EvidenceTypes.LlmClaims => true,
             EvidenceTypes.ImageCaption => true,

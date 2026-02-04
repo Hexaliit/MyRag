@@ -27,7 +27,8 @@ var result = await reader.ReadAsync("document.docx");
 ## Dependencies
 
 - [DocumentFormat.OpenXml](https://github.com/dotnet/Open-XML-SDK) - DOCX parsing
-- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) -
+  IDocumentReader interface
 
 ## License
 

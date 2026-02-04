@@ -3,7 +3,7 @@ using OpenCvSharp;
 namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
-/// Document skew correction with multiple methods.
+///     Document skew correction with multiple methods.
 /// </summary>
 public class SkewCorrector
 {
@@ -14,10 +14,8 @@ public class SkewCorrector
         ProjectionProfile
     }
 
-    public record DeskewResult(Mat Image, double Angle, DeskewMethod Method);
-
     /// <summary>
-    /// Deskew image using specified method.
+    ///     Deskew image using specified method.
     /// </summary>
     public DeskewResult Deskew(Mat image, DeskewMethod method = DeskewMethod.HoughTransform)
     {
@@ -33,7 +31,7 @@ public class SkewCorrector
     }
 
     /// <summary>
-    /// Deskew using minimum area bounding rectangle.
+    ///     Deskew using minimum area bounding rectangle.
     /// </summary>
     private static (Mat result, double angle) DeskewMinArea(Mat image)
     {
@@ -79,7 +77,7 @@ public class SkewCorrector
     }
 
     /// <summary>
-    /// Deskew using Hough line detection.
+    ///     Deskew using Hough line detection.
     /// </summary>
     private static (Mat result, double angle) DeskewHough(Mat image)
     {
@@ -94,7 +92,7 @@ public class SkewCorrector
         Cv2.Dilate(edges, edges, kernel);
 
         var lines = Cv2.HoughLinesP(edges, 1, Math.PI / 180, 100,
-            minLineLength: 100, maxLineGap: 10);
+            100, 10);
 
         if (lines.Length == 0)
             return (image.Clone(), 0.0);
@@ -130,7 +128,7 @@ public class SkewCorrector
     }
 
     /// <summary>
-    /// Deskew using projection profile variance.
+    ///     Deskew using projection profile variance.
     /// </summary>
     private static (Mat result, double angle) DeskewProjection(Mat image,
         double angleRange = 15.0, double angleStep = 0.5)
@@ -173,4 +171,6 @@ public class SkewCorrector
 
         return (result, bestAngle);
     }
+
+    public record DeskewResult(Mat Image, double Angle, DeskewMethod Method);
 }

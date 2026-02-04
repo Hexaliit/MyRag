@@ -5,6 +5,7 @@ date: 2025-06-15
 tags: [rag, embeddings, search, dotnet]
 categories: [tutorial, ai]
 ---
+
 # Getting Started with RAG Pipelines
 
 Retrieval-Augmented Generation (RAG) combines large language models with document retrieval
@@ -27,6 +28,7 @@ paragraph detection.
 ### 2. Embedding Models
 
 Embedding models convert text into dense vector representations. Popular choices include:
+
 - **all-MiniLM-L6-v2**: Lightweight, fast, 384 dimensions
 - **nomic-embed-text**: Good balance of quality and speed
 - **text-embedding-3-large**: High quality, 3072 dimensions
@@ -39,6 +41,7 @@ Options range from in-memory stores for development to distributed systems for p
 ### 4. Retrieval Pipeline
 
 The retrieval pipeline orchestrates:
+
 1. Query embedding
 2. Approximate nearest neighbor search
 3. Re-ranking with cross-encoders

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Result of document type detection with source attribution.
+///     Result of document type detection with source attribution.
 /// </summary>
 public record DocumentTypeResult
 {
@@ -18,28 +18,19 @@ public record DocumentTypeResult
 }
 
 /// <summary>
-/// Core document type detector with LLM sentinel fallback.
-/// Runs fast heuristic signals first (caller provides those), then
-/// falls back to a sentinel LLM when confidence is below threshold.
-/// Skips cover pages and front matter to find substantial prose for
-/// the sentinel to classify.
+///     Core document type detector with LLM sentinel fallback.
+///     Runs fast heuristic signals first (caller provides those), then
+///     falls back to a sentinel LLM when confidence is below threshold.
+///     Skips cover pages and front matter to find substantial prose for
+///     the sentinel to classify.
 /// </summary>
 public class DocumentTypeDetector
 {
-    private readonly OllamaService? _ollama;
-
-    /// <summary>
-    /// Heuristic confidence at or above this value trusts the heuristic.
-    /// Below this triggers sentinel fallback (if available).
-    /// This is the single source of truth for the threshold — callers
-    /// should NOT duplicate this check.
-    /// </summary>
-    public double LlmFallbackThreshold { get; init; } = 0.45;
-
     // Chunk finding parameters
     private const int ChunkTargetLength = 1500;
     private const int MinProseLineLength = 50;
     private const int ConsecutiveProseLines = 3;
+    private readonly OllamaService? _ollama;
 
     public DocumentTypeDetector(OllamaService? ollama = null)
     {
@@ -47,9 +38,17 @@ public class DocumentTypeDetector
     }
 
     /// <summary>
-    /// Classify a document using pre-computed heuristic results,
-    /// falling back to sentinel LLM when confidence is low.
-    /// Callers should always call this — the threshold decision is internal.
+    ///     Heuristic confidence at or above this value trusts the heuristic.
+    ///     Below this triggers sentinel fallback (if available).
+    ///     This is the single source of truth for the threshold — callers
+    ///     should NOT duplicate this check.
+    /// </summary>
+    public double LlmFallbackThreshold { get; init; } = 0.45;
+
+    /// <summary>
+    ///     Classify a document using pre-computed heuristic results,
+    ///     falling back to sentinel LLM when confidence is low.
+    ///     Callers should always call this — the threshold decision is internal.
     /// </summary>
     /// <param name="content">Full document text.</param>
     /// <param name="heuristicType">Best-guess type from heuristic detection.</param>
@@ -69,14 +68,12 @@ public class DocumentTypeDetector
     {
         // High confidence → trust the heuristic
         if (heuristicConfidence >= LlmFallbackThreshold || _ollama == null)
-        {
             return new DocumentTypeResult
             {
                 Type = heuristicType,
                 Confidence = heuristicConfidence,
                 Source = "heuristic"
             };
-        }
 
         // Low confidence → find substantial text and ask sentinel
         try
@@ -99,10 +96,10 @@ public class DocumentTypeDetector
     }
 
     /// <summary>
-    /// Find the first substantial prose chunk, skipping cover pages,
-    /// title pages, copyright blocks, and other front matter confounders.
-    /// Looks for 3+ consecutive lines of real prose (sentences, dialogue,
-    /// narrative) before extracting a chunk.
+    ///     Find the first substantial prose chunk, skipping cover pages,
+    ///     title pages, copyright blocks, and other front matter confounders.
+    ///     Looks for 3+ consecutive lines of real prose (sentences, dialogue,
+    ///     narrative) before extracting a chunk.
     /// </summary>
     public static string FindSubstantialChunk(string content, int targetLength = ChunkTargetLength)
     {
@@ -164,24 +161,24 @@ public class DocumentTypeDetector
             : "none";
 
         var prompt = $$"""
-            Classify this document excerpt into one document type.
-            Respond with ONLY a JSON object, no other text.
+                       Classify this document excerpt into one document type.
+                       Respond with ONLY a JSON object, no other text.
 
-            Metadata:
-            - Filename: {{fileName ?? "unknown"}}
-            - Word count: {{wordCount?.ToString("N0") ?? "unknown"}}
-            - Heuristic guess: {{heuristicType}} ({{heuristicConfidence:P0}} confidence)
-            - Signals: {{signalSummary}}
+                       Metadata:
+                       - Filename: {{fileName ?? "unknown"}}
+                       - Word count: {{wordCount?.ToString("N0") ?? "unknown"}}
+                       - Heuristic guess: {{heuristicType}} ({{heuristicConfidence:P0}} confidence)
+                       - Signals: {{signalSummary}}
 
-            Valid types: fiction, nonfiction, academic, technical, anthology, play, collection
+                       Valid types: fiction, nonfiction, academic, technical, anthology, play, collection
 
-            Text excerpt (after skipping front matter):
-            ---
-            {{textChunk}}
-            ---
+                       Text excerpt (after skipping front matter):
+                       ---
+                       {{textChunk}}
+                       ---
 
-            Respond ONLY with: {"type": "one_of_the_types_above", "confidence": 0.0_to_1.0}
-            """;
+                       Respond ONLY with: {"type": "one_of_the_types_above", "confidence": 0.0_to_1.0}
+                       """;
 
         var response = await _ollama!.SentinelGenerateAsync(prompt, null, 0.1, ct);
 
@@ -199,7 +196,7 @@ public class DocumentTypeDetector
                 : heuristicType;
 
             var confidence = root.TryGetProperty("confidence", out var confProp)
-                           && confProp.TryGetDouble(out var confVal)
+                             && confProp.TryGetDouble(out var confVal)
                 ? confVal
                 : 0.6;
 
@@ -224,15 +221,17 @@ public class DocumentTypeDetector
         };
     }
 
-    private static bool IsKnownType(string type) =>
-        type is "fiction" or "nonfiction" or "academic"
+    private static bool IsKnownType(string type)
+    {
+        return type is "fiction" or "nonfiction" or "academic"
             or "technical" or "anthology" or "play"
             or "collection";
+    }
 
     /// <summary>
-    /// Detect lines that look like front matter / cover page content.
-    /// Uses specific phrases to avoid false positives on prose that
-    /// merely mentions these topics.
+    ///     Detect lines that look like front matter / cover page content.
+    ///     Uses specific phrases to avoid false positives on prose that
+    ///     merely mentions these topics.
     /// </summary>
     private static bool IsFrontMatterLine(string line)
     {
@@ -247,7 +246,7 @@ public class DocumentTypeDetector
 
         // Dedication, acknowledgments, TOC (exact-match headings only)
         if (lower is "dedication" or "acknowledgments" or "acknowledgements"
-                   or "table of contents" or "contents" or "foreword" or "preface")
+            or "table of contents" or "contents" or "foreword" or "preface")
             return true;
 
         // Project Gutenberg boilerplate (specific phrases, not bare "ebook")
@@ -264,7 +263,7 @@ public class DocumentTypeDetector
     }
 
     /// <summary>
-    /// Detect metadata-style lines (short labels, all-caps headings, mostly non-alpha).
+    ///     Detect metadata-style lines (short labels, all-caps headings, mostly non-alpha).
     /// </summary>
     private static bool IsMetadataLine(string line)
     {
@@ -282,9 +281,9 @@ public class DocumentTypeDetector
     }
 
     /// <summary>
-    /// Check if a line looks like a real sentence or prose continuation
-    /// (multi-word, not single-case labels). Allows all-lowercase continuation
-    /// lines that are common in word-wrapped text.
+    ///     Check if a line looks like a real sentence or prose continuation
+    ///     (multi-word, not single-case labels). Allows all-lowercase continuation
+    ///     lines that are common in word-wrapped text.
     /// </summary>
     private static bool HasSentenceStructure(string line)
     {

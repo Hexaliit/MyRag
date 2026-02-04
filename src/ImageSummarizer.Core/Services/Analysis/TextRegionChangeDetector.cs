@@ -6,8 +6,8 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Detects text region changes between frames using OpenCV.
-/// Used to optimize OCR filmstrips - only include frames where text actually changed.
+///     Detects text region changes between frames using OpenCV.
+///     Used to optimize OCR filmstrips - only include frames where text actually changed.
 /// </summary>
 public class TextRegionChangeDetector
 {
@@ -19,8 +19,8 @@ public class TextRegionChangeDetector
     }
 
     /// <summary>
-    /// Detects if text has changed between two frames by comparing text regions.
-    /// Uses MSER (Maximally Stable Extremal Regions) for text detection.
+    ///     Detects if text has changed between two frames by comparing text regions.
+    ///     Uses MSER (Maximally Stable Extremal Regions) for text detection.
     /// </summary>
     /// <returns>True if text appears to have changed, false if same</returns>
     public bool HasTextChanged(Image<Rgba32> frame1, Image<Rgba32> frame2, double threshold = 0.85)
@@ -65,8 +65,8 @@ public class TextRegionChangeDetector
     }
 
     /// <summary>
-    /// Filters frames to only include those where text has changed.
-    /// Returns indices of frames with text changes.
+    ///     Filters frames to only include those where text has changed.
+    ///     Returns indices of frames with text changes.
     /// </summary>
     public List<int> GetTextChangedFrameIndices(List<Image<Rgba32>> frames, double threshold = 0.85)
     {
@@ -75,13 +75,9 @@ public class TextRegionChangeDetector
 
         var indices = new List<int> { 0 }; // Always include first frame
 
-        for (int i = 1; i < frames.Count; i++)
-        {
+        for (var i = 1; i < frames.Count; i++)
             if (HasTextChanged(frames[indices[^1]], frames[i], threshold))
-            {
                 indices.Add(i);
-            }
-        }
 
         _logger?.LogDebug("Text change detection: {Original} frames -> {Filtered} text-changed frames",
             frames.Count, indices.Count);
@@ -90,7 +86,7 @@ public class TextRegionChangeDetector
     }
 
     /// <summary>
-    /// Extracts frames where text has changed from a list of frames.
+    ///     Extracts frames where text has changed from a list of frames.
     /// </summary>
     public List<Image<Rgba32>> FilterToTextChangedFrames(List<Image<Rgba32>> frames, double threshold = 0.85)
     {
@@ -99,15 +95,13 @@ public class TextRegionChangeDetector
     }
 
     /// <summary>
-    /// Calculates similarity between two binary images (0.0 = different, 1.0 = identical)
+    ///     Calculates similarity between two binary images (0.0 = different, 1.0 = identical)
     /// </summary>
     private double CalculateSimilarity(Mat img1, Mat img2)
     {
         if (img1.Size() != img2.Size())
-        {
             // Resize to match if needed
             Cv2.Resize(img2, img2, img1.Size());
-        }
 
         // XOR the images - identical pixels become 0, different become 255
         using var diff = new Mat();
@@ -118,11 +112,11 @@ public class TextRegionChangeDetector
         var totalPixels = img1.Width * img1.Height;
 
         // Calculate similarity (1.0 = identical, 0.0 = completely different)
-        return 1.0 - ((double)differentPixels / totalPixels);
+        return 1.0 - (double)differentPixels / totalPixels;
     }
 
     /// <summary>
-    /// Converts ImageSharp image to OpenCV Mat
+    ///     Converts ImageSharp image to OpenCV Mat
     /// </summary>
     private Mat ImageSharpToMat(Image<Rgba32> image)
     {
@@ -132,12 +126,12 @@ public class TextRegionChangeDetector
         {
             unsafe
             {
-                for (int y = 0; y < accessor.Height; y++)
+                for (var y = 0; y < accessor.Height; y++)
                 {
                     var row = accessor.GetRowSpan(y);
                     var matPtr = (byte*)mat.Ptr(y).ToPointer();
 
-                    for (int x = 0; x < row.Length; x++)
+                    for (var x = 0; x < row.Length; x++)
                     {
                         var pixel = row[x];
                         matPtr[x * 4 + 0] = pixel.B;

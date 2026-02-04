@@ -1,7 +1,7 @@
 namespace LucidRAG.LLM.Config;
 
 /// <summary>
-/// LLM backend types supported by the provider infrastructure.
+///     LLM backend types supported by the provider infrastructure.
 /// </summary>
 public enum LlmBackendType
 {
@@ -22,7 +22,7 @@ public enum LlmBackendType
 }
 
 /// <summary>
-/// Provider tier for routing decisions.
+///     Provider tier for routing decisions.
 /// </summary>
 public enum ProviderTier
 {
@@ -43,7 +43,7 @@ public enum ProviderTier
 }
 
 /// <summary>
-/// Strategy for selecting among multiple endpoints in a load-balanced backend.
+///     Strategy for selecting among multiple endpoints in a load-balanced backend.
 /// </summary>
 public enum EndpointSelectionStrategy
 {

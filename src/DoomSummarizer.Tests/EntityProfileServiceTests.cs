@@ -4,8 +4,8 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for EntityProfileService - weighted entity profile computation.
-/// Requires ONNX embedding model to be available.
+///     Tests for EntityProfileService - weighted entity profile computation.
+///     Requires ONNX embedding model to be available.
 /// </summary>
 [Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]

@@ -5,14 +5,14 @@ using NAudio.Wave.SampleProviders;
 namespace AudioSummarizer.Core.Services.Voice;
 
 /// <summary>
-/// Pure .NET speaker diarization using voice embeddings and clustering
-/// No Python dependencies - uses ECAPA-TDNN embeddings + agglomerative clustering
+///     Pure .NET speaker diarization using voice embeddings and clustering
+///     No Python dependencies - uses ECAPA-TDNN embeddings + agglomerative clustering
 /// </summary>
 public class SpeakerDiarizationService
 {
-    private readonly ILogger<SpeakerDiarizationService> _logger;
-    private readonly VoiceEmbeddingService _embeddingService;
     private readonly AudioConfig _config;
+    private readonly VoiceEmbeddingService _embeddingService;
+    private readonly ILogger<SpeakerDiarizationService> _logger;
 
     public SpeakerDiarizationService(
         ILogger<SpeakerDiarizationService> logger,
@@ -25,8 +25,8 @@ public class SpeakerDiarizationService
     }
 
     /// <summary>
-    /// Perform speaker diarization on audio file
-    /// Returns speaker turns with timestamps and speaker IDs
+    ///     Perform speaker diarization on audio file
+    ///     Returns speaker turns with timestamps and speaker IDs
     /// </summary>
     public virtual async Task<DiarizationResult> DiarizeAsync(
         string audioPath,
@@ -39,18 +39,15 @@ public class SpeakerDiarizationService
         _logger.LogDebug("Detected {Count} speech segments", segments.Count);
 
         if (segments.Count == 0)
-        {
             return new DiarizationResult
             {
                 Turns = new List<SpeakerTurn>(),
                 SpeakerCount = 0
             };
-        }
 
         // Step 2: Extract embeddings for each segment
         var embeddings = new List<(SpeechSegment Segment, float[] Embedding)>();
         foreach (var segment in segments)
-        {
             try
             {
                 var embedding = await ExtractSegmentEmbeddingAsync(audioPath, segment, cancellationToken);
@@ -61,16 +58,13 @@ public class SpeakerDiarizationService
                 _logger.LogWarning(ex, "Failed to extract embedding for segment {Start}-{End}",
                     segment.StartSeconds, segment.EndSeconds);
             }
-        }
 
         if (embeddings.Count == 0)
-        {
             return new DiarizationResult
             {
                 Turns = new List<SpeakerTurn>(),
                 SpeakerCount = 0
             };
-        }
 
         // Step 3: Cluster embeddings to identify speakers
         var speakerClusters = ClusterSpeakers(embeddings);
@@ -101,7 +95,7 @@ public class SpeakerDiarizationService
     }
 
     /// <summary>
-    /// Simple VAD using energy-based speech detection
+    ///     Simple VAD using energy-based speech detection
     /// </summary>
     private List<SpeechSegment> DetectSpeechSegments(string audioPath)
     {
@@ -123,21 +117,19 @@ public class SpeakerDiarizationService
         while ((samplesRead = sampleProvider.Read(buffer, 0, buffer.Length)) > 0)
         {
             // Calculate RMS energy for this window
-            double rms = Math.Sqrt(buffer.Take(samplesRead).Sum(s => s * s) / samplesRead);
+            var rms = Math.Sqrt(buffer.Take(samplesRead).Sum(s => s * s) / samplesRead);
 
             // Speech detection threshold (calibrated)
-            bool isSpeech = rms > 0.02; // Adjust threshold as needed
+            var isSpeech = rms > 0.02; // Adjust threshold as needed
 
             if (isSpeech)
             {
                 if (currentSegment == null)
-                {
                     // Start new segment
                     currentSegment = new SpeechSegment
                     {
                         StartSeconds = timeSeconds
                     };
-                }
             }
             else
             {
@@ -148,9 +140,7 @@ public class SpeakerDiarizationService
 
                     // Only keep segments longer than minimum duration
                     if (currentSegment.Duration >= _config.VoiceEmbedding.MinDurationSeconds)
-                    {
                         segments.Add(currentSegment);
-                    }
 
                     currentSegment = null;
                 }
@@ -163,17 +153,14 @@ public class SpeakerDiarizationService
         if (currentSegment != null)
         {
             currentSegment.EndSeconds = timeSeconds;
-            if (currentSegment.Duration >= _config.VoiceEmbedding.MinDurationSeconds)
-            {
-                segments.Add(currentSegment);
-            }
+            if (currentSegment.Duration >= _config.VoiceEmbedding.MinDurationSeconds) segments.Add(currentSegment);
         }
 
         return segments;
     }
 
     /// <summary>
-    /// Extract embedding for a specific time segment
+    ///     Extract embedding for a specific time segment
     /// </summary>
     private async Task<float[]> ExtractSegmentEmbeddingAsync(
         string audioPath,
@@ -187,8 +174,8 @@ public class SpeakerDiarizationService
     }
 
     /// <summary>
-    /// Agglomerative clustering of speaker embeddings
-    /// Uses cosine similarity threshold for grouping
+    ///     Agglomerative clustering of speaker embeddings
+    ///     Uses cosine similarity threshold for grouping
     /// </summary>
     private Dictionary<string, List<float[]>> ClusterSpeakers(
         List<(SpeechSegment Segment, float[] Embedding)> embeddings)
@@ -196,7 +183,7 @@ public class SpeakerDiarizationService
         const double SimilarityThreshold = 0.75; // Cosine similarity threshold
 
         var clusters = new Dictionary<string, List<float[]>>();
-        int nextSpeakerId = 0;
+        var nextSpeakerId = 0;
 
         foreach (var (segment, embedding) in embeddings)
         {
@@ -235,13 +222,13 @@ public class SpeakerDiarizationService
     }
 
     /// <summary>
-    /// Find which speaker cluster an embedding belongs to
+    ///     Find which speaker cluster an embedding belongs to
     /// </summary>
     private string FindSpeakerForEmbedding(
         float[] embedding,
         Dictionary<string, List<float[]>> clusters)
     {
-        string bestCluster = "SPEAKER_00";
+        var bestCluster = "SPEAKER_00";
         double maxSimilarity = 0;
 
         foreach (var (clusterId, clusterEmbeddings) in clusters)
@@ -261,7 +248,7 @@ public class SpeakerDiarizationService
     }
 
     /// <summary>
-    /// Merge consecutive turns from the same speaker
+    ///     Merge consecutive turns from the same speaker
     /// </summary>
     private List<SpeakerTurn> MergeConsecutiveTurns(List<SpeakerTurn> turns)
     {
@@ -271,8 +258,7 @@ public class SpeakerDiarizationService
         var merged = new List<SpeakerTurn>();
         var current = turns[0];
 
-        for (int i = 1; i < turns.Count; i++)
-        {
+        for (var i = 1; i < turns.Count; i++)
             if (turns[i].SpeakerId == current.SpeakerId)
             {
                 // Extend current turn
@@ -284,7 +270,6 @@ public class SpeakerDiarizationService
                 merged.Add(current);
                 current = turns[i];
             }
-        }
 
         merged.Add(current);
         return merged;
@@ -292,7 +277,7 @@ public class SpeakerDiarizationService
 }
 
 /// <summary>
-/// Speech segment detected by VAD
+///     Speech segment detected by VAD
 /// </summary>
 public class SpeechSegment
 {
@@ -302,7 +287,7 @@ public class SpeechSegment
 }
 
 /// <summary>
-/// Speaker turn with time boundaries
+///     Speaker turn with time boundaries
 /// </summary>
 public class SpeakerTurn
 {
@@ -314,7 +299,7 @@ public class SpeakerTurn
 }
 
 /// <summary>
-/// Diarization result
+///     Diarization result
 /// </summary>
 public class DiarizationResult
 {

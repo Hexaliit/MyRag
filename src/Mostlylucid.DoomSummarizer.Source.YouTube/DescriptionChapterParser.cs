@@ -3,19 +3,19 @@ using System.Text.RegularExpressions;
 namespace DoomSummarizer.Sources.YouTube;
 
 /// <summary>
-/// Parsed chapter from a YouTube video description timestamp.
+///     Parsed chapter from a YouTube video description timestamp.
 /// </summary>
 public record DescriptionChapter(
     TimeSpan Timestamp,
     string Title);
 
 /// <summary>
-/// Parses timestamp-based chapter markers from YouTube video descriptions.
-/// YouTube descriptions commonly include timestamps like:
-///   0:00 Introduction
-///   2:30 Setting up the project
-///   5:15 Demo
-///   10:45 Q&amp;A
+///     Parses timestamp-based chapter markers from YouTube video descriptions.
+///     YouTube descriptions commonly include timestamps like:
+///     0:00 Introduction
+///     2:30 Setting up the project
+///     5:15 Demo
+///     10:45 Q&amp;A
 /// </summary>
 public static partial class DescriptionChapterParser
 {
@@ -24,7 +24,7 @@ public static partial class DescriptionChapterParser
     private static partial Regex TimestampLineRegex();
 
     /// <summary>
-    /// Parse chapter timestamps from a YouTube video description.
+    ///     Parse chapter timestamps from a YouTube video description.
     /// </summary>
     /// <param name="description">The video description text.</param>
     /// <returns>Ordered list of chapters, or empty if no timestamps found.</returns>
@@ -37,14 +37,12 @@ public static partial class DescriptionChapterParser
         var matches = TimestampLineRegex().Matches(description);
 
         foreach (Match match in matches)
-        {
             if (TryParseTimestamp(match.Groups[1].Value, out var ts))
             {
                 var title = match.Groups[2].Value.Trim();
                 if (!string.IsNullOrEmpty(title))
                     chapters.Add(new DescriptionChapter(ts, title));
             }
-        }
 
         // Only return if we found at least 2 timestamps (single timestamp is likely not chapters)
         if (chapters.Count < 2)

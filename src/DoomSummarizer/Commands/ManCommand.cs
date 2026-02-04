@@ -1,17 +1,44 @@
 using System.ComponentModel;
 using DoomSummarizer.Services;
-using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Built-in manual: Q&amp;A over DoomSummarizer's own documentation.
-/// Auto-downloads docs from GitHub on first use and indexes them
-/// under the reserved "manual" source tag.
+///     Built-in manual: Q&amp;A over DoomSummarizer's own documentation.
+///     Auto-downloads docs from GitHub on first use and indexes them
+///     under the reserved "manual" source tag.
 /// </summary>
 public sealed class ManCommand : AsyncCommand<ManCommand.Settings>
 {
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
+        CancellationToken cancellationToken)
+    {
+        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
+
+        // Auto-load manual if not present (or if --refresh/--load-manual)
+        var loader = new ManualLoader(boot.Storage, boot.Embedding);
+        var needsLoad = settings.Refresh || settings.LoadManual
+                                         || !await loader.IsManualLoadedAsync();
+
+        if (needsLoad)
+        {
+            using var processor = await ItemProcessor.CreateAsync(
+                boot.Embedding, boot.Storage, boot.EntityStore, "default", cancellationToken);
+            await loader.LoadManualAsync(processor, settings.Refresh || settings.LoadManual, cancellationToken);
+        }
+
+        return await boot.StartAskLoopAsync(new InteractiveAskOptions(
+            ManualLoader.ManualSource,
+            null,
+            0,
+            settings.TopK,
+            settings.Once,
+            settings.Quiet,
+            settings.Question,
+            PromptTemplate: "manual-answer"), cancellationToken);
+    }
+
     public sealed class Settings : InteractiveSettings
     {
         [CommandArgument(0, "[question]")]
@@ -30,32 +57,5 @@ public sealed class ManCommand : AsyncCommand<ManCommand.Settings>
         [Description("Number of evidence items to use (default: 8)")]
         [DefaultValue(8)]
         public int TopK { get; init; } = 8;
-    }
-
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
-    {
-        await using var boot = await CommandBootstrap.CreateAsync(cancellationToken);
-
-        // Auto-load manual if not present (or if --refresh/--load-manual)
-        var loader = new ManualLoader(boot.Storage, boot.Embedding);
-        var needsLoad = settings.Refresh || settings.LoadManual
-            || !await loader.IsManualLoadedAsync();
-
-        if (needsLoad)
-        {
-            using var processor = await ItemProcessor.CreateAsync(
-                boot.Embedding, boot.Storage, boot.EntityStore, collectionName: "default", ct: cancellationToken);
-            await loader.LoadManualAsync(processor, settings.Refresh || settings.LoadManual, cancellationToken);
-        }
-
-        return await boot.StartAskLoopAsync(new InteractiveAskOptions(
-            Source: ManualLoader.ManualSource,
-            Name: null,
-            Days: 0,
-            TopK: settings.TopK,
-            Once: settings.Once,
-            Quiet: settings.Quiet,
-            InitialQuestion: settings.Question,
-            PromptTemplate: "manual-answer"), cancellationToken);
     }
 }

@@ -24,7 +24,7 @@ emits:
     - key: ocr.ml.fused_text
       type: string
       description: Fused OCR text from OpenCV+Florence2 per-frame analysis
-      confidence_range: [0.7, 0.95]
+      confidence_range: [ 0.7, 0.95 ]
 
     - key: ocr.ml.text
       type: string

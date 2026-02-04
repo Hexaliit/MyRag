@@ -6,28 +6,12 @@ using Spectre.Console.Cli;
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// List knowledge base collections and their contents.
-/// Without arguments, lists all collections with stats.
-/// With a name argument, lists documents in that collection.
+///     List knowledge base collections and their contents.
+///     Without arguments, lists all collections with stats.
+///     With a name argument, lists documents in that collection.
 /// </summary>
 public sealed class ShowCommand : AsyncCommand<ShowCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [CommandArgument(0, "[name]")]
-        [Description("Collection name to inspect (omit to list all collections)")]
-        public string? Name { get; init; }
-
-        [CommandOption("-l|--limit")]
-        [Description("Maximum items to show")]
-        [DefaultValue(50)]
-        public int Limit { get; init; } = 50;
-
-        [CommandOption("--full")]
-        [Description("Show full content preview for each item")]
-        public bool Full { get; init; }
-    }
-
     public override async Task<int> ExecuteAsync(
         CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
@@ -44,7 +28,8 @@ public sealed class ShowCommand : AsyncCommand<ShowCommand.Settings>
 
             if (collections.Count == 0)
             {
-                AnsiConsole.MarkupLine("[yellow]No collections found. Use 'crawl' or 'scroll' to populate the knowledge base.[/]");
+                AnsiConsole.MarkupLine(
+                    "[yellow]No collections found. Use 'crawl' or 'scroll' to populate the knowledge base.[/]");
                 return 0;
             }
 
@@ -78,9 +63,11 @@ public sealed class ShowCommand : AsyncCommand<ShowCommand.Settings>
 
             var totalItems = collections.Sum(c => c.ItemCount);
             var totalEmbedded = collections.Sum(c => c.WithEmbeddings);
-            AnsiConsole.MarkupLine($"\n[grey]Total: {totalItems} items, {totalEmbedded} with embeddings, {collections.Count} collections[/]");
+            AnsiConsole.MarkupLine(
+                $"\n[grey]Total: {totalItems} items, {totalEmbedded} with embeddings, {collections.Count} collections[/]");
             AnsiConsole.MarkupLine("[grey]Inspect a collection: doomsummarizer show <name>[/]");
-            AnsiConsole.MarkupLine("[grey]Query a collection: doomsummarizer scroll \"your question\" --name <name>[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]Query a collection: doomsummarizer scroll \"your question\" --name <name>[/]");
         }
         else
         {
@@ -90,10 +77,8 @@ public sealed class ShowCommand : AsyncCommand<ShowCommand.Settings>
             var items = await storage.GetItemsBySourceAsync(source, settings.Limit);
 
             if (items.Count == 0)
-            {
                 // Try exact match in case the source isn't a crawl: prefix
                 items = await storage.GetItemsBySourceAsync(settings.Name, settings.Limit);
-            }
 
             if (items.Count == 0)
             {
@@ -153,10 +138,28 @@ public sealed class ShowCommand : AsyncCommand<ShowCommand.Settings>
                 .Take(5)
                 .Select(g => $"{g.Key} ({g.Count()})");
 
-            AnsiConsole.MarkupLine($"\n[grey]Embeddings: {withEmbeddings}/{items.Count} | Topics: {string.Join(", ", topTopics)}[/]");
-            AnsiConsole.MarkupLine($"[grey]Query: doomsummarizer scroll \"your question\" --name {Markup.Escape(settings.Name)}[/]");
+            AnsiConsole.MarkupLine(
+                $"\n[grey]Embeddings: {withEmbeddings}/{items.Count} | Topics: {string.Join(", ", topTopics)}[/]");
+            AnsiConsole.MarkupLine(
+                $"[grey]Query: doomsummarizer scroll \"your question\" --name {Markup.Escape(settings.Name)}[/]");
         }
 
         return 0;
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [CommandArgument(0, "[name]")]
+        [Description("Collection name to inspect (omit to list all collections)")]
+        public string? Name { get; init; }
+
+        [CommandOption("-l|--limit")]
+        [Description("Maximum items to show")]
+        [DefaultValue(50)]
+        public int Limit { get; init; } = 50;
+
+        [CommandOption("--full")]
+        [Description("Show full content preview for each item")]
+        public bool Full { get; init; }
     }
 }

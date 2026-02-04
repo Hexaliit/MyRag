@@ -1,24 +1,26 @@
+using System.Diagnostics;
+using System.Text;
 using DoomSummarizer.Models;
 using DoomSummarizer.Models.LongFormGeneration;
+
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Top-level orchestrator for long-form document generation.
-/// Chains six phases:
-///   1. Evidence Preparation (deterministic)
-///   2. Document Planning (sentinel LLM — 1 call)
-///   3. Evidence Assignment (deterministic)
-///   4. Section Generation (main LLM — N calls for N sections)
-///   5. Output Validation (deterministic)
-///   6. Assembly (deterministic)
-///
-/// LLM calls: 1 (outline) + N+2 (intro + sections + conclusion) = N+3 total.
-/// Everything else is deterministic using existing segment embeddings/salience.
+///     Top-level orchestrator for long-form document generation.
+///     Chains six phases:
+///     1. Evidence Preparation (deterministic)
+///     2. Document Planning (sentinel LLM — 1 call)
+///     3. Evidence Assignment (deterministic)
+///     4. Section Generation (main LLM — N calls for N sections)
+///     5. Output Validation (deterministic)
+///     6. Assembly (deterministic)
+///     LLM calls: 1 (outline) + N+2 (intro + sections + conclusion) = N+3 total.
+///     Everything else is deterministic using existing segment embeddings/salience.
 /// </summary>
 public class LongFormDocumentGenerator
 {
-    private readonly OllamaService _ollama;
     private readonly ArticleProcessor _articleProcessor;
+    private readonly OllamaService _ollama;
 
     public LongFormDocumentGenerator(
         OllamaService ollama,
@@ -29,8 +31,8 @@ public class LongFormDocumentGenerator
     }
 
     /// <summary>
-    /// Generate a long-form document from analyzed items.
-    /// Returns BlogArticleResult for compatibility with existing rendering pipeline.
+    ///     Generate a long-form document from analyzed items.
+    ///     Returns BlogArticleResult for compatibility with existing rendering pipeline.
     /// </summary>
     /// <param name="analyzedItems">Scored and analyzed items from the retrieval pipeline.</param>
     /// <param name="contentItems">Full content items with embeddings.</param>
@@ -55,7 +57,7 @@ public class LongFormDocumentGenerator
         var today = DateTime.Now.ToString("MMMM d, yyyy");
 
         // ── Phase 1: Evidence Preparation (deterministic) ──
-        System.Diagnostics.Debug.WriteLine("Long-form: Phase 1 -- Preparing evidence corpus...");
+        Debug.WriteLine("Long-form: Phase 1 -- Preparing evidence corpus...");
 
         var topItems = contentItems
             .OrderByDescending(i => i.RelevanceScore)
@@ -67,24 +69,24 @@ public class LongFormDocumentGenerator
         var corpus = EvidencePreparationService.BuildCorpus(
             processedArticles, contentItems, analyzedItems);
 
-        System.Diagnostics.Debug.WriteLine(
+        Debug.WriteLine(
             $"  Corpus: {corpus.Segments.Count} segments from {corpus.Articles.Count} articles, " +
             $"{corpus.GlobalEntities.Count} entities");
 
         // ── Phase 2: Document Planning (sentinel LLM -- 1 call) ──
-        System.Diagnostics.Debug.WriteLine("Long-form: Phase 2 -- Planning document structure...");
+        Debug.WriteLine("Long-form: Phase 2 -- Planning document structure...");
 
         var plan = await DocumentPlanner.CreatePlanAsync(
             corpus, query, queryType, vibe, _ollama, _articleProcessor.Embed, templateDef, ct);
 
-        System.Diagnostics.Debug.WriteLine(
+        Debug.WriteLine(
             $"  Plan: \"{plan.Title}\" -- {plan.Sections.Count} sections");
 
         // ── Phase 3: Evidence Assignment (deterministic) ──
-        System.Diagnostics.Debug.WriteLine("Long-form: Phase 3 -- Assigning evidence to sections...");
+        Debug.WriteLine("Long-form: Phase 3 -- Assigning evidence to sections...");
 
-        var contextBudget = _ollama.Router?.GetContextSize("main")
-            ?? 5700;
+        var contextBudget = _ollama.Router?.GetContextSize()
+                            ?? 5700;
         // Reserve ~1500 tokens for prompt overhead, convert rest to evidence budget
         var evidenceTokenBudget = Math.Max(2000, contextBudget - 1500);
 
@@ -93,14 +95,12 @@ public class LongFormDocumentGenerator
         EvidenceAssigner.AssignEvidence(plan, corpus, evidenceTokenBudget, queryEmbedding);
 
         foreach (var section in plan.Sections)
-        {
-            System.Diagnostics.Debug.WriteLine(
+            Debug.WriteLine(
                 $"  [{section.Heading}]: {section.AssignedEvidence.Count} segments " +
                 $"from {section.SourceUrls.Count} sources");
-        }
 
         // ── Phase 4: Section Generation (main LLM -- N+2 calls) ──
-        System.Diagnostics.Debug.WriteLine("Long-form: Phase 4 -- Generating sections...");
+        Debug.WriteLine("Long-form: Phase 4 -- Generating sections...");
 
         // Initialize trackers
         var runningSummary = new RunningSummary();
@@ -115,7 +115,7 @@ public class LongFormDocumentGenerator
         await SectionGenerator.GenerateAllSectionsAsync(
             plan, corpus, runningSummary, entityTracker,
             query, vibe, vibePrompt, _ollama, _articleProcessor.Embed, templateDef, ct,
-            parallel: parallel);
+            parallel);
 
         // Generate conclusion (LLM call)
         var lastSection = plan.Sections.LastOrDefault();
@@ -134,11 +134,11 @@ public class LongFormDocumentGenerator
             plan, vibePrompt, previousContext, templateDef, ct);
 
         // ── Phase 5: Output Validation (deterministic) ──
-        System.Diagnostics.Debug.WriteLine("Long-form: Phase 5 -- Validating output...");
+        Debug.WriteLine("Long-form: Phase 5 -- Validating output...");
 
         var validation = OutputValidator.Validate(plan, corpus, _articleProcessor.Embed);
 
-        System.Diagnostics.Debug.WriteLine(
+        Debug.WriteLine(
             $"  Grounding: {validation.OverallGroundingScore:P0}, " +
             $"URLs verified: {validation.VerifiedUrlCount}, " +
             $"Hallucinated: {validation.HallucinatedUrls.Count}, " +
@@ -146,12 +146,12 @@ public class LongFormDocumentGenerator
 
         if (!validation.PassesValidation)
         {
-            System.Diagnostics.Debug.WriteLine("  Applying auto-fix for validation issues...");
+            Debug.WriteLine("  Applying auto-fix for validation issues...");
             OutputValidator.AutoFix(plan, validation, corpus);
         }
 
         // ── Phase 6: Assembly (deterministic) ──
-        System.Diagnostics.Debug.WriteLine("Long-form: Phase 6 -- Assembling document...");
+        Debug.WriteLine("Long-form: Phase 6 -- Assembling document...");
 
         return DocumentAssembler.Assemble(plan, introduction, conclusion, validation, corpus);
     }
@@ -167,20 +167,17 @@ public class LongFormDocumentGenerator
     {
         // Build intro evidence from top-salience segments across the corpus
         // Filter out bio/about content that shouldn't appear in technical intros
-        var introEvidence = new System.Text.StringBuilder();
+        var introEvidence = new StringBuilder();
         var topSegments = corpus.Segments
             .Where(s => s.ContentTypeWeight >= 0.5f) // Exclude bio content (weight 0.2)
             .OrderByDescending(s => s.Segment.SalienceScore * s.ContentTypeWeight)
             .Take(5);
-        foreach (var seg in topSegments)
-        {
-            introEvidence.AppendLine($"- {seg.ArticleTitle}: {seg.Segment.Text}");
-        }
+        foreach (var seg in topSegments) introEvidence.AppendLine($"- {seg.ArticleTitle}: {seg.Segment.Text}");
 
         var introExtra = templateDef?.Introduction?.Prompt
-            ?? (plan.QueryType == QueryType.Timeline
-                ? "Include the time span covered (e.g., 'from the 1920s to today')."
-                : "");
+                         ?? (plan.QueryType == QueryType.Timeline
+                             ? "Include the time span covered (e.g., 'from the 1920s to today')."
+                             : "");
         var introWords = templateDef?.Introduction?.TargetWords ?? 100;
 
         var introPrompt = PromptTemplateService.Render("blog-intro", new Dictionary<string, object?>

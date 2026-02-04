@@ -22,12 +22,12 @@ emits:
     - key: vision.clip.embedding
       type: float[]
       description: 512-dimensional CLIP visual embedding vector (L2 normalized)
-      confidence_range: [0.95, 1.0]
+      confidence_range: [ 0.95, 1.0 ]
 
     - key: vision.clip.embedding_hash
       type: string
       description: SHA256 hash of embedding for deduplication
-      confidence_range: [1.0, 1.0]
+      confidence_range: [ 1.0, 1.0 ]
 
     - key: vision.clip.disabled
       type: bool

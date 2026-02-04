@@ -1,7 +1,5 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using FluentAssertions;
-using Xunit;
 
 namespace DoomSummarizer.Tests;
 
@@ -20,6 +18,30 @@ public class RelevanceScorerTests
             CreatedAt = createdAt ?? DateTimeOffset.UtcNow
         };
     }
+
+    #region ForQueryType
+
+    [Theory]
+    [InlineData(QueryType.Roundup)]
+    [InlineData(QueryType.Timeline)]
+    [InlineData(QueryType.Explainer)]
+    [InlineData(QueryType.Comparison)]
+    [InlineData(QueryType.General)]
+    public void ForQueryType_ReturnsWorkingScorer(QueryType queryType)
+    {
+        var scorer = RelevanceScorer.ForQueryType(queryType);
+        var items = new List<ContentItem>
+        {
+            MakeItem("1", "Test article about something", "Content goes here"),
+            MakeItem("2", "Another article", "Different content")
+        };
+
+        var result = scorer.ScoreFast(items, "test article", 0);
+        result.Should().HaveCount(2);
+        result.All(i => i.RelevanceScore >= 0).Should().BeTrue();
+    }
+
+    #endregion
 
     #region BM25 Scoring
 
@@ -107,10 +129,8 @@ public class RelevanceScorerTests
         // Build maxScoreBySource dictionary (same as RelevanceScorer does internally)
         var maxScoreBySource = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in items.Where(i => i.Score > 0))
-        {
             if (!maxScoreBySource.TryGetValue(item.Source, out var current) || item.Score > current)
                 maxScoreBySource[item.Source] = item.Score;
-        }
 
         var highAuth = RelevanceScorer.NormalizeAuthority(items[0], maxScoreBySource);
         var lowAuth = RelevanceScorer.NormalizeAuthority(items[1], maxScoreBySource);
@@ -132,7 +152,7 @@ public class RelevanceScorerTests
 
         var maxScoreBySource = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
-        RelevanceScorer.NormalizeAuthority(items[0], maxScoreBySource).Should().Be(0.3);  // default fallback
+        RelevanceScorer.NormalizeAuthority(items[0], maxScoreBySource).Should().Be(0.3); // default fallback
         RelevanceScorer.NormalizeAuthority(items[1], maxScoreBySource).Should().Be(0.45); // Tier 2: curated feeds
     }
 
@@ -148,16 +168,18 @@ public class RelevanceScorerTests
         var items = Enumerable.Range(1, 20).Select(i =>
             MakeItem($"item-{i}",
                 i <= 5 ? $"Pharmaceutical drug item {i}" : $"Unrelated content about topic {i}",
-                i <= 5 ? "FDA drug approval pharmaceutical treatment medicine" : "gardening recipes cooking sports weather",
+                i <= 5
+                    ? "FDA drug approval pharmaceutical treatment medicine"
+                    : "gardening recipes cooking sports weather",
                 createdAt: i <= 5 ? DateTimeOffset.UtcNow.AddMinutes(-i) : DateTimeOffset.UtcNow.AddDays(-i))
         ).ToList();
 
-        var ranked = scorer.ScoreFast(items, "pharmaceutical drug", discardRatio: 0.25);
+        var ranked = scorer.ScoreFast(items, "pharmaceutical drug", 0.25);
 
         ranked.Count.Should().BeLessThan(20);
         // The top items should still be the pharma ones
         ranked.Take(5).Should().OnlyContain(i => i.Id.StartsWith("item-") &&
-            int.Parse(i.Id.Split('-')[1]) <= 5);
+                                                 int.Parse(i.Id.Split('-')[1]) <= 5);
     }
 
     [Fact]
@@ -170,7 +192,7 @@ public class RelevanceScorerTests
             MakeItem("new", "New item", source: "hn", score: 100, createdAt: DateTimeOffset.UtcNow.AddMinutes(-5))
         };
 
-        var ranked = scorer.ScoreFast(items, "", discardRatio: 0);
+        var ranked = scorer.ScoreFast(items, "", 0);
 
         // Newer item should rank higher
         ranked.First().Id.Should().Be("new");
@@ -185,7 +207,7 @@ public class RelevanceScorerTests
             MakeItem("1", "Only item", "Some content")
         };
 
-        var ranked = scorer.ScoreFast(items, "query", discardRatio: 0.5);
+        var ranked = scorer.ScoreFast(items, "query", 0.5);
         ranked.Should().HaveCount(1); // Never discard when batch is too small
     }
 
@@ -200,7 +222,7 @@ public class RelevanceScorerTests
         {
             MakeItem("a", "Item A"), // Best in signal 1
             MakeItem("b", "Item B"), // Best in signal 2
-            MakeItem("c", "Item C")  // Mediocre in both
+            MakeItem("c", "Item C") // Mediocre in both
         };
 
         var signal1 = new List<(ContentItem item, double score)>
@@ -225,7 +247,7 @@ public class RelevanceScorerTests
         // With equal weights, A and B get: 1/(61) + 1/(63) = 0.01639 + 0.01587 = 0.03226
         // C gets: 1/(62) + 1/(62) = 0.01613 + 0.01613 = 0.03226
         // They should be very close
-        sorted.Select(x => x.item.Id).Should().BeEquivalentTo(new[] { "a", "b", "c" });
+        sorted.Select(x => x.item.Id).Should().BeEquivalentTo("a", "b", "c");
     }
 
     [Fact]
@@ -234,7 +256,7 @@ public class RelevanceScorerTests
         var items = new List<ContentItem>
         {
             MakeItem("a", "A"), // Best in low-weight signal
-            MakeItem("b", "B")  // Best in high-weight signal
+            MakeItem("b", "B") // Best in high-weight signal
         };
 
         var lowWeightSignal = new List<(ContentItem item, double score)>
@@ -359,7 +381,7 @@ public class RelevanceScorerTests
             MakeItemWithEmbedding("3", "C", MakeUnitVector(0f, 1f, 0f))
         };
 
-        var refined = RelevanceScorer.ComputePRFCentroid(items, original, topK: 3, alpha: 0.5f);
+        var refined = RelevanceScorer.ComputePRFCentroid(items, original, 3, 0.5f);
 
         // Refined should be somewhere between original and centroid
         // Original is [1,0,0], centroid is [0,1,0], blend at 0.5 should have both components
@@ -393,7 +415,7 @@ public class RelevanceScorerTests
             MakeItemWithEmbedding("3", "C", MakeUnitVector(0.5f, 0.5f, 0.5f))
         };
 
-        var refined = RelevanceScorer.ComputePRFCentroid(items, original, topK: 3, alpha: 0.7f);
+        var refined = RelevanceScorer.ComputePRFCentroid(items, original, 3, 0.7f);
 
         // Check L2 norm is approximately 1.0
         var norm = MathF.Sqrt(refined.Select(x => x * x).Sum());
@@ -411,34 +433,10 @@ public class RelevanceScorerTests
             MakeItemWithEmbedding("3", "C", MakeUnitVector(0f, 0f, 1f))
         };
 
-        var refined = RelevanceScorer.ComputePRFCentroid(items, original, topK: 3);
+        var refined = RelevanceScorer.ComputePRFCentroid(items, original, 3);
 
         // Should use only the 2 items with embeddings
         refined.Should().NotBeSameAs(original);
-    }
-
-    #endregion
-
-    #region ForQueryType
-
-    [Theory]
-    [InlineData(QueryType.Roundup)]
-    [InlineData(QueryType.Timeline)]
-    [InlineData(QueryType.Explainer)]
-    [InlineData(QueryType.Comparison)]
-    [InlineData(QueryType.General)]
-    public void ForQueryType_ReturnsWorkingScorer(QueryType queryType)
-    {
-        var scorer = RelevanceScorer.ForQueryType(queryType);
-        var items = new List<ContentItem>
-        {
-            MakeItem("1", "Test article about something", "Content goes here"),
-            MakeItem("2", "Another article", "Different content")
-        };
-
-        var result = scorer.ScoreFast(items, "test article", discardRatio: 0);
-        result.Should().HaveCount(2);
-        result.All(i => i.RelevanceScore >= 0).Should().BeTrue();
     }
 
     #endregion
@@ -450,28 +448,31 @@ public class RelevanceScorerTests
     private static readonly float[] LowAnchor = MakeUnitVector(0.1f, 0.1f, 0.8f);
 
     // Items with clear quality separation
-    private static List<ContentItem> MakeQualityTestItems() =>
-    [
-        MakeItemWithEmbedding("substantive", "In-depth analysis of policy impact",
-            MakeUnitVector(0.7f, 0.2f, 0.1f)),
-        MakeItemWithEmbedding("clickbait", "You won't believe what happened next",
-            MakeUnitVector(0.1f, 0.2f, 0.7f)),
-        MakeItemWithEmbedding("neutral", "Standard news report on events",
-            MakeUnitVector(0.3f, 0.6f, 0.1f))
-    ];
+    private static List<ContentItem> MakeQualityTestItems()
+    {
+        return
+        [
+            MakeItemWithEmbedding("substantive", "In-depth analysis of policy impact",
+                MakeUnitVector(0.7f, 0.2f, 0.1f)),
+            MakeItemWithEmbedding("clickbait", "You won't believe what happened next",
+                MakeUnitVector(0.1f, 0.2f, 0.7f)),
+            MakeItemWithEmbedding("neutral", "Standard news report on events",
+                MakeUnitVector(0.3f, 0.6f, 0.1f))
+        ];
+    }
 
     // Modes where quality weight is strong enough (≥0.2) to reliably separate content
     [Theory]
-    [InlineData(QueryType.Explainer)]   // quality=0.4
-    [InlineData(QueryType.Comparison)]  // quality=0.3
-    [InlineData(QueryType.General)]     // quality=0.2
+    [InlineData(QueryType.Explainer)] // quality=0.4
+    [InlineData(QueryType.Comparison)] // quality=0.3
+    [InlineData(QueryType.General)] // quality=0.2
     public void QualitySignal_ScoreFast_FavorsSubstantiveContent_HighQualityModes(QueryType queryType)
     {
         var scorer = RelevanceScorer.ForQueryType(queryType)
             .WithQualityAnchors(HighAnchor, LowAnchor);
 
         var items = MakeQualityTestItems();
-        var ranked = scorer.ScoreFast(items, "analysis report", discardRatio: 0);
+        var ranked = scorer.ScoreFast(items, "analysis report", 0);
 
         ranked.Should().HaveCount(3);
         var substantive = ranked.First(i => i.Id == "substantive");
@@ -483,15 +484,15 @@ public class RelevanceScorerTests
     // Modes where quality weight is intentionally low (≤0.15) — quality is a tiebreaker,
     // not a dominant signal. Verify it runs without error and produces valid scores.
     [Theory]
-    [InlineData(QueryType.Roundup)]     // quality=0.15
-    [InlineData(QueryType.Timeline)]    // quality=0.1
+    [InlineData(QueryType.Roundup)] // quality=0.15
+    [InlineData(QueryType.Timeline)] // quality=0.1
     public void QualitySignal_ScoreFast_ProducesValidScores_LowQualityModes(QueryType queryType)
     {
         var scorer = RelevanceScorer.ForQueryType(queryType)
             .WithQualityAnchors(HighAnchor, LowAnchor);
 
         var items = MakeQualityTestItems();
-        var ranked = scorer.ScoreFast(items, "analysis report", discardRatio: 0);
+        var ranked = scorer.ScoreFast(items, "analysis report", 0);
 
         ranked.Should().HaveCount(3);
         ranked.All(i => i.RelevanceScore >= 0 && i.RelevanceScore <= 1).Should().BeTrue();
@@ -548,8 +549,8 @@ public class RelevanceScorerTests
         var strongItems = MakeQualityTestItems();
         var weakItems = MakeQualityTestItems();
 
-        strongQuality.ScoreFast(strongItems, "analysis report", discardRatio: 0);
-        weakQuality.ScoreFast(weakItems, "analysis report", discardRatio: 0);
+        strongQuality.ScoreFast(strongItems, "analysis report", 0);
+        weakQuality.ScoreFast(weakItems, "analysis report", 0);
 
         var strongSubstantive = strongItems.First(i => i.Id == "substantive").RelevanceScore;
         var strongClickbait = strongItems.First(i => i.Id == "clickbait").RelevanceScore;
@@ -583,7 +584,7 @@ public class RelevanceScorerTests
         var scorer = RelevanceScorer.ForQueryType(queryType);
         var items = MakeQualityTestItems();
 
-        var ranked = scorer.ScoreFast(items, "analysis report", discardRatio: 0);
+        var ranked = scorer.ScoreFast(items, "analysis report", 0);
         ranked.Should().HaveCount(3);
         ranked.All(i => i.RelevanceScore >= 0).Should().BeTrue();
     }
@@ -623,7 +624,7 @@ public class RelevanceScorerTests
         };
 
         // Should not crash — items without embeddings get neutral quality (0.5)
-        var ranked = scorer.ScoreFast(items, "analysis", discardRatio: 0);
+        var ranked = scorer.ScoreFast(items, "analysis", 0);
         ranked.Should().HaveCount(2);
         ranked.All(i => i.RelevanceScore >= 0).Should().BeTrue();
     }
@@ -671,16 +672,19 @@ public class RelevanceScorerTests
         };
     }
 
-    private static ContentItem CloneItem(ContentItem item) => new()
+    private static ContentItem CloneItem(ContentItem item)
     {
-        Id = item.Id,
-        Source = item.Source,
-        Title = item.Title,
-        Content = item.Content,
-        Score = item.Score,
-        CreatedAt = item.CreatedAt,
-        Embedding = item.Embedding
-    };
+        return new ContentItem
+        {
+            Id = item.Id,
+            Source = item.Source,
+            Title = item.Title,
+            Content = item.Content,
+            Score = item.Score,
+            CreatedAt = item.CreatedAt,
+            Embedding = item.Embedding
+        };
+    }
 
     #endregion
 }

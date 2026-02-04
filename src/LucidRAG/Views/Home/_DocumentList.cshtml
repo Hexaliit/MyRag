@@ -1,6 +1,9 @@
 @model List<DocumentEntity>
 @{
-    string GetFileExtension(string filename) => System.IO.Path.GetExtension(filename ?? "").ToLowerInvariant();
+    string GetFileExtension(string filename)
+    {
+        return System.IO.Path.GetExtension(filename ?? "").ToLowerInvariant();
+    }
 }
 
 @if (Model.Count == 0)

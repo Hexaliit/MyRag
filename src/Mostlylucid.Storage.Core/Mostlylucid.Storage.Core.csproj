@@ -1,51 +1,51 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
 
-    <!-- NuGet package metadata -->
-    <PackageId>Mostlylucid.LucidRAG.Storage.Core</PackageId>
-    <Version>1.0.0</Version>
-    <Authors>LucidRAG</Authors>
-    <Description>Unified vector storage library with support for InMemory, DuckDB, and Qdrant backends. Used by all LucidRAG pipelines for consistent embedding storage.</Description>
-    <PackageTags>vector-store;embeddings;rag;duckdb;qdrant;semantic-search</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-  </PropertyGroup>
+        <!-- NuGet package metadata -->
+        <PackageId>Mostlylucid.LucidRAG.Storage.Core</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>LucidRAG</Authors>
+        <Description>Unified vector storage library with support for InMemory, DuckDB, and Qdrant backends. Used by all LucidRAG pipelines for consistent embedding storage.</Description>
+        <PackageTags>vector-store;embeddings;rag;duckdb;qdrant;semantic-search</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    </PropertyGroup>
 
-  <!-- MinVer -->
-  <PropertyGroup>
-    <MinVerTagPrefix>storcorev</MinVerTagPrefix>
-    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
-  </PropertyGroup>
-
-  <ItemGroup>
     <!-- MinVer -->
-    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PropertyGroup>
+        <MinVerTagPrefix>storcorev</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
 
-    <!-- DuckDB for embedded vector storage -->
-    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4" />
+    <ItemGroup>
+        <!-- MinVer -->
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
 
-    <!-- Qdrant for production vector storage -->
-    <PackageReference Include="Qdrant.Client" Version="1.16.1" />
+        <!-- DuckDB for embedded vector storage -->
+        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4"/>
 
-    <!-- Microsoft Extensions for DI and configuration - match Summarizer.Core versions -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-  </ItemGroup>
+        <!-- Qdrant for production vector storage -->
+        <PackageReference Include="Qdrant.Client" Version="1.16.1"/>
 
-  <!-- Summarizer.Core (ProjectRef local, PackageRef CI) -->
-  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-    <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
-  </ItemGroup>
+        <!-- Microsoft Extensions for DI and configuration - match Summarizer.Core versions -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+    </ItemGroup>
+
+    <!-- Summarizer.Core (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
 
 </Project>

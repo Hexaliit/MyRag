@@ -1,6 +1,7 @@
 # Mostlylucid.LucidRAG.CodeSummarizer.Mermaid.Jint
 
-Mermaid diagram parsing using Jint (runs mermaid.js in-process) for spec-conformant parsing and richer structure extraction.
+Mermaid diagram parsing using Jint (runs mermaid.js in-process) for spec-conformant parsing and richer structure
+extraction.
 
 ## Install
 

@@ -1,19 +1,16 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using LucidRAG.Services.Lenses;
+using Microsoft.Extensions.Hosting;
 
 namespace LucidRAG.Extensions;
 
 /// <summary>
-/// Service registration extensions for the lens system.
+///     Service registration extensions for the lens system.
 /// </summary>
 public static class LensServiceExtensions
 {
     /// <summary>
-    /// Registers lens services (loader, registry, renderer).
-    /// Lenses are initialized on application startup.
+    ///     Registers lens services (loader, registry, renderer).
+    ///     Lenses are initialized on application startup.
     /// </summary>
     public static IServiceCollection AddLensSystem(this IServiceCollection services, IConfiguration configuration)
     {
@@ -30,7 +27,7 @@ public static class LensServiceExtensions
 }
 
 /// <summary>
-/// Background service to initialize lens registry on application startup.
+///     Background service to initialize lens registry on application startup.
 /// </summary>
 internal class LensRegistryInitializer : IHostedService
 {
@@ -63,5 +60,8 @@ internal class LensRegistryInitializer : IHostedService
         }
     }
 
-    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct)
+    {
+        return Task.CompletedTask;
+    }
 }

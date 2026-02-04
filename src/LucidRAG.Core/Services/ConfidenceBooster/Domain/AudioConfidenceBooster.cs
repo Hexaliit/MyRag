@@ -1,12 +1,11 @@
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using LucidRAG.Core.Services.ConfidenceBooster.Artifacts;
 
 namespace LucidRAG.Core.Services.ConfidenceBooster.Domain;
 
 /// <summary>
-/// ConfidenceBooster for AudioSummarizer - refines unclear transcriptions using LLM.
-/// Targets segments where Whisper had low confidence or produced garbled output.
+///     ConfidenceBooster for AudioSummarizer - refines unclear transcriptions using LLM.
+///     Targets segments where Whisper had low confidence or produced garbled output.
 /// </summary>
 public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact>
 {
@@ -24,7 +23,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
     }
 
     /// <summary>
-    /// Extract low-confidence audio segments for boosting.
+    ///     Extract low-confidence audio segments for boosting.
     /// </summary>
     public override async Task<List<AudioSegmentArtifact>> ExtractArtifactsAsync(
         Guid documentId,
@@ -42,7 +41,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
         // 1. Get transcript segments with confidence scores
         var evidence = await EvidenceRepository.GetAsync(
             documentId,
-            "TranscriptSegments",  // EvidenceTypes.TranscriptSegments
+            "TranscriptSegments", // EvidenceTypes.TranscriptSegments
             ct);
 
         if (evidence == null)
@@ -62,7 +61,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
         // 3. Find low-confidence segments
         var candidates = segments
             .Where(s => s.Confidence < confidenceThreshold)
-            .OrderBy(s => s.Confidence)  // Lowest confidence first
+            .OrderBy(s => s.Confidence) // Lowest confidence first
             .Take(maxArtifacts)
             .ToList();
 
@@ -82,7 +81,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
             return artifacts;
         }
 
-        for (int i = 0; i < candidates.Count; i++)
+        for (var i = 0; i < candidates.Count; i++)
         {
             var segment = candidates[i];
 
@@ -137,7 +136,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
     }
 
     /// <summary>
-    /// Detect task type based on segment characteristics.
+    ///     Detect task type based on segment characteristics.
     /// </summary>
     private string DetectTaskType(TranscriptSegment segment)
     {
@@ -152,37 +151,37 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
     }
 
     /// <summary>
-    /// Generate system prompt for audio transcription.
+    ///     Generate system prompt for audio transcription.
     /// </summary>
     protected override string GetSystemPrompt()
     {
         return """
-        You are an expert transcriptionist helping to refine low-confidence speech-to-text results.
+               You are an expert transcriptionist helping to refine low-confidence speech-to-text results.
 
-        Your task is to analyze audio segments and provide:
-        1. A refined transcription (correcting errors, filling gaps)
-        2. Confidence level (0.0-1.0) for your transcription
-        3. Reasoning for your corrections
+               Your task is to analyze audio segments and provide:
+               1. A refined transcription (correcting errors, filling gaps)
+               2. Confidence level (0.0-1.0) for your transcription
+               3. Reasoning for your corrections
 
-        Always respond in JSON format:
-        {
-            "value": "refined transcription text",
-            "confidence": 0.85,
-            "reasoning": "explanation of corrections made",
-            "metadata": {
-                "corrections": ["list of specific corrections"],
-                "technical_terms": ["identified technical terms"],
-                "uncertain_words": ["words you're unsure about"]
-            }
-        }
+               Always respond in JSON format:
+               {
+                   "value": "refined transcription text",
+                   "confidence": 0.85,
+                   "reasoning": "explanation of corrections made",
+                   "metadata": {
+                       "corrections": ["list of specific corrections"],
+                       "technical_terms": ["identified technical terms"],
+                       "uncertain_words": ["words you're unsure about"]
+                   }
+               }
 
-        Be accurate and conservative. If you cannot improve the transcription, reflect that in the confidence score.
-        Preserve the speaker's intended meaning while correcting obvious errors.
-        """;
+               Be accurate and conservative. If you cannot improve the transcription, reflect that in the confidence score.
+               Preserve the speaker's intended meaning while correcting obvious errors.
+               """;
     }
 
     /// <summary>
-    /// Generate domain-specific prompt for audio segment.
+    ///     Generate domain-specific prompt for audio segment.
     /// </summary>
     protected override string GeneratePrompt(AudioSegmentArtifact artifact)
     {
@@ -198,70 +197,66 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
     {
         var contextSection = "";
         if (artifact.ContextBefore != null || artifact.ContextAfter != null)
-        {
             contextSection = $"""
 
-            Context from surrounding segments:
-            Before: "{artifact.ContextBefore ?? "[start of audio]"}"
-            After: "{artifact.ContextAfter ?? "[end of audio]"}"
-            """;
-        }
+                              Context from surrounding segments:
+                              Before: "{artifact.ContextBefore ?? "[start of audio]"}"
+                              After: "{artifact.ContextAfter ?? "[end of audio]"}"
+                              """;
 
         return $"""
-        Task: Transcription Refinement
+                Task: Transcription Refinement
 
-        Original low-confidence transcription: "{artifact.OriginalTranscription}" (confidence: {artifact.OriginalConfidence:F2})
+                Original low-confidence transcription: "{artifact.OriginalTranscription}" (confidence: {artifact.OriginalConfidence:F2})
 
-        Please listen to this audio segment and provide:
-        - Refined transcription (correct any errors, fill gaps)
-        - Identify technical terms or proper nouns
-        - Note any words you're uncertain about
+                Please listen to this audio segment and provide:
+                - Refined transcription (correct any errors, fill gaps)
+                - Identify technical terms or proper nouns
+                - Note any words you're uncertain about
 
-        Time range: {artifact.TimeRange[0]:F1}s - {artifact.TimeRange[1]:F1}s (duration: {artifact.Duration:F1}s)
-        {contextSection}
+                Time range: {artifact.TimeRange[0]:F1}s - {artifact.TimeRange[1]:F1}s (duration: {artifact.Duration:F1}s)
+                {contextSection}
 
-        The audio is provided as Base64 WAV:
-        {artifact.Base64Audio}
+                The audio is provided as Base64 WAV:
+                {artifact.Base64Audio}
 
-        Respond in JSON format as specified in the system prompt.
-        """;
+                Respond in JSON format as specified in the system prompt.
+                """;
     }
 
     private string GenerateTechnicalTermPrompt(AudioSegmentArtifact artifact)
     {
         var contextSection = "";
         if (artifact.ContextBefore != null || artifact.ContextAfter != null)
-        {
             contextSection = $"""
 
-            Context from surrounding segments:
-            Before: "{artifact.ContextBefore ?? "[start of audio]"}"
-            After: "{artifact.ContextAfter ?? "[end of audio]"}"
-            """;
-        }
+                              Context from surrounding segments:
+                              Before: "{artifact.ContextBefore ?? "[start of audio]"}"
+                              After: "{artifact.ContextAfter ?? "[end of audio]"}"
+                              """;
 
         return $"""
-        Task: Technical Term Correction
+                Task: Technical Term Correction
 
-        Original transcription with potential technical term errors: "{artifact.OriginalTranscription}" (confidence: {artifact.OriginalConfidence:F2})
+                Original transcription with potential technical term errors: "{artifact.OriginalTranscription}" (confidence: {artifact.OriginalConfidence:F2})
 
-        Please listen to this audio segment and:
-        - Identify and correct any technical terms, acronyms, or jargon
-        - Verify numbers, dates, and proper nouns
-        - Provide the correct spelling and capitalization
+                Please listen to this audio segment and:
+                - Identify and correct any technical terms, acronyms, or jargon
+                - Verify numbers, dates, and proper nouns
+                - Provide the correct spelling and capitalization
 
-        Time range: {artifact.TimeRange[0]:F1}s - {artifact.TimeRange[1]:F1}s (duration: {artifact.Duration:F1}s)
-        {contextSection}
+                Time range: {artifact.TimeRange[0]:F1}s - {artifact.TimeRange[1]:F1}s (duration: {artifact.Duration:F1}s)
+                {contextSection}
 
-        The audio is provided as Base64 WAV:
-        {artifact.Base64Audio}
+                The audio is provided as Base64 WAV:
+                {artifact.Base64Audio}
 
-        Respond in JSON format as specified in the system prompt.
-        """;
+                Respond in JSON format as specified in the system prompt.
+                """;
     }
 
     /// <summary>
-    /// Parse LLM JSON response.
+    ///     Parse LLM JSON response.
     /// </summary>
     protected override (string? Value, double? Confidence, string? Reasoning, Dictionary<string, object>? Metadata)
         ParseLlmResponse(string llmResponse, AudioSegmentArtifact artifact)
@@ -287,10 +282,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
             if (root.TryGetProperty("metadata", out var metaProp))
             {
                 metadata = new Dictionary<string, object>();
-                foreach (var prop in metaProp.EnumerateObject())
-                {
-                    metadata[prop.Name] = prop.Value.ToString();
-                }
+                foreach (var prop in metaProp.EnumerateObject()) metadata[prop.Name] = prop.Value.ToString();
             }
 
             return (value, confidence, reasoning, metadata);
@@ -303,7 +295,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
     }
 
     /// <summary>
-    /// Persist boost result back to signal ledger and transcript.
+    ///     Persist boost result back to signal ledger and transcript.
     /// </summary>
     protected override async Task PersistBoostResult(
         Guid documentId,
@@ -340,8 +332,8 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
     }
 
     /// <summary>
-    /// Extract audio segment as Base64 WAV.
-    /// Simplified - would use actual AudioSegmentExtractor from AudioSummarizer.
+    ///     Extract audio segment as Base64 WAV.
+    ///     Simplified - would use actual AudioSegmentExtractor from AudioSummarizer.
     /// </summary>
     private async Task<string> ExtractAudioSegmentAsync(
         string base64Audio,
@@ -356,7 +348,7 @@ public class AudioConfidenceBooster : BaseConfidenceBooster<AudioSegmentArtifact
 }
 
 /// <summary>
-/// Repository interface for audio signals.
+///     Repository interface for audio signals.
 /// </summary>
 public interface IAudioSignalRepository
 {
@@ -365,7 +357,7 @@ public interface IAudioSignalRepository
 }
 
 /// <summary>
-/// Audio signal model.
+///     Audio signal model.
 /// </summary>
 public class AudioSignal
 {
@@ -379,7 +371,7 @@ public class AudioSignal
 }
 
 /// <summary>
-/// Transcript segment model (from EvidenceTypes.TranscriptSegments).
+///     Transcript segment model (from EvidenceTypes.TranscriptSegments).
 /// </summary>
 public class TranscriptSegment
 {

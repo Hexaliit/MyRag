@@ -1,22 +1,18 @@
 using LucidRAG.Manifests;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Services.Waves;
 
 /// <summary>
-/// Manages the collection of loaded wave manifests.
-/// Singleton service initialized on application startup.
+///     Manages the collection of loaded wave manifests.
+///     Singleton service initialized on application startup.
 /// </summary>
 public sealed class WaveRegistry : IWaveRegistry
 {
-    private readonly IManifestLoader<WaveManifest> _loader;
     private readonly IConfiguration _config;
+    private readonly IManifestLoader<WaveManifest> _loader;
     private readonly ILogger<WaveRegistry> _logger;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private volatile List<WaveManifest> _waves = new();
-
-    public IReadOnlyList<WaveManifest> AvailableWaves => _waves;
 
     public WaveRegistry(
         IManifestLoader<WaveManifest> loader,
@@ -27,6 +23,8 @@ public sealed class WaveRegistry : IWaveRegistry
         _config = config;
         _logger = logger;
     }
+
+    public IReadOnlyList<WaveManifest> AvailableWaves => _waves;
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -44,7 +42,6 @@ public sealed class WaveRegistry : IWaveRegistry
                 _waves.Count);
 
             foreach (var wave in _waves)
-            {
                 _logger.LogDebug(
                     "  - {WaveId} ({WaveName}) v{Version} [kind: {Kind}, priority: {Priority}]",
                     wave.Name,
@@ -52,7 +49,6 @@ public sealed class WaveRegistry : IWaveRegistry
                     wave.Version,
                     wave.Taxonomy.Kind,
                     wave.Priority);
-            }
         }
         finally
         {

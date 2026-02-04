@@ -4,7 +4,7 @@ using DoomSummarizer.Services.LongFormGeneration;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for DocumentProfileService keyword extraction with structural weighting.
+///     Tests for DocumentProfileService keyword extraction with structural weighting.
 /// </summary>
 public class DocumentProfileServiceTests
 {
@@ -28,16 +28,16 @@ public class DocumentProfileServiceTests
     public void ExtractProfile_HeadingTerms_WeightedAboveBody()
     {
         var content = """
-            # Introduction to Neural Networks
+                      # Introduction to Neural Networks
 
-            Neural networks are computational models inspired by biological systems.
-            They consist of layers of interconnected nodes that process information.
+                      Neural networks are computational models inspired by biological systems.
+                      They consist of layers of interconnected nodes that process information.
 
-            ## Training Methods
+                      ## Training Methods
 
-            Training involves adjusting weights through backpropagation.
-            The process requires large datasets and computational resources.
-            """;
+                      Training involves adjusting weights through backpropagation.
+                      The process requires large datasets and computational resources.
+                      """;
 
         var profile = DocumentProfileService.ExtractProfile("AI Guide", content);
 
@@ -78,7 +78,8 @@ public class DocumentProfileServiceTests
     public void ExtractProfile_BigramsExtracted_WhenRepeated()
     {
         var content = string.Join("\n\n",
-            Enumerable.Repeat("Machine learning is transforming how we process data. Machine learning models are everywhere.", 3));
+            Enumerable.Repeat(
+                "Machine learning is transforming how we process data. Machine learning models are everywhere.", 3));
 
         var profile = DocumentProfileService.ExtractProfile("Tech", content);
 
@@ -142,10 +143,10 @@ public class DocumentProfileServiceTests
     public void ClassifyContentWeight_MultipleBioIndicators_ReturnsLowWeight()
     {
         var bioContent = """
-            As Head of Engineering, I have worked on many projects.
-            My experience includes leading teams and scaling systems.
-            I've built platforms for millions of users.
-            """;
+                         As Head of Engineering, I have worked on many projects.
+                         My experience includes leading teams and scaling systems.
+                         I've built platforms for millions of users.
+                         """;
 
         var weight = EvidencePreparationService.ClassifyContentWeight(
             "Projects",

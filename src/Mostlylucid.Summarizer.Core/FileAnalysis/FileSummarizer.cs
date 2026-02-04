@@ -10,13 +10,13 @@ using Mostlylucid.Summarizer.Core.Utilities;
 namespace Mostlylucid.Summarizer.Core.FileAnalysis;
 
 /// <summary>
-/// Extracts universal file metadata from any file type.
-/// Provides the foundation for all pipeline processing.
+///     Extracts universal file metadata from any file type.
+///     Provides the foundation for all pipeline processing.
 /// </summary>
 public sealed class FileSummarizer : IFileSummarizer
 {
-    private readonly ILogger<FileSummarizer> _logger;
     private const int SampleSize = 8192; // 8KB sample for content analysis
+    private readonly ILogger<FileSummarizer> _logger;
 
     public FileSummarizer(ILogger<FileSummarizer> logger)
     {
@@ -51,7 +51,7 @@ public sealed class FileSummarizer : IFileSummarizer
             var directoryDepth = CalculateDirectoryDepth(filePath);
 
             // Get symlink target if applicable
-            string? symlinkTarget = fileInfo.LinkTarget;
+            var symlinkTarget = fileInfo.LinkTarget;
 
             stopwatch.Stop();
 
@@ -171,17 +171,108 @@ public sealed class FileSummarizer : IFileSummarizer
         }
     }
 
+    /// <inheritdoc />
+    public string GetContentHash(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            return string.Empty;
+
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            return ContentHasher.ComputeHash(stream);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error computing hash for {FilePath}", filePath);
+            return string.Empty;
+        }
+    }
+
+    /// <inheritdoc />
+    public string GetContentHash(Stream stream)
+    {
+        if (stream == null || !stream.CanRead)
+            return string.Empty;
+
+        try
+        {
+            return ContentHasher.ComputeHash(stream);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error computing hash from stream");
+            return string.Empty;
+        }
+    }
+
+    /// <inheritdoc />
+    public string DetectMimeType(string filePath)
+    {
+        return MimeTypeDetector.Detect(filePath);
+    }
+
+    /// <inheritdoc />
+    public async Task<Dictionary<string, object?>> GetExtendedMetadataAsync(string filePath,
+        CancellationToken ct = default)
+    {
+        var metadata = new Dictionary<string, object?>();
+
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            return metadata;
+
+        var mimeType = DetectMimeType(filePath);
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+
+        try
+        {
+            // Get magic bytes
+            var (magicBytes, magicHex) = MimeTypeDetector.GetMagicBytes(filePath);
+            if (magicBytes.Length > 0)
+            {
+                metadata[FileSignalKeys.MagicBytes] = magicBytes;
+                metadata[FileSignalKeys.MagicBytesHex] = magicHex;
+            }
+
+            // PE file extended metadata (exe, dll) - Windows only
+            if (extension is ".exe" or ".dll" && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                await ExtractPeMetadataAsync(filePath, metadata, ct);
+
+            // Archive inspection (cross-platform)
+            if (IsArchiveExtension(extension)) await ExtractArchiveMetadataAsync(filePath, extension, metadata, ct);
+
+            // Text file extended metadata
+            if (mimeType.StartsWith("text/") || IsLikelyTextFile(extension))
+                await ExtractTextMetadataAsync(filePath, metadata, ct);
+
+            // Archive attributes
+            var fileInfo = new FileInfo(filePath);
+            if ((fileInfo.Attributes & FileAttributes.Compressed) != 0) metadata[FileSignalKeys.IsCompressed] = true;
+
+            if ((fileInfo.Attributes & FileAttributes.Encrypted) != 0) metadata[FileSignalKeys.IsEncrypted] = true;
+
+            if ((fileInfo.Attributes & FileAttributes.Temporary) != 0) metadata[FileSignalKeys.IsTemporary] = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error extracting extended metadata from {FilePath}", filePath);
+        }
+
+        return metadata;
+    }
+
     /// <summary>
-    /// Analyze file content: compute hashes, entropy, and binary detection.
+    ///     Analyze file content: compute hashes, entropy, and binary detection.
     /// </summary>
-    private (string ContentHash, string Sha256Hash, string MagicBytesHex, double Entropy, bool IsBinary, double PrintablePercent, bool ContainsNulls) AnalyzeContent(string filePath, long fileSize)
+    private (string ContentHash, string Sha256Hash, string MagicBytesHex, double Entropy, bool IsBinary, double
+        PrintablePercent, bool ContainsNulls) AnalyzeContent(string filePath, long fileSize)
     {
         if (fileSize == 0)
             return (string.Empty, string.Empty, string.Empty, 0, false, 100, false);
 
         try
         {
-            using var stream = System.IO.File.OpenRead(filePath);
+            using var stream = File.OpenRead(filePath);
             return AnalyzeStreamContent(stream);
         }
         catch
@@ -191,9 +282,10 @@ public sealed class FileSummarizer : IFileSummarizer
     }
 
     /// <summary>
-    /// Analyze stream content: compute hashes, entropy, and binary detection.
+    ///     Analyze stream content: compute hashes, entropy, and binary detection.
     /// </summary>
-    private (string ContentHash, string Sha256Hash, string MagicBytesHex, double Entropy, bool IsBinary, double PrintablePercent, bool ContainsNulls) AnalyzeStreamContent(Stream stream)
+    private (string ContentHash, string Sha256Hash, string MagicBytesHex, double Entropy, bool IsBinary, double
+        PrintablePercent, bool ContainsNulls) AnalyzeStreamContent(Stream stream)
     {
         if (!stream.CanRead || (stream.CanSeek && stream.Length == 0))
             return (string.Empty, string.Empty, string.Empty, 0, false, 100, false);
@@ -244,7 +336,7 @@ public sealed class FileSummarizer : IFileSummarizer
     }
 
     /// <summary>
-    /// Calculate Shannon entropy of data (0-8 scale).
+    ///     Calculate Shannon entropy of data (0-8 scale).
     /// </summary>
     private static double CalculateEntropy(ReadOnlySpan<byte> data)
     {
@@ -259,7 +351,7 @@ public sealed class FileSummarizer : IFileSummarizer
         double entropy = 0;
         var length = (double)data.Length;
 
-        for (int i = 0; i < 256; i++)
+        for (var i = 0; i < 256; i++)
         {
             if (frequency[i] == 0) continue;
 
@@ -271,33 +363,26 @@ public sealed class FileSummarizer : IFileSummarizer
     }
 
     /// <summary>
-    /// Analyze printable ASCII percentage and null byte presence.
+    ///     Analyze printable ASCII percentage and null byte presence.
     /// </summary>
     private static (double PrintablePercent, bool ContainsNulls) AnalyzePrintable(ReadOnlySpan<byte> data)
     {
         if (data.IsEmpty) return (100, false);
 
-        int printable = 0;
-        bool hasNulls = false;
+        var printable = 0;
+        var hasNulls = false;
 
         foreach (var b in data)
-        {
             if (b == 0)
-            {
                 hasNulls = true;
-            }
             // Printable ASCII: 0x20-0x7E, plus common whitespace (tab, newline, carriage return)
-            else if ((b >= 0x20 && b <= 0x7E) || b == 0x09 || b == 0x0A || b == 0x0D)
-            {
-                printable++;
-            }
-        }
+            else if ((b >= 0x20 && b <= 0x7E) || b == 0x09 || b == 0x0A || b == 0x0D) printable++;
 
         return (printable * 100.0 / data.Length, hasNulls);
     }
 
     /// <summary>
-    /// Compute SHA-256 hash of stream.
+    ///     Compute SHA-256 hash of stream.
     /// </summary>
     private static string ComputeSha256(Stream stream)
     {
@@ -317,14 +402,15 @@ public sealed class FileSummarizer : IFileSummarizer
     }
 
     /// <summary>
-    /// Calculate directory depth from file path.
+    ///     Calculate directory depth from file path.
     /// </summary>
     private static int CalculateDirectoryDepth(string filePath)
     {
         try
         {
             var normalized = Path.GetFullPath(filePath);
-            var separators = normalized.Count(c => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar);
+            var separators =
+                normalized.Count(c => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar);
             return separators;
         }
         catch
@@ -334,22 +420,23 @@ public sealed class FileSummarizer : IFileSummarizer
     }
 
     /// <summary>
-    /// Read stream fully into buffer, handling partial reads.
+    ///     Read stream fully into buffer, handling partial reads.
     /// </summary>
     private static int ReadFully(Stream stream, byte[] buffer)
     {
-        int totalRead = 0;
+        var totalRead = 0;
         while (totalRead < buffer.Length)
         {
             var read = stream.Read(buffer, totalRead, buffer.Length - totalRead);
             if (read == 0) break;
             totalRead += read;
         }
+
         return totalRead;
     }
 
     /// <summary>
-    /// Create metadata for non-existent or error files.
+    ///     Create metadata for non-existent or error files.
     /// </summary>
     private FileMetadata CreateNonExistentMetadata(string filePath, TimeSpan elapsed, List<string> errors)
     {
@@ -386,112 +473,8 @@ public sealed class FileSummarizer : IFileSummarizer
         };
     }
 
-    /// <inheritdoc />
-    public string GetContentHash(string filePath)
-    {
-        if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
-            return string.Empty;
-
-        try
-        {
-            using var stream = System.IO.File.OpenRead(filePath);
-            return ContentHasher.ComputeHash(stream);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error computing hash for {FilePath}", filePath);
-            return string.Empty;
-        }
-    }
-
-    /// <inheritdoc />
-    public string GetContentHash(Stream stream)
-    {
-        if (stream == null || !stream.CanRead)
-            return string.Empty;
-
-        try
-        {
-            return ContentHasher.ComputeHash(stream);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error computing hash from stream");
-            return string.Empty;
-        }
-    }
-
-    /// <inheritdoc />
-    public string DetectMimeType(string filePath)
-    {
-        return MimeTypeDetector.Detect(filePath);
-    }
-
-    /// <inheritdoc />
-    public async Task<Dictionary<string, object?>> GetExtendedMetadataAsync(string filePath, CancellationToken ct = default)
-    {
-        var metadata = new Dictionary<string, object?>();
-
-        if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
-            return metadata;
-
-        var mimeType = DetectMimeType(filePath);
-        var extension = Path.GetExtension(filePath).ToLowerInvariant();
-
-        try
-        {
-            // Get magic bytes
-            var (magicBytes, magicHex) = MimeTypeDetector.GetMagicBytes(filePath);
-            if (magicBytes.Length > 0)
-            {
-                metadata[FileSignalKeys.MagicBytes] = magicBytes;
-                metadata[FileSignalKeys.MagicBytesHex] = magicHex;
-            }
-
-            // PE file extended metadata (exe, dll) - Windows only
-            if (extension is ".exe" or ".dll" && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                await ExtractPeMetadataAsync(filePath, metadata, ct);
-            }
-
-            // Archive inspection (cross-platform)
-            if (IsArchiveExtension(extension))
-            {
-                await ExtractArchiveMetadataAsync(filePath, extension, metadata, ct);
-            }
-
-            // Text file extended metadata
-            if (mimeType.StartsWith("text/") || IsLikelyTextFile(extension))
-            {
-                await ExtractTextMetadataAsync(filePath, metadata, ct);
-            }
-
-            // Archive attributes
-            var fileInfo = new FileInfo(filePath);
-            if ((fileInfo.Attributes & FileAttributes.Compressed) != 0)
-            {
-                metadata[FileSignalKeys.IsCompressed] = true;
-            }
-
-            if ((fileInfo.Attributes & FileAttributes.Encrypted) != 0)
-            {
-                metadata[FileSignalKeys.IsEncrypted] = true;
-            }
-
-            if ((fileInfo.Attributes & FileAttributes.Temporary) != 0)
-            {
-                metadata[FileSignalKeys.IsTemporary] = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error extracting extended metadata from {FilePath}", filePath);
-        }
-
-        return metadata;
-    }
-
-    private async Task ExtractPeMetadataAsync(string filePath, Dictionary<string, object?> metadata, CancellationToken ct)
+    private async Task ExtractPeMetadataAsync(string filePath, Dictionary<string, object?> metadata,
+        CancellationToken ct)
     {
         await Task.Run(() =>
         {
@@ -501,9 +484,7 @@ public sealed class FileSummarizer : IFileSummarizer
                 metadata[FileSignalKeys.PeIsDotNet] = true;
 
                 if (assemblyName.Version != null)
-                {
                     metadata[FileSignalKeys.PeFileVersion] = assemblyName.Version.ToString();
-                }
             }
             catch
             {
@@ -536,7 +517,8 @@ public sealed class FileSummarizer : IFileSummarizer
         }, ct);
     }
 
-    private async Task ExtractTextMetadataAsync(string filePath, Dictionary<string, object?> metadata, CancellationToken ct)
+    private async Task ExtractTextMetadataAsync(string filePath, Dictionary<string, object?> metadata,
+        CancellationToken ct)
     {
         const int maxBytesToRead = 1024 * 1024; // 1MB sample for encoding detection
 
@@ -544,7 +526,7 @@ public sealed class FileSummarizer : IFileSummarizer
         {
             try
             {
-                using var stream = System.IO.File.OpenRead(filePath);
+                using var stream = File.OpenRead(filePath);
 
                 // Check for BOM
                 var bom = new byte[4];
@@ -589,11 +571,11 @@ public sealed class FileSummarizer : IFileSummarizer
                 metadata[FileSignalKeys.TextHasBom] = hasBom;
 
                 // Count lines and calculate stats
-                int lineCount = 0;
-                int longestLine = 0;
+                var lineCount = 0;
+                var longestLine = 0;
                 long totalLineLength = 0;
 
-                using var reader = new StreamReader(stream, encoding ?? Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                using var reader = new StreamReader(stream, encoding ?? Encoding.UTF8, true);
                 string? line;
                 while ((line = reader.ReadLine()) != null)
                 {
@@ -617,7 +599,6 @@ public sealed class FileSummarizer : IFileSummarizer
     {
         var i = 0;
         while (i < bytes.Length)
-        {
             if (bytes[i] <= 0x7F)
             {
                 i++;
@@ -654,7 +635,7 @@ public sealed class FileSummarizer : IFileSummarizer
             {
                 return false;
             }
-        }
+
         return true;
     }
 
@@ -663,11 +644,11 @@ public sealed class FileSummarizer : IFileSummarizer
         return extension switch
         {
             ".txt" or ".md" or ".markdown" or ".html" or ".htm" or ".xml" or
-            ".css" or ".js" or ".ts" or ".jsx" or ".tsx" or ".json" or ".jsonl" or
-            ".yaml" or ".yml" or ".cs" or ".py" or ".java" or ".c" or ".cpp" or
-            ".h" or ".hpp" or ".go" or ".rs" or ".rb" or ".php" or ".sh" or
-            ".bash" or ".ps1" or ".sql" or ".csv" or ".tsv" or ".log" or
-            ".ini" or ".cfg" or ".conf" or ".toml" or ".env" => true,
+                ".css" or ".js" or ".ts" or ".jsx" or ".tsx" or ".json" or ".jsonl" or
+                ".yaml" or ".yml" or ".cs" or ".py" or ".java" or ".c" or ".cpp" or
+                ".h" or ".hpp" or ".go" or ".rs" or ".rb" or ".php" or ".sh" or
+                ".bash" or ".ps1" or ".sql" or ".csv" or ".tsv" or ".log" or
+                ".ini" or ".cfg" or ".conf" or ".toml" or ".env" => true,
             _ => false
         };
     }
@@ -677,15 +658,15 @@ public sealed class FileSummarizer : IFileSummarizer
         return extension switch
         {
             ".zip" or ".jar" or ".nupkg" or ".docx" or ".xlsx" or ".pptx" or ".odt" or
-            ".epub" or ".apk" or ".ipa" or ".xpi" or ".crx" or ".vsix" or ".war" or
-            ".gz" or ".tgz" or ".tar.gz" => true,
+                ".epub" or ".apk" or ".ipa" or ".xpi" or ".crx" or ".vsix" or ".war" or
+                ".gz" or ".tgz" or ".tar.gz" => true,
             _ => false
         };
     }
 
     /// <summary>
-    /// Extract archive metadata (entry count, total uncompressed size, compression ratio).
-    /// Cross-platform using System.IO.Compression for ZIP-based formats.
+    ///     Extract archive metadata (entry count, total uncompressed size, compression ratio).
+    ///     Cross-platform using System.IO.Compression for ZIP-based formats.
     /// </summary>
     private async Task ExtractArchiveMetadataAsync(
         string filePath,
@@ -700,14 +681,9 @@ public sealed class FileSummarizer : IFileSummarizer
                 // ZIP-based formats (ZIP, JAR, Office, EPUB, APK, etc.)
                 if (extension is ".zip" or ".jar" or ".nupkg" or ".docx" or ".xlsx" or ".pptx" or
                     ".odt" or ".epub" or ".apk" or ".ipa" or ".xpi" or ".crx" or ".vsix" or ".war")
-                {
                     ExtractZipMetadata(filePath, metadata);
-                }
                 // GZip single-file compression
-                else if (extension is ".gz" or ".tgz" or ".tar.gz")
-                {
-                    ExtractGzipMetadata(filePath, metadata);
-                }
+                else if (extension is ".gz" or ".tgz" or ".tar.gz") ExtractGzipMetadata(filePath, metadata);
 
                 // Detect archive format from magic bytes
                 metadata[FileSignalKeys.ArchiveFormat] = DetectArchiveFormat(extension);
@@ -735,9 +711,7 @@ public sealed class FileSummarizer : IFileSummarizer
         metadata[FileSignalKeys.ArchiveUncompressedSize] = uncompressedSize;
 
         if (compressedSize > 0)
-        {
             metadata[FileSignalKeys.ArchiveCompressionRatio] = Math.Round((double)uncompressedSize / compressedSize, 2);
-        }
 
         // Collect unique extensions in archive
         var extensions = archive.Entries
@@ -748,15 +722,12 @@ public sealed class FileSummarizer : IFileSummarizer
             .OrderBy(e => e)
             .ToList();
 
-        if (extensions.Count > 0)
-        {
-            metadata["file.archive.extensions"] = extensions;
-        }
+        if (extensions.Count > 0) metadata["file.archive.extensions"] = extensions;
     }
 
     private static void ExtractGzipMetadata(string filePath, Dictionary<string, object?> metadata)
     {
-        using var stream = System.IO.File.OpenRead(filePath);
+        using var stream = File.OpenRead(filePath);
         using var gzipStream = new GZipStream(stream, CompressionMode.Decompress);
 
         // Read to determine uncompressed size (for small files only)
@@ -771,19 +742,15 @@ public sealed class FileSummarizer : IFileSummarizer
         {
             uncompressedSize += read;
             if (uncompressedSize > maxDecompressSize)
-            {
                 // Estimate based on what we've read
                 break;
-            }
         }
 
         metadata[FileSignalKeys.ArchiveEntryCount] = 1; // GZip is single-file
         metadata[FileSignalKeys.ArchiveUncompressedSize] = uncompressedSize;
 
         if (compressedSize > 0)
-        {
             metadata[FileSignalKeys.ArchiveCompressionRatio] = Math.Round((double)uncompressedSize / compressedSize, 2);
-        }
     }
 
     private static string DetectArchiveFormat(string extension)

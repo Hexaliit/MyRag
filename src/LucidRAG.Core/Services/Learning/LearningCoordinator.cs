@@ -1,22 +1,21 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace LucidRAG.Core.Services.Learning;
 
 /// <summary>
-/// Learning coordinator for background document reprocessing.
-/// Runs the FULL processing stack (no early exit) to find better results,
-/// then updates entity signatures and evidence if improvements found.
-///
-/// Pattern: Like BotDetection's learning pipeline - keyed sequential processing,
-/// one document at a time per key, parallel across documents.
-/// Multi-tenant support with composite keying (tenantId:documentId).
+///     Learning coordinator for background document reprocessing.
+///     Runs the FULL processing stack (no early exit) to find better results,
+///     then updates entity signatures and evidence if improvements found.
+///     Pattern: Like BotDetection's learning pipeline - keyed sequential processing,
+///     one document at a time per key, parallel across documents.
+///     Multi-tenant support with composite keying (tenantId:documentId).
 /// </summary>
 public interface ILearningCoordinator
 {
     /// <summary>
-    /// Submit a document for learning/reprocessing.
-    /// Non-blocking - returns immediately.
+    ///     Submit a document for learning/reprocessing.
+    ///     Non-blocking - returns immediately.
     /// </summary>
     /// <param name="tenantId">Tenant ID (for multi-tenant isolation)</param>
     /// <param name="documentId">Document to reprocess</param>
@@ -26,7 +25,7 @@ public interface ILearningCoordinator
     bool TrySubmitLearning(string tenantId, Guid documentId, string reason, int priority = 50);
 
     /// <summary>
-    /// Get learning statistics for a document.
+    ///     Get learning statistics for a document.
     /// </summary>
     /// <param name="tenantId">Tenant ID</param>
     /// <param name="documentId">Document ID</param>
@@ -34,18 +33,18 @@ public interface ILearningCoordinator
     Task<LearningStats?> GetStatsAsync(string tenantId, Guid documentId, CancellationToken ct = default);
 
     /// <summary>
-    /// Get all documents currently in learning queue.
+    ///     Get all documents currently in learning queue.
     /// </summary>
     IReadOnlyList<LearningQueueItem> GetQueuedDocuments();
 
     /// <summary>
-    /// Shutdown gracefully, waiting for in-flight learning to complete.
+    ///     Shutdown gracefully, waiting for in-flight learning to complete.
     /// </summary>
     Task ShutdownAsync(CancellationToken ct = default);
 }
 
 /// <summary>
-/// A learning task to reprocess a document.
+///     A learning task to reprocess a document.
 /// </summary>
 public class LearningTask : IComparable<LearningTask>
 {
@@ -92,7 +91,7 @@ public class LearningTask : IComparable<LearningTask>
 }
 
 /// <summary>
-/// Statistics for a document's learning history.
+///     Statistics for a document's learning history.
 /// </summary>
 public class LearningStats
 {
@@ -103,7 +102,7 @@ public class LearningStats
     public DateTimeOffset? LastLearningRun { get; set; }
     public DateTimeOffset? LastImprovementFound { get; set; }
     public TimeSpan AverageProcessingTime { get; set; }
-    public string? LastImprovement { get; set; }  // Description of last improvement
+    public string? LastImprovement { get; set; } // Description of last improvement
 
     /// <summary>Hash of document when last processed (to detect changes)</summary>
     public string? LastProcessedHash { get; set; }
@@ -113,7 +112,7 @@ public class LearningStats
 }
 
 /// <summary>
-/// Item in the learning queue.
+///     Item in the learning queue.
 /// </summary>
 public class LearningQueueItem
 {
@@ -125,7 +124,7 @@ public class LearningQueueItem
 }
 
 /// <summary>
-/// Result of learning/reprocessing a document.
+///     Result of learning/reprocessing a document.
 /// </summary>
 public class LearningResult
 {
@@ -147,7 +146,7 @@ public class LearningResult
 }
 
 /// <summary>
-/// Before/after comparison metric.
+///     Before/after comparison metric.
 /// </summary>
 public class ComparisonMetric
 {
@@ -159,21 +158,21 @@ public class ComparisonMetric
 }
 
 /// <summary>
-/// Keyed learning coordinator implementation.
-/// One queue per document, sequential processing per document, parallel across documents.
+///     Keyed learning coordinator implementation.
+///     One queue per document, sequential processing per document, parallel across documents.
 /// </summary>
 public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
 {
-    private readonly ILogger<LearningCoordinator> _logger;
-    private readonly IEnumerable<ILearningHandler> _handlers;
-    private readonly IServiceProvider _serviceProvider;
     private readonly LearningConfig _config;
+    private readonly IEnumerable<ILearningHandler> _handlers;
+    private readonly ILogger<LearningCoordinator> _logger;
     private readonly int _maxQueueSize;
 
     // Keyed by "tenantId:documentId" for multi-tenant sequential processing
     private readonly ConcurrentDictionary<string, LearningQueue> _queues = new();
-    private readonly ConcurrentDictionary<string, LearningStats> _stats = new();
+    private readonly IServiceProvider _serviceProvider;
     private readonly SemaphoreSlim _shutdownLock = new(1, 1);
+    private readonly ConcurrentDictionary<string, LearningStats> _stats = new();
     private bool _disposed;
     private bool _isShuttingDown;
 
@@ -230,13 +229,13 @@ public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
 
             // Start background processor for this tenant+document (low priority)
             _ = Task.Run(async () =>
-            {
-                // Set thread priority to background/low for learning tasks
-                Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
-                Thread.CurrentThread.IsBackground = true;
+                {
+                    // Set thread priority to background/low for learning tasks
+                    Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
+                    Thread.CurrentThread.IsBackground = true;
 
-                await ProcessQueueAsync(k, newQueue);
-            }, _config.CancellationToken ?? CancellationToken.None)
+                    await ProcessQueueAsync(k, newQueue);
+                }, _config.CancellationToken ?? CancellationToken.None)
                 .ConfigureAwait(false);
 
             return newQueue;
@@ -248,7 +247,7 @@ public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
             TenantId = tenantId,
             DocumentId = documentId,
             Reason = reason,
-            DocumentType = "unknown",  // Will be resolved during processing
+            DocumentType = "unknown", // Will be resolved during processing
             Priority = priority
         };
 
@@ -296,6 +295,7 @@ public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
                 });
             }
         }
+
         return items;
     }
 
@@ -312,7 +312,7 @@ public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
 
             // Wait for queues to drain (with timeout)
             var drainTimeout = TimeSpan.FromSeconds(30);
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var stopwatch = Stopwatch.StartNew();
 
             foreach (var kvp in _queues)
             {
@@ -336,8 +336,8 @@ public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
     }
 
     /// <summary>
-    /// Background processor for a single document's learning queue.
-    /// Processes tasks sequentially to avoid conflicts.
+    ///     Background processor for a single document's learning queue.
+    ///     Processes tasks sequentially to avoid conflicts.
     /// </summary>
     private async Task ProcessQueueAsync(string key, LearningQueue queue)
     {
@@ -365,8 +365,8 @@ public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
     }
 
     /// <summary>
-    /// Process a single learning task - run full stack, compare results, update if better.
-    /// Skips if document unchanged since last processing.
+    ///     Process a single learning task - run full stack, compare results, update if better.
+    ///     Skips if document unchanged since last processing.
     /// </summary>
     private async Task ProcessLearningTaskAsync(string key, LearningTask task)
     {
@@ -436,18 +436,17 @@ public class LearningCoordinator : ILearningCoordinator, IAsyncDisposable
 }
 
 /// <summary>
-/// Thread-safe priority queue for a single document's learning tasks.
-/// Tasks are ordered by priority (0 = highest), then by timestamp (older first).
+///     Thread-safe priority queue for a single document's learning tasks.
+///     Tasks are ordered by priority (0 = highest), then by timestamp (older first).
 /// </summary>
 internal class LearningQueue : IDisposable
 {
     private readonly string _key;
-    private readonly int _maxSize;
-    private readonly ILogger _logger;
     private readonly object _lock = new();
+    private readonly ILogger _logger;
+    private readonly int _maxSize;
     private readonly PriorityQueue<LearningTask, LearningTask> _queue = new();
     private readonly SemaphoreSlim _semaphore;
-    private int _currentCount;
     private bool _disposed;
 
     public LearningQueue(string key, int maxSize, ILogger logger)
@@ -458,7 +457,7 @@ internal class LearningQueue : IDisposable
         _semaphore = new SemaphoreSlim(0);
     }
 
-    public int Count => _currentCount;
+    public int Count { get; private set; }
 
     public void Dispose()
     {
@@ -476,12 +475,12 @@ internal class LearningQueue : IDisposable
 
         lock (_lock)
         {
-            if (_currentCount >= _maxSize)
+            if (Count >= _maxSize)
                 return false;
 
             // Enqueue with priority (task is IComparable, lower priority number = higher priority)
             _queue.Enqueue(task, task);
-            _currentCount++;
+            Count++;
         }
 
         _semaphore.Release();
@@ -500,7 +499,7 @@ internal class LearningQueue : IDisposable
         {
             if (_queue.TryDequeue(out var task, out _))
             {
-                _currentCount--;
+                Count--;
                 return task;
             }
         }
@@ -510,30 +509,30 @@ internal class LearningQueue : IDisposable
 }
 
 /// <summary>
-/// Handler for learning operations on specific document types.
+///     Handler for learning operations on specific document types.
 /// </summary>
 public interface ILearningHandler
 {
     /// <summary>
-    /// Check if this handler can process the given document type.
+    ///     Check if this handler can process the given document type.
     /// </summary>
     bool CanHandle(string documentType);
 
     /// <summary>
-    /// Get the current document hash to detect changes.
-    /// Returns SHA-256 hash of document content or metadata signature.
+    ///     Get the current document hash to detect changes.
+    ///     Returns SHA-256 hash of document content or metadata signature.
     /// </summary>
     Task<string> GetDocumentHashAsync(LearningTask task, CancellationToken ct = default);
 
     /// <summary>
-    /// Run learning/reprocessing for the document.
-    /// Runs FULL stack (no early exit), compares results, updates if better.
+    ///     Run learning/reprocessing for the document.
+    ///     Runs FULL stack (no early exit), compares results, updates if better.
     /// </summary>
     Task<LearningResult> LearnAsync(LearningTask task, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Configuration for learning coordinator.
+///     Configuration for learning coordinator.
 /// </summary>
 public class LearningConfig
 {

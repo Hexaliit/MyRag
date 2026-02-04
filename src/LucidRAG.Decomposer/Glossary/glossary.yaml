@@ -3,78 +3,78 @@ version: 2
 terms:
   - term: transformer architecture
     query: "What is a transformer architecture in deep learning?"
-    sources: [arxiv, wikipedia]
+    sources: [ arxiv, wikipedia ]
     ttl_days: 30
     concept_type: Definition
 
   - term: RLHF
     query: "What is Reinforcement Learning from Human Feedback (RLHF)?"
-    sources: [arxiv, search]
+    sources: [ arxiv, search ]
     ttl_days: 30
-    aliases: [reinforcement learning from human feedback]
+    aliases: [ reinforcement learning from human feedback ]
     concept_type: Definition
 
   - term: retrieval augmented generation
     query: "What is RAG (Retrieval Augmented Generation)?"
-    sources: [arxiv, search]
+    sources: [ arxiv, search ]
     ttl_days: 30
-    aliases: [RAG]
+    aliases: [ RAG ]
     concept_type: Definition
 
   - term: BM25
     query: "What is BM25 ranking in information retrieval?"
-    sources: [wikipedia, search]
+    sources: [ wikipedia, search ]
     ttl_days: 60
     concept_type: Definition
 
   - term: attention mechanism
     query: "What is the attention mechanism in neural networks?"
-    sources: [arxiv, wikipedia]
+    sources: [ arxiv, wikipedia ]
     ttl_days: 30
     concept_type: Definition
 
   - term: fine-tuning
     query: "What is fine-tuning in machine learning and LLMs?"
-    sources: [arxiv, search]
+    sources: [ arxiv, search ]
     ttl_days: 30
-    aliases: [finetuning]
+    aliases: [ finetuning ]
     concept_type: Definition
 
   - term: vector embedding
     query: "What are vector embeddings in machine learning?"
-    sources: [arxiv, search]
+    sources: [ arxiv, search ]
     ttl_days: 60
-    aliases: [embedding, embeddings]
+    aliases: [ embedding, embeddings ]
     concept_type: Definition
 
   - term: knowledge graph
     query: "What is a knowledge graph in AI and data systems?"
-    sources: [wikipedia, search]
+    sources: [ wikipedia, search ]
     ttl_days: 60
     concept_type: Definition
 
   - term: semantic search
     query: "What is semantic search and how does it differ from keyword search?"
-    sources: [search, arxiv]
+    sources: [ search, arxiv ]
     ttl_days: 30
     concept_type: Definition
 
   - term: prompt engineering
     query: "What is prompt engineering for large language models?"
-    sources: [search, arxiv]
+    sources: [ search, arxiv ]
     ttl_days: 30
     concept_type: Procedure
 
   - term: chain of thought
     query: "What is chain-of-thought prompting in LLMs?"
-    sources: [arxiv, search]
+    sources: [ arxiv, search ]
     ttl_days: 30
-    aliases: [CoT, chain-of-thought]
+    aliases: [ CoT, chain-of-thought ]
     concept_type: Definition
 
   - term: HNSW
     query: "What is HNSW (Hierarchical Navigable Small World) for approximate nearest neighbor search?"
-    sources: [arxiv, wikipedia]
+    sources: [ arxiv, wikipedia ]
     ttl_days: 60
-    aliases: [hierarchical navigable small world]
+    aliases: [ hierarchical navigable small world ]
     concept_type: Definition

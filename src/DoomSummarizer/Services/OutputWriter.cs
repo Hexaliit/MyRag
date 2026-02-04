@@ -1,16 +1,17 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Spectre.Console;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Handles writing output to different formats and destinations.
-/// Extensible for future formats (PDF, Word, etc.)
+///     Handles writing output to different formats and destinations.
+///     Extensible for future formats (PDF, Word, etc.)
 /// </summary>
 public class OutputWriter
 {
-    private readonly TemplateService _templateService;
     private readonly Dictionary<string, IOutputFormatter> _formatters = new(StringComparer.OrdinalIgnoreCase);
+    private readonly TemplateService _templateService;
 
     public OutputWriter(TemplateService templateService)
     {
@@ -25,14 +26,11 @@ public class OutputWriter
 
     public void RegisterFormatter(IOutputFormatter formatter)
     {
-        foreach (var ext in formatter.SupportedExtensions)
-        {
-            _formatters[ext] = formatter;
-        }
+        foreach (var ext in formatter.SupportedExtensions) _formatters[ext] = formatter;
     }
 
     /// <summary>
-    /// Write output to file, auto-detecting format from extension.
+    ///     Write output to file, auto-detecting format from extension.
     /// </summary>
     public async Task WriteToFileAsync(DigestData data, string filePath, string? templateName = null)
     {
@@ -51,23 +49,17 @@ public class OutputWriter
         var content = _templateService.Render(data, templateName);
 
         // Apply formatter if available
-        if (_formatters.TryGetValue(extension, out var formatter))
-        {
-            content = await formatter.FormatAsync(content, data);
-        }
+        if (_formatters.TryGetValue(extension, out var formatter)) content = await formatter.FormatAsync(content, data);
 
         // Ensure directory exists
         var dir = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
         await File.WriteAllTextAsync(filePath, content);
     }
 
     /// <summary>
-    /// Write output to console with optional formatting.
+    ///     Write output to console with optional formatting.
     /// </summary>
     public void WriteToConsole(DigestData data, string templateName = "console", bool usePanel = true)
     {
@@ -88,19 +80,22 @@ public class OutputWriter
     }
 
     /// <summary>
-    /// Get raw rendered content for a template.
+    ///     Get raw rendered content for a template.
     /// </summary>
     public string Render(DigestData data, string templateName = "default")
     {
         return _templateService.Render(data, templateName);
     }
 
-    public IEnumerable<string> GetSupportedExtensions() => _formatters.Keys.Distinct();
+    public IEnumerable<string> GetSupportedExtensions()
+    {
+        return _formatters.Keys.Distinct();
+    }
 }
 
 /// <summary>
-/// Interface for output formatters.
-/// Implement this to add support for new output formats.
+///     Interface for output formatters.
+///     Implement this to add support for new output formats.
 /// </summary>
 public interface IOutputFormatter
 {
@@ -109,7 +104,7 @@ public interface IOutputFormatter
 }
 
 /// <summary>
-/// Markdown formatter - passes through as-is.
+///     Markdown formatter - passes through as-is.
 /// </summary>
 public class MarkdownFormatter : IOutputFormatter
 {
@@ -122,7 +117,7 @@ public class MarkdownFormatter : IOutputFormatter
 }
 
 /// <summary>
-/// Plain text formatter - strips markdown.
+///     Plain text formatter - strips markdown.
 /// </summary>
 public partial class TextFormatter : IOutputFormatter
 {
@@ -168,7 +163,7 @@ public partial class TextFormatter : IOutputFormatter
 }
 
 /// <summary>
-/// HTML formatter - wraps in basic HTML if not already HTML.
+///     HTML formatter - wraps in basic HTML if not already HTML.
 /// </summary>
 public partial class HtmlFormatter : IOutputFormatter
 {
@@ -179,36 +174,34 @@ public partial class HtmlFormatter : IOutputFormatter
         // If content already starts with DOCTYPE or html tag, return as-is
         if (content.TrimStart().StartsWith("<!DOCTYPE", StringComparison.OrdinalIgnoreCase) ||
             content.TrimStart().StartsWith("<html", StringComparison.OrdinalIgnoreCase))
-        {
             return Task.FromResult(content);
-        }
 
         // Convert markdown to basic HTML
         var html = ConvertMarkdownToHtml(content);
 
         var title = $"Doom-Scroll Digest - {data.Date:yyyy-MM-dd}";
         return Task.FromResult($$"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <title>{{title}}</title>
-                <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-                    h1, h2, h3 { color: #333; }
-                    a { color: #007bff; text-decoration: none; }
-                    a:hover { text-decoration: underline; }
-                    blockquote { border-left: 3px solid #ccc; margin: 0; padding-left: 1em; color: #666; }
-                    code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
-                    hr { border: none; border-top: 1px solid #eee; margin: 2em 0; }
-                </style>
-            </head>
-            <body>
-            {{html}}
-            </body>
-            </html>
-            """);
+                                 <!DOCTYPE html>
+                                 <html>
+                                 <head>
+                                     <meta charset="utf-8">
+                                     <meta name="viewport" content="width=device-width, initial-scale=1">
+                                     <title>{{title}}</title>
+                                     <style>
+                                         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+                                         h1, h2, h3 { color: #333; }
+                                         a { color: #007bff; text-decoration: none; }
+                                         a:hover { text-decoration: underline; }
+                                         blockquote { border-left: 3px solid #ccc; margin: 0; padding-left: 1em; color: #666; }
+                                         code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
+                                         hr { border: none; border-top: 1px solid #eee; margin: 2em 0; }
+                                     </style>
+                                 </head>
+                                 <body>
+                                 {{html}}
+                                 </body>
+                                 </html>
+                                 """);
     }
 
     private static string ConvertMarkdownToHtml(string markdown)
@@ -283,7 +276,7 @@ public partial class HtmlFormatter : IOutputFormatter
 }
 
 /// <summary>
-/// JSON formatter - ensures valid JSON output.
+///     JSON formatter - ensures valid JSON output.
 /// </summary>
 public class JsonFormatter : IOutputFormatter
 {
@@ -294,16 +287,16 @@ public class JsonFormatter : IOutputFormatter
         // If template already produced JSON, validate and return
         try
         {
-            var doc = System.Text.Json.JsonDocument.Parse(content);
+            var doc = JsonDocument.Parse(content);
             return Task.FromResult(content);
         }
         catch
         {
             // Not valid JSON, serialize the data directly
-            var json = System.Text.Json.JsonSerializer.Serialize(data, new System.Text.Json.JsonSerializerOptions
+            var json = JsonSerializer.Serialize(data, new JsonSerializerOptions
             {
                 WriteIndented = true,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
             return Task.FromResult(json);
         }

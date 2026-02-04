@@ -1,43 +1,22 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Waves;
 
 namespace VideoSummarizer.Core.Coordination;
 
 /// <summary>
-/// Coordinates wave execution based on signal dependencies.
-/// Unlike the static VideoWaveCoordinator, this dynamically determines
-/// which waves can run based on available signals.
+///     Coordinates wave execution based on signal dependencies.
+///     Unlike the static VideoWaveCoordinator, this dynamically determines
+///     which waves can run based on available signals.
 /// </summary>
 public sealed class SignalAwareWaveCoordinator : IDisposable
 {
-    private readonly IEnumerable<IVideoWave> _waves;
-    private readonly ILogger<SignalAwareWaveCoordinator> _logger;
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _laneSemaphores = new();
     private readonly HashSet<string> _availableSignals = new();
     private readonly List<(string Wave, TimeSpan Duration, int SignalsEmitted)> _executionLog = new();
-
-    /// <summary>
-    /// Event raised when a signal is emitted.
-    /// Enables reactive composition patterns.
-    /// </summary>
-    public event Action<VideoSignalEvent>? OnSignalEmitted;
-
-    /// <summary>
-    /// Maximum concurrent waves in the default lane.
-    /// </summary>
-    public int DefaultLaneConcurrency { get; set; } = 1;
-
-    /// <summary>
-    /// Lane concurrency limits by lane name.
-    /// </summary>
-    public Dictionary<string, int> LaneConcurrency { get; } = new()
-    {
-        ["gpu"] = 1,      // GPU operations are sequential
-        ["cpu"] = 4,      // CPU-bound work can parallelize
-        ["io"] = 8,       // IO-bound work can highly parallelize
-        ["default"] = 1   // Default is sequential for safety
-    };
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _laneSemaphores = new();
+    private readonly ILogger<SignalAwareWaveCoordinator> _logger;
+    private readonly IEnumerable<IVideoWave> _waves;
 
     public SignalAwareWaveCoordinator(
         IEnumerable<IVideoWave> waves,
@@ -48,8 +27,36 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Execute all waves respecting signal dependencies.
-    /// Waves only run when their required signals are available.
+    ///     Maximum concurrent waves in the default lane.
+    /// </summary>
+    public int DefaultLaneConcurrency { get; set; } = 1;
+
+    /// <summary>
+    ///     Lane concurrency limits by lane name.
+    /// </summary>
+    public Dictionary<string, int> LaneConcurrency { get; } = new()
+    {
+        ["gpu"] = 1, // GPU operations are sequential
+        ["cpu"] = 4, // CPU-bound work can parallelize
+        ["io"] = 8, // IO-bound work can highly parallelize
+        ["default"] = 1 // Default is sequential for safety
+    };
+
+    public void Dispose()
+    {
+        foreach (var semaphore in _laneSemaphores.Values) semaphore.Dispose();
+        _laneSemaphores.Clear();
+    }
+
+    /// <summary>
+    ///     Event raised when a signal is emitted.
+    ///     Enables reactive composition patterns.
+    /// </summary>
+    public event Action<VideoSignalEvent>? OnSignalEmitted;
+
+    /// <summary>
+    ///     Execute all waves respecting signal dependencies.
+    ///     Waves only run when their required signals are available.
     /// </summary>
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -94,6 +101,7 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
                         EmitSignal($"wave.skipped.{wave.Name}", "dependencies_not_met", wave.Name, context);
                     }
                 }
+
                 break;
             }
 
@@ -107,9 +115,7 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
                 var semaphore = GetLaneSemaphore(lane);
 
                 foreach (var wave in laneGroup)
-                {
                     waveTasks.Add(ExecuteWaveAsync(wave, context, semaphore, executedWaves, failedWaves, ct));
-                }
             }
 
             await Task.WhenAll(waveTasks);
@@ -123,7 +129,7 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Check if a wave can run based on signal dependencies.
+    ///     Check if a wave can run based on signal dependencies.
     /// </summary>
     private bool CanRun(IVideoWave wave, VideoContext context)
     {
@@ -136,22 +142,18 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
 
         // If wave implements ISignalAwareVideoWave, check signal dependencies
         if (wave is ISignalAwareVideoWave signalAware)
-        {
             foreach (var required in signalAware.RequiredSignals)
-            {
                 if (!_availableSignals.Contains(required) && !context.HasSignal(required))
                 {
                     _logger.LogDebug("Wave {Wave} missing required signal: {Signal}", wave.Name, required);
                     return false;
                 }
-            }
-        }
 
         return true;
     }
 
     /// <summary>
-    /// Execute a single wave with proper signal emission.
+    ///     Execute a single wave with proper signal emission.
     /// </summary>
     private async Task ExecuteWaveAsync(
         IVideoWave wave,
@@ -169,7 +171,7 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
             // Emit start signal
             EmitSignal($"wave.started.{wave.Name}", true, wave.Name, context);
 
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var sw = Stopwatch.StartNew();
             var signalCountBefore = context.GetAllSignals().Count();
 
             try
@@ -181,18 +183,12 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
 
                 // Track available signals from this wave
                 if (wave is ISignalAwareVideoWave signalAware)
-                {
                     foreach (var signal in signalAware.EmittedSignals)
-                    {
                         _availableSignals.Add(signal);
-                    }
-                }
 
                 // Also track signals that were actually added to context
                 foreach (var signal in context.GetAllSignals().Skip(signalCountBefore))
-                {
                     _availableSignals.Add(signal.Key);
-                }
 
                 // Emit completion signal
                 EmitSignal($"wave.completed.{wave.Name}", sw.ElapsedMilliseconds, wave.Name, context);
@@ -238,7 +234,7 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Check if escalation is needed based on wave results.
+    ///     Check if escalation is needed based on wave results.
     /// </summary>
     private async Task CheckEscalationAsync(IVideoWave wave, VideoContext context, CancellationToken ct)
     {
@@ -250,7 +246,8 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
             var ocrConfidence = context.GetValue<double?>("ocr.avg_confidence");
             if (ocrConfidence.HasValue && ocrConfidence.Value < 0.5)
             {
-                _logger.LogInformation("Low OCR confidence ({Confidence:F2}) - escalating to vision LLM", ocrConfidence.Value);
+                _logger.LogInformation("Low OCR confidence ({Confidence:F2}) - escalating to vision LLM",
+                    ocrConfidence.Value);
                 EmitSignal(VideoSignals.EscalationVisionLlm, true, wave.Name, context);
             }
         }
@@ -263,7 +260,8 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
 
             if (keyframeCount > 0 && embeddingCount < keyframeCount * 0.5)
             {
-                _logger.LogWarning("Only {Embeddings}/{Keyframes} embeddings generated - escalating", embeddingCount, keyframeCount);
+                _logger.LogWarning("Only {Embeddings}/{Keyframes} embeddings generated - escalating", embeddingCount,
+                    keyframeCount);
                 EmitSignal(VideoSignals.EscalationRequired, "embeddings_incomplete", wave.Name, context);
             }
         }
@@ -272,7 +270,7 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Get the execution lane for a wave.
+    ///     Get the execution lane for a wave.
     /// </summary>
     private string GetWaveLane(IVideoWave wave)
     {
@@ -315,11 +313,11 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
         _availableSignals.Add(key);
 
         OnSignalEmitted?.Invoke(new VideoSignalEvent(
-            Signal: key,
-            Value: value,
-            Source: source,
-            Confidence: 1.0,
-            Timestamp: DateTimeOffset.UtcNow
+            key,
+            value,
+            source,
+            1.0,
+            DateTimeOffset.UtcNow
         ));
     }
 
@@ -341,7 +339,7 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Get waves that would run given current signals.
+    ///     Get waves that would run given current signals.
     /// </summary>
     public IReadOnlyList<string> GetRunnableWaves(VideoContext context)
     {
@@ -352,33 +350,18 @@ public sealed class SignalAwareWaveCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Get the dependency graph for visualization.
+    ///     Get the dependency graph for visualization.
     /// </summary>
     public Dictionary<string, List<string>> GetDependencyGraph()
     {
         var graph = new Dictionary<string, List<string>>();
 
         foreach (var wave in _waves)
-        {
             if (wave is ISignalAwareVideoWave signalAware)
-            {
                 graph[wave.Name] = signalAware.RequiredSignals.ToList();
-            }
             else
-            {
                 graph[wave.Name] = new List<string>();
-            }
-        }
 
         return graph;
-    }
-
-    public void Dispose()
-    {
-        foreach (var semaphore in _laneSemaphores.Values)
-        {
-            semaphore.Dispose();
-        }
-        _laneSemaphores.Clear();
     }
 }

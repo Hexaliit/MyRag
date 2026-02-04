@@ -5,8 +5,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Sources.Science;
 
 /// <summary>
-/// Standalone science data source plugin for DoomSummarizer.
-/// Fetches Spaceflight News API articles and USGS earthquake data.
+///     Standalone science data source plugin for DoomSummarizer.
+///     Fetches Spaceflight News API articles and USGS earthquake data.
 /// </summary>
 public sealed class ScienceSourcePlugin : ISourcePlugin
 {

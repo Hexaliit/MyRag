@@ -4,8 +4,8 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace VideoSummarizer.Core.Coordination;
 
 /// <summary>
-/// Wave manifest loaded from YAML configuration.
-/// All configuration values are defined here - NO magic numbers in code.
+///     Wave manifest loaded from YAML configuration.
+///     All configuration values are defined here - NO magic numbers in code.
 /// </summary>
 public record VideoWaveManifest
 {
@@ -30,14 +30,11 @@ public record ListensConfig
 
 public record EmitsConfig
 {
-    [YamlMember(Alias = "on_start")]
-    public List<string> OnStart { get; init; } = [];
+    [YamlMember(Alias = "on_start")] public List<string> OnStart { get; init; } = [];
 
-    [YamlMember(Alias = "on_complete")]
-    public List<SignalEmit> OnComplete { get; init; } = [];
+    [YamlMember(Alias = "on_complete")] public List<SignalEmit> OnComplete { get; init; } = [];
 
-    [YamlMember(Alias = "on_failure")]
-    public List<string> OnFailure { get; init; } = [];
+    [YamlMember(Alias = "on_failure")] public List<string> OnFailure { get; init; } = [];
 }
 
 public record SignalEmit
@@ -67,14 +64,14 @@ public record EscalationTarget
 {
     public List<EscalationCondition> When { get; init; } = [];
 
-    [YamlMember(Alias = "skip_when")]
-    public List<EscalationCondition> SkipWhen { get; init; } = [];
+    [YamlMember(Alias = "skip_when")] public List<EscalationCondition> SkipWhen { get; init; } = [];
 }
 
 public record LaneConfig
 {
     [YamlMember(Alias = "max_concurrency")]
     public int MaxConcurrency { get; init; } = 1;
+
     public string Description { get; init; } = "";
 }
 
@@ -84,8 +81,7 @@ public record WavesConfig
     public Dictionary<string, LaneConfig> Lanes { get; init; } = new();
 
     // Individual wave manifests (dynamic)
-    [YamlIgnore]
-    public Dictionary<string, VideoWaveManifest> Waves { get; set; } = new();
+    [YamlIgnore] public Dictionary<string, VideoWaveManifest> Waves { get; set; } = new();
 }
 
 public record DefaultsConfig
@@ -98,21 +94,17 @@ public record DefaultsConfig
 }
 
 /// <summary>
-/// Loads and caches wave manifests from YAML configuration.
+///     Loads and caches wave manifests from YAML configuration.
 /// </summary>
 public class VideoWaveManifestLoader
 {
-    private readonly Dictionary<string, VideoWaveManifest> _manifests = new();
-    private readonly Dictionary<string, LaneConfig> _lanes = new();
     private readonly DefaultsConfig _defaults = new();
+    private readonly Dictionary<string, LaneConfig> _lanes = new();
+    private readonly Dictionary<string, VideoWaveManifest> _manifests = new();
     private bool _loaded;
 
-    public VideoWaveManifestLoader()
-    {
-    }
-
     /// <summary>
-    /// Load manifests from YAML file.
+    ///     Load manifests from YAML file.
     /// </summary>
     public void LoadFromFile(string path)
     {
@@ -121,7 +113,7 @@ public class VideoWaveManifestLoader
     }
 
     /// <summary>
-    /// Load manifests from embedded resource.
+    ///     Load manifests from embedded resource.
     /// </summary>
     public void LoadFromEmbedded()
     {
@@ -141,7 +133,7 @@ public class VideoWaveManifestLoader
                 return;
             }
 
-            throw new FileNotFoundException($"Could not find waves.yaml manifest");
+            throw new FileNotFoundException("Could not find waves.yaml manifest");
         }
 
         using var reader = new StreamReader(stream);
@@ -150,7 +142,7 @@ public class VideoWaveManifestLoader
     }
 
     /// <summary>
-    /// Load manifests from YAML string.
+    ///     Load manifests from YAML string.
     /// </summary>
     public void LoadFromYaml(string yaml)
     {
@@ -178,10 +170,7 @@ public class VideoWaveManifestLoader
             var serializer = new SerializerBuilder().Build();
             var lanesYaml = serializer.Serialize(lanesObj);
             var lanes = deserializer.Deserialize<Dictionary<string, LaneConfig>>(lanesYaml);
-            foreach (var (name, config) in lanes)
-            {
-                _lanes[name] = config;
-            }
+            foreach (var (name, config) in lanes) _lanes[name] = config;
         }
 
         // Extract individual wave manifests (everything else)
@@ -196,10 +185,7 @@ public class VideoWaveManifestLoader
             try
             {
                 var manifest = deserializer.Deserialize<VideoWaveManifest>(waveYaml);
-                if (manifest != null)
-                {
-                    _manifests[key] = manifest;
-                }
+                if (manifest != null) _manifests[key] = manifest;
             }
             catch
             {
@@ -211,7 +197,7 @@ public class VideoWaveManifestLoader
     }
 
     /// <summary>
-    /// Get manifest for a specific wave.
+    ///     Get manifest for a specific wave.
     /// </summary>
     public VideoWaveManifest? GetManifest(string waveName)
     {
@@ -220,7 +206,7 @@ public class VideoWaveManifestLoader
     }
 
     /// <summary>
-    /// Get all manifests ordered by priority (descending).
+    ///     Get all manifests ordered by priority (descending).
     /// </summary>
     public IReadOnlyList<VideoWaveManifest> GetOrderedManifests()
     {
@@ -231,7 +217,7 @@ public class VideoWaveManifestLoader
     }
 
     /// <summary>
-    /// Get manifests that can run given available signals.
+    ///     Get manifests that can run given available signals.
     /// </summary>
     public IReadOnlyList<VideoWaveManifest> GetRunnableManifests(IReadOnlySet<string> availableSignals)
     {
@@ -244,21 +230,19 @@ public class VideoWaveManifestLoader
     }
 
     /// <summary>
-    /// Check if a wave can run based on available signals.
+    ///     Check if a wave can run based on available signals.
     /// </summary>
     public bool CanRun(VideoWaveManifest manifest, IReadOnlySet<string> availableSignals)
     {
         // All required signals must be available
         foreach (var required in manifest.Listens.Required)
-        {
             if (!availableSignals.Contains(required))
                 return false;
-        }
         return true;
     }
 
     /// <summary>
-    /// Get lane configuration.
+    ///     Get lane configuration.
     /// </summary>
     public LaneConfig GetLane(string laneName)
     {
@@ -267,23 +251,20 @@ public class VideoWaveManifestLoader
     }
 
     /// <summary>
-    /// Build dependency graph for visualization.
+    ///     Build dependency graph for visualization.
     /// </summary>
     public Dictionary<string, HashSet<string>> BuildDependencyGraph()
     {
         EnsureLoaded();
         var graph = new Dictionary<string, HashSet<string>>();
 
-        foreach (var manifest in _manifests.Values)
-        {
-            graph[manifest.Name] = manifest.Listens.Required.ToHashSet();
-        }
+        foreach (var manifest in _manifests.Values) graph[manifest.Name] = manifest.Listens.Required.ToHashSet();
 
         return graph;
     }
 
     /// <summary>
-    /// Get config value from manifest.
+    ///     Get config value from manifest.
     /// </summary>
     public T? GetConfigValue<T>(string waveName, string key, T? defaultValue = default)
     {
@@ -303,13 +284,13 @@ public class VideoWaveManifestLoader
                 return defaultValue;
             }
         }
+
         return defaultValue;
     }
 
     private void EnsureLoaded()
     {
         if (!_loaded)
-        {
             try
             {
                 LoadFromEmbedded();
@@ -319,6 +300,5 @@ public class VideoWaveManifestLoader
                 // Use empty defaults
                 _loaded = true;
             }
-        }
     }
 }

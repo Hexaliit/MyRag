@@ -4,12 +4,16 @@ Automated motion detection for animated images using dense optical flow analysis
 
 ## Overview
 
-The GIF Motion Analyzer uses OpenCV's Farneback dense optical flow algorithm to detect and characterize motion in animated GIF and WebP images. Unlike sparse optical flow methods (like Lucas-Kanade) that track specific feature points, Farneback computes motion vectors for **every pixel** between consecutive frames, providing comprehensive motion field coverage.
+The GIF Motion Analyzer uses OpenCV's Farneback dense optical flow algorithm to detect and characterize motion in
+animated GIF and WebP images. Unlike sparse optical flow methods (like Lucas-Kanade) that track specific feature points,
+Farneback computes motion vectors for **every pixel** between consecutive frames, providing comprehensive motion field
+coverage.
 
 ### Key Features
 
 - **Dense Optical Flow**: Analyzes motion across the entire frame, not just feature points
-- **8-Directional Classification**: Identifies motion as right, left, up, down, or diagonal (up-right, up-left, down-right, down-left)
+- **8-Directional Classification**: Identifies motion as right, left, up, down, or diagonal (up-right, up-left,
+  down-right, down-left)
 - **Motion Magnitude**: Measures average pixel displacement per frame
 - **Confidence Scoring**: Calculates consistency of motion direction across frames
 - **Automatic Integration**: Seamlessly integrated into image analysis pipeline with signal-based caching
@@ -40,7 +44,8 @@ Frames are converted from RGBA to grayscale using standard luminance formula:
 var gray = (byte)(0.299 * pixel.R + 0.587 * pixel.G + 0.114 * pixel.B);
 ```
 
-This reduces computational complexity while preserving motion information, as optical flow algorithms work on intensity gradients rather than color.
+This reduces computational complexity while preserving motion information, as optical flow algorithms work on intensity
+gradients rather than color.
 
 ### 3. OpenCV Mat Creation
 
@@ -72,11 +77,13 @@ Cv2.CalcOpticalFlowFarneback(
 ```
 
 **What this produces:**
+
 - A 2-channel flow field (same dimensions as input frames)
 - Each pixel contains (dx, dy) - horizontal and vertical motion vectors
 - Vectors represent pixel displacement between frames
 
 **Farneback Algorithm Details:**
+
 - Uses polynomial expansion to approximate neighborhood of each pixel
 - Operates on multi-scale pyramid for robustness to large motions
 - Iteratively refines flow estimates at each pyramid level
@@ -110,6 +117,7 @@ for (int y = 0; y < flow.Rows; y++)
 ```
 
 **Motion Threshold:**
+
 - Default: 2.0 pixels per frame
 - Filters out camera shake and noise
 - Only pixels with motion > threshold are counted as "significant motion"
@@ -129,6 +137,7 @@ else if (angle >= 67.5 && angle < 112.5) return "down";
 ```
 
 **Angle Ranges:**
+
 - Right: -22.5° to 22.5°
 - Down-right: 22.5° to 67.5°
 - Down: 67.5° to 112.5°
@@ -162,6 +171,7 @@ var confidence = framesWithMotion > 0
 ```
 
 **Confidence Calculation:**
+
 - Measures how consistently frames agree on motion direction
 - High confidence (>0.8): Most frames show same direction
 - Low confidence (<0.5): Mixed motion directions
@@ -195,6 +205,7 @@ public record GifMotionProfile
 ```
 
 **Field Descriptions:**
+
 - **FrameCount**: Total number of frames in the animation
 - **FrameDelayMs**: Average delay between frames in milliseconds
 - **Fps**: Calculated frames per second (1000 / FrameDelayMs)
@@ -326,6 +337,7 @@ lucidrag-image batch ./animations --min-motion 10.0 --motion-direction "right"
 ### CLI Output Examples
 
 **Table Format:**
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ Batch Analysis Summary                                          │
@@ -354,6 +366,7 @@ lucidrag-image batch ./animations --min-motion 10.0 --motion-direction "right"
 ```
 
 **JSON Format:**
+
 ```json
 {
   "summary": {
@@ -405,6 +418,7 @@ Approximate performance on typical hardware (Intel i7, 16GB RAM):
 | 1024x1024  | 50 frames   | ~3000ms         |
 
 **Optimization Tips:**
+
 - Lower `maxFramesToAnalyze` for faster processing
 - Increase `motionThreshold` to reduce computation on low-motion pixels
 - Process in parallel batches for multiple files
@@ -428,6 +442,7 @@ iterations: 5     // More refinements
 ```
 
 **Frame Sampling:**
+
 - Analyze every frame: Most accurate, slowest
 - Analyze every 2nd frame: ~50% faster, still accurate for most cases
 - Analyze every 5th frame: Fast, may miss subtle motion
@@ -437,12 +452,14 @@ iterations: 5     // More refinements
 ### Optical Flow Background
 
 **What is Optical Flow?**
-Optical flow is the pattern of apparent motion of objects in a visual scene based on their brightness patterns. It makes two key assumptions:
+Optical flow is the pattern of apparent motion of objects in a visual scene based on their brightness patterns. It makes
+two key assumptions:
 
 1. **Brightness Constancy**: Pixel intensity remains constant between frames
 2. **Spatial Coherence**: Neighboring pixels move similarly
 
 **Farneback Method:**
+
 - Approximates neighborhood of each pixel with polynomial expansion
 - Computes coefficients for displaced neighborhoods
 - Uses multi-scale pyramid for large displacements
@@ -450,11 +467,13 @@ Optical flow is the pattern of apparent motion of objects in a visual scene base
 
 **Mathematical Foundation:**
 For each pixel, the algorithm solves:
+
 ```
 I(x, y, t) = I(x + dx, y + dy, t + dt)
 ```
 
 Where:
+
 - I(x, y, t) = pixel intensity at position (x,y) and time t
 - (dx, dy) = displacement vector (what we want to find)
 
@@ -462,14 +481,15 @@ Where:
 
 **Dense vs Sparse:**
 
-| Feature | Dense (Farneback) | Sparse (Lucas-Kanade) |
-|---------|-------------------|----------------------|
-| Coverage | Every pixel | Selected features only |
-| Computation | Slower | Faster |
-| Motion Field | Complete | Partial |
-| Best For | Analyzing overall motion patterns | Tracking specific objects |
+| Feature      | Dense (Farneback)                 | Sparse (Lucas-Kanade)     |
+|--------------|-----------------------------------|---------------------------|
+| Coverage     | Every pixel                       | Selected features only    |
+| Computation  | Slower                            | Faster                    |
+| Motion Field | Complete                          | Partial                   |
+| Best For     | Analyzing overall motion patterns | Tracking specific objects |
 
 **For GIF analysis, dense flow is better because:**
+
 - We want to characterize overall animation direction
 - No need to track specific objects
 - Complete coverage ensures we don't miss motion
@@ -478,12 +498,14 @@ Where:
 ### OpenCV Dependencies
 
 **Required Packages:**
+
 ```xml
 <PackageReference Include="OpenCvSharp4" Version="4.11.0.20250506" />
 <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250506" />
 ```
 
 **Platform Support:**
+
 - Windows: `OpenCvSharp4.runtime.win`
 - Linux: `OpenCvSharp4.runtime.linux`
 - macOS: `OpenCvSharp4.runtime.osx`
@@ -565,25 +587,30 @@ else
 
 ## Motion Object Identification
 
-Beyond detecting motion patterns, the system can identify **what specific objects** are moving in an animation using Vision LLM.
+Beyond detecting motion patterns, the system can identify **what specific objects** are moving in an animation using
+Vision LLM.
 
 ### How It Works
 
-1. **Optical Flow First**: Dense optical flow detects that motion exists and characterizes it (direction, magnitude, coverage)
+1. **Optical Flow First**: Dense optical flow detects that motion exists and characterizes it (direction, magnitude,
+   coverage)
 2. **Context Gathering**: Structured features are gathered from previous analysis waves
 3. **Vision LLM Query**: The image is sent to a Vision LLM with motion context hints
 4. **Fallback**: If LLM can't see motion (single-frame limitation), entities from VisionLlmWave are used as inference
 
 ### Structured Features Only (No Captions)
 
-**Critical Design Decision**: The motion identification prompt only passes **structured features** to the Vision LLM, not free-form text like captions or descriptions.
+**Critical Design Decision**: The motion identification prompt only passes **structured features** to the Vision LLM,
+not free-form text like captions or descriptions.
 
 **Why?**
+
 - Captions/descriptions may contain inaccuracies from earlier analysis
 - Passing inaccurate text to the LLM can compound errors
 - The LLM should see the image "fresh" without bias from potentially wrong descriptions
 
 **What IS passed:**
+
 - Entity types (e.g., "animal", "person", "vehicle") - not labels/descriptions
 - Face count (integer)
 - Has text (boolean) - not the actual OCR text which may be garbled
@@ -591,6 +618,7 @@ Beyond detecting motion patterns, the system can identify **what specific object
 - Motion facts (type, direction, intensity, coverage)
 
 **What is NOT passed:**
+
 - Full captions or descriptions
 - Raw OCR text
 - Free-form labels
@@ -609,7 +637,8 @@ Priority order:
 5. Frame count (animation length)
 ```
 
-Budget management ensures the prompt stays concise - vision models have limited prompt context compared to text models since the image consumes most of the context window.
+Budget management ensures the prompt stays concise - vision models have limited prompt context compared to text models
+since the image consumes most of the context window.
 
 ### Entity Fallback
 
@@ -660,6 +689,7 @@ Motion signals are automatically integrated into alt text generation:
 ### Example Prompts
 
 **Compact prompt generated:**
+
 ```
 Animated image. What objects/elements are MOVING?
 
@@ -672,7 +702,8 @@ List MOVING items only, one per line. Be specific.
 ```
 
 **Parsing filters:**
-The parser skips meta-commentary like "Based on the image...", "No motion visible", "Objects detected:", etc. Only extracts concrete moving object descriptions.
+The parser skips meta-commentary like "Based on the image...", "No motion visible", "Objects detected:", etc. Only
+extracts concrete moving object descriptions.
 
 ### Configurable Signal Weights
 
@@ -694,6 +725,7 @@ Signal importance can be customized in configuration:
 ```
 
 Default signal importance weights for motion signals:
+
 - `motion.moving_objects`: 9.0 (high - describes dynamic content)
 - `motion.summary`: 8.5
 - `motion.type`: 7.5
@@ -703,13 +735,16 @@ Default signal importance weights for motion signals:
 
 ### Current Limitations
 
-1. **No Region-Based Analysis**: Currently analyzes global motion only. Future versions will support `MotionRegion` for localized motion detection.
+1. **No Region-Based Analysis**: Currently analyzes global motion only. Future versions will support `MotionRegion` for
+   localized motion detection.
 
-2. **Rotational Motion**: Pure rotational motion (like spinners) may show low confidence as vectors cancel out when averaged.
+2. **Rotational Motion**: Pure rotational motion (like spinners) may show low confidence as vectors cancel out when
+   averaged.
 
 3. **Scene Changes**: Sudden scene changes (cuts) register as very high motion magnitude and may skew results.
 
-4. **Transparency**: Alpha channel is ignored during grayscale conversion. May affect results for GIFs with significant transparency.
+4. **Transparency**: Alpha channel is ignored during grayscale conversion. May affect results for GIFs with significant
+   transparency.
 
 5. **Compression Artifacts**: Heavily compressed GIFs may have noise that affects low-magnitude motion detection.
 
@@ -777,7 +812,8 @@ lucidrag-image analyze ./test-gifs/static.gif
 
 - [Optical Flow Tutorial](https://docs.opencv.org/4.x/d4/dee/tutorial_optical_flow.html)
 - [calcOpticalFlowFarneback API](https://docs.opencv.org/4.x/dc/d6b/group__video__track.html#ga5d10ebbd59fe09c5f650289ec0ece5af)
-- [Farneback Algorithm Paper](https://www.diva-portal.org/smash/get/diva2:273847/FULLTEXT01.pdf) (Gunnar Farneback, 2003)
+- [Farneback Algorithm Paper](https://www.diva-portal.org/smash/get/diva2:273847/FULLTEXT01.pdf) (Gunnar Farneback,
+  2003)
 
 ### ImageSharp Documentation
 

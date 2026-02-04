@@ -1,10 +1,9 @@
-using Xunit;
-using Moq;
-using Moq.Protected;
 using System.Net;
 using System.Net.Http.Json;
+using Moq;
+using Moq.Protected;
 using Mostlylucid.DocSummarizer.Images.Services.VisionLlm;
-using Microsoft.Extensions.Logging;
+using Xunit;
 
 namespace Mostlylucid.DocSummarizer.Images.Tests.Services.VisionLlm;
 

@@ -1,4 +1,4 @@
-using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Images.Config;
@@ -9,20 +9,14 @@ using Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// OCR Benchmark Wave - Compares multiple OCR systems and generates comparison reports.
-/// Runs after all OCR waves to collect and compare their results.
-/// Priority: 45 (after OCR waves at 50-65, before final synthesis).
+///     OCR Benchmark Wave - Compares multiple OCR systems and generates comparison reports.
+///     Runs after all OCR waves to collect and compare their results.
+///     Priority: 45 (after OCR waves at 50-65, before final synthesis).
 /// </summary>
 public class OcrBenchmarkWave : IAnalysisWave
 {
-    private readonly OcrConfig _config;
-    private readonly OcrBenchmarkConfig _benchmarkConfig;
-    private readonly SpellChecker _spellChecker;
-    private readonly ILogger<OcrBenchmarkWave>? _logger;
-    private readonly object _reportLock = new();
-
     /// <summary>
-    /// OCR systems to benchmark with their signal keys.
+    ///     OCR systems to benchmark with their signal keys.
     /// </summary>
     private static readonly (string SystemName, string SignalKey, string? TimingSignal)[] OcrSystems =
     {
@@ -32,12 +26,14 @@ public class OcrBenchmarkWave : IAnalysisWave
         ("Nanonets", "ocr.nanonets.text", "ocr.nanonets.duration_ms"),
         ("DeepSeek", "ocr.deepseek.text", "ocr.deepseek.duration_ms"),
         ("OlmOCR-2", "ocr.olmocr2.text", "ocr.olmocr2.duration_ms"),
-        ("VisionLLM", "vision.llm.text", "vision.llm.duration_ms"),
+        ("VisionLLM", "vision.llm.text", "vision.llm.duration_ms")
     };
 
-    public string Name => "OcrBenchmarkWave";
-    public int Priority => 45; // After all OCR waves (50-65), before synthesis
-    public IReadOnlyList<string> Tags => new[] { "benchmark", "ocr", "quality" };
+    private readonly OcrBenchmarkConfig _benchmarkConfig;
+    private readonly OcrConfig _config;
+    private readonly ILogger<OcrBenchmarkWave>? _logger;
+    private readonly object _reportLock = new();
+    private readonly SpellChecker _spellChecker;
 
     public OcrBenchmarkWave(
         IOptions<ImageConfig> imageConfig,
@@ -49,6 +45,10 @@ public class OcrBenchmarkWave : IAnalysisWave
         _spellChecker = spellChecker;
         _logger = logger;
     }
+
+    public string Name => "OcrBenchmarkWave";
+    public int Priority => 45; // After all OCR waves (50-65), before synthesis
+    public IReadOnlyList<string> Tags => new[] { "benchmark", "ocr", "quality" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -82,22 +82,17 @@ public class OcrBenchmarkWave : IAnalysisWave
         var hasGroundTruth = !string.IsNullOrWhiteSpace(groundTruth);
 
         if (hasGroundTruth)
-        {
             _logger?.LogInformation("Ground truth file found for {ImagePath} ({Chars} chars)",
                 imagePath, groundTruth!.Length);
-        }
         else
-        {
-            _logger?.LogInformation("No ground truth file found for {ImagePath}, using spell-check accuracy", imagePath);
-        }
+            _logger?.LogInformation("No ground truth file found for {ImagePath}, using spell-check accuracy",
+                imagePath);
 
         // Load spell checker dictionary (fallback when no ground truth)
         var dictionaryLoaded = await _spellChecker.LoadDictionaryAsync(_benchmarkConfig.AccuracyLanguage, ct);
         if (!dictionaryLoaded && !hasGroundTruth)
-        {
             _logger?.LogWarning("Dictionary not available for {Language}, accuracy will be estimated",
                 _benchmarkConfig.AccuracyLanguage);
-        }
 
         // Collect results from each OCR system
         foreach (var (systemName, signalKey, timingSignal) in OcrSystems)
@@ -126,9 +121,7 @@ public class OcrBenchmarkWave : IAnalysisWave
             // Get timing if available
             long timingMs = 0;
             if (!string.IsNullOrEmpty(timingSignal) && context.HasSignal(timingSignal))
-            {
                 timingMs = context.GetValue<long>(timingSignal);
-            }
 
             // Calculate accuracy - prefer ground truth, fall back to spell checker
             double accuracy;
@@ -185,7 +178,6 @@ public class OcrBenchmarkWave : IAnalysisWave
             });
 
             if (timingMs > 0)
-            {
                 signals.Add(new Signal
                 {
                     Key = $"benchmark.ocr.{systemName.ToLowerInvariant().Replace("-", "")}.timing",
@@ -194,7 +186,6 @@ public class OcrBenchmarkWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "benchmark", "ocr", systemName.ToLowerInvariant() }
                 });
-            }
         }
 
         // Determine winner (highest accuracy among systems that ran)
@@ -204,12 +195,10 @@ public class OcrBenchmarkWave : IAnalysisWave
         {
             winner = runningSystems.MaxBy(r => r.Accuracy);
             if (winner != null)
-            {
                 // Update winner flag in list
                 systemResults = systemResults
                     .Select(r => r.SystemName == winner.SystemName ? r with { IsWinner = true } : r)
                     .ToList();
-            }
         }
 
         // Create benchmark result
@@ -275,31 +264,25 @@ public class OcrBenchmarkWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Load ground truth text file if it exists next to the image.
-    /// Looks for: image.txt, image.ext.txt (e.g., photo.jpg.txt)
+    ///     Load ground truth text file if it exists next to the image.
+    ///     Looks for: image.txt, image.ext.txt (e.g., photo.jpg.txt)
     /// </summary>
     private static async Task<string?> LoadGroundTruthAsync(string imagePath, CancellationToken ct)
     {
         // Try image.txt (without extension)
         var basePath = Path.ChangeExtension(imagePath, ".txt");
-        if (File.Exists(basePath))
-        {
-            return await File.ReadAllTextAsync(basePath, ct);
-        }
+        if (File.Exists(basePath)) return await File.ReadAllTextAsync(basePath, ct);
 
         // Try image.ext.txt (with extension)
         var extPath = imagePath + ".txt";
-        if (File.Exists(extPath))
-        {
-            return await File.ReadAllTextAsync(extPath, ct);
-        }
+        if (File.Exists(extPath)) return await File.ReadAllTextAsync(extPath, ct);
 
         return null;
     }
 
     /// <summary>
-    /// Calculate accuracy by comparing OCR output to ground truth.
-    /// Uses word-level overlap (Jaccard similarity) with normalization.
+    ///     Calculate accuracy by comparing OCR output to ground truth.
+    ///     Uses word-level overlap (Jaccard similarity) with normalization.
     /// </summary>
     private static double CalculateGroundTruthAccuracy(string ocrText, string groundTruth)
     {
@@ -307,22 +290,27 @@ public class OcrBenchmarkWave : IAnalysisWave
             return 0;
 
         // Normalize: lowercase, remove extra whitespace, common OCR artifacts
-        static string Normalize(string s) => string.Join(" ",
-            s.ToLowerInvariant()
-             .Replace('\n', ' ')
-             .Replace('\r', ' ')
-             .Replace('\t', ' ')
-             .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+        static string Normalize(string s)
+        {
+            return string.Join(" ",
+                s.ToLowerInvariant()
+                    .Replace('\n', ' ')
+                    .Replace('\r', ' ')
+                    .Replace('\t', ' ')
+                    .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+        }
 
         var normalizedOcr = Normalize(ocrText);
         var normalizedGt = Normalize(groundTruth);
 
         // Extract words (alphanumeric sequences)
-        static HashSet<string> ExtractWords(string s) =>
-            new(System.Text.RegularExpressions.Regex
+        static HashSet<string> ExtractWords(string s)
+        {
+            return new HashSet<string>(Regex
                 .Matches(s, @"[\w]+")
                 .Select(m => m.Value.ToLowerInvariant())
-                .Where(w => w.Length >= 2)); // Skip single chars
+                .Where(w => w.Length >= 2));
+        } // Skip single chars
 
         var ocrWords = ExtractWords(normalizedOcr);
         var gtWords = ExtractWords(normalizedGt);
@@ -347,8 +335,8 @@ public class OcrBenchmarkWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Estimate accuracy when dictionary is not available.
-    /// Uses character-level heuristics.
+    ///     Estimate accuracy when dictionary is not available.
+    ///     Uses character-level heuristics.
     /// </summary>
     private static SpellCheckResult EstimateAccuracy(string text)
     {
@@ -391,7 +379,7 @@ public class OcrBenchmarkWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Find text that multiple systems agree on (simple majority).
+    ///     Find text that multiple systems agree on (simple majority).
     /// </summary>
     private static string? FindConsensusText(List<OcrSystemResult> results)
     {
@@ -415,7 +403,7 @@ public class OcrBenchmarkWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Save benchmark results to Markdown report file.
+    ///     Save benchmark results to Markdown report file.
     /// </summary>
     private async Task SaveReportAsync(OcrBenchmarkResult result, CancellationToken ct)
     {
@@ -432,17 +420,13 @@ public class OcrBenchmarkWave : IAnalysisWave
             {
                 var directory = Path.GetDirectoryName(reportPath);
                 if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                {
                     Directory.CreateDirectory(directory);
-                }
 
                 if (_benchmarkConfig.AppendToReport)
                 {
                     // Add header if file doesn't exist or is empty
                     if (!File.Exists(reportPath) || new FileInfo(reportPath).Length == 0)
-                    {
                         File.WriteAllText(reportPath, "# OCR Benchmark Results\n\n");
-                    }
                     File.AppendAllText(reportPath, markdown);
                 }
                 else

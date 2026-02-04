@@ -6,15 +6,12 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// For queries without clear structural boundaries, uses embedding clustering
-/// to detect multi-topic content. Splits query into overlapping n-gram windows,
-/// embeds each, clusters by cosine similarity, and decomposes if 2+ distinct clusters.
+///     For queries without clear structural boundaries, uses embedding clustering
+///     to detect multi-topic content. Splits query into overlapping n-gram windows,
+///     embeds each, clusters by cosine similarity, and decomposes if 2+ distinct clusters.
 /// </summary>
 public partial class SemanticClusterAnalyzer : IQueryAnalyzer
 {
-    private readonly IEmbeddingService? _embedding;
-    private readonly ILogger<SemanticClusterAnalyzer>? _logger;
-
     /// <summary>Minimum cosine similarity to consider two windows part of the same cluster.</summary>
     private const float ClusterThreshold = 0.50f;
 
@@ -23,6 +20,9 @@ public partial class SemanticClusterAnalyzer : IQueryAnalyzer
 
     /// <summary>N-gram window size for clustering.</summary>
     private const int WindowSize = 4;
+
+    private readonly IEmbeddingService? _embedding;
+    private readonly ILogger<SemanticClusterAnalyzer>? _logger;
 
     public SemanticClusterAnalyzer(IEmbeddingService? embedding = null, ILogger<SemanticClusterAnalyzer>? logger = null)
     {
@@ -90,8 +90,8 @@ public partial class SemanticClusterAnalyzer : IQueryAnalyzer
     }
 
     /// <summary>
-    /// Strip URLs, file paths, and DOIs from query text before windowing.
-    /// These reference tokens create noisy n-gram windows with no semantic value.
+    ///     Strip URLs, file paths, and DOIs from query text before windowing.
+    ///     These reference tokens create noisy n-gram windows with no semantic value.
     /// </summary>
     internal static string StripReferences(string query)
     {
@@ -101,7 +101,9 @@ public partial class SemanticClusterAnalyzer : IQueryAnalyzer
         return MultiSpacePattern().Replace(cleaned, " ").Trim();
     }
 
-    [GeneratedRegex(@"https?://\S+|(?:[A-Za-z]:\\[^\s<>""']+|/(?:home|usr|var|tmp|etc|opt)/\S+|~/\S+)|(?:https?://doi\.org/)?10\.\d{4,}/\S+", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"https?://\S+|(?:[A-Za-z]:\\[^\s<>""']+|/(?:home|usr|var|tmp|etc|opt)/\S+|~/\S+)|(?:https?://doi\.org/)?10\.\d{4,}/\S+",
+        RegexOptions.IgnoreCase)]
     private static partial Regex ReferencePattern();
 
     [GeneratedRegex(@"\s{2,}")]
@@ -112,15 +114,13 @@ public partial class SemanticClusterAnalyzer : IQueryAnalyzer
     {
         var windows = new List<string>();
         for (var i = 0; i <= words.Length - windowSize; i++)
-        {
             windows.Add(string.Join(" ", words.Skip(i).Take(windowSize)));
-        }
         return windows;
     }
 
     /// <summary>
-    /// Simple agglomerative clustering: assign each window to the first cluster
-    /// with similarity >= threshold, or create a new cluster.
+    ///     Simple agglomerative clustering: assign each window to the first cluster
+    ///     with similarity >= threshold, or create a new cluster.
     /// </summary>
     internal static List<SemanticCluster> AgglomerativeCluster(
         string[] windows, float[][] embeddings, float threshold)
@@ -155,12 +155,12 @@ public partial class SemanticClusterAnalyzer : IQueryAnalyzer
 }
 
 /// <summary>
-/// A cluster of semantically similar n-gram windows.
+///     A cluster of semantically similar n-gram windows.
 /// </summary>
 internal class SemanticCluster
 {
-    private readonly List<string> _windows = [];
     private readonly List<float[]> _embeddings = [];
+    private readonly List<string> _windows = [];
 
     public SemanticCluster(string initialWindow, float[] embedding)
     {
@@ -190,6 +190,7 @@ internal class SemanticCluster
                 sum += emb[d];
             newCentroid[d] = sum / _embeddings.Count;
         }
+
         CentroidEmbedding = newCentroid;
     }
 }

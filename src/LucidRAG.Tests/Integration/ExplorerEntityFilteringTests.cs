@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using PuppeteerSharp;
@@ -7,15 +8,12 @@ namespace LucidRAG.Tests.Integration;
 /// <summary>
 ///     Browser functional tests for Explorer entity filtering.
 ///     Tests that entity filtering in the explorer sidebar works correctly.
-///
 ///     Requires:
 ///     - LucidRAG app running on https://localhost:5020
 ///     - Authentication (tests skip gracefully if redirected to login)
 ///     - Some documents uploaded with extracted entities for full filtering tests
-///
 ///     The explorer mode is accessed via /admin and using the sidebar mode toggle.
 ///     Entity filtering is only available in the authenticated admin area.
-///
 ///     Run locally only with: dotnet test --filter "Category=Browser"
 /// </summary>
 [Collection("Browser")]
@@ -23,8 +21,8 @@ namespace LucidRAG.Tests.Integration;
 public class ExplorerEntityFilteringTests : IAsyncLifetime
 {
     private const string BaseUrl = "https://localhost:5020";
-    private readonly List<string> _consoleMessages = [];
     private readonly List<string> _consoleErrors = [];
+    private readonly List<string> _consoleMessages = [];
     private readonly List<string> _pageErrors = [];
     private IBrowser? _browser;
     private IPage? _page;
@@ -37,7 +35,8 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
         _browser = await Puppeteer.LaunchAsync(new LaunchOptions
         {
             Headless = true,
-            Args = [
+            Args =
+            [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
@@ -53,10 +52,7 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
         {
             var msg = $"[{e.Message.Type}] {e.Message.Text}";
             _consoleMessages.Add(msg);
-            if (e.Message.Type == ConsoleType.Error)
-            {
-                _consoleErrors.Add(msg);
-            }
+            if (e.Message.Type == ConsoleType.Error) _consoleErrors.Add(msg);
         };
         _page.Error += (_, e) => _pageErrors.Add($"[PageError] {e}");
     }
@@ -197,13 +193,15 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
         Console.WriteLine($"App state: {appState}");
 
         // Assert - Page loaded (even if redirected)
-        response!.Status.Should().BeOneOf(System.Net.HttpStatusCode.OK, System.Net.HttpStatusCode.Found, System.Net.HttpStatusCode.Redirect);
+        response!.Status.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Found, HttpStatusCode.Redirect);
 
         // If component found, verify it has entity filtering capabilities
         if (appState.TryGetProperty("found", out var found) && found.GetBoolean())
         {
-            appState.GetProperty("hasSelectedEntities").GetBoolean().Should().BeTrue("Should have selectedEntities property");
-            appState.GetProperty("hasToggleEntityFilter").GetBoolean().Should().BeTrue("Should have toggleEntityFilter function");
+            appState.GetProperty("hasSelectedEntities").GetBoolean().Should()
+                .BeTrue("Should have selectedEntities property");
+            appState.GetProperty("hasToggleEntityFilter").GetBoolean().Should()
+                .BeTrue("Should have toggleEntityFilter function");
         }
         else
         {
@@ -226,6 +224,7 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
             Console.WriteLine("SKIP: Authentication required");
             return;
         }
+
         if (explorerState.Value.TryGetProperty("error", out var error))
         {
             Console.WriteLine($"SKIP: {error.GetString()}");
@@ -233,9 +232,12 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
         }
 
         // Assert
-        explorerState.Value.GetProperty("hasEntityGroups").GetBoolean().Should().BeTrue("Should have entityGroups property");
-        explorerState.Value.GetProperty("hasSelectedEntities").GetBoolean().Should().BeTrue("Should have selectedEntities property");
-        explorerState.Value.GetProperty("hasToggleEntityFilter").GetBoolean().Should().BeTrue("Should have toggleEntityFilter function");
+        explorerState.Value.GetProperty("hasEntityGroups").GetBoolean().Should()
+            .BeTrue("Should have entityGroups property");
+        explorerState.Value.GetProperty("hasSelectedEntities").GetBoolean().Should()
+            .BeTrue("Should have selectedEntities property");
+        explorerState.Value.GetProperty("hasToggleEntityFilter").GetBoolean().Should()
+            .BeTrue("Should have toggleEntityFilter function");
     }
 
     /// <summary>
@@ -324,7 +326,8 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
         }
 
         clickResult.GetProperty("isSelected").GetBoolean().Should().BeTrue("Entity should be selected after click");
-        clickResult.GetProperty("finalSelectedCount").GetInt32().Should().BeGreaterThan(0, "Selected count should increase");
+        clickResult.GetProperty("finalSelectedCount").GetInt32().Should()
+            .BeGreaterThan(0, "Selected count should increase");
     }
 
     /// <summary>
@@ -412,7 +415,8 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
             return;
         }
 
-        result.GetProperty("hasFiltersAfter").GetBoolean().Should().BeTrue("hasActiveFilters should return true after selecting entity");
+        result.GetProperty("hasFiltersAfter").GetBoolean().Should()
+            .BeTrue("hasActiveFilters should return true after selecting entity");
         result.GetProperty("selectedCount").GetInt32().Should().BeGreaterThan(0, "Should have selected entity");
     }
 
@@ -501,9 +505,12 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
         }
 
         result.GetProperty("countAfterSelect").GetInt32().Should().Be(1, "Should have 1 selected after first toggle");
-        result.GetProperty("isSelectedAfterFirst").GetBoolean().Should().BeTrue("Entity should be selected after first toggle");
-        result.GetProperty("countAfterDeselect").GetInt32().Should().Be(0, "Should have 0 selected after second toggle");
-        result.GetProperty("isSelectedAfterSecond").GetBoolean().Should().BeFalse("Entity should not be selected after second toggle");
+        result.GetProperty("isSelectedAfterFirst").GetBoolean().Should()
+            .BeTrue("Entity should be selected after first toggle");
+        result.GetProperty("countAfterDeselect").GetInt32().Should()
+            .Be(0, "Should have 0 selected after second toggle");
+        result.GetProperty("isSelectedAfterSecond").GetBoolean().Should()
+            .BeFalse("Entity should not be selected after second toggle");
     }
 
     /// <summary>
@@ -566,19 +573,13 @@ public class ExplorerEntityFilteringTests : IAsyncLifetime
         if (criticalErrors.Any())
         {
             Console.WriteLine("Console errors found:");
-            foreach (var error in criticalErrors)
-            {
-                Console.WriteLine($"  {error}");
-            }
+            foreach (var error in criticalErrors) Console.WriteLine($"  {error}");
         }
 
         _pageErrors.Should().BeEmpty("No page-level errors should occur");
 
         // Log all console messages for debugging
         Console.WriteLine($"Total console messages: {_consoleMessages.Count}");
-        foreach (var msg in _consoleMessages.Take(20))
-        {
-            Console.WriteLine($"  {msg}");
-        }
+        foreach (var msg in _consoleMessages.Take(20)) Console.WriteLine($"  {msg}");
     }
 }

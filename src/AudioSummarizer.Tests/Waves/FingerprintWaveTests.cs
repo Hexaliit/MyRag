@@ -10,8 +10,8 @@ namespace AudioSummarizer.Tests.Waves;
 
 public class FingerprintWaveTests
 {
-    private readonly FingerprintWave _wave;
     private readonly string _testAudioPath;
+    private readonly FingerprintWave _wave;
 
     public FingerprintWaveTests()
     {
@@ -53,10 +53,7 @@ public class FingerprintWaveTests
     public async Task AnalyzeAsync_WithValidAudio_ExtractsFingerprint()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 
@@ -77,10 +74,7 @@ public class FingerprintWaveTests
     public async Task AnalyzeAsync_SameAudio_ProducesSameFingerprint()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 
@@ -99,10 +93,7 @@ public class FingerprintWaveTests
     public async Task AnalyzeAsync_WithValidAudio_FingerprintTypeIsSpectralPeaks()
     {
         // Arrange
-        if (!File.Exists(_testAudioPath))
-        {
-            return;
-        }
+        if (!File.Exists(_testAudioPath)) return;
 
         var context = new AnalysisContext();
 

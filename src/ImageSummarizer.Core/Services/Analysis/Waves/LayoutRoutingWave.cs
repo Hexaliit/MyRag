@@ -8,18 +8,27 @@ using Mostlylucid.DocSummarizer.Images.Services.Layout;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Layout Routing Wave - Extracts and routes detected layout regions to appropriate processors.
-/// - Tables → DataSummarizer for structured extraction
-/// - Pictures/Figures → ImageSummarizer for recursive analysis
-/// - Text regions → OCR validation
-///
-/// Priority: 63 (runs right after LayoutDetectionWave at 64, before OCR at 60).
+///     Layout Routing Wave - Extracts and routes detected layout regions to appropriate processors.
+///     - Tables → DataSummarizer for structured extraction
+///     - Pictures/Figures → ImageSummarizer for recursive analysis
+///     - Text regions → OCR validation
+///     Priority: 63 (runs right after LayoutDetectionWave at 64, before OCR at 60).
 /// </summary>
 public class LayoutRoutingWave : IAnalysisWave
 {
     private readonly ImageConfig _config;
     private readonly LayoutRegionExtractor _extractor;
     private readonly ILogger<LayoutRoutingWave>? _logger;
+
+    public LayoutRoutingWave(
+        IOptions<ImageConfig> config,
+        LayoutRegionExtractor extractor,
+        ILogger<LayoutRoutingWave>? logger = null)
+    {
+        _config = config.Value;
+        _extractor = extractor;
+        _logger = logger;
+    }
 
     public string Name => "LayoutRoutingWave";
     public int Priority => 63; // After LayoutDetectionWave (64), before OCR waves (60)
@@ -38,16 +47,6 @@ public class LayoutRoutingWave : IAnalysisWave
         return true;
     }
 
-    public LayoutRoutingWave(
-        IOptions<ImageConfig> config,
-        LayoutRegionExtractor extractor,
-        ILogger<LayoutRoutingWave>? logger = null)
-    {
-        _config = config.Value;
-        _extractor = extractor;
-        _logger = logger;
-    }
-
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
         string imagePath,
         AnalysisContext context,
@@ -57,10 +56,7 @@ public class LayoutRoutingWave : IAnalysisWave
         var sw = Stopwatch.StartNew();
 
         var detections = context.GetValue<List<LayoutDetection>>("layout.detection.elements");
-        if (detections == null || detections.Count == 0)
-        {
-            return signals;
-        }
+        if (detections == null || detections.Count == 0) return signals;
 
         _logger?.LogInformation("Routing {Count} layout regions from {Image}",
             detections.Count, Path.GetFileName(imagePath));
@@ -124,7 +120,7 @@ public class LayoutRoutingWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Extract table regions and prepare for DataSummarizer processing.
+    ///     Extract table regions and prepare for DataSummarizer processing.
     /// </summary>
     private async Task<List<ExtractedRegion>> ExtractAndRouteTablesAsync(
         string imagePath,
@@ -169,8 +165,7 @@ public class LayoutRoutingWave : IAnalysisWave
             context.SetCached("layout.table_image_paths", extracted.Select(e => e.ExtractedImagePath).ToList());
 
             // Emit individual table signals for easy access
-            for (int i = 0; i < extracted.Count; i++)
-            {
+            for (var i = 0; i < extracted.Count; i++)
                 signals.Add(new Signal
                 {
                     Key = $"layout.table.{i}.path",
@@ -179,14 +174,13 @@ public class LayoutRoutingWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "layout", "table", "path" }
                 });
-            }
         }
 
         return extracted;
     }
 
     /// <summary>
-    /// Extract picture/figure regions for recursive ImageSummarizer processing.
+    ///     Extract picture/figure regions for recursive ImageSummarizer processing.
     /// </summary>
     private async Task<List<ExtractedRegion>> ExtractAndRoutePicturesAsync(
         string imagePath,
@@ -232,8 +226,7 @@ public class LayoutRoutingWave : IAnalysisWave
             context.SetCached("layout.picture_image_paths", extracted.Select(e => e.ExtractedImagePath).ToList());
 
             // Emit individual picture signals
-            for (int i = 0; i < extracted.Count; i++)
-            {
+            for (var i = 0; i < extracted.Count; i++)
                 signals.Add(new Signal
                 {
                     Key = $"layout.picture.{i}.path",
@@ -242,14 +235,13 @@ public class LayoutRoutingWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { "layout", "picture", "path" }
                 });
-            }
         }
 
         return extracted;
     }
 
     /// <summary>
-    /// Process text regions for OCR guidance and validation.
+    ///     Process text regions for OCR guidance and validation.
     /// </summary>
     private Task ProcessTextRegionsAsync(
         List<LayoutDetection> detections,

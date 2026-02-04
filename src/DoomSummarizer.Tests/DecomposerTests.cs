@@ -1,3 +1,4 @@
+using DoomSummarizer.Services;
 using LucidRAG.Decomposer.Analysis;
 using LucidRAG.Decomposer.Caching;
 using LucidRAG.Decomposer.Integration;
@@ -8,9 +9,9 @@ using LucidRAG.Decomposer.Refinement;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for the LucidRAG.Decomposer pipeline: tool-use routing, structural analysis,
-/// complexity classification, concept registry, refinement, orchestration, caching.
-/// No embedding service needed — tests exercise deterministic paths.
+///     Tests for the LucidRAG.Decomposer pipeline: tool-use routing, structural analysis,
+///     complexity classification, concept registry, refinement, orchestration, caching.
+///     No embedding service needed — tests exercise deterministic paths.
 /// </summary>
 public class DecomposerTests
 {
@@ -22,9 +23,11 @@ public class DecomposerTests
     [InlineData("What is a transformer?", 0, 0, false, false, QueryComplexity.Simple)]
     [InlineData("Tell me about AI", 0, 0, false, false, QueryComplexity.Simple)]
     [InlineData("Tell me about https://arxiv.org/abs/2210.02406", 0, 0, true, false, QueryComplexity.Moderate)]
-    [InlineData("Compare A and B", 2, 1, false, false, QueryComplexity.Simple)] // 2 entities, 1 type, short query = Simple
+    [InlineData("Compare A and B", 2, 1, false, false,
+        QueryComplexity.Simple)] // 2 entities, 1 type, short query = Simple
     [InlineData("A, B, C entities together", 3, 1, false, false, QueryComplexity.Complex)] // 3+ entities = Complex
-    [InlineData("Org1 vs Org2 in LocA", 3, 2, false, false, QueryComplexity.Complex)] // 3+ entities = Complex (hits before type check)
+    [InlineData("Org1 vs Org2 in LocA", 3, 2, false, false,
+        QueryComplexity.Complex)] // 3+ entities = Complex (hits before type check)
     public async Task ComplexityClassifier_ClassifiesCorrectly(
         string query, int entityCount, int entityTypeCount,
         bool hasUrls, bool hasDateTimes, QueryComplexity expected)
@@ -39,7 +42,8 @@ public class DecomposerTests
     [InlineData("Tell me about X. Also explain Y.", 2)]
     [InlineData("A; B; C", 2)] // second ; followed by "C" (len 1 ≤ 3) → no second split
     [InlineData("First thing. Second thing. Third thing. Fourth.", 4)]
-    [InlineData("Tell me about transformers and also about attention mechanisms for neural networks", 3)] // "and also" + "and" (len>40, idx>15)
+    [InlineData("Tell me about transformers and also about attention mechanisms for neural networks",
+        3)] // "and also" + "and" (len>40, idx>15)
     [InlineData("Short and sweet", 1)] // "and" at position < 15, short query
     public void ComplexityClassifier_CountClauses(string query, int expected)
     {
@@ -239,10 +243,8 @@ public class DecomposerTests
         var result = await analyzer.AnalyzeAsync("Index all markdown files", signals);
 
         if (result.DetectedTools.Count > 0)
-        {
             result.Complexity.Should().NotBe(QueryComplexity.Simple,
                 "tool detection should upgrade complexity");
-        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -496,7 +498,7 @@ public class DecomposerTests
         var refiner = new SentinelRefiner();
         var signals = new QuerySignals
         {
-            OriginalQuery = "Tell me about X and also Y",
+            OriginalQuery = "Tell me about X and also Y"
             // No proposed nodes from deterministic analysis
         };
 
@@ -703,7 +705,7 @@ public class DecomposerTests
     public async Task InMemoryCache_StoreAndRetrieve()
     {
         var cache = new InMemoryDecompositionCache();
-        var embedding = new float[] { 1f, 0f, 0f, 0f };
+        var embedding = new[] { 1f, 0f, 0f, 0f };
         var result = new SubQueryResult { NodeId = "test", Success = true, ItemCount = 5 };
 
         await cache.PutAsync(embedding, null, result);
@@ -717,8 +719,8 @@ public class DecomposerTests
     public async Task InMemoryCache_MissOnDifferentEmbedding()
     {
         var cache = new InMemoryDecompositionCache();
-        var embedding1 = new float[] { 1f, 0f, 0f, 0f };
-        var embedding2 = new float[] { 0f, 1f, 0f, 0f }; // orthogonal
+        var embedding1 = new[] { 1f, 0f, 0f, 0f };
+        var embedding2 = new[] { 0f, 1f, 0f, 0f }; // orthogonal
         var result = new SubQueryResult { NodeId = "test", Success = true };
 
         await cache.PutAsync(embedding1, null, result);
@@ -731,7 +733,7 @@ public class DecomposerTests
     public async Task InMemoryCache_EvictsExpired()
     {
         var cache = new InMemoryDecompositionCache();
-        var embedding = new float[] { 1f, 0f, 0f, 0f };
+        var embedding = new[] { 1f, 0f, 0f, 0f };
         var result = new SubQueryResult { NodeId = "test", Success = true };
 
         await cache.PutAsync(embedding, null, result);
@@ -957,16 +959,16 @@ public class DecomposerTests
     public void Adapter_ToRefinementInput()
     {
         var input = DoomSummarizerAdapter.ToRefinementInput(
-            isComposite: true,
-            subqueries: ["Q1", "Q2"],
-            correctedQuery: "corrected",
-            filterKeywords: ["kw1"],
-            searchQueries: ["sq1"],
-            entities: ["ent1"],
-            timeSensitivity: "today",
-            requiresFresh: true,
-            intent: "news",
-            categories: new() { ["tech"] = 0.9 });
+            true,
+            ["Q1", "Q2"],
+            "corrected",
+            ["kw1"],
+            ["sq1"],
+            ["ent1"],
+            "today",
+            true,
+            "news",
+            new Dictionary<string, double> { ["tech"] = 0.9 });
 
         input.IsComposite.Should().BeTrue();
         input.Subqueries.Should().HaveCount(2);
@@ -1160,7 +1162,7 @@ public class DecomposerTests
                       This is the body text.
                       """;
 
-        var result = DoomSummarizer.Services.RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
+        var result = RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
 
         result.Should().ContainKey("title").WhoseValue.Should().Be("Test Article");
         result.Should().ContainKey("author").WhoseValue.Should().Be("John Doe");
@@ -1173,7 +1175,7 @@ public class DecomposerTests
     public void ExtractYamlFrontMatter_NoFrontmatter_ReturnsEmpty()
     {
         var content = "# Just a heading\nSome text here";
-        var result = DoomSummarizer.Services.RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
+        var result = RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
         result.Should().BeEmpty();
     }
 
@@ -1188,7 +1190,7 @@ public class DecomposerTests
                       Body text.
                       """;
 
-        var result = DoomSummarizer.Services.RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
+        var result = RetrievalSubQueryExecutor.ExtractYamlFrontMatter(content);
         result["title"].Should().Be("Quoted Title");
         result["author"].Should().Be("Single Quoted");
     }
@@ -1204,7 +1206,7 @@ public class DecomposerTests
         var testDir = Path.Combine(AppContext.BaseDirectory, "TestData", "Markdown");
         var testFile = Path.Combine(testDir, "aboutme.md");
 
-        var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+        var item = await RetrievalSubQueryExecutor
             .BuildContentItemFromFileAsync(testFile, CancellationToken.None);
 
         // Basic ContentItem fields
@@ -1239,7 +1241,7 @@ public class DecomposerTests
         var testDir = Path.Combine(AppContext.BaseDirectory, "TestData", "Markdown");
         var testFile = Path.Combine(testDir, "aboutme.md");
 
-        var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+        var item = await RetrievalSubQueryExecutor
             .BuildContentItemFromFileAsync(testFile, CancellationToken.None);
 
         item.Metadata.Should().ContainKey("file_size_human");
@@ -1256,19 +1258,19 @@ public class DecomposerTests
         {
             var tempFile = Path.Combine(tempDir, "test-article.md");
             await File.WriteAllTextAsync(tempFile, """
-                ---
-                title: My Test Article
-                author: Jane Smith
-                date: 2025-03-15
-                tags: [testing, CI, dotnet]
-                ---
-                # My Test Article
+                                                   ---
+                                                   title: My Test Article
+                                                   author: Jane Smith
+                                                   date: 2025-03-15
+                                                   tags: [testing, CI, dotnet]
+                                                   ---
+                                                   # My Test Article
 
-                This is the test body content with enough text to be meaningful.
-                It covers multiple lines and topics.
-                """);
+                                                   This is the test body content with enough text to be meaningful.
+                                                   It covers multiple lines and topics.
+                                                   """);
 
-            var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+            var item = await RetrievalSubQueryExecutor
                 .BuildContentItemFromFileAsync(tempFile, CancellationToken.None);
 
             // Frontmatter extracted to metadata with fm_ prefix
@@ -1301,7 +1303,7 @@ public class DecomposerTests
             var tempFile = Path.Combine(tempDir, "sample.txt");
             await File.WriteAllTextAsync(tempFile, "Line 1\nLine 2\nLine 3\n");
 
-            var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+            var item = await RetrievalSubQueryExecutor
                 .BuildContentItemFromFileAsync(tempFile, CancellationToken.None);
 
             item.Source.Should().Be("filesystem:txt");
@@ -1333,7 +1335,7 @@ public class DecomposerTests
 
         foreach (var file in files)
         {
-            var item = await DoomSummarizer.Services.RetrievalSubQueryExecutor
+            var item = await RetrievalSubQueryExecutor
                 .BuildContentItemFromFileAsync(file, CancellationToken.None);
 
             item.Should().NotBeNull($"File: {file}");
@@ -1346,16 +1348,19 @@ public class DecomposerTests
 }
 
 /// <summary>
-/// Fake executor for testing orchestrator behavior without real service dependencies.
+///     Fake executor for testing orchestrator behavior without real service dependencies.
 /// </summary>
 internal class FakeSubQueryExecutor : ISubQueryExecutor
 {
     public int ToolExecutions { get; private set; }
     public int ReferenceFetches { get; private set; }
     public List<string> ExecutionOrder { get; } = [];
+
     public HashSet<ToolKind> SupportedTools { get; set; } =
-        [ToolKind.Search, ToolKind.Fetch, ToolKind.FileSystem, ToolKind.Index,
-         ToolKind.KbQuery, ToolKind.Analyze, ToolKind.Crawl, ToolKind.Transform];
+    [
+        ToolKind.Search, ToolKind.Fetch, ToolKind.FileSystem, ToolKind.Index,
+        ToolKind.KbQuery, ToolKind.Analyze, ToolKind.Crawl, ToolKind.Transform
+    ];
 
     public Task<SubQueryResult> ExecuteAsync(QueryNode node, CancellationToken ct = default)
     {
@@ -1394,6 +1399,8 @@ internal class FakeSubQueryExecutor : ISubQueryExecutor
         });
     }
 
-    public Task<bool> SupportsToolAsync(ToolKind tool, CancellationToken ct = default) =>
-        Task.FromResult(SupportedTools.Contains(tool));
+    public Task<bool> SupportsToolAsync(ToolKind tool, CancellationToken ct = default)
+    {
+        return Task.FromResult(SupportedTools.Contains(tool));
+    }
 }

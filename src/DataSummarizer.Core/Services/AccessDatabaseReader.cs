@@ -5,14 +5,13 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services;
 
 /// <summary>
-/// Database reader implementation for Microsoft Access files (.mdb, .accdb).
-/// Note: Access support is currently limited. Cross-platform reading of Access files
-/// requires a stable C# library. Options include:
-/// - MMKiwi.MdbReader (pure C#, but pre-alpha)
-/// - System.Data.Odbc with ACE driver (Windows only)
-/// - EntityFrameworkCore.Jet (requires ACE driver)
-///
-/// This implementation provides the interface for future completion.
+///     Database reader implementation for Microsoft Access files (.mdb, .accdb).
+///     Note: Access support is currently limited. Cross-platform reading of Access files
+///     requires a stable C# library. Options include:
+///     - MMKiwi.MdbReader (pure C#, but pre-alpha)
+///     - System.Data.Odbc with ACE driver (Windows only)
+///     - EntityFrameworkCore.Jet (requires ACE driver)
+///     This implementation provides the interface for future completion.
 /// </summary>
 public class AccessDatabaseReader : IDatabaseReader
 {

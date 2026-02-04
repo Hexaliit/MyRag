@@ -50,53 +50,53 @@
         </ProjectReference>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <!-- Source plugins (ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.HackerNews\Mostlylucid.DoomSummarizer.Source.HackerNews.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reddit\Mostlylucid.DoomSummarizer.Source.Reddit.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Google\Mostlylucid.DoomSummarizer.Source.Google.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.News\Mostlylucid.DoomSummarizer.Source.News.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Web\Mostlylucid.DoomSummarizer.Source.Web.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Academic\Mostlylucid.DoomSummarizer.Source.Academic.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Science\Mostlylucid.DoomSummarizer.Source.Science.csproj" />
-        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reference\Mostlylucid.DoomSummarizer.Source.Reference.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.HackerNews\Mostlylucid.DoomSummarizer.Source.HackerNews.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reddit\Mostlylucid.DoomSummarizer.Source.Reddit.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Google\Mostlylucid.DoomSummarizer.Source.Google.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.News\Mostlylucid.DoomSummarizer.Source.News.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Web\Mostlylucid.DoomSummarizer.Source.Web.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Academic\Mostlylucid.DoomSummarizer.Source.Academic.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Science\Mostlylucid.DoomSummarizer.Source.Science.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.Reference\Mostlylucid.DoomSummarizer.Source.Reference.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.HackerNews" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Reddit" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Google" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.News" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Web" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Academic" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Science" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Reference" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.HackerNews" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Reddit" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Google" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.News" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Web" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Academic" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Science" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Sources.Reference" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <!-- Reader packages (ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Pdf\Mostlylucid.Summarizers.Reader.Pdf.csproj" />
-        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docx\Mostlylucid.Summarizers.Reader.Docx.csproj" />
-        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Gutenberg\Mostlylucid.Summarizers.Reader.Gutenberg.csproj" />
-        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Markdown\Mostlylucid.Summarizers.Reader.Markdown.csproj" />
-        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docling\Mostlylucid.Summarizers.Reader.Docling.csproj" />
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Pdf\Mostlylucid.Summarizers.Reader.Pdf.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docx\Mostlylucid.Summarizers.Reader.Docx.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Gutenberg\Mostlylucid.Summarizers.Reader.Gutenberg.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Markdown\Mostlylucid.Summarizers.Reader.Markdown.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.Summarizers.Reader.Docling\Mostlylucid.Summarizers.Reader.Docling.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Pdf" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Docx" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Gutenberg" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Markdown" Version="$(CorePackageVersion)" />
-        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Docling" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Pdf" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Docx" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Gutenberg" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Markdown" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Readers.Docling" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
     <!-- All processor plugins via meta-package (ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\Mostlylucid.LucidRAG.Plugins.Complete\Mostlylucid.LucidRAG.Plugins.Complete.csproj" />
+        <ProjectReference Include="..\Mostlylucid.LucidRAG.Plugins.Complete\Mostlylucid.LucidRAG.Plugins.Complete.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Complete" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.Plugins.Complete" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
 </Project>

@@ -1,29 +1,25 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace VideoSummarizer.Core.Services.External;
 
 /// <summary>
-/// Client for OpenSubtitles.com REST API.
-/// https://opensubtitles.stoplight.io/docs/opensubtitles-api
+///     Client for OpenSubtitles.com REST API.
+///     https://opensubtitles.stoplight.io/docs/opensubtitles-api
 /// </summary>
 public class OpenSubtitlesClient : IDisposable
 {
+    private const string BaseUrl = "https://api.opensubtitles.com/api/v1";
     private readonly HttpClient _httpClient;
+    private readonly JsonSerializerOptions _jsonOptions;
     private readonly ILogger<OpenSubtitlesClient> _logger;
     private readonly OpenSubtitlesOptions _options;
-    private readonly JsonSerializerOptions _jsonOptions;
 
     private string? _jwtToken;
     private DateTimeOffset _tokenExpiry = DateTimeOffset.MinValue;
-
-    private const string BaseUrl = "https://api.opensubtitles.com/api/v1";
 
     public OpenSubtitlesClient(
         HttpClient httpClient,
@@ -45,8 +41,13 @@ public class OpenSubtitlesClient : IDisposable
         _httpClient.DefaultRequestHeaders.Add("User-Agent", _options.UserAgent ?? "LucidRAG v1.0");
     }
 
+    public void Dispose()
+    {
+        // HttpClient managed by DI
+    }
+
     /// <summary>
-    /// Search for subtitles by IMDB ID.
+    ///     Search for subtitles by IMDB ID.
     /// </summary>
     public async Task<List<OpenSubtitlesResult>> SearchByImdbIdAsync(
         string imdbId,
@@ -62,10 +63,7 @@ public class OpenSubtitlesClient : IDisposable
         try
         {
             var url = $"{BaseUrl}/subtitles?imdb_id={imdbId.TrimStart('t')}";
-            if (!string.IsNullOrEmpty(language))
-            {
-                url += $"&languages={language}";
-            }
+            if (!string.IsNullOrEmpty(language)) url += $"&languages={language}";
 
             var response = await _httpClient.GetFromJsonAsync<OpenSubtitlesSearchResponse>(url, _jsonOptions, ct);
             return response?.Data ?? [];
@@ -78,8 +76,8 @@ public class OpenSubtitlesClient : IDisposable
     }
 
     /// <summary>
-    /// Search for subtitles by file hash (more accurate).
-    /// Uses OpenSubtitles hash algorithm.
+    ///     Search for subtitles by file hash (more accurate).
+    ///     Uses OpenSubtitles hash algorithm.
     /// </summary>
     public async Task<List<OpenSubtitlesResult>> SearchByHashAsync(
         string filePath,
@@ -98,10 +96,7 @@ public class OpenSubtitlesClient : IDisposable
             var fileInfo = new FileInfo(filePath);
 
             var url = $"{BaseUrl}/subtitles?moviehash={hash}&moviebytesize={fileInfo.Length}";
-            if (!string.IsNullOrEmpty(language))
-            {
-                url += $"&languages={language}";
-            }
+            if (!string.IsNullOrEmpty(language)) url += $"&languages={language}";
 
             var response = await _httpClient.GetFromJsonAsync<OpenSubtitlesSearchResponse>(url, _jsonOptions, ct);
             return response?.Data ?? [];
@@ -114,7 +109,7 @@ public class OpenSubtitlesClient : IDisposable
     }
 
     /// <summary>
-    /// Search for subtitles by query (title).
+    ///     Search for subtitles by query (title).
     /// </summary>
     public async Task<List<OpenSubtitlesResult>> SearchByQueryAsync(
         string query,
@@ -131,14 +126,8 @@ public class OpenSubtitlesClient : IDisposable
         try
         {
             var url = $"{BaseUrl}/subtitles?query={Uri.EscapeDataString(query)}";
-            if (year.HasValue)
-            {
-                url += $"&year={year}";
-            }
-            if (!string.IsNullOrEmpty(language))
-            {
-                url += $"&languages={language}";
-            }
+            if (year.HasValue) url += $"&year={year}";
+            if (!string.IsNullOrEmpty(language)) url += $"&languages={language}";
 
             var response = await _httpClient.GetFromJsonAsync<OpenSubtitlesSearchResponse>(url, _jsonOptions, ct);
             return response?.Data ?? [];
@@ -151,8 +140,8 @@ public class OpenSubtitlesClient : IDisposable
     }
 
     /// <summary>
-    /// Download subtitle file.
-    /// Requires login for download links.
+    ///     Download subtitle file.
+    ///     Requires login for download links.
     /// </summary>
     public async Task<string?> DownloadSubtitleAsync(
         int fileId,
@@ -178,14 +167,13 @@ public class OpenSubtitlesClient : IDisposable
             };
 
             if (!string.IsNullOrEmpty(_jwtToken))
-            {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _jwtToken);
-            }
 
             var response = await _httpClient.SendAsync(request, ct);
             response.EnsureSuccessStatusCode();
 
-            var downloadResponse = await response.Content.ReadFromJsonAsync<OpenSubtitlesDownloadResponse>(_jsonOptions, ct);
+            var downloadResponse =
+                await response.Content.ReadFromJsonAsync<OpenSubtitlesDownloadResponse>(_jsonOptions, ct);
             if (downloadResponse?.Link == null)
             {
                 _logger.LogWarning("No download link returned for file ID: {FileId}", fileId);
@@ -197,10 +185,7 @@ public class OpenSubtitlesClient : IDisposable
 
             // Ensure directory exists
             var dir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrEmpty(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
             // Write to file
             await File.WriteAllTextAsync(outputPath, subtitleContent, ct);
@@ -216,15 +201,12 @@ public class OpenSubtitlesClient : IDisposable
     }
 
     /// <summary>
-    /// Login to get JWT token for downloads.
+    ///     Login to get JWT token for downloads.
     /// </summary>
     private async Task EnsureLoggedInAsync(CancellationToken ct)
     {
         // Skip if token still valid
-        if (!string.IsNullOrEmpty(_jwtToken) && DateTimeOffset.UtcNow < _tokenExpiry)
-        {
-            return;
-        }
+        if (!string.IsNullOrEmpty(_jwtToken) && DateTimeOffset.UtcNow < _tokenExpiry) return;
 
         if (string.IsNullOrWhiteSpace(_options.Username) || string.IsNullOrWhiteSpace(_options.Password))
         {
@@ -258,58 +240,49 @@ public class OpenSubtitlesClient : IDisposable
     }
 
     /// <summary>
-    /// Compute OpenSubtitles hash for a video file.
-    /// Algorithm: 64-bit checksum of first and last 64KB + file size.
+    ///     Compute OpenSubtitles hash for a video file.
+    ///     Algorithm: 64-bit checksum of first and last 64KB + file size.
     /// </summary>
     public static string ComputeOpenSubtitlesHash(string filePath)
     {
         const int ChunkSize = 65536; // 64KB
 
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-        long streamSize = stream.Length;
+        var streamSize = stream.Length;
 
         // Hash is initialized with file size
-        ulong hash = (ulong)streamSize;
+        var hash = (ulong)streamSize;
 
         // Read first 64KB
-        byte[] buffer = new byte[ChunkSize];
-        int bytesRead = stream.Read(buffer, 0, ChunkSize);
-        for (int i = 0; i < bytesRead / 8; i++)
-        {
-            hash += BitConverter.ToUInt64(buffer, i * 8);
-        }
+        var buffer = new byte[ChunkSize];
+        var bytesRead = stream.Read(buffer, 0, ChunkSize);
+        for (var i = 0; i < bytesRead / 8; i++) hash += BitConverter.ToUInt64(buffer, i * 8);
 
         // Seek to last 64KB
         if (streamSize > ChunkSize)
         {
             stream.Seek(-ChunkSize, SeekOrigin.End);
             bytesRead = stream.Read(buffer, 0, ChunkSize);
-            for (int i = 0; i < bytesRead / 8; i++)
-            {
-                hash += BitConverter.ToUInt64(buffer, i * 8);
-            }
+            for (var i = 0; i < bytesRead / 8; i++) hash += BitConverter.ToUInt64(buffer, i * 8);
         }
 
         return hash.ToString("x16");
     }
 
     /// <summary>
-    /// Find best matching subtitle from search results.
+    ///     Find best matching subtitle from search results.
     /// </summary>
     public OpenSubtitlesResult? FindBestMatch(
         List<OpenSubtitlesResult> results,
         string preferredLanguage = "en",
         bool preferHearingImpaired = false)
     {
-        if (results.Count == 0)
-        {
-            return null;
-        }
+        if (results.Count == 0) return null;
 
         return results
             .OrderByDescending(r =>
             {
-                int score = 0;
+                var score = 0;
 
                 // Language match
                 if (r.Attributes?.Language == preferredLanguage)
@@ -333,11 +306,6 @@ public class OpenSubtitlesClient : IDisposable
                 return score;
             })
             .FirstOrDefault();
-    }
-
-    public void Dispose()
-    {
-        // HttpClient managed by DI
     }
 }
 

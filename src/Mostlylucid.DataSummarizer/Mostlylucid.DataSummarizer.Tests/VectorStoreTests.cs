@@ -1,12 +1,10 @@
-using System.Text;
 using Mostlylucid.DataSummarizer.Models;
 using Mostlylucid.DataSummarizer.Services;
-using Xunit;
 
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for VectorStoreService functionality
+///     Tests for VectorStoreService functionality
 /// </summary>
 public class VectorStoreTests : IDisposable
 {
@@ -24,18 +22,18 @@ public class VectorStoreTests : IDisposable
     {
         try
         {
-            if (Directory.Exists(_tempDir))
-            {
-                Directory.Delete(_tempDir, recursive: true);
-            }
+            if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true);
         }
-        catch { /* Ignore cleanup errors */ }
+        catch
+        {
+            /* Ignore cleanup errors */
+        }
     }
 
     [Fact]
     public async Task Initialize_CreatesDatabase()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         Assert.True(store.IsAvailable);
@@ -44,7 +42,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task UpsertProfile_StoresProfile()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var profile = CreateTestProfile();
@@ -57,7 +55,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task UpsertEmbeddings_StoresEmbeddings()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var profile = CreateTestProfile();
@@ -65,21 +63,21 @@ public class VectorStoreTests : IDisposable
         await store.UpsertEmbeddingsAsync(profile);
 
         // Should be able to search
-        var hits = await store.SearchAsync("test data", topK: 5);
+        var hits = await store.SearchAsync("test data", 5);
         Assert.NotNull(hits);
     }
 
     [Fact]
     public async Task Search_ReturnsRelevantResults()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var profile = CreateTestProfile();
         await store.UpsertProfileAsync(profile);
         await store.UpsertEmbeddingsAsync(profile);
 
-        var hits = await store.SearchAsync("age salary", topK: 5);
+        var hits = await store.SearchAsync("age salary", 5);
 
         Assert.NotEmpty(hits);
     }
@@ -87,10 +85,10 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task Search_ReturnsEmptyForNoData()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
-        var hits = await store.SearchAsync("test query", topK: 5);
+        var hits = await store.SearchAsync("test query", 5);
 
         Assert.Empty(hits);
     }
@@ -98,7 +96,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task AppendConversationTurn_StoresTurn()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var sessionId = Guid.NewGuid().ToString();
@@ -106,14 +104,14 @@ public class VectorStoreTests : IDisposable
         await store.AppendConversationTurnAsync(sessionId, "assistant", "Hi there!");
 
         // Should be retrievable
-        var context = await store.GetConversationContextAsync(sessionId, "greeting", topK: 5);
+        var context = await store.GetConversationContextAsync(sessionId, "greeting", 5);
         Assert.NotEmpty(context);
     }
 
     [Fact]
     public async Task GetConversationContext_FiltersbySession()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var session1 = "session-1";
@@ -122,8 +120,8 @@ public class VectorStoreTests : IDisposable
         await store.AppendConversationTurnAsync(session1, "user", "Session 1 message");
         await store.AppendConversationTurnAsync(session2, "user", "Session 2 message");
 
-        var context1 = await store.GetConversationContextAsync(session1, "message", topK: 5);
-        var context2 = await store.GetConversationContextAsync(session2, "message", topK: 5);
+        var context1 = await store.GetConversationContextAsync(session1, "message", 5);
+        var context2 = await store.GetConversationContextAsync(session2, "message", 5);
 
         Assert.All(context1, c => Assert.Contains("Session 1", c.Content));
         Assert.All(context2, c => Assert.Contains("Session 2", c.Content));
@@ -132,7 +130,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task UpsertNovelPattern_StoresPattern()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var pattern = new NovelPatternRecord
@@ -152,14 +150,14 @@ public class VectorStoreTests : IDisposable
         await store.UpsertNovelPatternAsync(pattern);
 
         // Should be searchable
-        var hits = await store.SearchPatternsAsync("email format", topK: 5);
+        var hits = await store.SearchPatternsAsync("email format", 5);
         Assert.NotEmpty(hits);
     }
 
     [Fact]
     public async Task SearchPatterns_FindsSimilarPatterns()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var emailPattern = new NovelPatternRecord
@@ -185,8 +183,8 @@ public class VectorStoreTests : IDisposable
         await store.UpsertNovelPatternAsync(emailPattern);
         await store.UpsertNovelPatternAsync(phonePattern);
 
-        var emailHits = await store.SearchPatternsAsync("email address format", topK: 5);
-        var phoneHits = await store.SearchPatternsAsync("telephone number", topK: 5);
+        var emailHits = await store.SearchPatternsAsync("email address format", 5);
+        var phoneHits = await store.SearchPatternsAsync("telephone number", 5);
 
         Assert.NotEmpty(emailHits);
         Assert.NotEmpty(phoneHits);
@@ -195,7 +193,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task GetPatternsForFile_ReturnsFilePatterns()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var pattern1 = new NovelPatternRecord
@@ -236,7 +234,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task UpsertNovelPattern_UpdatesExistingPattern()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var pattern = new NovelPatternRecord
@@ -270,7 +268,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task EmbeddingDimension_ReturnsCorrectValue()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         // Default hash-based embeddings use 128 dimensions
@@ -280,7 +278,7 @@ public class VectorStoreTests : IDisposable
     [Fact]
     public async Task MultipleProfiles_AllSearchable()
     {
-        using var store = new VectorStoreService(_dbPath, verbose: false);
+        using var store = new VectorStoreService(_dbPath, false);
         await store.InitializeAsync();
 
         var profile1 = CreateTestProfile("file1.csv", new[] { "Name", "Age" });
@@ -291,10 +289,10 @@ public class VectorStoreTests : IDisposable
         await store.UpsertProfileAsync(profile2);
         await store.UpsertEmbeddingsAsync(profile2);
 
-        var hits = await store.SearchAsync("name age", topK: 10);
+        var hits = await store.SearchAsync("name age", 10);
         Assert.NotEmpty(hits);
 
-        var productHits = await store.SearchAsync("product price", topK: 10);
+        var productHits = await store.SearchAsync("product price", 10);
         Assert.NotEmpty(productHits);
     }
 
@@ -314,12 +312,12 @@ public class VectorStoreTests : IDisposable
                 Name = name,
                 InferredType = ColumnType.Text,
                 Count = 100,
-                NullCount = 0,       // NullPercent is computed from NullCount/Count
-                UniqueCount = 50     // UniquePercent is computed from UniqueCount/Count
+                NullCount = 0, // NullPercent is computed from NullCount/Count
+                UniqueCount = 50 // UniquePercent is computed from UniqueCount/Count
             }).ToList(),
             Insights = new List<DataInsight>
             {
-                new DataInsight
+                new()
                 {
                     Title = "Test Insight",
                     Description = "This is a test insight",

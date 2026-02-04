@@ -1,28 +1,30 @@
 using LucidRAG.Lenses;
 using LucidRAG.Manifests;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using LensManifest = LucidRAG.Manifests.LensManifest;
+using LensScoringConfig = LucidRAG.Lenses.LensScoringConfig;
+using LensTemplatesConfig = LucidRAG.Lenses.LensTemplatesConfig;
 
 namespace LucidRAG.Services.Lenses;
 
 /// <summary>
-/// Loads lens packages from YAML manifests.
-/// Replaces the old JSON-based lens loader.
+///     Loads lens packages from YAML manifests.
+///     Replaces the old JSON-based lens loader.
 /// </summary>
 public sealed class YamlLensLoader : ILensLoader
 {
-    private readonly IManifestLoader<Manifests.LensManifest> _manifestLoader;
     private readonly ILogger<YamlLensLoader> _logger;
+    private readonly IManifestLoader<LensManifest> _manifestLoader;
 
     public YamlLensLoader(
-        IManifestLoader<Manifests.LensManifest> manifestLoader,
+        IManifestLoader<LensManifest> manifestLoader,
         ILogger<YamlLensLoader> logger)
     {
         _manifestLoader = manifestLoader;
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<LensPackage>> LoadFromDirectoryAsync(string directory, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LensPackage>> LoadFromDirectoryAsync(string directory,
+        CancellationToken ct = default)
     {
         var manifests = await _manifestLoader.LoadAllAsync(ct);
 
@@ -49,46 +51,44 @@ public sealed class YamlLensLoader : ILensLoader
         return ConvertToLensPackage(manifest);
     }
 
-    private LensPackage ConvertToLensPackage(Manifests.LensManifest manifest)
+    private LensPackage ConvertToLensPackage(LensManifest manifest)
     {
         // Convert personality from YAML model to Lenses model
-        global::LucidRAG.Lenses.LensPersonality? personality = null;
+        LensPersonality? personality = null;
         if (manifest.Personality != null)
-        {
-            personality = new global::LucidRAG.Lenses.LensPersonality(
-                Tone: manifest.Personality.Tone,
-                SpellingVariant: manifest.Personality.SpellingVariant,
-                Persona: manifest.Personality.Persona,
-                StyleNotes: manifest.Personality.StyleNotes,
-                PhrasePreferences: manifest.Personality.PhrasePreferences
+            personality = new LensPersonality(
+                manifest.Personality.Tone,
+                manifest.Personality.SpellingVariant,
+                manifest.Personality.Persona,
+                manifest.Personality.StyleNotes,
+                manifest.Personality.PhrasePreferences
             );
-        }
 
         return new LensPackage
         {
-            Manifest = new global::LucidRAG.Lenses.LensManifest(
-                Id: manifest.Name,
-                Name: manifest.DisplayName,
-                Description: manifest.Description,
-                Version: manifest.Version,
-                Author: manifest.Author,
-                Priority: manifest.Priority,
-                Scoring: new global::LucidRAG.Lenses.LensScoringConfig(
-                    DenseWeight: manifest.Scoring.DenseWeight,
-                    Bm25Weight: manifest.Scoring.Bm25Weight,
-                    SalienceWeight: manifest.Scoring.SalienceWeight,
-                    FreshnessWeight: manifest.Scoring.FreshnessWeight
+            Manifest = new LucidRAG.Lenses.LensManifest(
+                manifest.Name,
+                manifest.DisplayName,
+                manifest.Description,
+                manifest.Version,
+                manifest.Author,
+                manifest.Priority,
+                new LensScoringConfig(
+                    manifest.Scoring.DenseWeight,
+                    manifest.Scoring.Bm25Weight,
+                    manifest.Scoring.SalienceWeight,
+                    manifest.Scoring.FreshnessWeight
                 ),
-                Templates: new global::LucidRAG.Lenses.LensTemplatesConfig(
-                    SystemPrompt: "inline",  // Templates are inline in YAML
-                    Citation: "inline",
-                    Response: manifest.Templates.Response != null ? "inline" : null
+                new LensTemplatesConfig(
+                    "inline", // Templates are inline in YAML
+                    "inline",
+                    manifest.Templates.Response != null ? "inline" : null
                 ),
-                Styles: manifest.Styles?.InlineCss != null || manifest.Styles?.CssFile != null ? "inline" : null,
-                Settings: manifest.Defaults,
-                Personality: personality
+                manifest.Styles?.InlineCss != null || manifest.Styles?.CssFile != null ? "inline" : null,
+                manifest.Defaults,
+                personality
             ),
-            BasePath = "",  // Not needed for YAML-based lenses
+            BasePath = "", // Not needed for YAML-based lenses
             SystemPromptTemplate = manifest.Templates.SystemPrompt ?? "",
             CitationTemplate = manifest.Templates.Citation ?? "",
             ResponseTemplate = manifest.Templates.Response,

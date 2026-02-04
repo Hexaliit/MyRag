@@ -7,16 +7,16 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzer for blur/sharpness detection using OpenCV Laplacian variance.
-/// Higher values indicate sharper images.
-/// Uses hardware-accelerated OpenCV instead of custom convolution.
+///     Analyzer for blur/sharpness detection using OpenCV Laplacian variance.
+///     Higher values indicate sharper images.
+///     Uses hardware-accelerated OpenCV instead of custom convolution.
 /// </summary>
 public class BlurAnalyzer
 {
     /// <summary>
-    /// Calculate Laplacian variance (sharpness measure) using OpenCV.
-    /// Higher values = sharper image. Typical range: 0-5000+
-    /// 10-50x faster than custom implementation due to hardware acceleration.
+    ///     Calculate Laplacian variance (sharpness measure) using OpenCV.
+    ///     Higher values = sharper image. Typical range: 0-5000+
+    ///     10-50x faster than custom implementation due to hardware acceleration.
     /// </summary>
     /// <param name="image">Image to analyze</param>
     /// <returns>Laplacian variance (higher = sharper)</returns>
@@ -46,8 +46,8 @@ public class BlurAnalyzer
     }
 
     /// <summary>
-    /// Convert ImageSharp image to OpenCV Mat (grayscale).
-    /// Uses ITU-R BT.601 formula for luminance conversion.
+    ///     Convert ImageSharp image to OpenCV Mat (grayscale).
+    ///     Uses ITU-R BT.601 formula for luminance conversion.
     /// </summary>
     private Mat ConvertToGrayscaleMat(Image<Rgba32> image)
     {
@@ -70,7 +70,7 @@ public class BlurAnalyzer
     }
 
     /// <summary>
-    /// Categorize blur level
+    ///     Categorize blur level
     /// </summary>
     public BlurLevel CategorizeBlur(double laplacianVariance)
     {
@@ -86,7 +86,7 @@ public class BlurAnalyzer
 }
 
 /// <summary>
-/// Categorized blur levels
+///     Categorized blur levels
 /// </summary>
 public enum BlurLevel
 {

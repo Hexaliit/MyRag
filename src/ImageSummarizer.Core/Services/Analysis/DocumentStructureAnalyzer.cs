@@ -1,18 +1,19 @@
+using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzes OCR output to detect document structure (headings, paragraphs, lists).
-/// Uses font size (via bounding box height), spacing, and text patterns.
-///
-/// Approach based on research:
-/// - Font size detection via bounding box height (larger = heading)
-/// - Line spacing analysis (extra space = section break)
-/// - Indentation detection (for lists and quotes)
-/// - Case analysis (UPPERCASE/Title Case = likely heading)
-/// - Position heuristics (top/centered = title)
+///     Analyzes OCR output to detect document structure (headings, paragraphs, lists).
+///     Uses font size (via bounding box height), spacing, and text patterns.
+///     Approach based on research:
+///     - Font size detection via bounding box height (larger = heading)
+///     - Line spacing analysis (extra space = section break)
+///     - Indentation detection (for lists and quotes)
+///     - Case analysis (UPPERCASE/Title Case = likely heading)
+///     - Position heuristics (top/centered = title)
 /// </summary>
 public class DocumentStructureAnalyzer
 {
@@ -24,14 +25,11 @@ public class DocumentStructureAnalyzer
     }
 
     /// <summary>
-    /// Analyze OCR regions and detect document structure.
+    ///     Analyze OCR regions and detect document structure.
     /// </summary>
     public DocumentStructure Analyze(List<OcrTextRegion> regions, int imageWidth, int imageHeight)
     {
-        if (regions.Count == 0)
-        {
-            return new DocumentStructure();
-        }
+        if (regions.Count == 0) return new DocumentStructure();
 
         // Step 1: Group words into lines (by Y coordinate clustering)
         var lines = GroupWordsIntoLines(regions);
@@ -56,7 +54,7 @@ public class DocumentStructureAnalyzer
     }
 
     /// <summary>
-    /// Group words into lines based on Y coordinate proximity.
+    ///     Group words into lines based on Y coordinate proximity.
     /// </summary>
     private List<TextLine> GroupWordsIntoLines(List<OcrTextRegion> regions)
     {
@@ -91,10 +89,7 @@ public class DocumentStructureAnalyzer
             }
         }
 
-        if (currentLine != null && currentLine.Words.Count > 0)
-        {
-            lines.Add(currentLine);
-        }
+        if (currentLine != null && currentLine.Words.Count > 0) lines.Add(currentLine);
 
         // Calculate line properties
         foreach (var line in lines)
@@ -117,7 +112,7 @@ public class DocumentStructureAnalyzer
     }
 
     /// <summary>
-    /// Calculate Y overlap ratio between two bounding boxes.
+    ///     Calculate Y overlap ratio between two bounding boxes.
     /// </summary>
     private double CalculateYOverlap(BoundingBox a, BoundingBox b)
     {
@@ -130,14 +125,11 @@ public class DocumentStructureAnalyzer
     }
 
     /// <summary>
-    /// Calculate font size statistics from all lines.
+    ///     Calculate font size statistics from all lines.
     /// </summary>
     private FontStatistics CalculateFontStatistics(List<TextLine> lines)
     {
-        if (lines.Count == 0)
-        {
-            return new FontStatistics();
-        }
+        if (lines.Count == 0) return new FontStatistics();
 
         var heights = lines.Select(l => l.AverageFontHeight).OrderBy(h => h).ToList();
 
@@ -169,7 +161,7 @@ public class DocumentStructureAnalyzer
     }
 
     /// <summary>
-    /// Classify each line as heading, paragraph, list item, etc.
+    ///     Classify each line as heading, paragraph, list item, etc.
     /// </summary>
     private List<StructureElement> ClassifyLines(
         List<TextLine> lines,
@@ -180,7 +172,7 @@ public class DocumentStructureAnalyzer
         var elements = new List<StructureElement>();
         var averageIndent = lines.Where(l => l.BoundingBox.X1 > 0).Average(l => l.BoundingBox.X1);
 
-        for (int i = 0; i < lines.Count; i++)
+        for (var i = 0; i < lines.Count; i++)
         {
             var line = lines[i];
             var prevLine = i > 0 ? lines[i - 1] : null;
@@ -196,7 +188,8 @@ public class DocumentStructureAnalyzer
             };
 
             // Classify based on multiple signals
-            element.Type = ClassifyLineType(line, prevLine, nextLine, fontStats, imageWidth, imageHeight, averageIndent);
+            element.Type =
+                ClassifyLineType(line, prevLine, nextLine, fontStats, imageWidth, imageHeight, averageIndent);
 
             // Estimate markdown heading level (1-6)
             if (element.Type == StructureType.Title)
@@ -224,7 +217,7 @@ public class DocumentStructureAnalyzer
     }
 
     /// <summary>
-    /// Classify a single line based on multiple signals.
+    ///     Classify a single line based on multiple signals.
     /// </summary>
     private StructureType ClassifyLineType(
         TextLine line,
@@ -238,26 +231,14 @@ public class DocumentStructureAnalyzer
         var text = line.Text.Trim();
 
         // Empty or very short lines
-        if (string.IsNullOrWhiteSpace(text) || text.Length < 2)
-        {
-            return StructureType.Unknown;
-        }
+        if (string.IsNullOrWhiteSpace(text) || text.Length < 2) return StructureType.Unknown;
 
         // Check for list item patterns
-        if (IsListItem(text))
-        {
-            return StructureType.ListItem;
-        }
+        if (IsListItem(text)) return StructureType.ListItem;
 
         // Check for page header/footer (top/bottom 10% of page)
-        if (line.BoundingBox.Y1 < imageHeight * 0.08)
-        {
-            return StructureType.PageHeader;
-        }
-        if (line.BoundingBox.Y2 > imageHeight * 0.92)
-        {
-            return StructureType.PageFooter;
-        }
+        if (line.BoundingBox.Y1 < imageHeight * 0.08) return StructureType.PageHeader;
+        if (line.BoundingBox.Y2 > imageHeight * 0.92) return StructureType.PageFooter;
 
         // Check font size signals
         var isTitleSize = line.AverageFontHeight >= fontStats.TitleThreshold;
@@ -274,7 +255,8 @@ public class DocumentStructureAnalyzer
 
         // Check spacing signals (extra space before = section break)
         var hasExtraSpaceBefore = prevLine != null &&
-            (line.BoundingBox.Y1 - prevLine.BoundingBox.Y2) > fontStats.EstimatedBodyTextHeight * 1.5;
+                                  line.BoundingBox.Y1 - prevLine.BoundingBox.Y2 >
+                                  fontStats.EstimatedBodyTextHeight * 1.5;
 
         // Check if short (headings are typically shorter than paragraphs)
         var isShort = text.Length < 80 && !text.EndsWith(".");
@@ -292,29 +274,20 @@ public class DocumentStructureAnalyzer
         if (isShort && !text.Contains('.')) headingScore += 1;
 
         // Title detection (first heading on page, large, prominent)
-        if (line.LineIndex == 0 && headingScore >= 3)
-        {
-            return StructureType.Title;
-        }
+        if (line.LineIndex == 0 && headingScore >= 3) return StructureType.Title;
 
         // Heading detection
-        if (headingScore >= 3)
-        {
-            return StructureType.Heading;
-        }
+        if (headingScore >= 3) return StructureType.Heading;
 
         // Caption detection (small text near images, short, italic/different style)
-        if (line.AverageFontHeight < fontStats.EstimatedBodyTextHeight * 0.9 && isShort)
-        {
-            return StructureType.Caption;
-        }
+        if (line.AverageFontHeight < fontStats.EstimatedBodyTextHeight * 0.9 && isShort) return StructureType.Caption;
 
         // Default to paragraph
         return StructureType.Paragraph;
     }
 
     /// <summary>
-    /// Check if text is a list item (bullet, number, etc.)
+    ///     Check if text is a list item (bullet, number, etc.)
     /// </summary>
     private bool IsListItem(string text)
     {
@@ -327,22 +300,17 @@ public class DocumentStructureAnalyzer
             "✓ ", "✔ ", "☑ ", "□ ", "■ "
         };
 
-        if (bulletPatterns.Any(p => trimmed.StartsWith(p)))
-        {
-            return true;
-        }
+        if (bulletPatterns.Any(p => trimmed.StartsWith(p))) return true;
 
         // Numbered list patterns (1. , 1) , (1) , i. , a. , etc.)
-        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^(\d+[.)]\s)|^(\(\d+\)\s)|^([a-z][.)]\s)|^([ivx]+[.)]\s)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
-        {
-            return true;
-        }
+        if (Regex.IsMatch(trimmed, @"^(\d+[.)]\s)|^(\(\d+\)\s)|^([a-z][.)]\s)|^([ivx]+[.)]\s)",
+                RegexOptions.IgnoreCase)) return true;
 
         return false;
     }
 
     /// <summary>
-    /// Check if text is in Title Case.
+    ///     Check if text is in Title Case.
     /// </summary>
     private bool IsTitleCase(string text)
     {
@@ -355,12 +323,12 @@ public class DocumentStructureAnalyzer
     }
 
     /// <summary>
-    /// Post-process elements to refine classifications.
+    ///     Post-process elements to refine classifications.
     /// </summary>
     private void PostProcessElements(List<StructureElement> elements)
     {
         // Detect consecutive paragraphs that should be merged
-        for (int i = 0; i < elements.Count - 1; i++)
+        for (var i = 0; i < elements.Count - 1; i++)
         {
             var current = elements[i];
             var next = elements[i + 1];
@@ -370,32 +338,26 @@ public class DocumentStructureAnalyzer
                 next.Type == StructureType.Paragraph &&
                 !current.Text.EndsWith('.') &&
                 next.Text.Length > 0 && char.IsLower(next.Text[0]))
-            {
                 current.ShouldMergeWithNext = true;
-            }
         }
 
         // Assign section IDs based on headings
         var sectionId = 0;
         foreach (var element in elements)
         {
-            if (element.Type is StructureType.Title or StructureType.Heading)
-            {
-                sectionId++;
-            }
+            if (element.Type is StructureType.Title or StructureType.Heading) sectionId++;
             element.SectionId = sectionId;
         }
     }
 
     /// <summary>
-    /// Convert detected structure to Markdown.
+    ///     Convert detected structure to Markdown.
     /// </summary>
     public string ToMarkdown(DocumentStructure structure)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
 
         foreach (var element in structure.Elements)
-        {
             switch (element.Type)
             {
                 case StructureType.Title:
@@ -411,10 +373,7 @@ public class DocumentStructureAnalyzer
 
                 case StructureType.Paragraph:
                     sb.AppendLine(element.Text);
-                    if (!element.ShouldMergeWithNext)
-                    {
-                        sb.AppendLine();
-                    }
+                    if (!element.ShouldMergeWithNext) sb.AppendLine();
                     break;
 
                 case StructureType.ListItem:
@@ -435,14 +394,13 @@ public class DocumentStructureAnalyzer
                     sb.AppendLine(element.Text);
                     break;
             }
-        }
 
         return sb.ToString();
     }
 }
 
 /// <summary>
-/// Represents a line of text (grouped words).
+///     Represents a line of text (grouped words).
 /// </summary>
 public class TextLine
 {
@@ -455,7 +413,7 @@ public class TextLine
 }
 
 /// <summary>
-/// Font size statistics for the document.
+///     Font size statistics for the document.
 /// </summary>
 public class FontStatistics
 {
@@ -470,7 +428,7 @@ public class FontStatistics
 }
 
 /// <summary>
-/// Detected document structure.
+///     Detected document structure.
 /// </summary>
 public class DocumentStructure
 {
@@ -482,7 +440,7 @@ public class DocumentStructure
 }
 
 /// <summary>
-/// A detected structure element.
+///     A detected structure element.
 /// </summary>
 public class StructureElement
 {
@@ -498,23 +456,23 @@ public class StructureElement
 }
 
 /// <summary>
-/// Types of document structure elements.
-/// Based on DocLayNet labels.
+///     Types of document structure elements.
+///     Based on DocLayNet labels.
 /// </summary>
 public enum StructureType
 {
     Unknown,
-    Title,          // Overall document title (H1)
-    Heading,        // Section heading (H2-H6)
-    Paragraph,      // Regular text paragraph
-    ListItem,       // Bullet or numbered list item
-    Caption,        // Image/table caption
-    PageHeader,     // Repeating page header
-    PageFooter,     // Repeating page footer
-    Table,          // Table (detected separately)
-    Figure,         // Figure/image placeholder
-    Formula,        // Math formula
-    Code,           // Code block
-    Footnote,       // Footnote text
-    Quote           // Block quote
+    Title, // Overall document title (H1)
+    Heading, // Section heading (H2-H6)
+    Paragraph, // Regular text paragraph
+    ListItem, // Bullet or numbered list item
+    Caption, // Image/table caption
+    PageHeader, // Repeating page header
+    PageFooter, // Repeating page footer
+    Table, // Table (detected separately)
+    Figure, // Figure/image placeholder
+    Formula, // Math formula
+    Code, // Code block
+    Footnote, // Footnote text
+    Quote // Block quote
 }

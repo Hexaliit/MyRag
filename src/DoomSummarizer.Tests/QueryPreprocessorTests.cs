@@ -1,10 +1,11 @@
+using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for QueryPreprocessor NER context building and enrichment.
+///     Tests for QueryPreprocessor NER context building and enrichment.
 /// </summary>
 public class QueryPreprocessorTests
 {
@@ -41,8 +42,7 @@ public class QueryPreprocessorTests
             Organizations = ["Max Planck Institute"]
         };
 
-        context.AllEntityNames.Should().BeEquivalentTo(
-            ["Einstein", "Max Planck Institute", "Berlin"]);
+        context.AllEntityNames.Should().BeEquivalentTo("Einstein", "Max Planck Institute", "Berlin");
     }
 
     // --- EntitySearchQuery building tests ---
@@ -148,10 +148,13 @@ public class QueryPreprocessorTests
         var context = new QueryNerContext
         {
             RawQuery = "test",
-            CachedItems = [new DoomSummarizer.Models.StoredItem
-            {
-                Id = "test_1", Source = "bbc", Title = "Test", Summary = "Summary"
-            }]
+            CachedItems =
+            [
+                new StoredItem
+                {
+                    Id = "test_1", Source = "bbc", Title = "Test", Summary = "Summary"
+                }
+            ]
         };
 
         context.HasCachedData.Should().BeTrue();

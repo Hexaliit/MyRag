@@ -1,18 +1,18 @@
 using System.Diagnostics;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using Mostlylucid.DocSummarizer.Services;
+using Xunit.Abstractions;
 
 namespace DoomSummarizer.Tests.Benchmarks;
 
 /// <summary>
-/// Benchmarks for the retrieval pipeline, focusing on quality anchor embedding caching
-/// and scoring throughput.
+///     Benchmarks for the retrieval pipeline, focusing on quality anchor embedding caching
+///     and scoring throughput.
 /// </summary>
-public class RetrievalBenchmarks(Xunit.Abstractions.ITestOutputHelper output) : IAsyncLifetime
+public class RetrievalBenchmarks(ITestOutputHelper output) : IAsyncLifetime
 {
-    private StorageService _storage = null!;
     private string _dbPath = null!;
+    private StorageService _storage = null!;
 
     public async Task InitializeAsync()
     {
@@ -24,7 +24,14 @@ public class RetrievalBenchmarks(Xunit.Abstractions.ITestOutputHelper output) : 
     public async Task DisposeAsync()
     {
         await _storage.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { /* best effort */ }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+            /* best effort */
+        }
     }
 
     [Fact]
@@ -44,10 +51,7 @@ public class RetrievalBenchmarks(Xunit.Abstractions.ITestOutputHelper output) : 
         };
 
         // Call ScoreItemsAsync 3 times
-        for (var i = 0; i < 3; i++)
-        {
-            await pipeline.ScoreItemsAsync(items, options);
-        }
+        for (var i = 0; i < 3; i++) await pipeline.ScoreItemsAsync(items, options);
 
         output.WriteLine($"After 3 ScoreItemsAsync calls: " +
                          $"{counting.BatchEmbedCalls} batch, " +
@@ -91,6 +95,7 @@ public class RetrievalBenchmarks(Xunit.Abstractions.ITestOutputHelper output) : 
                 item.RelevanceScore = 0;
                 item.Embedding = null;
             }
+
             await pipeline.ScoreItemsAsync(items, options);
         }
 
@@ -100,8 +105,9 @@ public class RetrievalBenchmarks(Xunit.Abstractions.ITestOutputHelper output) : 
         output.WriteLine($"ScoreItemsAsync (20 items): {opsPerSec:N0} ops/sec ({sw.ElapsedMilliseconds}ms total)");
     }
 
-    private static List<ContentItem> CreateTestItems(int count) =>
-        Enumerable.Range(0, count).Select(i => new ContentItem
+    private static List<ContentItem> CreateTestItems(int count)
+    {
+        return Enumerable.Range(0, count).Select(i => new ContentItem
         {
             Id = $"bench-{i}",
             Source = "benchmark",
@@ -111,4 +117,5 @@ public class RetrievalBenchmarks(Xunit.Abstractions.ITestOutputHelper output) : 
             CreatedAt = DateTimeOffset.UtcNow.AddDays(-i),
             FetchedAt = DateTimeOffset.UtcNow
         }).ToList();
+    }
 }

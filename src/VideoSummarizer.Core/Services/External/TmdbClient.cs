@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using VideoSummarizer.Core.Models;
@@ -8,18 +7,17 @@ using VideoSummarizer.Core.Models;
 namespace VideoSummarizer.Core.Services.External;
 
 /// <summary>
-/// Client for The Movie Database (TMDB) API.
-/// https://www.themoviedb.org/documentation/api
+///     Client for The Movie Database (TMDB) API.
+///     https://www.themoviedb.org/documentation/api
 /// </summary>
 public class TmdbClient : IDisposable
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<TmdbClient> _logger;
-    private readonly TmdbOptions _options;
-    private readonly JsonSerializerOptions _jsonOptions;
-
     private const string BaseUrl = "https://api.themoviedb.org/3";
     private const string ImageBaseUrl = "https://image.tmdb.org/t/p";
+    private readonly HttpClient _httpClient;
+    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<TmdbClient> _logger;
+    private readonly TmdbOptions _options;
 
     public TmdbClient(
         HttpClient httpClient,
@@ -37,8 +35,13 @@ public class TmdbClient : IDisposable
         };
     }
 
+    public void Dispose()
+    {
+        // HttpClient is managed by DI, don't dispose
+    }
+
     /// <summary>
-    /// Search for movies by title.
+    ///     Search for movies by title.
     /// </summary>
     public async Task<List<TmdbSearchResult>> SearchMoviesAsync(
         string query,
@@ -54,10 +57,7 @@ public class TmdbClient : IDisposable
         try
         {
             var url = $"{BaseUrl}/search/movie?api_key={_options.ApiKey}&query={Uri.EscapeDataString(query)}";
-            if (year.HasValue)
-            {
-                url += $"&year={year}";
-            }
+            if (year.HasValue) url += $"&year={year}";
 
             var response = await _httpClient.GetFromJsonAsync<TmdbSearchResponse>(url, _jsonOptions, ct);
             return response?.Results ?? [];
@@ -70,7 +70,7 @@ public class TmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Search for TV shows by title.
+    ///     Search for TV shows by title.
     /// </summary>
     public async Task<List<TmdbTvSearchResult>> SearchTvShowsAsync(
         string query,
@@ -86,10 +86,7 @@ public class TmdbClient : IDisposable
         try
         {
             var url = $"{BaseUrl}/search/tv?api_key={_options.ApiKey}&query={Uri.EscapeDataString(query)}";
-            if (year.HasValue)
-            {
-                url += $"&first_air_date_year={year}";
-            }
+            if (year.HasValue) url += $"&first_air_date_year={year}";
 
             var response = await _httpClient.GetFromJsonAsync<TmdbTvSearchResponse>(url, _jsonOptions, ct);
             return response?.Results ?? [];
@@ -102,18 +99,16 @@ public class TmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Get detailed movie information.
+    ///     Get detailed movie information.
     /// </summary>
     public async Task<TmdbMovieDetails?> GetMovieDetailsAsync(int tmdbId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
         try
         {
-            var url = $"{BaseUrl}/movie/{tmdbId}?api_key={_options.ApiKey}&append_to_response=credits,keywords,external_ids";
+            var url =
+                $"{BaseUrl}/movie/{tmdbId}?api_key={_options.ApiKey}&append_to_response=credits,keywords,external_ids";
             return await _httpClient.GetFromJsonAsync<TmdbMovieDetails>(url, _jsonOptions, ct);
         }
         catch (Exception ex)
@@ -124,18 +119,16 @@ public class TmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Get detailed TV show information.
+    ///     Get detailed TV show information.
     /// </summary>
     public async Task<TmdbTvDetails?> GetTvDetailsAsync(int tmdbId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
         try
         {
-            var url = $"{BaseUrl}/tv/{tmdbId}?api_key={_options.ApiKey}&append_to_response=credits,keywords,external_ids";
+            var url =
+                $"{BaseUrl}/tv/{tmdbId}?api_key={_options.ApiKey}&append_to_response=credits,keywords,external_ids";
             return await _httpClient.GetFromJsonAsync<TmdbTvDetails>(url, _jsonOptions, ct);
         }
         catch (Exception ex)
@@ -146,7 +139,7 @@ public class TmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Get TV episode details.
+    ///     Get TV episode details.
     /// </summary>
     public async Task<TmdbEpisodeDetails?> GetEpisodeDetailsAsync(
         int tvId,
@@ -154,14 +147,12 @@ public class TmdbClient : IDisposable
         int episodeNumber,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
         try
         {
-            var url = $"{BaseUrl}/tv/{tvId}/season/{seasonNumber}/episode/{episodeNumber}?api_key={_options.ApiKey}&append_to_response=credits";
+            var url =
+                $"{BaseUrl}/tv/{tvId}/season/{seasonNumber}/episode/{episodeNumber}?api_key={_options.ApiKey}&append_to_response=credits";
             return await _httpClient.GetFromJsonAsync<TmdbEpisodeDetails>(url, _jsonOptions, ct);
         }
         catch (Exception ex)
@@ -173,14 +164,11 @@ public class TmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Get person (actor) details including profile images.
+    ///     Get person (actor) details including profile images.
     /// </summary>
     public async Task<TmdbPersonDetails?> GetPersonDetailsAsync(int personId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
         try
         {
@@ -195,7 +183,7 @@ public class TmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Convert TMDB movie to unified metadata format.
+    ///     Convert TMDB movie to unified metadata format.
     /// </summary>
     public ExternalMediaMetadata ToExternalMetadata(TmdbMovieDetails movie)
     {
@@ -210,8 +198,10 @@ public class TmdbClient : IDisposable
             ReleaseDate = movie.ReleaseDate,
             RuntimeMinutes = movie.Runtime,
             Genres = movie.Genres?.Select(g => g.Name).Where(n => n != null).Cast<string>().ToList() ?? [],
-            Directors = movie.Credits?.Crew?.Where(c => c.Job == "Director").Select(c => c.Name).Where(n => n != null).Cast<string>().ToList() ?? [],
-            Writers = movie.Credits?.Crew?.Where(c => c.Department == "Writing").Select(c => c.Name).Where(n => n != null).Cast<string>().ToList() ?? [],
+            Directors = movie.Credits?.Crew?.Where(c => c.Job == "Director").Select(c => c.Name).Where(n => n != null)
+                .Cast<string>().ToList() ?? [],
+            Writers = movie.Credits?.Crew?.Where(c => c.Department == "Writing").Select(c => c.Name)
+                .Where(n => n != null).Cast<string>().ToList() ?? [],
             Cast = movie.Credits?.Cast?.Take(20).Select(c => new CastMember
             {
                 Name = c.Name ?? "Unknown",
@@ -223,8 +213,10 @@ public class TmdbClient : IDisposable
             PosterUrl = movie.PosterPath != null ? $"{ImageBaseUrl}/w500{movie.PosterPath}" : null,
             BackdropUrl = movie.BackdropPath != null ? $"{ImageBaseUrl}/w1280{movie.BackdropPath}" : null,
             Tagline = movie.Tagline,
-            Countries = movie.ProductionCountries?.Select(c => c.Name).Where(n => n != null).Cast<string>().ToList() ?? [],
-            Languages = movie.SpokenLanguages?.Select(l => l.EnglishName).Where(n => n != null).Cast<string>().ToList() ?? [],
+            Countries = movie.ProductionCountries?.Select(c => c.Name).Where(n => n != null).Cast<string>().ToList() ??
+                        [],
+            Languages =
+                movie.SpokenLanguages?.Select(l => l.EnglishName).Where(n => n != null).Cast<string>().ToList() ?? [],
             ImdbId = movie.ExternalIds?.ImdbId,
             Budget = movie.Budget,
             Revenue = movie.Revenue,
@@ -233,20 +225,19 @@ public class TmdbClient : IDisposable
     }
 
     /// <summary>
-    /// Get full poster URL.
+    ///     Get full poster URL.
     /// </summary>
     public static string? GetPosterUrl(string? posterPath, string size = "w500")
-        => posterPath != null ? $"{ImageBaseUrl}/{size}{posterPath}" : null;
+    {
+        return posterPath != null ? $"{ImageBaseUrl}/{size}{posterPath}" : null;
+    }
 
     /// <summary>
-    /// Get full profile URL.
+    ///     Get full profile URL.
     /// </summary>
     public static string? GetProfileUrl(string? profilePath, string size = "w185")
-        => profilePath != null ? $"{ImageBaseUrl}/{size}{profilePath}" : null;
-
-    public void Dispose()
     {
-        // HttpClient is managed by DI, don't dispose
+        return profilePath != null ? $"{ImageBaseUrl}/{size}{profilePath}" : null;
     }
 }
 

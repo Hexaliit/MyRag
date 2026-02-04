@@ -2,7 +2,10 @@
   "mcpServers": {
     "lucidrag-api": {
       "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-server-fetch@latest"],
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-server-fetch@latest"
+      ],
       "description": "LucidRAG API Testing - Use fetch tool to call localhost:5080/api/* endpoints",
       "env": {
         "LUCIDRAG_BASE_URL": "http://localhost:5080"
@@ -37,12 +40,18 @@
               },
               "pipeline": {
                 "type": "string",
-                "enum": ["advancedocr", "quality", "simpleocr"],
+                "enum": [
+                  "advancedocr",
+                  "quality",
+                  "simpleocr"
+                ],
                 "default": "advancedocr",
                 "description": "OCR pipeline: advancedocr (fast, 2s), quality (best accuracy, 10s), simpleocr (basic)"
               }
             },
-            "required": ["image"]
+            "required": [
+              "image"
+            ]
           }
         }
       ]

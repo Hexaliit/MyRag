@@ -1,14 +1,15 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Coordinates execution of video analysis waves in priority order.
+///     Coordinates execution of video analysis waves in priority order.
 /// </summary>
 public class VideoWaveCoordinator
 {
-    private readonly IEnumerable<IVideoWave> _waves;
     private readonly ILogger<VideoWaveCoordinator> _logger;
+    private readonly IEnumerable<IVideoWave> _waves;
 
     public VideoWaveCoordinator(
         IEnumerable<IVideoWave> waves,
@@ -19,7 +20,7 @@ public class VideoWaveCoordinator
     }
 
     /// <summary>
-    /// Execute all waves in priority order.
+    ///     Execute all waves in priority order.
     /// </summary>
     public async Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -45,7 +46,7 @@ public class VideoWaveCoordinator
                 _logger.LogInformation("Running wave: {WaveName} (priority: {Priority})",
                     wave.Name, wave.Priority);
 
-                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var sw = Stopwatch.StartNew();
 
                 await wave.ProcessAsync(context, ct);
 
@@ -81,7 +82,8 @@ public class VideoWaveCoordinator
             }
         }
 
-        _logger.LogInformation("Video analysis completed. Shots: {Shots}, Scenes: {Scenes}, TextTracks: {TextTracks}, Utterances: {Utterances}",
+        _logger.LogInformation(
+            "Video analysis completed. Shots: {Shots}, Scenes: {Scenes}, TextTracks: {TextTracks}, Utterances: {Utterances}",
             context.Shots.Count,
             context.Scenes.Count,
             context.TextTracks.Count,
@@ -89,7 +91,7 @@ public class VideoWaveCoordinator
     }
 
     /// <summary>
-    /// Execute a specific subset of waves by tag.
+    ///     Execute a specific subset of waves by tag.
     /// </summary>
     public async Task ProcessByTagAsync(VideoContext context, string tag, CancellationToken ct = default)
     {
@@ -111,7 +113,7 @@ public class VideoWaveCoordinator
     }
 
     /// <summary>
-    /// Execute waves up to a specific phase (for incremental processing).
+    ///     Execute waves up to a specific phase (for incremental processing).
     /// </summary>
     public async Task ProcessToPhaseAsync(VideoContext context, VideoPhase phase, CancellationToken ct = default)
     {
@@ -145,14 +147,16 @@ public class VideoWaveCoordinator
     }
 
     /// <summary>
-    /// Get list of registered waves.
+    ///     Get list of registered waves.
     /// </summary>
-    public IReadOnlyList<(string Name, int Priority, IReadOnlyList<string> Tags)> GetWaveInfo() =>
-        _waves.Select(w => (w.Name, w.Priority, w.Tags)).ToList();
+    public IReadOnlyList<(string Name, int Priority, IReadOnlyList<string> Tags)> GetWaveInfo()
+    {
+        return _waves.Select(w => (w.Name, w.Priority, w.Tags)).ToList();
+    }
 }
 
 /// <summary>
-/// Processing phases for incremental video analysis.
+///     Processing phases for incremental video analysis.
 /// </summary>
 public enum VideoPhase
 {

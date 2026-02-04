@@ -1,3 +1,4 @@
+using System.IO.Hashing;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -7,17 +8,18 @@ using VideoSummarizer.Core.Waves;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Generates and manages video processing artifacts (frames, text files, audio tracks).
-/// Creates evidence files that can be indexed by DocSummarizer and stored for retrieval.
+///     Generates and manages video processing artifacts (frames, text files, audio tracks).
+///     Creates evidence files that can be indexed by DocSummarizer and stored for retrieval.
 /// </summary>
 public class ArtifactGenerationService
 {
-    private readonly ILogger<ArtifactGenerationService> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    private readonly ILogger<ArtifactGenerationService> _logger;
 
     public ArtifactGenerationService(ILogger<ArtifactGenerationService> logger)
     {
@@ -25,7 +27,7 @@ public class ArtifactGenerationService
     }
 
     /// <summary>
-    /// Generate all configured artifacts for a video.
+    ///     Generate all configured artifacts for a video.
     /// </summary>
     public async Task<VideoArtifactCollection> GenerateArtifactsAsync(
         VideoContext context,
@@ -66,7 +68,7 @@ public class ArtifactGenerationService
     }
 
     /// <summary>
-    /// Generate low-res scene frame thumbnails.
+    ///     Generate low-res scene frame thumbnails.
     /// </summary>
     private async Task GenerateSceneFramesAsync(
         VideoContext context,
@@ -103,7 +105,7 @@ public class ArtifactGenerationService
             var thumbPath = Path.Combine(frameDir, $"scene_{scene.Id:N}_thumb.jpg");
 
             // For now, copy the keyframe (actual resize would happen here)
-            File.Copy(keyframePath, thumbPath, overwrite: true);
+            File.Copy(keyframePath, thumbPath, true);
 
             var fileInfo = new FileInfo(thumbPath);
             collection.Add(new VideoArtifact
@@ -127,12 +129,13 @@ public class ArtifactGenerationService
             });
         }
 
-        _logger.LogInformation("Generated {Count} scene frames", collection.OfType(VideoArtifactType.SceneFrame).Count());
+        _logger.LogInformation("Generated {Count} scene frames",
+            collection.OfType(VideoArtifactType.SceneFrame).Count());
         await Task.CompletedTask;
     }
 
     /// <summary>
-    /// Generate transcript text file from utterances.
+    ///     Generate transcript text file from utterances.
     /// </summary>
     private async Task GenerateTranscriptAsync(
         VideoContext context,
@@ -154,13 +157,9 @@ public class ArtifactGenerationService
         {
             var timestamp = FormatTimestamp(utterance.StartTime);
             if (!string.IsNullOrEmpty(utterance.SpeakerId))
-            {
                 sb.AppendLine($"[{timestamp}] {utterance.SpeakerId}:");
-            }
             else
-            {
                 sb.Append($"[{timestamp}] ");
-            }
             sb.AppendLine(utterance.Text);
             sb.AppendLine();
         }
@@ -216,7 +215,7 @@ public class ArtifactGenerationService
     }
 
     /// <summary>
-    /// Generate SRT subtitle file from utterances.
+    ///     Generate SRT subtitle file from utterances.
     /// </summary>
     private async Task GenerateSubtitlesAsync(
         VideoContext context,
@@ -258,7 +257,7 @@ public class ArtifactGenerationService
     }
 
     /// <summary>
-    /// Generate OCR text file from text tracks.
+    ///     Generate OCR text file from text tracks.
     /// </summary>
     private async Task GenerateOcrTextAsync(
         VideoContext context,
@@ -309,8 +308,8 @@ public class ArtifactGenerationService
     }
 
     /// <summary>
-    /// Generate markdown document for DocSummarizer integration.
-    /// Combines all video content into a structured document.
+    ///     Generate markdown document for DocSummarizer integration.
+    ///     Combines all video content into a structured document.
     /// </summary>
     private async Task GenerateMarkdownDocumentAsync(
         VideoContext context,
@@ -353,7 +352,6 @@ public class ArtifactGenerationService
         var textTracks = context.GetCached<List<TextTrack>>("text_tracks");
 
         if (scenes != null)
-        {
             foreach (var scene in scenes.OrderBy(s => s.StartTime))
             {
                 var sceneUtterances = context.Utterances
@@ -377,7 +375,6 @@ public class ArtifactGenerationService
                     OcrText = sceneOcr
                 });
             }
-        }
 
         // Build transcript section
         if (context.Utterances.Count > 0)
@@ -389,7 +386,6 @@ public class ArtifactGenerationService
                 .ToList();
 
             if (speakers.Count > 0)
-            {
                 doc.Transcript = new TranscriptSection
                 {
                     Language = context.Utterances.FirstOrDefault()?.Language,
@@ -403,15 +399,12 @@ public class ArtifactGenerationService
                         })
                         .ToList()
                 };
-            }
             else
-            {
                 doc.Transcript = new TranscriptSection
                 {
                     Language = context.Utterances.FirstOrDefault()?.Language,
                     FullText = string.Join(" ", context.Utterances.OrderBy(u => u.StartTime).Select(u => u.Text))
                 };
-            }
         }
 
         // Add entity sections from face tracking and cast
@@ -422,7 +415,6 @@ public class ArtifactGenerationService
         {
             // Add people from face tracks
             if (faceTracks != null)
-            {
                 foreach (var faceTrack in faceTracks.GroupBy(f => f.FaceIdentityId).Take(10))
                 {
                     var tracks = faceTrack.ToList();
@@ -434,21 +426,16 @@ public class ArtifactGenerationService
                         AppearanceTimes = tracks.Select(t => t.StartTime).ToList()
                     });
                 }
-            }
 
             // Add people from cast
             if (castMembers != null)
-            {
                 foreach (var cast in castMembers.Take(10))
-                {
                     doc.Entities.Add(new EntitySection
                     {
                         Type = "person",
                         Name = cast.Name,
                         Description = $"as {cast.Character}"
                     });
-                }
-            }
         }
 
         // Write markdown file
@@ -478,7 +465,7 @@ public class ArtifactGenerationService
     }
 
     /// <summary>
-    /// Get output directory for artifacts.
+    ///     Get output directory for artifacts.
     /// </summary>
     private static string GetOutputDirectory(string videoPath, ArtifactGenerationOptions options)
     {
@@ -504,7 +491,7 @@ public class ArtifactGenerationService
 
     private static string ComputeHash(string content)
     {
-        var hash = System.IO.Hashing.XxHash64.Hash(Encoding.UTF8.GetBytes(content));
+        var hash = XxHash64.Hash(Encoding.UTF8.GetBytes(content));
         return Convert.ToHexString(hash);
     }
 }

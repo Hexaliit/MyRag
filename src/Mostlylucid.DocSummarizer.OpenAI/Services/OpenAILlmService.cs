@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.OpenAI.Config;
 using Mostlylucid.DocSummarizer.Services;
@@ -46,7 +47,7 @@ public class OpenAILlmService : ILlmService
     public OpenAILlmService(OpenAIConfig config, ILogger<OpenAILlmService>? logger = null)
     {
         _config = config;
-        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<OpenAILlmService>.Instance;
+        _logger = logger ?? NullLogger<OpenAILlmService>.Instance;
 
         _jsonOptions = new JsonSerializerOptions
         {

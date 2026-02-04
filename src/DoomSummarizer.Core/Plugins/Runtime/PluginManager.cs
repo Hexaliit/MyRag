@@ -3,8 +3,8 @@ using System.Diagnostics;
 namespace DoomSummarizer.Plugins.Runtime;
 
 /// <summary>
-/// Orchestrates plugin lifecycle: install, uninstall, list, enable/disable.
-/// Manages the manifest and delegates download to <see cref="PluginLoader"/>.
+///     Orchestrates plugin lifecycle: install, uninstall, list, enable/disable.
+///     Manages the manifest and delegates download to <see cref="PluginLoader" />.
 /// </summary>
 public sealed class PluginManager
 {
@@ -17,12 +17,15 @@ public sealed class PluginManager
         _manifest = PluginManifest.Load();
     }
 
+    /// <summary>List all known shorthands.</summary>
+    public static IReadOnlyDictionary<string, string> Shorthands => PluginManifest.KnownShorthands;
+
     /// <summary>
-    /// Install a plugin by shorthand or full NuGet package ID.
-    /// Supports:
-    ///   - Shorthand: "source-imap" → Mostlylucid.DoomSummarizer.Source.Imap
-    ///   - Full package: "Acme.DoomSummarizer.Source.Foo"
-    ///   - With version: "Acme.DoomSummarizer.Source.Foo" + "2.1.0"
+    ///     Install a plugin by shorthand or full NuGet package ID.
+    ///     Supports:
+    ///     - Shorthand: "source-imap" → Mostlylucid.DoomSummarizer.Source.Imap
+    ///     - Full package: "Acme.DoomSummarizer.Source.Foo"
+    ///     - With version: "Acme.DoomSummarizer.Source.Foo" + "2.1.0"
     /// </summary>
     public async Task<bool> InstallAsync(string input, string? version = null, Action<string>? progress = null)
     {
@@ -38,6 +41,7 @@ public sealed class PluginManager
                 progress?.Invoke($"{packageId} {existing.Version} is already installed.");
                 return true;
             }
+
             progress?.Invoke($"Upgrading {packageId} from {existing.Version} to {version}...");
         }
 
@@ -85,10 +89,9 @@ public sealed class PluginManager
 
         // Remove install directory
         if (entry.InstallPath != null && Directory.Exists(entry.InstallPath))
-        {
             try
             {
-                Directory.Delete(entry.InstallPath, recursive: true);
+                Directory.Delete(entry.InstallPath, true);
 
                 // Clean up parent directory if empty
                 var parent = Path.GetDirectoryName(entry.InstallPath);
@@ -99,7 +102,6 @@ public sealed class PluginManager
             {
                 Debug.WriteLine($"[PluginManager] Failed to delete {entry.InstallPath}: {ex.Message}");
             }
-        }
 
         _manifest.Plugins.Remove(entry);
         _manifest.Save();
@@ -142,14 +144,14 @@ public sealed class PluginManager
     }
 
     /// <summary>List all installed plugins.</summary>
-    public IReadOnlyList<PluginEntry> List() => _manifest.Plugins;
-
-    /// <summary>List all known shorthands.</summary>
-    public static IReadOnlyDictionary<string, string> Shorthands => PluginManifest.KnownShorthands;
+    public IReadOnlyList<PluginEntry> List()
+    {
+        return _manifest.Plugins;
+    }
 
     /// <summary>
-    /// Load all enabled plugins from the manifest and register them.
-    /// Call this after <see cref="BuiltinPlugins.RegisterAllSources"/> to add runtime plugins.
+    ///     Load all enabled plugins from the manifest and register them.
+    ///     Call this after <see cref="BuiltinPlugins.RegisterAllSources" /> to add runtime plugins.
     /// </summary>
     public void LoadAndRegister(SourcePluginRegistry sourceRegistry, OutputPluginRegistry outputRegistry)
     {
@@ -169,7 +171,8 @@ public sealed class PluginManager
                 foreach (var output in outputs)
                     outputRegistry.Register(output);
 
-                Debug.WriteLine($"[PluginManager] Loaded {sources.Count} sources + {outputs.Count} outputs from {entry.PackageId}");
+                Debug.WriteLine(
+                    $"[PluginManager] Loaded {sources.Count} sources + {outputs.Count} outputs from {entry.PackageId}");
             }
             catch (Exception ex)
             {

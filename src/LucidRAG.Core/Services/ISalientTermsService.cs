@@ -1,20 +1,20 @@
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Service for extracting and managing salient terms for collection autocomplete.
-/// Uses TF-IDF, entity extraction, and RRF (Reciprocal Rank Fusion) to combine signals.
+///     Service for extracting and managing salient terms for collection autocomplete.
+///     Uses TF-IDF, entity extraction, and RRF (Reciprocal Rank Fusion) to combine signals.
 /// </summary>
 public interface ISalientTermsService
 {
     /// <summary>
-    /// Extract and update salient terms for a collection.
-    /// Combines TF-IDF from document content, entity names, and query patterns using RRF.
+    ///     Extract and update salient terms for a collection.
+    ///     Combines TF-IDF from document content, entity names, and query patterns using RRF.
     /// </summary>
     Task UpdateCollectionTermsAsync(Guid collectionId, CancellationToken ct = default);
 
     /// <summary>
-    /// Get autocomplete suggestions for a query prefix within a collection.
-    /// Returns pre-computed salient terms ranked by relevance.
+    ///     Get autocomplete suggestions for a query prefix within a collection.
+    ///     Returns pre-computed salient terms ranked by relevance.
     /// </summary>
     Task<List<SalientTermSuggestion>> GetAutocompleteSuggestionsAsync(
         Guid collectionId,
@@ -23,13 +23,13 @@ public interface ISalientTermsService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Update salient terms for all collections.
-    /// Called periodically by background job.
+    ///     Update salient terms for all collections.
+    ///     Called periodically by background job.
     /// </summary>
     Task UpdateAllCollectionsAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Get statistics about salient terms for a collection.
+    ///     Get statistics about salient terms for a collection.
     /// </summary>
     Task<SalientTermStats> GetStatsAsync(Guid collectionId, CancellationToken ct = default);
 }

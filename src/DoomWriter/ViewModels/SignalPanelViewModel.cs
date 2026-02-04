@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DoomWriter.Models;
@@ -7,32 +8,26 @@ using DoomWriter.Services;
 namespace DoomWriter.ViewModels;
 
 /// <summary>
-/// ViewModel for the left signal panel (TOC, Segments, Entities, Warnings, Graph, Search/Ask).
+///     ViewModel for the left signal panel (TOC, Segments, Entities, Warnings, Graph, Search/Ask).
 /// </summary>
 public partial class SignalPanelViewModel : ObservableObject
 {
     private readonly EntityGraphService _entityGraph;
     private readonly GraphBridge _graphBridge;
+    [ObservableProperty] private int _activeHeadingIndex = -1;
+    [ObservableProperty] private string _askResponse = "";
     private string? _currentDocumentId;
     private string? _currentDocumentTitle;
     private bool _graphReady;
+    [ObservableProperty] private bool _hasAskResponse;
+    [ObservableProperty] private bool _isSearching;
     private DocumentSignals? _pendingGraphSignals;
-
-    [ObservableProperty] private int _selectedTabIndex;
-    [ObservableProperty] private int _activeHeadingIndex = -1;
+    [ObservableProperty] private SearchMode _searchMode = SearchMode.Corpus;
 
     // Search/Ask
     [ObservableProperty] private string _searchQuery = "";
-    [ObservableProperty] private SearchMode _searchMode = SearchMode.Corpus;
-    [ObservableProperty] private bool _isSearching;
-    [ObservableProperty] private string _askResponse = "";
-    [ObservableProperty] private bool _hasAskResponse;
 
-    public ObservableCollection<HeadingItem> Headings { get; } = [];
-    public ObservableCollection<AnalyzedSegment> Segments { get; } = [];
-    public ObservableCollection<TrackedEntity> Entities { get; } = [];
-    public ObservableCollection<Suggestion> Warnings { get; } = [];
-    public ObservableCollection<SearchResultItem> SearchResults { get; } = [];
+    [ObservableProperty] private int _selectedTabIndex;
 
     public SignalPanelViewModel(EntityGraphService entityGraph, GraphBridge graphBridge)
     {
@@ -53,20 +48,26 @@ public partial class SignalPanelViewModel : ObservableObject
         };
     }
 
+    public ObservableCollection<HeadingItem> Headings { get; } = [];
+    public ObservableCollection<AnalyzedSegment> Segments { get; } = [];
+    public ObservableCollection<TrackedEntity> Entities { get; } = [];
+    public ObservableCollection<Suggestion> Warnings { get; } = [];
+    public ObservableCollection<SearchResultItem> SearchResults { get; } = [];
+
     public string[] SearchModes { get; } = ["Corpus", "Web", "Ask"];
 
     /// <summary>
-    /// Raised when user clicks a heading to navigate in the editor.
+    ///     Raised when user clicks a heading to navigate in the editor.
     /// </summary>
     public event EventHandler<HeadingItem>? HeadingClicked;
 
     /// <summary>
-    /// Raised when user clicks a segment to navigate in the editor.
+    ///     Raised when user clicks a segment to navigate in the editor.
     /// </summary>
     public event EventHandler<AnalyzedSegment>? SegmentClicked;
 
     /// <summary>
-    /// Raised when user clicks an entity to highlight all mentions.
+    ///     Raised when user clicks an entity to highlight all mentions.
     /// </summary>
     public event EventHandler<TrackedEntity>? EntityClicked;
 
@@ -89,7 +90,7 @@ public partial class SignalPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Update all signal data from a DocumentSignals analysis result.
+    ///     Update all signal data from a DocumentSignals analysis result.
     /// </summary>
     public void UpdateFromSignals(DocumentSignals signals)
     {
@@ -104,7 +105,7 @@ public partial class SignalPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Update the warnings/suggestions tab from SuggestionService results.
+    ///     Update the warnings/suggestions tab from SuggestionService results.
     /// </summary>
     public void UpdateSuggestions(List<Suggestion> suggestions)
     {
@@ -113,7 +114,7 @@ public partial class SignalPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Raised when user clicks a suggestion to insert or navigate.
+    ///     Raised when user clicks a suggestion to insert or navigate.
     /// </summary>
     public event EventHandler<Suggestion>? SuggestionClicked;
 
@@ -124,28 +125,27 @@ public partial class SignalPanelViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Set which heading is currently active based on cursor position.
+    ///     Set which heading is currently active based on cursor position.
     /// </summary>
     public void SetActiveHeading(int cursorOffset)
     {
-        for (int i = Headings.Count - 1; i >= 0; i--)
-        {
+        for (var i = Headings.Count - 1; i >= 0; i--)
             if (Headings[i].CharOffset <= cursorOffset)
             {
                 ActiveHeadingIndex = i;
                 return;
             }
-        }
+
         ActiveHeadingIndex = -1;
     }
 
     /// <summary>
-    /// Raised when user submits a search/ask query.
+    ///     Raised when user submits a search/ask query.
     /// </summary>
     public event EventHandler<(string query, SearchMode mode)>? SearchSubmitted;
 
     /// <summary>
-    /// Raised when user clicks a search result to insert text into the editor.
+    ///     Raised when user clicks a search result to insert text into the editor.
     /// </summary>
     public event EventHandler<SearchResultItem>? SearchResultClicked;
 
@@ -221,7 +221,7 @@ public partial class SignalPanelViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Graph update failed: {ex.Message}");
+            Debug.WriteLine($"Graph update failed: {ex.Message}");
         }
     }
 
@@ -233,16 +233,14 @@ public partial class SignalPanelViewModel : ObservableObject
     private async void OnGraphNodeClicked(object? sender, string nodeId)
     {
         // Show info - could highlight in entities list
-        System.Diagnostics.Debug.WriteLine($"Graph node clicked: {nodeId}");
+        Debug.WriteLine($"Graph node clicked: {nodeId}");
     }
 
     private void OnGraphNodeDoubleClicked(object? sender, string nodeId)
     {
         // Open document in editor if it's a document node
         if (nodeId.StartsWith("corpus:") || nodeId.Contains('/') || nodeId.Contains('\\'))
-        {
             GraphDocumentOpened?.Invoke(this, nodeId);
-        }
     }
 
     private async void OnGraphNodeExpanded(object? sender, string nodeId)
@@ -251,13 +249,9 @@ public partial class SignalPanelViewModel : ObservableObject
         {
             GraphData expandData;
             if (nodeId.StartsWith("corpus:") || nodeId.Contains('/') || nodeId.Contains('\\'))
-            {
                 expandData = await _entityGraph.ExpandDocumentAsync(nodeId);
-            }
             else
-            {
                 expandData = await _entityGraph.ExpandEntityAsync(nodeId);
-            }
 
             if (expandData.Nodes.Count > 0)
                 await _graphBridge.AddNodesAsync(expandData.Nodes);
@@ -266,7 +260,7 @@ public partial class SignalPanelViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Graph expand failed: {ex.Message}");
+            Debug.WriteLine($"Graph expand failed: {ex.Message}");
         }
     }
 }

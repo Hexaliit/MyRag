@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp;
-using AngleSharp.Dom;
 using DoomSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
 using Polly;
@@ -13,42 +13,32 @@ using Polly.Retry;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// BFS web crawler scoped to a single domain (or domain pattern).
-/// Extracts content from each page using SmartReader (ContentExtractor),
-/// stores as ContentItems for knowledge base use.
-/// Supports HTTP conditional requests (ETag / If-Modified-Since) for
-/// bandwidth-efficient incremental re-crawling.
-///
-/// GitHub raw mode: fetches raw markdown from raw.githubusercontent.com,
-/// extracts markdown links, and uses the raw content directly.
-///
-/// Adaptive rate limiting:
-/// - Tracks response time via exponential moving average (EMA)
-/// - Scales delay up when server is slow (>2s average), down when fast
-/// - Uses Polly retry pipeline for 429/503 with Retry-After header support
-/// - Hard limits enforced: delay floor 200ms, ceiling 10s, max concurrency 5
+///     BFS web crawler scoped to a single domain (or domain pattern).
+///     Extracts content from each page using SmartReader (ContentExtractor),
+///     stores as ContentItems for knowledge base use.
+///     Supports HTTP conditional requests (ETag / If-Modified-Since) for
+///     bandwidth-efficient incremental re-crawling.
+///     GitHub raw mode: fetches raw markdown from raw.githubusercontent.com,
+///     extracts markdown links, and uses the raw content directly.
+///     Adaptive rate limiting:
+///     - Tracks response time via exponential moving average (EMA)
+///     - Scales delay up when server is slow (>2s average), down when fast
+///     - Uses Polly retry pipeline for 429/503 with Retry-After header support
+///     - Hard limits enforced: delay floor 200ms, ceiling 10s, max concurrency 5
 /// </summary>
 public class WebCrawlerService
 {
-    private readonly HttpClient _httpClient;
-    private readonly ContentExtractor _extractor;
-    private readonly CrawlConfig _config;
-    private readonly ResiliencePipeline<HttpResponseMessage> _retryPipeline;
-
-    public int PagesVisited { get; private set; }
-    public int PagesExtracted { get; private set; }
-    public int PagesSkipped { get; private set; }
-    public int PagesNotModified { get; private set; }
-    public int RetryCount { get; private set; }
-    public int AdaptiveDelayMs { get; private set; }
-
     // Adaptive delay state
     private const int DelayFloorMs = 200;
     private const int DelayCeilingMs = 10_000;
     private const int MaxRetryAfterSeconds = 60;
     private const double EmaAlpha = 0.3;
-    private double _responseTimeEma;
+    private readonly CrawlConfig _config;
+    private readonly ContentExtractor _extractor;
+    private readonly HttpClient _httpClient;
+    private readonly ResiliencePipeline<HttpResponseMessage> _retryPipeline;
     private int _currentDelayMs;
+    private double _responseTimeEma;
 
     public WebCrawlerService(HttpClient httpClient, CrawlConfig config)
     {
@@ -57,6 +47,13 @@ public class WebCrawlerService
         _config = config;
         _retryPipeline = BuildRetryPipeline();
     }
+
+    public int PagesVisited { get; private set; }
+    public int PagesExtracted { get; private set; }
+    public int PagesSkipped { get; private set; }
+    public int PagesNotModified { get; private set; }
+    public int RetryCount { get; private set; }
+    public int AdaptiveDelayMs { get; private set; }
 
     private ResiliencePipeline<HttpResponseMessage> BuildRetryPipeline()
     {
@@ -83,6 +80,7 @@ public class WebCrawlerService
                             return new ValueTask<TimeSpan?>(TimeSpan.FromMilliseconds(capped));
                         }
                     }
+
                     // Fall back to Polly's built-in exponential backoff
                     return new ValueTask<TimeSpan?>((TimeSpan?)null);
                 },
@@ -99,12 +97,14 @@ public class WebCrawlerService
     }
 
     /// <summary>
-    /// Crawl starting from seedUrl, extracting all same-domain pages.
-    /// Returns CrawlResults for each page — either new content or a 304 Not Modified signal.
+    ///     Crawl starting from seedUrl, extracting all same-domain pages.
+    ///     Returns CrawlResults for each page — either new content or a 304 Not Modified signal.
     /// </summary>
     /// <param name="seedUrl">Starting URL for the crawl.</param>
-    /// <param name="cacheProvider">Optional lookup for stored ETag / Last-Modified headers
-    /// to enable conditional HTTP requests (If-None-Match / If-Modified-Since).</param>
+    /// <param name="cacheProvider">
+    ///     Optional lookup for stored ETag / Last-Modified headers
+    ///     to enable conditional HTTP requests (If-None-Match / If-Modified-Since).
+    /// </param>
     /// <param name="progress">Progress reporter.</param>
     /// <param name="onActivity">Activity description callback.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -113,7 +113,7 @@ public class WebCrawlerService
         Func<string, (string? etag, string? lastModified)>? cacheProvider = null,
         IProgress<(int visited, int queued, int extracted)>? progress = null,
         Action<string>? onActivity = null,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
         // Enforce hard limits on configuration
         var effectiveDelayMs = Math.Max(_config.DelayMs, DelayFloorMs);
@@ -168,11 +168,11 @@ public class WebCrawlerService
 
             // Stage 1: Fetch page (with conditional request headers for cache validation)
             string? body = null;
-            string? finalUrl = url;
+            var finalUrl = url;
             string? responseETag = null;
             string? responseLastModified = null;
-            bool wasNotModified = false;
-            bool isMarkdown = false;
+            var wasNotModified = false;
+            var isMarkdown = false;
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -256,9 +256,9 @@ public class WebCrawlerService
 
                     // In GitHub raw mode, accept text/plain for .md files
                     isMarkdown = _config.GitHubRawMode && !isHtml &&
-                        (contentType.StartsWith("text/plain", StringComparison.OrdinalIgnoreCase)
-                         || contentType.StartsWith("text/markdown", StringComparison.OrdinalIgnoreCase)
-                         || IsMarkdownUrl(url));
+                                 (contentType.StartsWith("text/plain", StringComparison.OrdinalIgnoreCase)
+                                  || contentType.StartsWith("text/markdown", StringComparison.OrdinalIgnoreCase)
+                                  || IsMarkdownUrl(url));
 
                     if (!isHtml && !isMarkdown)
                     {
@@ -301,7 +301,7 @@ public class WebCrawlerService
             // ── GitHub raw markdown path ────────────────────────────────────
             if (isMarkdown)
             {
-                bool shouldIndexMd = MatchesPathFilter(finalUrl);
+                var shouldIndexMd = MatchesPathFilter(finalUrl);
 
                 // Extract markdown links for BFS (only follow .md/.markdown files)
                 if (depth < _config.MaxDepth)
@@ -357,6 +357,7 @@ public class WebCrawlerService
                         LastModified = responseLastModified
                     };
                 }
+
                 continue;
             }
 
@@ -364,11 +365,10 @@ public class WebCrawlerService
             // Stage 2: Extract content
             // When ContentScopedLinks is enabled, we need the article HTML for link discovery,
             // so content extraction runs before link extraction.
-            bool shouldIndex = MatchesPathFilter(finalUrl);
+            var shouldIndex = MatchesPathFilter(finalUrl);
             ExtractedContent? extracted = null;
 
             if (_config.ContentScopedLinks || shouldIndex)
-            {
                 try
                 {
                     extracted = _extractor.ExtractFromHtml(body, finalUrl);
@@ -377,9 +377,8 @@ public class WebCrawlerService
                 {
                     // Content extraction failed — fall through
                 }
-            }
 
-            bool hasGoodContent = extracted is { IsReadable: true } && extracted.Content.Length >= 50;
+            var hasGoodContent = extracted is { IsReadable: true } && extracted.Content.Length >= 50;
 
             // Stage 3: Extract links for BFS discovery
             if (depth < _config.MaxDepth)
@@ -441,9 +440,9 @@ public class WebCrawlerService
     // ─── GitHub raw helpers ─────────────────────────────────────────────
 
     /// <summary>
-    /// Convert a github.com blob URL to a raw.githubusercontent.com URL.
-    /// github.com/{owner}/{repo}/blob/{branch}/{path}
-    ///   → raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+    ///     Convert a github.com blob URL to a raw.githubusercontent.com URL.
+    ///     github.com/{owner}/{repo}/blob/{branch}/{path}
+    ///     → raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
     /// </summary>
     internal static string? ConvertToRawGitHubUrl(string url)
     {
@@ -467,9 +466,9 @@ public class WebCrawlerService
     }
 
     /// <summary>
-    /// Convert a raw.githubusercontent.com URL back to a github.com blob URL for display.
-    /// raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
-    ///   → github.com/{owner}/{repo}/blob/{branch}/{path}
+    ///     Convert a raw.githubusercontent.com URL back to a github.com blob URL for display.
+    ///     raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+    ///     → github.com/{owner}/{repo}/blob/{branch}/{path}
     /// </summary>
     private static string? ConvertToGitHubBlobUrl(string rawUrl)
     {
@@ -489,8 +488,8 @@ public class WebCrawlerService
     }
 
     /// <summary>
-    /// Extract links from raw markdown content. Only follows .md/.markdown files.
-    /// Handles inline links [text](url) and reference-style [ref]: url definitions.
+    ///     Extract links from raw markdown content. Only follows .md/.markdown files.
+    ///     Handles inline links [text](url) and reference-style [ref]: url definitions.
     /// </summary>
     private static List<string> ExtractMarkdownLinks(string markdown, string baseUrl, HashSet<string> allowedHosts)
     {
@@ -498,20 +497,17 @@ public class WebCrawlerService
 
         // Inline links: [text](url) but NOT image links ![alt](url)
         foreach (Match m in Regex.Matches(markdown, @"(?<!!)\[[^\]]+\]\(([^)\s]+)"))
-        {
             TryAddMarkdownLink(m.Groups[1].Value, baseUrl, allowedHosts, links);
-        }
 
         // Reference-style link definitions: [ref]: url
         foreach (Match m in Regex.Matches(markdown, @"^\[[^\]]+\]:\s*(\S+)", RegexOptions.Multiline))
-        {
             TryAddMarkdownLink(m.Groups[1].Value, baseUrl, allowedHosts, links);
-        }
 
         return links;
     }
 
-    private static void TryAddMarkdownLink(string href, string baseUrl, HashSet<string> allowedHosts, List<string> links)
+    private static void TryAddMarkdownLink(string href, string baseUrl, HashSet<string> allowedHosts,
+        List<string> links)
     {
         if (string.IsNullOrWhiteSpace(href)) return;
         if (href.StartsWith('#')) return; // fragment-only
@@ -553,12 +549,12 @@ public class WebCrawlerService
         // Strip fragment and query for extension check
         var path = url.Split('#')[0].Split('?')[0];
         return path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-            || path.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)
-            || path.EndsWith(".mdx", StringComparison.OrdinalIgnoreCase);
+               || path.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase)
+               || path.EndsWith(".mdx", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// Extract a title from raw markdown: first # heading, or filename from URL.
+    ///     Extract a title from raw markdown: first # heading, or filename from URL.
     /// </summary>
     private static string ExtractMarkdownTitle(string markdown, string url)
     {
@@ -581,17 +577,17 @@ public class WebCrawlerService
     // ─── Standard HTML helpers ──────────────────────────────────────────
 
     /// <summary>
-    /// Update the adaptive delay based on observed response time.
-    /// Uses exponential moving average (EMA) to smooth response time tracking.
-    /// When the server is slow (EMA > 2s), delay scales up proportionally.
-    /// On fast responses, delay gradually returns toward the configured minimum.
+    ///     Update the adaptive delay based on observed response time.
+    ///     Uses exponential moving average (EMA) to smooth response time tracking.
+    ///     When the server is slow (EMA > 2s), delay scales up proportionally.
+    ///     On fast responses, delay gradually returns toward the configured minimum.
     /// </summary>
     private void UpdateAdaptiveDelay(long responseTimeMs, int configuredDelayMs, Action<string>? onActivity)
     {
         // Update EMA: first request seeds the value, subsequent requests blend
         _responseTimeEma = _responseTimeEma == 0
             ? responseTimeMs
-            : (_responseTimeEma * (1 - EmaAlpha)) + (responseTimeMs * EmaAlpha);
+            : _responseTimeEma * (1 - EmaAlpha) + responseTimeMs * EmaAlpha;
 
         // Calculate adaptive delay: max(configured, responseTimeEma * 1.5), clamped to limits
         var adaptiveTarget = (int)Math.Max(configuredDelayMs, _responseTimeEma * 1.5);
@@ -601,16 +597,17 @@ public class WebCrawlerService
         if (Math.Abs(newDelay - _currentDelayMs) > 50)
         {
             var direction = newDelay > _currentDelayMs ? "up" : "down";
-            onActivity?.Invoke($"Adaptive delay {direction}: {_currentDelayMs}ms → {newDelay}ms (EMA: {_responseTimeEma:F0}ms)");
+            onActivity?.Invoke(
+                $"Adaptive delay {direction}: {_currentDelayMs}ms → {newDelay}ms (EMA: {_responseTimeEma:F0}ms)");
             _currentDelayMs = newDelay;
             AdaptiveDelayMs = _currentDelayMs;
         }
     }
 
     /// <summary>
-    /// Parse the Retry-After header from an HTTP response.
-    /// Supports both delay-seconds and HTTP-date formats (RFC 7231 §7.1.3).
-    /// Returns delay in milliseconds, or null if the header is absent/unparsable.
+    ///     Parse the Retry-After header from an HTTP response.
+    ///     Supports both delay-seconds and HTTP-date formats (RFC 7231 §7.1.3).
+    ///     Returns delay in milliseconds, or null if the header is absent/unparsable.
     /// </summary>
     private static int? ParseRetryAfter(HttpResponseMessage response)
     {
@@ -637,7 +634,7 @@ public class WebCrawlerService
     }
 
     /// <summary>
-    /// Extract all same-domain links from HTML.
+    ///     Extract all same-domain links from HTML.
     /// </summary>
     private static List<string> ExtractSameDomainLinks(string html, string baseUrl, HashSet<string> allowedHosts)
     {
@@ -655,8 +652,8 @@ public class WebCrawlerService
 
                 // Skip fragment-only links, javascript:, mailto:, tel:
                 if (href.StartsWith('#') || href.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
-                    || href.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)
-                    || href.StartsWith("tel:", StringComparison.OrdinalIgnoreCase))
+                                         || href.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)
+                                         || href.StartsWith("tel:", StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 try
@@ -665,9 +662,7 @@ public class WebCrawlerService
                     // Same-domain check (allows www and non-www variants)
                     if (allowedHosts.Contains(absoluteUri.Host)
                         && absoluteUri.Scheme is "http" or "https")
-                    {
                         links.Add(absoluteUri.AbsoluteUri);
-                    }
                 }
                 catch
                 {
@@ -684,9 +679,9 @@ public class WebCrawlerService
     }
 
     /// <summary>
-    /// Check if a URL path matches the configured glob filter.
-    /// Supports: /blog/* (prefix), *.html (suffix), /docs/*/intro (wildcard segment).
-    /// Null filter matches everything.
+    ///     Check if a URL path matches the configured glob filter.
+    ///     Supports: /blog/* (prefix), *.html (suffix), /docs/*/intro (wildcard segment).
+    ///     Null filter matches everything.
     /// </summary>
     private bool MatchesPathFilter(string url)
     {
@@ -716,12 +711,12 @@ public class WebCrawlerService
     {
         var path = new Uri(url).AbsolutePath.ToLowerInvariant();
         return path.EndsWith(".pdf") || path.EndsWith(".zip") || path.EndsWith(".tar")
-            || path.EndsWith(".gz") || path.EndsWith(".exe") || path.EndsWith(".dmg")
-            || path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg")
-            || path.EndsWith(".gif") || path.EndsWith(".svg") || path.EndsWith(".webp")
-            || path.EndsWith(".mp3") || path.EndsWith(".mp4") || path.EndsWith(".mov")
-            || path.EndsWith(".css") || path.EndsWith(".js") || path.EndsWith(".xml")
-            || path.EndsWith(".json") || path.EndsWith(".rss") || path.EndsWith(".atom");
+               || path.EndsWith(".gz") || path.EndsWith(".exe") || path.EndsWith(".dmg")
+               || path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg")
+               || path.EndsWith(".gif") || path.EndsWith(".svg") || path.EndsWith(".webp")
+               || path.EndsWith(".mp3") || path.EndsWith(".mp4") || path.EndsWith(".mov")
+               || path.EndsWith(".css") || path.EndsWith(".js") || path.EndsWith(".xml")
+               || path.EndsWith(".json") || path.EndsWith(".rss") || path.EndsWith(".atom");
     }
 
     private static string NormalizeUrl(string url)
@@ -752,7 +747,7 @@ public class WebCrawlerService
 }
 
 /// <summary>
-/// Result of crawling a single page — either new/changed content or a 304 Not Modified signal.
+///     Result of crawling a single page — either new/changed content or a 304 Not Modified signal.
 /// </summary>
 public record CrawlResult
 {
@@ -773,12 +768,12 @@ public record CrawlResult
 }
 
 /// <summary>
-/// Configuration for the web crawler.
-/// Hard limits are enforced at crawl time regardless of configured values:
-/// - DelayMs: floor of 200ms (values below are raised to 200ms)
-/// - MaxConcurrency: capped at 5 (values above are reduced to 5)
-/// - TimeoutSeconds: clamped to range [5, 60]
-/// The actual delay between requests adapts dynamically based on server response speed.
+///     Configuration for the web crawler.
+///     Hard limits are enforced at crawl time regardless of configured values:
+///     - DelayMs: floor of 200ms (values below are raised to 200ms)
+///     - MaxConcurrency: capped at 5 (values above are reduced to 5)
+///     - TimeoutSeconds: clamped to range [5, 60]
+///     The actual delay between requests adapts dynamically based on server response speed.
 /// </summary>
 public record CrawlConfig
 {
@@ -792,19 +787,19 @@ public record CrawlConfig
     public int MaxPages { get; init; } = 200;
 
     /// <summary>
-    /// Minimum delay between requests in milliseconds.
-    /// Adaptive delay may increase this based on server response speed.
-    /// Hard floor: 200ms (values below are raised automatically).
+    ///     Minimum delay between requests in milliseconds.
+    ///     Adaptive delay may increase this based on server response speed.
+    ///     Hard floor: 200ms (values below are raised automatically).
     /// </summary>
     public int DelayMs { get; init; } = 500;
 
     /// <summary>
-    /// Maximum concurrent requests. Hard cap: 5.
+    ///     Maximum concurrent requests. Hard cap: 5.
     /// </summary>
     public int MaxConcurrency { get; init; } = 3;
 
     /// <summary>
-    /// Timeout per page in seconds. Clamped to range [5, 60].
+    ///     Timeout per page in seconds. Clamped to range [5, 60].
     /// </summary>
     public int TimeoutSeconds { get; init; } = 15;
 
@@ -812,17 +807,17 @@ public record CrawlConfig
     public string? PathFilter { get; init; }
 
     /// <summary>
-    /// When true, extract links only from the article content area (SmartReader output)
-    /// rather than the full page HTML. Useful for sites like GitHub where the page
-    /// chrome contains many same-domain navigation links that would overwhelm the crawl.
-    /// Default: false (extract links from full page).
+    ///     When true, extract links only from the article content area (SmartReader output)
+    ///     rather than the full page HTML. Useful for sites like GitHub where the page
+    ///     chrome contains many same-domain navigation links that would overwhelm the crawl.
+    ///     Default: false (extract links from full page).
     /// </summary>
     public bool ContentScopedLinks { get; init; }
 
     /// <summary>
-    /// When true, convert GitHub blob URLs to raw.githubusercontent.com and fetch raw markdown
-    /// instead of rendered HTML. Extracts markdown links to follow other .md files in the repo.
-    /// Default: false.
+    ///     When true, convert GitHub blob URLs to raw.githubusercontent.com and fetch raw markdown
+    ///     instead of rendered HTML. Extracts markdown links to follow other .md files in the repo.
+    ///     Default: false.
     /// </summary>
     public bool GitHubRawMode { get; init; }
 }

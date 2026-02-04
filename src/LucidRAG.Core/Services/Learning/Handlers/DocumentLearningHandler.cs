@@ -1,17 +1,19 @@
-using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace LucidRAG.Core.Services.Learning.Handlers;
 
 /// <summary>
-/// Learning handler for Document processing (DocSummarizer).
-/// Reruns the full document processing stack (no early exit) to find better results.
+///     Learning handler for Document processing (DocSummarizer).
+///     Reruns the full document processing stack (no early exit) to find better results.
 /// </summary>
 public class DocumentLearningHandler : ILearningHandler
 {
-    private readonly ILogger<DocumentLearningHandler> _logger;
-    private readonly IDocumentProcessingService _processingService;
     private readonly IEntityRepository _entityRepository;
     private readonly IEvidenceRepository _evidenceRepository;
+    private readonly ILogger<DocumentLearningHandler> _logger;
+    private readonly IDocumentProcessingService _processingService;
 
     public DocumentLearningHandler(
         ILogger<DocumentLearningHandler> logger,
@@ -42,15 +44,6 @@ public class DocumentLearningHandler : ILearningHandler
         return doc.ContentHash ?? ComputeDocumentSignature(doc);
     }
 
-    private string ComputeDocumentSignature(DocumentEntity doc)
-    {
-        // Fallback: compute signature from file path + modified date
-        var signature = $"{doc.FilePath}:{doc.ProcessedAt?.Ticks ?? 0}";
-        using var sha256 = System.Security.Cryptography.SHA256.Create();
-        var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(signature));
-        return Convert.ToHexString(hashBytes);
-    }
-
     public async Task<LearningResult> LearnAsync(LearningTask task, CancellationToken ct = default)
     {
         var startTime = DateTime.UtcNow;
@@ -78,7 +71,6 @@ public class DocumentLearningHandler : ILearningHandler
             // PHASE 2: Reprocess with FULL stack (no early exit)
             var originalDoc = await _processingService.GetDocumentAsync(task.DocumentId, ct);
             if (originalDoc == null)
-            {
                 return new LearningResult
                 {
                     DocumentId = task.DocumentId,
@@ -87,7 +79,6 @@ public class DocumentLearningHandler : ILearningHandler
                     ImprovementsApplied = false,
                     ErrorMessage = "Document not found"
                 };
-            }
 
             // Reprocess with ALL extractors, no shortcuts
             var reprocessResult = await _processingService.ReprocessFullStackAsync(
@@ -97,8 +88,8 @@ public class DocumentLearningHandler : ILearningHandler
                     ExtractEntities = true,
                     GenerateEmbeddings = true,
                     ExtractRelationships = true,
-                    RunAllExtractors = true,  // CRITICAL: No early exit
-                    LearningMode = true  // Signal to run slower but better algorithms
+                    RunAllExtractors = true, // CRITICAL: No early exit
+                    LearningMode = true // Signal to run slower but better algorithms
                 },
                 ct);
 
@@ -181,7 +172,7 @@ public class DocumentLearningHandler : ILearningHandler
                     Id = Guid.NewGuid(),
                     DocumentId = task.DocumentId,
                     Type = "entity_extraction_learned",
-                    Content = System.Text.Json.JsonSerializer.Serialize(reprocessResult.Entities),
+                    Content = JsonSerializer.Serialize(reprocessResult.Entities),
                     Metadata = new Dictionary<string, object>
                     {
                         ["entity_count"] = newEntityCount,
@@ -201,18 +192,16 @@ public class DocumentLearningHandler : ILearningHandler
                     Metrics = metrics
                 };
             }
-            else
-            {
-                _logger.LogInformation("No improvements found for document {DocumentId}", task.DocumentId);
 
-                return new LearningResult
-                {
-                    DocumentId = task.DocumentId,
-                    Success = true,
-                    ProcessingTime = DateTime.UtcNow - startTime,
-                    ImprovementsApplied = false
-                };
-            }
+            _logger.LogInformation("No improvements found for document {DocumentId}", task.DocumentId);
+
+            return new LearningResult
+            {
+                DocumentId = task.DocumentId,
+                Success = true,
+                ProcessingTime = DateTime.UtcNow - startTime,
+                ImprovementsApplied = false
+            };
         }
         catch (Exception ex)
         {
@@ -228,10 +217,19 @@ public class DocumentLearningHandler : ILearningHandler
             };
         }
     }
+
+    private string ComputeDocumentSignature(DocumentEntity doc)
+    {
+        // Fallback: compute signature from file path + modified date
+        var signature = $"{doc.FilePath}:{doc.ProcessedAt?.Ticks ?? 0}";
+        using var sha256 = SHA256.Create();
+        var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(signature));
+        return Convert.ToHexString(hashBytes);
+    }
 }
 
 /// <summary>
-/// Document processing service interface (extended for learning).
+///     Document processing service interface (extended for learning).
 /// </summary>
 public interface IDocumentProcessingService
 {
@@ -244,7 +242,7 @@ public interface IDocumentProcessingService
 }
 
 /// <summary>
-/// Result of reprocessing a document.
+///     Result of reprocessing a document.
 /// </summary>
 public class ReprocessResult
 {
@@ -255,7 +253,7 @@ public class ReprocessResult
 }
 
 /// <summary>
-/// Processing options (extended for learning).
+///     Processing options (extended for learning).
 /// </summary>
 public class ProcessingOptions
 {

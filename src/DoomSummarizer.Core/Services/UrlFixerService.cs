@@ -1,26 +1,28 @@
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Web;
+using DoomSummarizer.Models;
 using Microsoft.Extensions.Logging;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fixes broken/redirect URLs from aggregator sources like Google News.
-/// Google News RSS returns redirect URLs (news.google.com/rss/articles/...) that often:
-/// - Return 400 errors
-/// - Require JavaScript to resolve
-/// - Have tracking parameters
-///
-/// This service resolves these to canonical article URLs.
+///     Fixes broken/redirect URLs from aggregator sources like Google News.
+///     Google News RSS returns redirect URLs (news.google.com/rss/articles/...) that often:
+///     - Return 400 errors
+///     - Require JavaScript to resolve
+///     - Have tracking parameters
+///     This service resolves these to canonical article URLs.
 /// </summary>
 public partial class UrlFixerService
 {
+    private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private readonly HttpClient _httpClient;
     private readonly ILogger<UrlFixerService>? _logger;
 
     // Cache resolved URLs to avoid repeated lookups
     private readonly Dictionary<string, string> _urlCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly SemaphoreSlim _cacheLock = new(1, 1);
 
     public UrlFixerService(HttpClient httpClient, ILogger<UrlFixerService>? logger = null)
     {
@@ -29,7 +31,7 @@ public partial class UrlFixerService
     }
 
     /// <summary>
-    /// Check if a URL needs fixing (is from a problematic source).
+    ///     Check if a URL needs fixing (is from a problematic source).
     /// </summary>
     public static bool NeedsFix(string? url)
     {
@@ -41,8 +43,8 @@ public partial class UrlFixerService
     }
 
     /// <summary>
-    /// Attempt to fix/resolve a URL to its canonical form.
-    /// Returns the original URL if fixing fails.
+    ///     Attempt to fix/resolve a URL to its canonical form.
+    ///     Returns the original URL if fixing fails.
     /// </summary>
     public async Task<string> FixUrlAsync(string url, CancellationToken ct = default)
     {
@@ -90,7 +92,7 @@ public partial class UrlFixerService
     }
 
     /// <summary>
-    /// Fix URLs in batch (parallel with throttling).
+    ///     Fix URLs in batch (parallel with throttling).
     /// </summary>
     public async Task<Dictionary<string, string>> FixUrlsBatchAsync(
         IEnumerable<string> urls, CancellationToken ct = default)
@@ -134,25 +136,30 @@ public partial class UrlFixerService
 
     // --- Detection ---
 
-    private static bool IsGoogleNewsUrl(string url) =>
-        url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase) &&
-        (url.Contains("/rss/articles/", StringComparison.OrdinalIgnoreCase) ||
-         url.Contains("/articles/", StringComparison.OrdinalIgnoreCase));
+    private static bool IsGoogleNewsUrl(string url)
+    {
+        return url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase) &&
+               (url.Contains("/rss/articles/", StringComparison.OrdinalIgnoreCase) ||
+                url.Contains("/articles/", StringComparison.OrdinalIgnoreCase));
+    }
 
-    private static bool IsGoogleRedirectUrl(string url) =>
-        url.Contains("google.com/url?", StringComparison.OrdinalIgnoreCase);
+    private static bool IsGoogleRedirectUrl(string url)
+    {
+        return url.Contains("google.com/url?", StringComparison.OrdinalIgnoreCase);
+    }
 
-    private static bool IsBingNewsUrl(string url) =>
-        url.Contains("bing.com/news/apiclick", StringComparison.OrdinalIgnoreCase);
+    private static bool IsBingNewsUrl(string url)
+    {
+        return url.Contains("bing.com/news/apiclick", StringComparison.OrdinalIgnoreCase);
+    }
 
     // --- Resolution ---
 
     /// <summary>
-    /// Resolve Google News article URL.
-    /// Google News encodes the actual URL in a base64 blob within the URL path.
-    /// Format: /articles/CBMi[base64]... where base64 contains the actual URL.
-    ///
-    /// Algorithm based on: https://gist.github.com/huksley/bc3cb046157a99cd9d1517b32f91a99e
+    ///     Resolve Google News article URL.
+    ///     Google News encodes the actual URL in a base64 blob within the URL path.
+    ///     Format: /articles/CBMi[base64]... where base64 contains the actual URL.
+    ///     Algorithm based on: https://gist.github.com/huksley/bc3cb046157a99cd9d1517b32f91a99e
     /// </summary>
     private async Task<string> ResolveGoogleNewsUrlAsync(string url, CancellationToken ct)
     {
@@ -182,6 +189,7 @@ public partial class UrlFixerService
                         var baseUri = new Uri(url);
                         location = new Uri(baseUri, location).ToString();
                     }
+
                     return location;
                 }
             }
@@ -195,7 +203,8 @@ public partial class UrlFixerService
                 if (canonicalMatch.Success)
                 {
                     var canonical = canonicalMatch.Groups[1].Value;
-                    if (!canonical.Contains("news.google.com") && Uri.IsWellFormedUriString(canonical, UriKind.Absolute))
+                    if (!canonical.Contains("news.google.com") &&
+                        Uri.IsWellFormedUriString(canonical, UriKind.Absolute))
                         return canonical;
                 }
 
@@ -221,11 +230,10 @@ public partial class UrlFixerService
     }
 
     /// <summary>
-    /// Try to decode Google News URL using base64 extraction.
-    /// Google News URLs contain base64-encoded data with embedded article URLs.
-    ///
-    /// Format: The base64 blob starts with CBMi (old) or AU_yqL (new).
-    /// Inside the decoded data: prefix bytes + length + URL bytes + suffix
+    ///     Try to decode Google News URL using base64 extraction.
+    ///     Google News URLs contain base64-encoded data with embedded article URLs.
+    ///     Format: The base64 blob starts with CBMi (old) or AU_yqL (new).
+    ///     Inside the decoded data: prefix bytes + length + URL bytes + suffix
     /// </summary>
     private static string? TryDecodeGoogleNewsBase64(string url)
     {
@@ -258,13 +266,13 @@ public partial class UrlFixerService
 
             // Old format: prefix [0x08, 0x13, 0x22] then varint length, then URL
             // Try to find URL by looking for "http" in the decoded bytes
-            var decodedStr = System.Text.Encoding.UTF8.GetString(decoded);
+            var decodedStr = Encoding.UTF8.GetString(decoded);
 
             // Look for http:// or https:// in the decoded data
             var httpIdx = decodedStr.IndexOf("http://", StringComparison.OrdinalIgnoreCase);
             var httpsIdx = decodedStr.IndexOf("https://", StringComparison.OrdinalIgnoreCase);
 
-            var startIdx = (httpIdx >= 0 && httpsIdx >= 0)
+            var startIdx = httpIdx >= 0 && httpsIdx >= 0
                 ? Math.Min(httpIdx, httpsIdx)
                 : Math.Max(httpIdx, httpsIdx);
 
@@ -292,9 +300,7 @@ public partial class UrlFixerService
             // Validate it's a proper URL
             if (Uri.IsWellFormedUriString(extractedUrl, UriKind.Absolute) &&
                 !extractedUrl.Contains("news.google.com"))
-            {
                 return extractedUrl;
-            }
         }
         catch
         {
@@ -308,14 +314,14 @@ public partial class UrlFixerService
     private static partial Regex GoogleNewsArticleIdPattern();
 
     /// <summary>
-    /// Extract target URL from Google redirect URL (google.com/url?q=...).
+    ///     Extract target URL from Google redirect URL (google.com/url?q=...).
     /// </summary>
     private static string? ExtractGoogleRedirectTarget(string url)
     {
         try
         {
             var uri = new Uri(url);
-            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var query = HttpUtility.ParseQueryString(uri.Query);
             var target = query["q"] ?? query["url"];
             if (!string.IsNullOrEmpty(target) && Uri.IsWellFormedUriString(target, UriKind.Absolute))
                 return target;
@@ -324,11 +330,12 @@ public partial class UrlFixerService
         {
             // Parse error
         }
+
         return null;
     }
 
     /// <summary>
-    /// Resolve Bing News click URL by following redirect.
+    ///     Resolve Bing News click URL by following redirect.
     /// </summary>
     private async Task<string> ResolveBingNewsUrlAsync(string url, CancellationToken ct)
     {
@@ -336,11 +343,11 @@ public partial class UrlFixerService
         try
         {
             var uri = new Uri(url);
-            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var query = HttpUtility.ParseQueryString(uri.Query);
             var target = query["url"];
             if (!string.IsNullOrEmpty(target))
             {
-                var decoded = System.Web.HttpUtility.UrlDecode(target);
+                var decoded = HttpUtility.UrlDecode(target);
                 if (Uri.IsWellFormedUriString(decoded, UriKind.Absolute))
                     return decoded;
             }
@@ -366,7 +373,8 @@ public partial class UrlFixerService
     [GeneratedRegex(@"<link[^>]+rel=[""']canonical[""'][^>]+href=[""']([^""']+)[""']", RegexOptions.IgnoreCase)]
     private static partial Regex CanonicalLinkPattern();
 
-    [GeneratedRegex(@"<meta[^>]+http-equiv=[""']refresh[""'][^>]+content=[""']\d+;\s*url=([^""']+)[""']", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<meta[^>]+http-equiv=[""']refresh[""'][^>]+content=[""']\d+;\s*url=([^""']+)[""']",
+        RegexOptions.IgnoreCase)]
     private static partial Regex MetaRefreshPattern();
 
     [GeneratedRegex(@"<meta[^>]+property=[""']og:url[""'][^>]+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase)]
@@ -374,16 +382,16 @@ public partial class UrlFixerService
 }
 
 /// <summary>
-/// Extension methods for URL fixing integration.
+///     Extension methods for URL fixing integration.
 /// </summary>
 public static class UrlFixerExtensions
 {
     /// <summary>
-    /// Fix URLs in a list of ContentItems in-place.
+    ///     Fix URLs in a list of ContentItems in-place.
     /// </summary>
     public static async Task FixUrlsAsync(
         this UrlFixerService fixer,
-        IList<Models.ContentItem> items,
+        IList<ContentItem> items,
         CancellationToken ct = default)
     {
         var urlsToFix = items
@@ -397,9 +405,7 @@ public static class UrlFixerExtensions
         var resolved = await fixer.FixUrlsBatchAsync(urlsToFix, ct);
 
         foreach (var item in items)
-        {
             if (item.Url != null && resolved.TryGetValue(item.Url, out var fixedUrl))
                 item.Url = fixedUrl;
-        }
     }
 }

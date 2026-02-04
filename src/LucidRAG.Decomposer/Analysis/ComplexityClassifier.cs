@@ -7,22 +7,18 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.Decomposer.Analysis;
 
 /// <summary>
-/// Fast-path classifier: determines query complexity BEFORE running expensive analyzers.
-/// Simple queries skip decomposition entirely and go straight to single-pass fetch+score.
-/// This is the first thing that runs  -  it gates whether we do any decomposition at all.
-///
-/// Classification signals (all deterministic, no LLM):
-/// - Sentence count (splitting on . ; \n and conjunctions with topic-change detection)
-/// - URL/file path presence (regex-free: uses TextRecognizerService)
-/// - NER entity count + type diversity
-/// - Temporal comparison markers
-/// - Archetype similarity (comparison, timeline archetypes via embedding)
+///     Fast-path classifier: determines query complexity BEFORE running expensive analyzers.
+///     Simple queries skip decomposition entirely and go straight to single-pass fetch+score.
+///     This is the first thing that runs  -  it gates whether we do any decomposition at all.
+///     Classification signals (all deterministic, no LLM):
+///     - Sentence count (splitting on . ; \n and conjunctions with topic-change detection)
+///     - URL/file path presence (regex-free: uses TextRecognizerService)
+///     - NER entity count + type diversity
+///     - Temporal comparison markers
+///     - Archetype similarity (comparison, timeline archetypes via embedding)
 /// </summary>
 public class ComplexityClassifier
 {
-    private readonly IEmbeddingService? _embedding;
-    private readonly ILogger<ComplexityClassifier>? _logger;
-
     // Pre-embedded archetype texts (embedded lazily at first use)
     private static readonly string[] ComparisonArchetypes =
     [
@@ -40,6 +36,9 @@ public class ComplexityClassifier
         "X trends over the past year"
     ];
 
+    private readonly IEmbeddingService? _embedding;
+    private readonly ILogger<ComplexityClassifier>? _logger;
+
     private float[][]? _comparisonArchetypeEmbeddings;
     private float[][]? _temporalArchetypeEmbeddings;
 
@@ -50,7 +49,7 @@ public class ComplexityClassifier
     }
 
     /// <summary>
-    /// Classify query complexity. This is the fast-path gate.
+    ///     Classify query complexity. This is the fast-path gate.
     /// </summary>
     public async Task<QueryComplexity> ClassifyAsync(
         string query,
@@ -116,8 +115,8 @@ public class ComplexityClassifier
     }
 
     /// <summary>
-    /// Detect tool-use signals: file paths + tool action verbs.
-    /// These should prevent fast-path since they need ToolUseAnalyzer.
+    ///     Detect tool-use signals: file paths + tool action verbs.
+    ///     These should prevent fast-path since they need ToolUseAnalyzer.
     /// </summary>
     internal static bool HasToolUseSignals(string query)
     {
@@ -146,7 +145,7 @@ public class ComplexityClassifier
     }
 
     /// <summary>
-    /// Count syntactic clauses (sentence boundaries + conjunctions that likely split topics).
+    ///     Count syntactic clauses (sentence boundaries + conjunctions that likely split topics).
     /// </summary>
     internal static int CountClauses(string query)
     {
@@ -205,6 +204,7 @@ public class ComplexityClassifier
             var sim = CosineSimilarity(query, archetype);
             if (sim > max) max = sim;
         }
+
         return max;
     }
 

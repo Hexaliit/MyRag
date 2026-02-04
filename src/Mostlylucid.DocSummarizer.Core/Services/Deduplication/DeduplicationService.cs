@@ -33,7 +33,6 @@ public class DeduplicationService : IDeduplicationService
         string? documentId = null)
     {
         if (!_config.Ingestion.Enabled || segments.Count <= 1)
-        {
             return new DeduplicationResult<Segment>(
                 segments,
                 segments.Count,
@@ -43,7 +42,6 @@ public class DeduplicationService : IDeduplicationService
                 0.0,
                 TimeSpan.Zero,
                 documentId);
-        }
 
         var startTime = DateTime.UtcNow;
         var config = _config.Ingestion;
@@ -115,7 +113,6 @@ public class DeduplicationService : IDeduplicationService
         // Apply salience boosts for near-duplicates
         var maxBoostApplied = 0.0;
         if (config.EnableSalienceBoost)
-        {
             for (var i = 0; i < selected.Count; i++)
             {
                 var count = nearDuplicateCounts.GetValueOrDefault(i, 0);
@@ -123,14 +120,13 @@ public class DeduplicationService : IDeduplicationService
                 {
                     var boost = CalculateBoost(count, config);
                     var originalSalience = selected[i].SalienceScore;
-                    selected[i].SalienceScore *= (1.0 + boost);
+                    selected[i].SalienceScore *= 1.0 + boost;
                     selected[i].SalienceScore = Math.Min(selected[i].SalienceScore, config.MaxSalienceBoost);
 
                     var appliedBoost = selected[i].SalienceScore - originalSalience;
                     maxBoostApplied = Math.Max(maxBoostApplied, appliedBoost);
                 }
             }
-        }
 
         var elapsed = DateTime.UtcNow - startTime;
         var dedupRatio = segments.Count > 0
@@ -151,21 +147,17 @@ public class DeduplicationService : IDeduplicationService
 
             // Warn if dedup ratio is suspiciously high
             if (dedupRatio > _config.Analytics.HighIngestionDedupThreshold)
-            {
                 _logger.LogWarning(
                     "High ingestion dedup ratio ({Ratio:P1}) for document {DocumentId}. May indicate excessive boilerplate or auto-generated content.",
                     dedupRatio,
                     documentId ?? "unknown");
-            }
 
             // Warn if max boost is high
             if (maxBoostApplied > _config.Analytics.HighSalienceBoostThreshold)
-            {
                 _logger.LogWarning(
                     "High salience boost ({Boost:F2}) applied in document {DocumentId}. Verify content is not spam.",
                     maxBoostApplied,
                     documentId ?? "unknown");
-            }
         }
 
         return new DeduplicationResult<Segment>(
@@ -189,7 +181,6 @@ public class DeduplicationService : IDeduplicationService
         string? queryId = null) where T : class
     {
         if (!_config.Retrieval.Enabled || rankedResults.Count <= 1)
-        {
             return new DeduplicationResult<T>(
                 rankedResults,
                 rankedResults.Count,
@@ -199,7 +190,6 @@ public class DeduplicationService : IDeduplicationService
                 0.0,
                 TimeSpan.Zero,
                 queryId);
-        }
 
         var startTime = DateTime.UtcNow;
         var config = _config.Retrieval;
@@ -234,10 +224,7 @@ public class DeduplicationService : IDeduplicationService
                 }
             }
 
-            if (!isDuplicate)
-            {
-                selected.Add(result);
-            }
+            if (!isDuplicate) selected.Add(result);
         }
 
         var elapsed = DateTime.UtcNow - startTime;
@@ -257,11 +244,9 @@ public class DeduplicationService : IDeduplicationService
 
             // Warn if dedup ratio is suspiciously high
             if (dedupRatio > _config.Analytics.HighRetrievalDedupThreshold)
-            {
                 _logger.LogWarning(
                     "High retrieval dedup ratio ({Ratio:P1}). Query may be too broad or corpus has many similar documents.",
                     dedupRatio);
-            }
         }
 
         return new DeduplicationResult<T>(

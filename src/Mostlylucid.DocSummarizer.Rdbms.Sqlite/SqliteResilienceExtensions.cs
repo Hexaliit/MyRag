@@ -4,12 +4,12 @@ using Mostlylucid.DocSummarizer.Resilience;
 namespace Mostlylucid.DocSummarizer.Rdbms.Sqlite;
 
 /// <summary>
-/// DI registration for SQLite-backed resilience services.
+///     DI registration for SQLite-backed resilience services.
 /// </summary>
 public static class SqliteResilienceExtensions
 {
     /// <summary>
-    /// Register SQLite-backed circuit breaker and API budget services.
+    ///     Register SQLite-backed circuit breaker and API budget services.
     /// </summary>
     public static IServiceCollection AddSqliteResilience(this IServiceCollection services, string dbPath)
     {

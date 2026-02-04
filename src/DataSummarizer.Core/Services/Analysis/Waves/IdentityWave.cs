@@ -1,10 +1,11 @@
+using ClosedXML.Excel;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Data.Models;
 
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// First wave: extracts fundamental file and schema information.
+///     First wave: extracts fundamental file and schema information.
 /// </summary>
 public class IdentityWave : IDataAnalysisWave
 {
@@ -33,10 +34,7 @@ public class IdentityWave : IDataAnalysisWave
         signals.Add(CreateSignal(DataSignalKeys.SizeBytes, file.SizeBytes));
 
         // For Excel files, we need special handling (DuckDB can't read Excel directly)
-        if (file.Format == DataFormat.Excel)
-        {
-            return await AnalyzeExcelAsync(file, signals, ct);
-        }
+        if (file.Format == DataFormat.Excel) return await AnalyzeExcelAsync(file, signals, ct);
 
         // Open DuckDB for the file
         try
@@ -81,7 +79,7 @@ public class IdentityWave : IDataAnalysisWave
         // Use ClosedXML for Excel files
         try
         {
-            using var workbook = new ClosedXML.Excel.XLWorkbook(file.FilePath);
+            using var workbook = new XLWorkbook(file.FilePath);
             var worksheet = workbook.Worksheets.First();
             var usedRange = worksheet.RangeUsed();
 

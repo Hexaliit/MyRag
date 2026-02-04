@@ -555,7 +555,6 @@ public class QdrantImageVectorStoreService : IImageVectorStoreService
             var points = await _client.RetrieveAsync(
                 collectionName,
                 new[] { new PointId { Num = pointId } },
-                true,
                 cancellationToken: cancellationToken
             );
 

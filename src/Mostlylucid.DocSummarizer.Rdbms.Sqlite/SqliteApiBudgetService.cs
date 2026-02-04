@@ -4,15 +4,15 @@ using Mostlylucid.DocSummarizer.Resilience;
 namespace Mostlylucid.DocSummarizer.Rdbms.Sqlite;
 
 /// <summary>
-/// Central budget tracker for all paid/limited APIs.
-/// SQLite-backed usage tracking with per-service and global limits.
+///     Central budget tracker for all paid/limited APIs.
+///     SQLite-backed usage tracking with per-service and global limits.
 /// </summary>
 public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
 {
-    private readonly ApiBudgetConfig _globalConfig;
-    private readonly IServiceBudgetLookup _lookup;
     private readonly SqliteConnection _db;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
+    private readonly ApiBudgetConfig _globalConfig;
+    private readonly IServiceBudgetLookup _lookup;
     private bool _initialized;
 
     public SqliteApiBudgetService(ApiBudgetConfig globalConfig, IServiceBudgetLookup lookup, string dbPath)
@@ -22,41 +22,7 @@ public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
         _db = new SqliteConnection($"Data Source={dbPath}");
     }
 
-    public async Task InitializeAsync()
-    {
-        if (_initialized) return;
-        await _db.OpenAsync();
-
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS api_usage (
-                service TEXT NOT NULL,
-                date TEXT NOT NULL,
-                request_count INTEGER DEFAULT 0,
-                estimated_cost_usd REAL DEFAULT 0,
-                PRIMARY KEY (service, date)
-            );
-            CREATE TABLE IF NOT EXISTS api_usage_total (
-                service TEXT PRIMARY KEY,
-                total_requests INTEGER DEFAULT 0,
-                total_cost_usd REAL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS circuit_state (
-                service TEXT PRIMARY KEY,
-                status INTEGER NOT NULL DEFAULT 0,
-                failure_type INTEGER NOT NULL DEFAULT 0,
-                failure_count INTEGER NOT NULL DEFAULT 0,
-                tripped_at TEXT,
-                retry_after TEXT,
-                last_failure_reason TEXT,
-                updated_at TEXT NOT NULL
-            );
-            """;
-        await cmd.ExecuteNonQueryAsync();
-        _initialized = true;
-    }
-
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<BudgetCheckResult> CheckBudgetAsync(string service)
     {
         await InitializeAsync();
@@ -77,7 +43,8 @@ public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
         {
             var totalCount = await GetTotalCountAsync(service);
             if (totalCount >= svcInfo.MaxRequests)
-                return BudgetCheckResult.Denied($"{service}: lifetime limit reached ({totalCount}/{svcInfo.MaxRequests})");
+                return BudgetCheckResult.Denied(
+                    $"{service}: lifetime limit reached ({totalCount}/{svcInfo.MaxRequests})");
         }
 
         if (svcInfo is { DailyBudgetUsd: > 0 })
@@ -104,7 +71,7 @@ public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
         return BudgetCheckResult.Allowed(dailyCount, serviceLimit, costPerRequest);
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task RecordUsageAsync(string service, int count = 1)
     {
         await InitializeAsync();
@@ -118,12 +85,12 @@ public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
         {
             using var cmd1 = _db.CreateCommand();
             cmd1.CommandText = """
-                INSERT INTO api_usage (service, date, request_count, estimated_cost_usd)
-                VALUES (@service, @date, @count, @cost)
-                ON CONFLICT(service, date) DO UPDATE SET
-                    request_count = request_count + @count,
-                    estimated_cost_usd = estimated_cost_usd + @cost
-                """;
+                               INSERT INTO api_usage (service, date, request_count, estimated_cost_usd)
+                               VALUES (@service, @date, @count, @cost)
+                               ON CONFLICT(service, date) DO UPDATE SET
+                                   request_count = request_count + @count,
+                                   estimated_cost_usd = estimated_cost_usd + @cost
+                               """;
             cmd1.Parameters.AddWithValue("@service", service);
             cmd1.Parameters.AddWithValue("@date", today);
             cmd1.Parameters.AddWithValue("@count", count);
@@ -132,12 +99,12 @@ public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
 
             using var cmd2 = _db.CreateCommand();
             cmd2.CommandText = """
-                INSERT INTO api_usage_total (service, total_requests, total_cost_usd)
-                VALUES (@service, @count, @cost)
-                ON CONFLICT(service) DO UPDATE SET
-                    total_requests = total_requests + @count,
-                    total_cost_usd = total_cost_usd + @cost
-                """;
+                               INSERT INTO api_usage_total (service, total_requests, total_cost_usd)
+                               VALUES (@service, @count, @cost)
+                               ON CONFLICT(service) DO UPDATE SET
+                                   total_requests = total_requests + @count,
+                                   total_cost_usd = total_cost_usd + @cost
+                               """;
             cmd2.Parameters.AddWithValue("@service", service);
             cmd2.Parameters.AddWithValue("@count", count);
             cmd2.Parameters.AddWithValue("@cost", cost);
@@ -147,6 +114,47 @@ public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
         {
             _dbLock.Release();
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _dbLock.Dispose();
+        await _db.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
+
+    public async Task InitializeAsync()
+    {
+        if (_initialized) return;
+        await _db.OpenAsync();
+
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+                          CREATE TABLE IF NOT EXISTS api_usage (
+                              service TEXT NOT NULL,
+                              date TEXT NOT NULL,
+                              request_count INTEGER DEFAULT 0,
+                              estimated_cost_usd REAL DEFAULT 0,
+                              PRIMARY KEY (service, date)
+                          );
+                          CREATE TABLE IF NOT EXISTS api_usage_total (
+                              service TEXT PRIMARY KEY,
+                              total_requests INTEGER DEFAULT 0,
+                              total_cost_usd REAL DEFAULT 0
+                          );
+                          CREATE TABLE IF NOT EXISTS circuit_state (
+                              service TEXT PRIMARY KEY,
+                              status INTEGER NOT NULL DEFAULT 0,
+                              failure_type INTEGER NOT NULL DEFAULT 0,
+                              failure_count INTEGER NOT NULL DEFAULT 0,
+                              tripped_at TEXT,
+                              retry_after TEXT,
+                              last_failure_reason TEXT,
+                              updated_at TEXT NOT NULL
+                          );
+                          """;
+        await cmd.ExecuteNonQueryAsync();
+        _initialized = true;
     }
 
     private async Task<int> GetDailyCountAsync(string service, string date)
@@ -234,12 +242,5 @@ public class SqliteApiBudgetService : IApiBudget, IAsyncDisposable
         {
             _dbLock.Release();
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _dbLock.Dispose();
-        await _db.DisposeAsync();
-        GC.SuppressFinalize(this);
     }
 }

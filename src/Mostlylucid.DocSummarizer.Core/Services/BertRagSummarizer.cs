@@ -480,7 +480,8 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
             // This prevents storing multiple nearly-identical segments from the same document
             var dedupResult = DeduplicateSegments(extraction.AllSegments, _deduplicationConfig.Ingestion, stableDocId);
 
-            VerboseHelper.Log(_verbose, $"[dim]Deduplication: {dedupResult.OriginalCount} → {dedupResult.FinalCount} segments ({dedupResult.DeduplicationPercentage:F1}% removed)[/]");
+            VerboseHelper.Log(_verbose,
+                $"[dim]Deduplication: {dedupResult.OriginalCount} → {dedupResult.FinalCount} segments ({dedupResult.DeduplicationPercentage:F1}% removed)[/]");
             await _vectorStore.UpsertSegmentsAsync(_bertRagConfig.CollectionName, dedupResult.Items, ct);
         }
 
@@ -490,7 +491,6 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
     /// <summary>
     ///     Deduplicate segments using salience filtering and cosine similarity.
     ///     Greedy selection: keeps highest-salience segments, skips those too similar to already-selected.
-    ///
     ///     IMPORTANT: Near-duplicates (same meaning, different text) boost the kept segment's salience.
     ///     This captures the signal that repeated concepts are important.
     ///     Exact duplicates (same ContentHash) do NOT boost - they're likely formatting artifacts.
@@ -507,7 +507,6 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
         var startTime = DateTime.UtcNow;
 
         if (!config.Enabled || segments.Count <= 1)
-        {
             return new DeduplicationResult<Segment>(
                 segments,
                 segments.Count,
@@ -517,7 +516,6 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
                 0.0,
                 TimeSpan.Zero,
                 documentId);
-        }
 
         // Filter by minimum salience (skip very low-value segments)
         var candidates = segments
@@ -584,7 +582,6 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
         // Apply salience boosts for near-duplicates
         var maxBoostApplied = 0.0;
         if (config.EnableSalienceBoost)
-        {
             for (var i = 0; i < selected.Count; i++)
             {
                 var count = nearDuplicateCounts.GetValueOrDefault(i, 0);
@@ -592,7 +589,7 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
                 {
                     var boost = CalculateSalienceBoost(count, config);
                     var originalSalience = selected[i].SalienceScore;
-                    selected[i].SalienceScore *= (1.0 + boost);
+                    selected[i].SalienceScore *= 1.0 + boost;
                     // Cap at configured maximum (don't let one concept dominate everything)
                     selected[i].SalienceScore = Math.Min(selected[i].SalienceScore, config.MaxSalienceBoost);
 
@@ -600,7 +597,6 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
                     maxBoostApplied = Math.Max(maxBoostApplied, appliedBoost);
                 }
             }
-        }
 
         var elapsed = DateTime.UtcNow - startTime;
         var dedupRatio = segments.Count > 0

@@ -5,22 +5,23 @@ using DoomSummarizer.Models.LongFormGeneration;
 namespace DoomSummarizer.Services.LongFormGeneration;
 
 /// <summary>
-/// Phase 1: Evidence Preparation (Deterministic).
-/// Takes analyzed items + content items, runs ArticleProcessor to extract segments,
-/// builds EvidenceCorpus with embeddings, URL whitelist, and entity registry.
+///     Phase 1: Evidence Preparation (Deterministic).
+///     Takes analyzed items + content items, runs ArticleProcessor to extract segments,
+///     builds EvidenceCorpus with embeddings, URL whitelist, and entity registry.
 /// </summary>
 public static class EvidencePreparationService
 {
-    // Regex for capitalized multi-word phrases (entity extraction)
-    private static readonly Regex EntityRegex = new(
-        @"\b([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|of|the|and|for|in|on|at|to|de|von|van))*(?:\s+[A-Z][a-z]+)+)\b",
-        RegexOptions.Compiled);
-
     // Content type weights: tech docs = 1.0, tool docs = 0.9, bio/about = 0.2
     private const float TechDocWeight = 1.0f;
     private const float ToolDocWeight = 0.9f;
     private const float BioContentWeight = 0.2f;
+
     private const float MetaContentWeight = 0.3f;
+
+    // Regex for capitalized multi-word phrases (entity extraction)
+    private static readonly Regex EntityRegex = new(
+        @"\b([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|of|the|and|for|in|on|at|to|de|von|van))*(?:\s+[A-Z][a-z]+)+)\b",
+        RegexOptions.Compiled);
 
     // Patterns that indicate biographical/about content
     private static readonly string[] BioIndicators =
@@ -39,8 +40,8 @@ public static class EvidencePreparationService
     ];
 
     /// <summary>
-    /// Classify content type and return a weight multiplier.
-    /// Technical implementation docs get full weight, bio content gets 0.2x.
+    ///     Classify content type and return a weight multiplier.
+    ///     Technical implementation docs get full weight, bio content gets 0.2x.
     /// </summary>
     public static float ClassifyContentWeight(string title, string content, string url)
     {
@@ -79,7 +80,7 @@ public static class EvidencePreparationService
     }
 
     /// <summary>
-    /// Build the evidence corpus from processed articles.
+    ///     Build the evidence corpus from processed articles.
     /// </summary>
     public static EvidenceCorpus BuildCorpus(
         List<ProcessedArticle> processedArticles,
@@ -125,6 +126,7 @@ public static class EvidencePreparationService
                 urlFetchDates[url] = item.FetchedAt;
                 allSourceUrls.Add(url);
             }
+
             knownTitles.Add(title);
 
             articles[url.Length > 0 ? url : title] = new ArticleSummary
@@ -166,6 +168,7 @@ public static class EvidencePreparationService
                 for (var i = 0; i < dim; i++)
                     centroid[i] += emb[i];
             }
+
             for (var i = 0; i < dim; i++)
                 centroid[i] /= segments.Count;
 
@@ -197,6 +200,7 @@ public static class EvidencePreparationService
                     };
                     entityCounts[normalized] = entity;
                 }
+
                 entity.MentionCount++;
                 if (!entity.SourceArticles.Contains(seg.ArticleTitle))
                     entity.SourceArticles.Add(seg.ArticleTitle);
@@ -205,7 +209,6 @@ public static class EvidencePreparationService
 
         // Also add entity names from analyzedItems topics
         foreach (var item in analyzedItems)
-        {
             if (!string.IsNullOrEmpty(item.topic))
             {
                 var normalized = item.topic.ToLowerInvariant();
@@ -216,7 +219,6 @@ public static class EvidencePreparationService
                     SourceArticles = [item.title]
                 });
             }
-        }
 
         var knownEntityNames = new HashSet<string>(
             entityCounts.Keys, StringComparer.OrdinalIgnoreCase);

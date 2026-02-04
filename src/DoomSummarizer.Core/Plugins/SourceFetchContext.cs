@@ -3,11 +3,20 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// Unified parameter bag passed to <see cref="ISourcePlugin.FetchAsync"/>.
-/// Parsed from the raw source string (e.g. "reddit:csharp", "arxiv:cat:cs.AI").
+///     Unified parameter bag passed to <see cref="ISourcePlugin.FetchAsync" />.
+///     Parsed from the raw source string (e.g. "reddit:csharp", "arxiv:cat:cs.AI").
 /// </summary>
 public record SourceFetchContext
 {
+    /// <summary>
+    ///     Keys that are composite (include underscore) and should be matched as-is.
+    /// </summary>
+    private static readonly HashSet<string> CompositeKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "gnews_topic", "brave_search", "brave_news", "news_api", "news_data", "serper_news",
+        "reddit_comments"
+    };
+
     /// <summary>Original source string as typed by the user (e.g. "reddit:csharp").</summary>
     public required string RawSource { get; init; }
 
@@ -36,8 +45,8 @@ public record SourceFetchContext
     public DoomConfig? Config { get; init; }
 
     /// <summary>
-    /// Parse a raw source string into a <see cref="SourceFetchContext"/>.
-    /// Handles formats: "hn", "reddit:csharp", "arxiv:cat:cs.AI", "gnews_topic:HEALTH".
+    ///     Parse a raw source string into a <see cref="SourceFetchContext" />.
+    ///     Handles formats: "hn", "reddit:csharp", "arxiv:cat:cs.AI", "gnews_topic:HEALTH".
     /// </summary>
     public static SourceFetchContext Parse(
         string rawSource,
@@ -78,18 +87,9 @@ public record SourceFetchContext
     }
 
     /// <summary>
-    /// Keys that are composite (include underscore) and should be matched as-is.
-    /// </summary>
-    private static readonly HashSet<string> CompositeKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "gnews_topic", "brave_search", "brave_news", "news_api", "news_data", "serper_news",
-        "reddit_comments"
-    };
-
-    /// <summary>
-    /// Parse with composite key awareness. Tries longest match first.
-    /// E.g. "gnews_topic:HEALTH" → key="gnews_topic", sub=["HEALTH"]
-    ///       "brave:AI agents"   → key="brave", sub=["AI agents"]
+    ///     Parse with composite key awareness. Tries longest match first.
+    ///     E.g. "gnews_topic:HEALTH" → key="gnews_topic", sub=["HEALTH"]
+    ///     "brave:AI agents"   → key="brave", sub=["AI agents"]
     /// </summary>
     public static SourceFetchContext ParseWithCompositeKeys(
         string rawSource,

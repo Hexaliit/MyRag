@@ -1,14 +1,12 @@
 using System.Text.RegularExpressions;
 using LucidRAG.Data;
 using LucidRAG.Entities;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Extracts salient terms from collection documents using TF-IDF and entity analysis.
-/// Combines multiple ranking signals using Reciprocal Rank Fusion (RRF).
+///     Extracts salient terms from collection documents using TF-IDF and entity analysis.
+///     Combines multiple ranking signals using Reciprocal Rank Fusion (RRF).
 /// </summary>
 public class SalientTermsService(
     RagDocumentsDbContext db,
@@ -72,7 +70,7 @@ public class SalientTermsService(
 
         var suggestions = await db.SalientTerms
             .Where(t => t.CollectionId == collectionId &&
-                       t.NormalizedTerm.StartsWith(normalized))
+                        t.NormalizedTerm.StartsWith(normalized))
             .OrderByDescending(t => t.Score)
             .Take(maxResults)
             .Select(t => new SalientTermSuggestion(
@@ -94,7 +92,6 @@ public class SalientTermsService(
         logger.LogInformation("Updating salient terms for {Count} collections", collectionIds.Count);
 
         foreach (var collectionId in collectionIds)
-        {
             try
             {
                 await UpdateCollectionTermsAsync(collectionId, ct);
@@ -103,7 +100,6 @@ public class SalientTermsService(
             {
                 logger.LogError(ex, "Failed to update salient terms for collection {CollectionId}", collectionId);
             }
-        }
 
         logger.LogInformation("Completed updating salient terms for all collections");
     }
@@ -115,18 +111,18 @@ public class SalientTermsService(
             .ToListAsync(ct);
 
         return new SalientTermStats(
-            CollectionId: collectionId,
-            TotalTerms: terms.Count,
-            TfIdfTerms: terms.Count(t => t.Source == "tfidf"),
-            EntityTerms: terms.Count(t => t.Source == "entity"),
-            QueryTerms: terms.Count(t => t.Source == "query"),
-            LastUpdated: terms.Any() ? terms.Max(t => t.UpdatedAt) : DateTimeOffset.MinValue
+            collectionId,
+            terms.Count,
+            terms.Count(t => t.Source == "tfidf"),
+            terms.Count(t => t.Source == "entity"),
+            terms.Count(t => t.Source == "query"),
+            terms.Any() ? terms.Max(t => t.UpdatedAt) : DateTimeOffset.MinValue
         );
     }
 
     /// <summary>
-    /// Extract terms using TF-IDF from document content.
-    /// Uses evidence artifacts (segment_text) to get document text.
+    ///     Extract terms using TF-IDF from document content.
+    ///     Uses evidence artifacts (segment_text) to get document text.
     /// </summary>
     private async Task<Dictionary<string, TermScore>> ExtractTfIdfTermsAsync(
         Guid collectionId,
@@ -144,8 +140,9 @@ public class SalientTermsService(
             .Distinct()
             .SelectMany(entityId => db.EvidenceArtifacts
                 .Where(e => e.EntityId == entityId && e.ArtifactType == EvidenceTypes.SegmentText)
-                .Select(e => new {
-                    EntityId = e.EntityId,
+                .Select(e => new
+                {
+                    e.EntityId,
                     e.Content,
                     DocumentIds = db.DocumentEntityLinks
                         .Where(del2 => del2.EntityId == entityId && documentIds.Contains(del2.DocumentId))
@@ -202,16 +199,17 @@ public class SalientTermsService(
                     var maxTf = terms.Values.Max();
                     return (double)count / maxTf; // Normalized TF
                 }
+
                 return 0;
             });
 
             var tfidf = avgTf * idf;
 
             tfidfScores[term] = new TermScore(
-                Term: term,
-                Score: tfidf,
-                Source: "tfidf",
-                DocumentFrequency: df
+                term,
+                tfidf,
+                "tfidf",
+                df
             );
         }
 
@@ -223,7 +221,7 @@ public class SalientTermsService(
     }
 
     /// <summary>
-    /// Extract salient terms from entities in the collection.
+    ///     Extract salient terms from entities in the collection.
     /// </summary>
     private async Task<Dictionary<string, TermScore>> ExtractEntityTermsAsync(
         Guid collectionId,
@@ -249,16 +247,16 @@ public class SalientTermsService(
         return entities.ToDictionary(
             e => e.Term.ToLower(),
             e => new TermScore(
-                Term: e.Term,
-                Score: (double)e.Count / maxCount,
-                Source: "entity",
-                DocumentFrequency: e.Count // Using count as document frequency approximation
+                e.Term,
+                e.Count / maxCount,
+                "entity",
+                e.Count // Using count as document frequency approximation
             ));
     }
 
     /// <summary>
-    /// Extract terms from historical queries to the collection.
-    /// (Future: track query patterns in ConversationEntity)
+    ///     Extract terms from historical queries to the collection.
+    ///     (Future: track query patterns in ConversationEntity)
     /// </summary>
     private async Task<Dictionary<string, TermScore>> ExtractQueryTermsAsync(
         Guid collectionId,
@@ -270,8 +268,8 @@ public class SalientTermsService(
     }
 
     /// <summary>
-    /// Combine multiple term rankings using Reciprocal Rank Fusion (RRF).
-    /// RRF formula: score = sum(1 / (k + rank_i)) for each ranking
+    ///     Combine multiple term rankings using Reciprocal Rank Fusion (RRF).
+    ///     RRF formula: score = sum(1 / (k + rank_i)) for each ranking
     /// </summary>
     private List<CombinedTerm> CombineWithRrf(
         params Dictionary<string, TermScore>[] rankings)
@@ -290,7 +288,6 @@ public class SalientTermsService(
             var docFreq = 0;
 
             foreach (var ranking in rankings)
-            {
                 if (ranking.TryGetValue(term, out var termScore))
                 {
                     // Convert score to rank (assuming scores are already sorted)
@@ -303,13 +300,12 @@ public class SalientTermsService(
                     sources.Add(termScore.Source);
                     docFreq = Math.Max(docFreq, termScore.DocumentFrequency);
                 }
-            }
 
             combined.Add(new CombinedTerm(
-                Term: term,
-                Score: rrfScore,
-                Source: sources.Count > 1 ? "combined" : sources.FirstOrDefault() ?? "unknown",
-                DocumentFrequency: docFreq
+                term,
+                rrfScore,
+                sources.Count > 1 ? "combined" : sources.FirstOrDefault() ?? "unknown",
+                docFreq
             ));
         }
 
@@ -320,7 +316,7 @@ public class SalientTermsService(
     }
 
     /// <summary>
-    /// Store salient terms in database, replacing existing terms for the collection.
+    ///     Store salient terms in database, replacing existing terms for the collection.
     /// </summary>
     private async Task StoreSalientTermsAsync(
         Guid collectionId,
@@ -352,7 +348,7 @@ public class SalientTermsService(
     }
 
     /// <summary>
-    /// Extract terms from text using regex and filtering.
+    ///     Extract terms from text using regex and filtering.
     /// </summary>
     private List<string> ExtractTerms(string text)
     {
@@ -371,7 +367,7 @@ public class SalientTermsService(
         terms.AddRange(words);
 
         // Bigrams
-        for (int i = 0; i < words.Count - 1; i++)
+        for (var i = 0; i < words.Count - 1; i++)
         {
             var bigram = $"{words[i]} {words[i + 1]}";
             if (bigram.Length <= MaxTermLength)
@@ -379,7 +375,7 @@ public class SalientTermsService(
         }
 
         // Trigrams
-        for (int i = 0; i < words.Count - 2; i++)
+        for (var i = 0; i < words.Count - 2; i++)
         {
             var trigram = $"{words[i]} {words[i + 1]} {words[i + 2]}";
             if (trigram.Length <= MaxTermLength)
@@ -416,5 +412,6 @@ public class SalientTermsService(
     }
 
     private record TermScore(string Term, double Score, string Source, int DocumentFrequency);
+
     private record CombinedTerm(string Term, double Score, string Source, int DocumentFrequency);
 }

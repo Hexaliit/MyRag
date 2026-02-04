@@ -1,30 +1,31 @@
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
 using LucidRAG.Decomposer.Models;
 using LucidRAG.Decomposer.Orchestration;
 using Microsoft.Extensions.Logging;
-using Mostlylucid.DocSummarizer.Content;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Bridges the decomposer's ISubQueryExecutor to the existing DoomSummarizer
-/// retrieval pipeline. Routes sub-queries through RetrievalPipeline.SearchAsync
-/// and tool actions through the appropriate service.
+///     Bridges the decomposer's ISubQueryExecutor to the existing DoomSummarizer
+///     retrieval pipeline. Routes sub-queries through RetrievalPipeline.SearchAsync
+///     and tool actions through the appropriate service.
 /// </summary>
 public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
 {
-    private readonly RetrievalPipeline _retrieval;
-    private readonly IEmbeddingService _embedding;
-    private readonly StorageService _storage;
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<RetrievalSubQueryExecutor>? _logger;
+    /// <summary>Maximum text file size to read fully (10 MB). Larger files are truncated.</summary>
+    private const long MaxTextFileBytes = 10 * 1024 * 1024;
 
     /// <summary>Default retrieval options applied to each sub-query.</summary>
     private readonly RetrievalOptions _baseOptions;
+
+    private readonly IEmbeddingService _embedding;
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<RetrievalSubQueryExecutor>? _logger;
+    private readonly RetrievalPipeline _retrieval;
+    private readonly StorageService _storage;
 
     public RetrievalSubQueryExecutor(
         RetrievalPipeline retrieval,
@@ -43,7 +44,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// Execute a sub-query through the retrieval pipeline (Lucene FTS + embedding HNSW + RRF).
+    ///     Execute a sub-query through the retrieval pipeline (Lucene FTS + embedding HNSW + RRF).
     /// </summary>
     public async Task<SubQueryResult> ExecuteAsync(QueryNode node, CancellationToken ct = default)
     {
@@ -82,8 +83,8 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// Fetch content from a direct reference (URL, file path, DOI).
-    /// URLs are fetched via ContentExtractor; file paths are read directly.
+    ///     Fetch content from a direct reference (URL, file path, DOI).
+    ///     URLs are fetched via ContentExtractor; file paths are read directly.
     /// </summary>
     public async Task<SubQueryResult> FetchReferenceAsync(ContentReference reference, CancellationToken ct = default)
     {
@@ -100,14 +101,12 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                     var extractor = new ContentExtractor(_httpClient);
                     var extracted = await extractor.ExtractAsync(reference.Uri, ct);
                     if (extracted == null || string.IsNullOrWhiteSpace(extracted.Content))
-                    {
                         return new SubQueryResult
                         {
                             NodeId = reference.Uri,
                             Success = false,
                             Error = $"No content extracted from {reference.Uri}"
                         };
-                    }
 
                     var item = new ContentItem
                     {
@@ -129,14 +128,12 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
 
                 case ContentReferenceKind.FilePath:
                     if (!File.Exists(reference.Uri))
-                    {
                         return new SubQueryResult
                         {
                             NodeId = reference.Uri,
                             Success = false,
                             Error = $"File not found: {reference.Uri}"
                         };
-                    }
 
                     var fileContent = await File.ReadAllTextAsync(reference.Uri, ct);
                     var fileName = Path.GetFileName(reference.Uri);
@@ -181,9 +178,10 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// Execute a tool action. Routes to the appropriate handler by ToolKind.
+    ///     Execute a tool action. Routes to the appropriate handler by ToolKind.
     /// </summary>
-    public async Task<SubQueryResult> ExecuteToolAsync(QueryNode node, ToolAction action, CancellationToken ct = default)
+    public async Task<SubQueryResult> ExecuteToolAsync(QueryNode node, ToolAction action,
+        CancellationToken ct = default)
     {
         try
         {
@@ -283,10 +281,11 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// FileSystem tool: find and read files matching a glob pattern.
-    /// Extracts full metadata (size, type, dates, author, line count, structure).
+    ///     FileSystem tool: find and read files matching a glob pattern.
+    ///     Extracts full metadata (size, type, dates, author, line count, structure).
     /// </summary>
-    private async Task<SubQueryResult> ExecuteFileSystemToolAsync(QueryNode node, ToolAction action, CancellationToken ct)
+    private async Task<SubQueryResult> ExecuteFileSystemToolAsync(QueryNode node, ToolAction action,
+        CancellationToken ct)
     {
         var path = action.Parameters.GetValueOrDefault("path", ".");
         var pattern = action.Parameters.GetValueOrDefault("pattern", "*.*");
@@ -316,7 +315,6 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
             .ToList();
 
         if (files.Count == 0)
-        {
             return new SubQueryResult
             {
                 NodeId = node.Id,
@@ -324,7 +322,6 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                 Items = new List<ContentItem>(),
                 ItemCount = 0
             };
-        }
 
         _logger?.LogDebug("FileSystem tool: found {Count} files", files.Count);
 
@@ -360,7 +357,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// Index tool: embed and store content items into a named KB collection.
+    ///     Index tool: embed and store content items into a named KB collection.
     /// </summary>
     private async Task<SubQueryResult> ExecuteIndexToolAsync(QueryNode node, ToolAction action, CancellationToken ct)
     {
@@ -380,7 +377,6 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
         }, ct);
 
         if (result.Items.Count == 0)
-        {
             return new SubQueryResult
             {
                 NodeId = node.Id,
@@ -388,7 +384,6 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                 Items = new List<ContentItem>(),
                 ItemCount = 0
             };
-        }
 
         _logger?.LogDebug("Index tool: indexing {Count} items into collection '{Collection}'",
             result.Items.Count, collection);
@@ -418,7 +413,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                 await _storage.SaveItemAsync(item);
 
                 // Build a keyword profile and index in FTS
-                var contentPreview = (item.Content ?? item.Summary ?? "");
+                var contentPreview = item.Content ?? item.Summary ?? "";
                 if (contentPreview.Length > 2000) contentPreview = contentPreview[..2000];
                 await _storage.IndexDocumentFtsAsync(item.Id, item.Title, item.Keywords ?? "", contentPreview);
 
@@ -440,7 +435,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// Analyze tool: compute metrics (length, count, statistics) on retrieved content.
+    ///     Analyze tool: compute metrics (length, count, statistics) on retrieved content.
     /// </summary>
     private async Task<SubQueryResult> ExecuteAnalyzeToolAsync(QueryNode node, ToolAction action, CancellationToken ct)
     {
@@ -455,7 +450,6 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
         }, ct);
 
         if (result.Items.Count == 0)
-        {
             return new SubQueryResult
             {
                 NodeId = node.Id,
@@ -473,7 +467,6 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                 },
                 ItemCount = 1
             };
-        }
 
         var sb = new StringBuilder();
         sb.AppendLine($"## Analysis: {metric}");
@@ -484,7 +477,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
         {
             case "length" or "size":
                 var lengths = result.Items
-                    .Select(i => (i.Title, Length: (i.Content ?? "").Length))
+                    .Select(i => (i.Title, (i.Content ?? "").Length))
                     .OrderByDescending(x => x.Length)
                     .ToList();
                 var totalChars = lengths.Sum(l => l.Length);
@@ -502,6 +495,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                     var t = title.Length > 50 ? title[..47] + "..." : title;
                     sb.AppendLine($"| - | {t} | {length:N0} |");
                 }
+
                 break;
 
             case "count":
@@ -563,6 +557,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                     var oldestDate = result.Items.Where(i => i.FetchedAt != default).Min(i => i.FetchedAt);
                     sb.AppendLine($"**Date range**: {oldestDate:yyyy-MM-dd} to {newestDate:yyyy-MM-dd}");
                 }
+
                 break;
         }
 
@@ -598,11 +593,8 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
         };
     }
 
-    /// <summary>Maximum text file size to read fully (10 MB). Larger files are truncated.</summary>
-    private const long MaxTextFileBytes = 10 * 1024 * 1024;
-
     /// <summary>
-    /// Build a fully-populated ContentItem from a file path with all available metadata.
+    ///     Build a fully-populated ContentItem from a file path with all available metadata.
     /// </summary>
     internal static async Task<ContentItem> BuildContentItemFromFileAsync(string filePath, CancellationToken ct)
     {
@@ -695,14 +687,12 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
         // Tags from frontmatter
         var tags = new List<string>();
         if (frontMatter.TryGetValue("tags", out var tagsStr))
-        {
             tags = tagsStr
                 .Trim('[', ']')
                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
                 .Select(t => t.Trim().Trim('"', '\''))
                 .Where(t => !string.IsNullOrEmpty(t))
                 .ToList();
-        }
         if (frontMatter.TryGetValue("categories", out var catsStr))
         {
             var cats = catsStr
@@ -730,7 +720,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// Extract key-value pairs from YAML frontmatter (between --- delimiters).
+    ///     Extract key-value pairs from YAML frontmatter (between --- delimiters).
     /// </summary>
     internal static Dictionary<string, string> ExtractYamlFrontMatter(string content)
     {
@@ -756,9 +746,7 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
             // Strip surrounding quotes
             if (value.Length >= 2 &&
                 ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\'')))
-            {
                 value = value[1..^1];
-            }
 
             if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(value))
                 result[key] = value;
@@ -768,8 +756,8 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
     }
 
     /// <summary>
-    /// Zero-allocation word count using ReadOnlySpan.
-    /// Walks chars tracking in-word state instead of allocating a Split() array.
+    ///     Zero-allocation word count using ReadOnlySpan.
+    ///     Walks chars tracking in-word state instead of allocating a Split() array.
     /// </summary>
     internal static int CountWords(ReadOnlySpan<char> text)
     {
@@ -777,7 +765,6 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
         var inWord = false;
 
         for (var i = 0; i < text.Length; i++)
-        {
             if (char.IsWhiteSpace(text[i]))
             {
                 inWord = false;
@@ -787,13 +774,13 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
                 inWord = true;
                 count++;
             }
-        }
 
         return count;
     }
 
-    private static bool IsTextFile(string extension) =>
-        extension is ".md" or ".markdown" or ".mdx"
+    private static bool IsTextFile(string extension)
+    {
+        return extension is ".md" or ".markdown" or ".mdx"
             or ".txt" or ".text"
             or ".html" or ".htm"
             or ".xml" or ".json" or ".yaml" or ".yml" or ".toml"
@@ -805,21 +792,28 @@ public sealed class RetrievalSubQueryExecutor : ISubQueryExecutor
             or ".r" or ".R" or ".ipynb"
             or ".cfg" or ".ini" or ".conf" or ".env"
             or ".log" or ".diff" or ".patch";
+    }
 
-    private static string FormatFileSize(long bytes) => bytes switch
+    private static string FormatFileSize(long bytes)
     {
-        < 1024 => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
-        < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
-        _ => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
-    };
+        return bytes switch
+        {
+            < 1024 => $"{bytes} B",
+            < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
+            < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
+            _ => $"{bytes / (1024.0 * 1024 * 1024):F1} GB"
+        };
+    }
 
-    private static string FormatAge(TimeSpan age) => age.TotalDays switch
+    private static string FormatAge(TimeSpan age)
     {
-        > 365 => $"{age.TotalDays / 365:F0}y",
-        > 30 => $"{age.TotalDays / 30:F0}mo",
-        > 1 => $"{age.TotalDays:F0}d",
-        _ when age.TotalHours > 1 => $"{age.TotalHours:F0}h",
-        _ => $"{age.TotalMinutes:F0}m"
-    };
+        return age.TotalDays switch
+        {
+            > 365 => $"{age.TotalDays / 365:F0}y",
+            > 30 => $"{age.TotalDays / 30:F0}mo",
+            > 1 => $"{age.TotalDays:F0}d",
+            _ when age.TotalHours > 1 => $"{age.TotalHours:F0}h",
+            _ => $"{age.TotalMinutes:F0}m"
+        };
+    }
 }

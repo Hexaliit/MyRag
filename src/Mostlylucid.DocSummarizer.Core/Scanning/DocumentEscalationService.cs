@@ -4,24 +4,24 @@ using Microsoft.Extensions.Options;
 namespace Mostlylucid.DocSummarizer.Scanning;
 
 /// <summary>
-/// Interface for document escalation decisions.
-/// Determines when to escalate from one processing strategy to another.
+///     Interface for document escalation decisions.
+///     Determines when to escalate from one processing strategy to another.
 /// </summary>
 public interface IDocumentEscalationService
 {
     /// <summary>
-    /// Determine if processing should escalate after a wave completes.
+    ///     Determine if processing should escalate after a wave completes.
     /// </summary>
     EscalationDecision ShouldEscalate(DocumentScanContext context, string completedWave);
 
     /// <summary>
-    /// Get the recommended processing strategy for a document.
+    ///     Get the recommended processing strategy for a document.
     /// </summary>
     ProcessingStrategy RecommendStrategy(string documentPath, DocumentScanContext context);
 }
 
 /// <summary>
-/// Result of escalation decision.
+///     Result of escalation decision.
 /// </summary>
 public class EscalationDecision
 {
@@ -30,20 +30,25 @@ public class EscalationDecision
     public string? Reason { get; init; }
     public double Confidence { get; init; }
 
-    public static EscalationDecision NoEscalation() => new() { ShouldEscalate = false };
+    public static EscalationDecision NoEscalation()
+    {
+        return new EscalationDecision { ShouldEscalate = false };
+    }
 
-    public static EscalationDecision EscalateTo(string targetWave, string reason, double confidence = 0.8) =>
-        new()
+    public static EscalationDecision EscalateTo(string targetWave, string reason, double confidence = 0.8)
+    {
+        return new EscalationDecision
         {
             ShouldEscalate = true,
             TargetWave = targetWave,
             Reason = reason,
             Confidence = confidence
         };
+    }
 }
 
 /// <summary>
-/// Recommended processing strategy.
+///     Recommended processing strategy.
 /// </summary>
 public class ProcessingStrategy
 {
@@ -53,84 +58,84 @@ public class ProcessingStrategy
 }
 
 /// <summary>
-/// Configuration for document escalation.
+///     Configuration for document escalation.
 /// </summary>
 public class DocumentEscalationConfig
 {
     /// <summary>
-    /// Enable automatic escalation.
+    ///     Enable automatic escalation.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Minimum text density (chars/page) before escalating to VLM OCR.
+    ///     Minimum text density (chars/page) before escalating to VLM OCR.
     /// </summary>
     public int MinTextDensity { get; set; } = 100;
 
     /// <summary>
-    /// OCR confidence threshold below which to escalate.
+    ///     OCR confidence threshold below which to escalate.
     /// </summary>
     public double OcrConfidenceThreshold { get; set; } = 0.7;
 
     /// <summary>
-    /// Skip VLM if native extraction confidence is above this.
+    ///     Skip VLM if native extraction confidence is above this.
     /// </summary>
     public double SkipVlmThreshold { get; set; } = 0.85;
 
     /// <summary>
-    /// Escalate for complex table structures.
+    ///     Escalate for complex table structures.
     /// </summary>
     public bool EscalateForComplexTables { get; set; } = true;
 
     /// <summary>
-    /// Escalate when charts/figures are detected.
+    ///     Escalate when charts/figures are detected.
     /// </summary>
     public bool EscalateForCharts { get; set; } = true;
 
     /// <summary>
-    /// Default VLM OCR wave to escalate to.
+    ///     Default VLM OCR wave to escalate to.
     /// </summary>
     public string DefaultVlmWave { get; set; } = "vlm-ocr";
 
     /// <summary>
-    /// Preferred VLM model for escalation.
+    ///     Preferred VLM model for escalation.
     /// </summary>
     public string PreferredVlmModel { get; set; } = "minicpm-v:8b";
 
     /// <summary>
-    /// Model tiers for escalation (fast → general → quality).
+    ///     Model tiers for escalation (fast → general → quality).
     /// </summary>
     public ModelTiers Models { get; set; } = new();
 }
 
 /// <summary>
-/// Model tiers for different quality/speed tradeoffs.
+///     Model tiers for different quality/speed tradeoffs.
 /// </summary>
 public class ModelTiers
 {
     /// <summary>
-    /// Fast model for simple documents.
+    ///     Fast model for simple documents.
     /// </summary>
     public string Fast { get; set; } = "minicpm-v:8b";
 
     /// <summary>
-    /// General purpose model.
+    ///     General purpose model.
     /// </summary>
     public string General { get; set; } = "qwen2-vl:7b";
 
     /// <summary>
-    /// High quality model for complex documents.
+    ///     High quality model for complex documents.
     /// </summary>
     public string Quality { get; set; } = "olmocr-2";
 
     /// <summary>
-    /// God-tier model for maximum accuracy.
+    ///     God-tier model for maximum accuracy.
     /// </summary>
     public string God { get; set; } = "anthropic:claude-3-5-sonnet";
 }
 
 /// <summary>
-/// Default implementation of document escalation service.
+///     Default implementation of document escalation service.
 /// </summary>
 public class DocumentEscalationService : IDocumentEscalationService
 {
@@ -169,12 +174,9 @@ public class DocumentEscalationService : IDocumentEscalationService
             // Check native extraction confidence
             var confidence = context.GetConfidence("content.markdown");
             if (confidence < _config.OcrConfidenceThreshold)
-            {
                 return EscalationDecision.EscalateTo(
                     _config.DefaultVlmWave,
-                    $"Low extraction confidence ({confidence:P0})",
-                    0.8);
-            }
+                    $"Low extraction confidence ({confidence:P0})");
 
             // High confidence - skip VLM
             if (confidence >= _config.SkipVlmThreshold)
@@ -189,12 +191,10 @@ public class DocumentEscalationService : IDocumentEscalationService
         {
             var tableComplexity = context.GetSignal<double>("table.complexity");
             if (tableComplexity > 0.7)
-            {
                 return EscalationDecision.EscalateTo(
                     "table-understanding",
                     $"Complex table structure (complexity: {tableComplexity:P0})",
                     0.85);
-            }
         }
 
         // Check for charts/figures
@@ -202,12 +202,9 @@ public class DocumentEscalationService : IDocumentEscalationService
         {
             var hasCharts = context.GetSignal<bool>("content.has_charts");
             if (hasCharts)
-            {
                 return EscalationDecision.EscalateTo(
                     "chart-understanding",
-                    "Document contains charts/figures",
-                    0.8);
-            }
+                    "Document contains charts/figures");
         }
 
         return EscalationDecision.NoEscalation();
@@ -219,36 +216,30 @@ public class DocumentEscalationService : IDocumentEscalationService
 
         // For images, always use VLM OCR
         if (IsImageExtension(extension))
-        {
             return new ProcessingStrategy
             {
                 Pipeline = "image-ocr",
                 Waves = ["vlm-ocr"],
                 Reason = "Image file requires VLM OCR"
             };
-        }
 
         // For PDFs, start with native extraction
         if (extension == ".pdf")
-        {
             return new ProcessingStrategy
             {
                 Pipeline = "auto",
                 Waves = ["native-extraction", "table-extraction"],
                 Reason = "PDF - try native extraction first with table support"
             };
-        }
 
         // For DOCX, native extraction is usually sufficient
         if (extension == ".docx")
-        {
             return new ProcessingStrategy
             {
                 Pipeline = "native",
                 Waves = ["native-extraction", "table-extraction"],
                 Reason = "DOCX - native extraction with table support"
             };
-        }
 
         // Default strategy
         return new ProcessingStrategy
@@ -260,7 +251,7 @@ public class DocumentEscalationService : IDocumentEscalationService
     }
 
     /// <summary>
-    /// Select the appropriate model tier based on document characteristics.
+    ///     Select the appropriate model tier based on document characteristics.
     /// </summary>
     public string SelectModel(DocumentScanContext context)
     {

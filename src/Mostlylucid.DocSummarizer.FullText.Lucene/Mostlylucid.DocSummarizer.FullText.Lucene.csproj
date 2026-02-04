@@ -52,17 +52,17 @@
 
     <!-- Lucene.NET -->
     <ItemGroup>
-        <PackageReference Include="Lucene.Net" Version="4.8.0-beta00017" />
-        <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017" />
-        <PackageReference Include="Lucene.Net.QueryParser" Version="4.8.0-beta00017" />
+        <PackageReference Include="Lucene.Net" Version="4.8.0-beta00017"/>
+        <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00017"/>
+        <PackageReference Include="Lucene.Net.QueryParser" Version="4.8.0-beta00017"/>
     </ItemGroup>
 
     <!-- DocSummarizer dependency (conditional: ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
 </Project>

@@ -6,22 +6,11 @@ using Spectre.Console.Cli;
 namespace Mostlylucid.DoomSummarizer.Plugin.Data;
 
 /// <summary>
-/// Data analysis plugin — statistical profiling, schema detection, and constraint validation
-/// for tabular data files (CSV, Excel, Parquet, JSON).
+///     Data analysis plugin — statistical profiling, schema detection, and constraint validation
+///     for tabular data files (CSV, Excel, Parquet, JSON).
 /// </summary>
 public class DataProcessorPlugin : IProcessorPlugin, ICliPlugin
 {
-    public ProcessorPluginMetadata Metadata { get; } = new()
-    {
-        Name = "data",
-        DisplayName = "Data Analyzer",
-        Description = "Statistical profiling, schema detection, and constraint validation for tabular data",
-        Version = "1.0.0",
-        SupportedExtensions = [".csv", ".xlsx", ".xls", ".parquet", ".json", ".jsonl", ".tsv"],
-        MinActivationWords = 0,
-        DocumentTypes = ["data", "tabular"]
-    };
-
     public PluginCliMetadata CliMetadata { get; } = new()
     {
         CommandName = "data",
@@ -43,12 +32,25 @@ public class DataProcessorPlugin : IProcessorPlugin, ICliPlugin
         });
     }
 
+    public ProcessorPluginMetadata Metadata { get; } = new()
+    {
+        Name = "data",
+        DisplayName = "Data Analyzer",
+        Description = "Statistical profiling, schema detection, and constraint validation for tabular data",
+        Version = "1.0.0",
+        SupportedExtensions = [".csv", ".xlsx", ".xls", ".parquet", ".json", ".jsonl", ".tsv"],
+        MinActivationWords = 0,
+        DocumentTypes = ["data", "tabular"]
+    };
+
     public IReadOnlyList<IDocumentReader> Readers => [];
     public IReadOnlyList<IDocumentSplitter> Splitters => [];
     public IReadOnlyList<TemplateDefinition> Templates => [];
 
     public Task InitializeAsync(ProcessorPluginServices services, CancellationToken ct = default)
-        => Task.CompletedTask;
+    {
+        return Task.CompletedTask;
+    }
 
     public bool CanProcess(string markdown, ProcessingContext context)
     {
@@ -58,5 +60,7 @@ public class DataProcessorPlugin : IProcessorPlugin, ICliPlugin
     }
 
     public Task<ProcessorResult> ProcessAsync(string markdown, ProcessorOptions options, CancellationToken ct = default)
-        => throw new NotSupportedException("Data processing uses IPipeline. Use CLI commands for direct data analysis.");
+    {
+        throw new NotSupportedException("Data processing uses IPipeline. Use CLI commands for direct data analysis.");
+    }
 }

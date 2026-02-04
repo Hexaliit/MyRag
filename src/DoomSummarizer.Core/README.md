@@ -5,7 +5,8 @@ Core signal extraction, retrieval, and synthesis pipeline for news and content a
 ## Features
 
 - **Signal Extraction**: Wave-based analysis pipeline (entities, topics, knowledge graphs)
-- **LLM Routing**: Budget-enforced, circuit-breaking multi-provider routing (Ollama primary, cloud providers disabled by default)
+- **LLM Routing**: Budget-enforced, circuit-breaking multi-provider routing (Ollama primary, cloud providers disabled by
+  default)
 - **Relevance Scoring**: 6-signal RRF fusion with query-type adaptive ranking
 - **Content Extraction**: SmartReader + Markdown analysis for web content
 - **Knowledge Graphs**: Entity extraction and relationship mapping
@@ -18,7 +19,8 @@ Core signal extraction, retrieval, and synthesis pipeline for news and content a
 
 Three-layer retrieval with parallel execution:
 
-1. **Lucene.NET FTS** — BM25F with field weighting (title 2x, keywords 2.5x, content 1x), Porter stemming, fuzzy matching
+1. **Lucene.NET FTS** — BM25F with field weighting (title 2x, keywords 2.5x, content 1x), Porter stemming, fuzzy
+   matching
 2. **Embedding HNSW** — 384-dim cosine similarity with max-sim for composite queries
 3. **Entity Profile HNSW** — TF-IDF-confidence weighted entity fingerprints
 
@@ -28,7 +30,8 @@ Lucene and HNSW layers execute concurrently via `Task.WhenAll`, with results fus
 
 Unified synthesis engine used by both `scroll` and `ask`:
 
-- **Smart evidence budgeting** — per-item character budgets proportional to relevance; short items donate surplus to long ones
+- **Smart evidence budgeting** — per-item character budgets proportional to relevance; short items donate surplus to
+  long ones
 - **TextRank compression** — PageRank-style sentence centrality extraction using batch ONNX embeddings (no LLM needed)
 - **Semantic re-ranking** — batch cosine similarity against the query for evidence ordering
 - **Clean prompts** — evidence headers contain only sequential numbering and title; no metadata leaks to the LLM
@@ -61,8 +64,10 @@ SQLite-backed storage with:
 
 ## Dependencies
 
-- [Mostlylucid.DocSummarizer](https://www.nuget.org/packages/Mostlylucid.DocSummarizer) - Shared NER, content extraction, RRF scoring, wave/signal types
-- [Mostlylucid.Summarizer.Core](https://www.nuget.org/packages/Mostlylucid.Summarizer.Core) - Foundation pipeline interfaces
+- [Mostlylucid.DocSummarizer](https://www.nuget.org/packages/Mostlylucid.DocSummarizer) - Shared NER, content
+  extraction, RRF scoring, wave/signal types
+- [Mostlylucid.Summarizer.Core](https://www.nuget.org/packages/Mostlylucid.Summarizer.Core) - Foundation pipeline
+  interfaces
 
 ## License
 

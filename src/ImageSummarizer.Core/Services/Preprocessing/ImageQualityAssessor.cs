@@ -3,24 +3,12 @@ using OpenCvSharp;
 namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
-/// Assesses document image quality to determine preprocessing needs.
+///     Assesses document image quality to determine preprocessing needs.
 /// </summary>
 public class ImageQualityAssessor
 {
-    public record QualityReport
-    {
-        public double BlurScore { get; init; }
-        public double SkewAngle { get; init; }
-        public double NoiseLevel { get; init; }
-        public double ContrastScore { get; init; }
-        public double BrightnessUniformity { get; init; }
-        public double TextDensity { get; init; }
-        public bool NeedsPreprocessing { get; init; }
-        public string[] Recommendations { get; init; } = [];
-    }
-
     /// <summary>
-    /// Analyze image quality and return recommendations.
+    ///     Analyze image quality and return recommendations.
     /// </summary>
     public QualityReport Analyze(Mat image)
     {
@@ -62,8 +50,8 @@ public class ImageQualityAssessor
     }
 
     /// <summary>
-    /// Estimate blur using Laplacian variance.
-    /// Higher = sharper, Lower = blurrier.
+    ///     Estimate blur using Laplacian variance.
+    ///     Higher = sharper, Lower = blurrier.
     /// </summary>
     private static double EstimateBlur(Mat gray)
     {
@@ -74,7 +62,7 @@ public class ImageQualityAssessor
     }
 
     /// <summary>
-    /// Estimate skew angle using Hough lines.
+    ///     Estimate skew angle using Hough lines.
     /// </summary>
     private static double EstimateSkew(Mat gray)
     {
@@ -82,7 +70,7 @@ public class ImageQualityAssessor
         Cv2.Canny(gray, edges, 50, 150);
 
         var lines = Cv2.HoughLinesP(edges, 1, Math.PI / 180, 100,
-            minLineLength: 100, maxLineGap: 10);
+            100, 10);
 
         if (lines.Length == 0)
             return 0.0;
@@ -107,7 +95,7 @@ public class ImageQualityAssessor
     }
 
     /// <summary>
-    /// Estimate noise using median absolute deviation.
+    ///     Estimate noise using median absolute deviation.
     /// </summary>
     private static double EstimateNoise(Mat gray)
     {
@@ -126,7 +114,7 @@ public class ImageQualityAssessor
     }
 
     /// <summary>
-    /// Estimate contrast using Michelson contrast.
+    ///     Estimate contrast using Michelson contrast.
     /// </summary>
     private static double EstimateContrast(Mat gray)
     {
@@ -143,7 +131,7 @@ public class ImageQualityAssessor
     }
 
     /// <summary>
-    /// Check for uneven illumination using grid analysis.
+    ///     Check for uneven illumination using grid analysis.
     /// </summary>
     private static double EstimateUniformity(Mat gray)
     {
@@ -152,13 +140,11 @@ public class ImageQualityAssessor
         var means = new List<double>();
 
         for (var i = 0; i < 4; i++)
+        for (var j = 0; j < 4; j++)
         {
-            for (var j = 0; j < 4; j++)
-            {
-                var roi = new Rect(j * gridW, i * gridH, gridW, gridH);
-                using var region = new Mat(gray, roi);
-                means.Add(region.Mean().Val0);
-            }
+            var roi = new Rect(j * gridW, i * gridH, gridW, gridH);
+            using var region = new Mat(gray, roi);
+            means.Add(region.Mean().Val0);
         }
 
         var mean = means.Average();
@@ -167,7 +153,7 @@ public class ImageQualityAssessor
     }
 
     /// <summary>
-    /// Estimate text density (percentage of image with text).
+    ///     Estimate text density (percentage of image with text).
     /// </summary>
     private static double EstimateTextDensity(Mat gray)
     {
@@ -178,5 +164,17 @@ public class ImageQualityAssessor
         var nonZero = Cv2.CountNonZero(binary);
         var total = binary.Rows * binary.Cols;
         return (double)nonZero / total;
+    }
+
+    public record QualityReport
+    {
+        public double BlurScore { get; init; }
+        public double SkewAngle { get; init; }
+        public double NoiseLevel { get; init; }
+        public double ContrastScore { get; init; }
+        public double BrightnessUniformity { get; init; }
+        public double TextDensity { get; init; }
+        public bool NeedsPreprocessing { get; init; }
+        public string[] Recommendations { get; init; } = [];
     }
 }

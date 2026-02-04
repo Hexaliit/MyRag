@@ -6,18 +6,20 @@ NuGet: `Mostlylucid.LucidRAG.Storage.Core`
 
 ## Overview
 
-This library provides a single, unified interface (`IVectorStore`) for embedding storage and retrieval across all LucidRAG pipelines:
+This library provides a single, unified interface (`IVectorStore`) for embedding storage and retrieval across all
+LucidRAG pipelines:
+
 - **DocumentPipeline** - PDF, DOCX, Markdown text embeddings
 - **ImagePipeline** - Image OCR, CLIP visual embeddings
 - **DataPipeline** - Data profile embeddings for semantic search
 
 ## Supported Backends
 
-| Backend | Persistence | Use Case | Default Mode |
-|---------|------------|----------|--------------|
-| **InMemory** | ❌ Ephemeral | Tool/MCP mode, one-shot analysis | MCP server, CLI tools |
-| **DuckDB** | ✅ File-based | Standalone mode, development | Standalone apps |
-| **Qdrant** | ✅ Server-based | Production, distributed systems | Production deployments |
+| Backend      | Persistence    | Use Case                         | Default Mode           |
+|--------------|----------------|----------------------------------|------------------------|
+| **InMemory** | ❌ Ephemeral    | Tool/MCP mode, one-shot analysis | MCP server, CLI tools  |
+| **DuckDB**   | ✅ File-based   | Standalone mode, development     | Standalone apps        |
+| **Qdrant**   | ✅ Server-based | Production, distributed systems  | Production deployments |
 
 ## Quick Start
 
@@ -213,11 +215,13 @@ Used by:
 ### InMemory
 
 **Pros:**
+
 - Fastest (no disk I/O)
 - No external dependencies
 - Perfect for testing
 
 **Cons:**
+
 - Data lost on restart
 - Limited by RAM
 - No HNSW acceleration
@@ -227,12 +231,14 @@ Used by:
 ### DuckDB
 
 **Pros:**
+
 - File-based persistence
 - No external server needed
 - HNSW indexes (with VSS extension)
 - Graceful fallback if VSS unavailable
 
 **Cons:**
+
 - Single-process (no distributed)
 - HNSW persistence experimental
 
@@ -241,12 +247,14 @@ Used by:
 ### Qdrant
 
 **Pros:**
+
 - Production-grade
 - Distributed/multi-node
 - Advanced filtering
 - Multi-vector support
 
 **Cons:**
+
 - Requires external server
 - More complex deployment
 
@@ -258,17 +266,17 @@ Used by:
 
 | Documents | HNSW (VSS) | Brute-Force | Speedup |
 |-----------|------------|-------------|---------|
-| 1,000 | 2ms | 15ms | 7.5× |
-| 10,000 | 5ms | 150ms | 30× |
-| 100,000 | 10ms | 1,500ms | 150× |
+| 1,000     | 2ms        | 15ms        | 7.5×    |
+| 10,000    | 5ms        | 150ms       | 30×     |
+| 100,000   | 10ms       | 1,500ms     | 150×    |
 
 ### Startup Time (Reindex on Restart)
 
-| Backend | 1,000 docs | 10,000 docs | Persistence |
-|---------|------------|-------------|-------------|
-| InMemory | ~5s | ~50s | ❌ |
-| DuckDB | ~2s | ~5s | ✅ |
-| Qdrant | ~1s | ~2s | ✅ |
+| Backend  | 1,000 docs | 10,000 docs | Persistence |
+|----------|------------|-------------|-------------|
+| InMemory | ~5s        | ~50s        | ❌           |
+| DuckDB   | ~2s        | ~5s         | ✅           |
+| Qdrant   | ~1s        | ~2s         | ✅           |
 
 ## Privacy-Preserving Mode
 
@@ -286,7 +294,8 @@ Search results will only return IDs and scores, not text content.
 
 ## Multi-Vector Support
 
-`IMultiVectorStore` extends `IVectorStore` with named vector support for multi-modal embeddings. All three backends (InMemory, DuckDB, Qdrant) implement it.
+`IMultiVectorStore` extends `IVectorStore` with named vector support for multi-modal embeddings. All three backends (
+InMemory, DuckDB, Qdrant) implement it.
 
 ```csharp
 public interface IMultiVectorStore : IVectorStore
@@ -336,13 +345,14 @@ var results = await store.SearchByNamedVectorAsync("images", "visual", query);
 
 ### Backend Implementation Details
 
-| Backend | Named Vector Strategy |
-|---------|----------------------|
-| **InMemory** | Stored in `MultiVectorDocument.NamedVectors` dictionary, cosine search in-memory |
-| **DuckDB** | Side table `{collection}_named_vectors` with `(document_id, vector_name)` PK, cosine search in-memory |
-| **Qdrant** | Native `VectorParamsMap` with per-vector HNSW indexes, native search via `vectorName` parameter |
+| Backend      | Named Vector Strategy                                                                                 |
+|--------------|-------------------------------------------------------------------------------------------------------|
+| **InMemory** | Stored in `MultiVectorDocument.NamedVectors` dictionary, cosine search in-memory                      |
+| **DuckDB**   | Side table `{collection}_named_vectors` with `(document_id, vector_name)` PK, cosine search in-memory |
+| **Qdrant**   | Native `VectorParamsMap` with per-vector HNSW indexes, native search via `vectorName` parameter       |
 
 Enables separate embeddings for:
+
 - **Text** (OCR from image)
 - **Visual** (CLIP embedding)
 - **Color** (color histogram)
@@ -352,6 +362,7 @@ Enables separate embeddings for:
 ## Implementation Status
 
 ### Phase 1: Foundation ✅ COMPLETE
+
 - [x] Create project structure
 - [x] Define `IVectorStore` interface
 - [x] Define `VectorDocument`, `VectorSearchQuery`, `VectorSearchResult` models
@@ -359,6 +370,7 @@ Enables separate embeddings for:
 - [x] DI extension methods
 
 ### Phase 2: DuckDB Implementation ✅ COMPLETE
+
 - [x] Port `DuckDBVectorStore` from DataSummarizer
 - [x] VSS extension integration with graceful fallback
 - [x] In-memory cosine similarity fallback when VSS unavailable
@@ -369,6 +381,7 @@ Enables separate embeddings for:
 - [x] All `IVectorStore` methods implemented
 
 **Key Features**:
+
 - ✅ VSS extension detection and loading
 - ✅ Experimental persistence: `SET hnsw_enable_experimental_persistence = true`
 - ✅ Dynamic vector dimensions (384 default, configurable)
@@ -379,11 +392,13 @@ Enables separate embeddings for:
 - ✅ Privacy-preserving mode (StoreText = false)
 
 ### Phase 3: Remaining Implementations ✅ COMPLETE
+
 - [x] Port `InMemoryVectorStore` from DocSummarizer.Core
 - [x] Port `QdrantVectorStore` from DocSummarizer.Core
 - [x] Add `IMultiVectorStore` for multi-modal pipelines (image, audio)
 
 **InMemoryVectorStore Features**:
+
 - ✅ ConcurrentDictionary-based storage for thread-safety
 - ✅ Cosine similarity search (brute-force, no index)
 - ✅ LRU eviction with configurable `MaxDocuments` limit
@@ -393,6 +408,7 @@ Enables separate embeddings for:
 - ✅ Zero external dependencies
 
 **QdrantVectorStore Features**:
+
 - ✅ Production-grade persistent storage
 - ✅ Qdrant gRPC client integration
 - ✅ Batch upserts (100 points per batch)
@@ -404,6 +420,7 @@ Enables separate embeddings for:
 - ✅ HTTPS support
 
 ### Phase 4: Migration
+
 - [ ] Migrate DocSummarizer.Core
 - [ ] Migrate DataSummarizer
 - [ ] Migrate Mostlylucid.RAG

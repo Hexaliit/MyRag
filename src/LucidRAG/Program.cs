@@ -1,39 +1,38 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using AudioSummarizer.Core.Extensions;
 using LucidRAG.Authorization;
 using LucidRAG.Config;
-using LucidRAG.Core.Services;
 using LucidRAG.Core.Services.Caching;
-using LucidRAG.Plugin.Postgres;
 using LucidRAG.Data;
 using LucidRAG.Extensions;
 using LucidRAG.GraphQL;
 using LucidRAG.Hubs;
 using LucidRAG.Identity;
+using LucidRAG.LLM.Extensions;
 using LucidRAG.Middleware;
 using LucidRAG.Multitenancy;
+using LucidRAG.Plugin.Postgres;
 using LucidRAG.Services;
 using LucidRAG.Services.Background;
 using LucidRAG.Services.Sentinel;
 using LucidRAG.Services.Storage;
 using LucidRAG.Web.Services;
-using LucidRAG.LLM.Extensions;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Mostlylucid.DocSummarizer.Anthropic.Extensions;
 using Mostlylucid.DocSummarizer.Core.Services;
+using Mostlylucid.DocSummarizer.Data.Extensions;
 using Mostlylucid.DocSummarizer.Extensions;
+using Mostlylucid.DocSummarizer.FullText.Lucene;
 using Mostlylucid.DocSummarizer.Images.Extensions;
 using Mostlylucid.DocSummarizer.OpenAI.Extensions;
-using Mostlylucid.DocSummarizer.Data.Extensions;
-using Mostlylucid.DocSummarizer.FullText.Lucene;
+using Mostlylucid.DocSummarizer.Search;
 using Mostlylucid.Summarizer.Core.Extensions;
-using Mostlylucid.Summarizer.Core.Pipeline;
-using Scalar.AspNetCore;
 using Serilog;
 using VideoSummarizer.Core.Extensions;
-using AudioSummarizer.Core.Extensions;
 
 // Parse command line arguments for standalone mode
 var standaloneMode = args.Contains("--standalone") || args.Contains("-s");
@@ -56,7 +55,7 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 // Configure form options for large file uploads
-builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 500 * 1024 * 1024; // 500MB for form uploads
     options.ValueLengthLimit = int.MaxValue;
@@ -326,7 +325,7 @@ var app = builder.Build();
 // Initialize Lucene FTS index
 using (var scope = app.Services.CreateScope())
 {
-    var fts = scope.ServiceProvider.GetRequiredService<Mostlylucid.DocSummarizer.Search.IFullTextSearch>();
+    var fts = scope.ServiceProvider.GetRequiredService<IFullTextSearch>();
     await fts.InitializeAsync();
 }
 
@@ -401,7 +400,7 @@ try
             Log.Information("Provisioning default tenant schema...");
             await provisioningService.ProvisionAsync(
                 TenantConstants.DefaultTenantId,
-                displayName: "Default Tenant",
+                "Default Tenant",
                 plan: TenantPlans.Free);
             Log.Information("Default tenant provisioned successfully");
         }
@@ -414,6 +413,7 @@ try
                 Log.Information("Default tenant exists but not provisioned, migrating...");
                 await provisioningService.MigrateTenantAsync(TenantConstants.DefaultTenantId);
             }
+
             Log.Information("Default tenant schema verified");
         }
     }

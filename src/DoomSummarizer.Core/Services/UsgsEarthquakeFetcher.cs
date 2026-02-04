@@ -1,20 +1,20 @@
+using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches earthquake data from USGS GeoJSON feeds — free, no auth.
-/// Perfect for doom vibes. Includes magnitude, location, depth, tsunami alerts.
-/// https://earthquake.usgs.gov/earthquakes/feed/
+///     Fetches earthquake data from USGS GeoJSON feeds — free, no auth.
+///     Perfect for doom vibes. Includes magnitude, location, depth, tsunami alerts.
+///     https://earthquake.usgs.gov/earthquakes/feed/
 /// </summary>
 public class UsgsEarthquakeFetcher(HttpClient httpClient)
 {
     private const string BaseUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary";
 
     /// <summary>
-    /// Available feed types by severity and time window.
+    ///     Available feed types by severity and time window.
     /// </summary>
     private static readonly Dictionary<string, string> Feeds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,11 +32,16 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
 
         // All earthquakes
         ["all_hour"] = $"{BaseUrl}/all_hour.geojson",
-        ["all_day"] = $"{BaseUrl}/all_day.geojson",
+        ["all_day"] = $"{BaseUrl}/all_day.geojson"
     };
 
     /// <summary>
-    /// Fetch recent earthquakes. Default: significant past week + M4.5 past day.
+    ///     Available earthquake feed names for -s earthquake:feed_name syntax.
+    /// </summary>
+    public static IEnumerable<string> AvailableFeeds => Feeds.Keys;
+
+    /// <summary>
+    ///     Fetch recent earthquakes. Default: significant past week + M4.5 past day.
     /// </summary>
     public async Task<List<ContentItem>> FetchAsync(int limit = 20, string? feed = null)
     {
@@ -57,7 +62,6 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
         var seen = new HashSet<string>();
 
         foreach (var feedUrl in feedUrls)
-        {
             try
             {
                 var request = new HttpRequestMessage(HttpMethod.Get, feedUrl);
@@ -83,7 +87,8 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
                     var mag = props.Mag ?? 0;
                     var tsunami = props.Tsunami > 0 ? " [TSUNAMI WARNING]" : "";
                     var depth = feature.Geometry?.Coordinates?.Length > 2
-                        ? feature.Geometry.Coordinates[2] : 0;
+                        ? feature.Geometry.Coordinates[2]
+                        : 0;
 
                     var title = $"M{mag:F1} Earthquake - {props.Place}{tsunami}";
                     var content = $"Magnitude {mag:F1} earthquake at {props.Place}. " +
@@ -112,9 +117,8 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Warning: USGS earthquake feed failed: {ex.Message}");
+                Debug.WriteLine($"Warning: USGS earthquake feed failed: {ex.Message}");
             }
-        }
 
         return items
             .OrderByDescending(i => i.Score)
@@ -123,19 +127,26 @@ public class UsgsEarthquakeFetcher(HttpClient httpClient)
             .ToList();
     }
 
-    /// <summary>
-    /// Available earthquake feed names for -s earthquake:feed_name syntax.
-    /// </summary>
-    public static IEnumerable<string> AvailableFeeds => Feeds.Keys;
-
     // GeoJSON response models
     private record GeoJsonResponse(string? Type, GeoJsonMetadata? Metadata, List<GeoJsonFeature>? Features);
+
     private record GeoJsonMetadata(long Generated, string? Title, int Count);
+
     private record GeoJsonFeature(string? Type, string? Id, GeoJsonProperties? Properties, GeoJsonGeometry? Geometry);
+
     private record GeoJsonGeometry(string? Type, double[]? Coordinates);
+
     private record GeoJsonProperties(
-        double? Mag, string? Place, long Time, long Updated,
-        string? Url, string? Detail, int? Felt,
-        string? Alert, string? Status, int Tsunami,
-        string? Code, string? Type);
+        double? Mag,
+        string? Place,
+        long Time,
+        long Updated,
+        string? Url,
+        string? Detail,
+        int? Felt,
+        string? Alert,
+        string? Status,
+        int Tsunami,
+        string? Code,
+        string? Type);
 }

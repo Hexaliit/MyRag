@@ -1,39 +1,40 @@
 using System.Text.Json;
 using LucidRAG.Data;
 using LucidRAG.Entities;
-using Microsoft.EntityFrameworkCore;
-using StyloFlow.Retrieval.Analysis;
+using Mostlylucid.DocSummarizer.Models;
 using StyloFlow.Retrieval.Entities;
 using StyloSignal = StyloFlow.Retrieval.Analysis.Signal;
 using StyloContentMetadata = StyloFlow.Retrieval.Entities.ContentMetadata;
 using ContentType = StyloFlow.Retrieval.Entities.ContentType;
+using ExtractedEntity = LucidRAG.Entities.ExtractedEntity;
 using StyloEntityRelationship = StyloFlow.Retrieval.Entities.EntityRelationship;
 
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Unified service for storing and querying RetrievalEntities across all content types.
-/// This is the central point for cross-modal storage - documents, images, audio, video, data.
+///     Unified service for storing and querying RetrievalEntities across all content types.
+///     This is the central point for cross-modal storage - documents, images, audio, video, data.
 /// </summary>
 public interface IRetrievalEntityService
 {
     /// <summary>
-    /// Store a RetrievalEntity from any modality.
+    ///     Store a RetrievalEntity from any modality.
     /// </summary>
     Task<string> StoreAsync(RetrievalEntity entity, CancellationToken ct = default);
 
     /// <summary>
-    /// Get a RetrievalEntity by ID.
+    ///     Get a RetrievalEntity by ID.
     /// </summary>
     Task<RetrievalEntity?> GetByIdAsync(string entityId, CancellationToken ct = default);
 
     /// <summary>
-    /// Get all entities for a collection.
+    ///     Get all entities for a collection.
     /// </summary>
-    Task<IReadOnlyList<RetrievalEntity>> GetByCollectionAsync(Guid collectionId, ContentType[]? contentTypes = null, CancellationToken ct = default);
+    Task<IReadOnlyList<RetrievalEntity>> GetByCollectionAsync(Guid collectionId, ContentType[]? contentTypes = null,
+        CancellationToken ct = default);
 
     /// <summary>
-    /// Search entities by text content.
+    ///     Search entities by text content.
     /// </summary>
     Task<IReadOnlyList<RetrievalEntity>> SearchAsync(
         string query,
@@ -43,39 +44,40 @@ public interface IRetrievalEntityService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Delete an entity.
+    ///     Delete an entity.
     /// </summary>
     Task<bool> DeleteAsync(string entityId, CancellationToken ct = default);
 
     /// <summary>
-    /// Get entities that need review.
+    ///     Get entities that need review.
     /// </summary>
     Task<IReadOnlyList<RetrievalEntity>> GetNeedsReviewAsync(Guid? collectionId = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Get entity counts by content type.
+    ///     Get entity counts by content type.
     /// </summary>
     Task<Dictionary<ContentType, int>> GetCountsByTypeAsync(Guid? collectionId = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Convert existing document to RetrievalEntity and store it.
+    ///     Convert existing document to RetrievalEntity and store it.
     /// </summary>
     Task<RetrievalEntity> StoreDocumentAsync(
         DocumentEntity document,
-        IReadOnlyList<Mostlylucid.DocSummarizer.Models.Segment> segments,
-        IReadOnlyList<LucidRAG.Entities.ExtractedEntity>? entities = null,
-        Mostlylucid.DocSummarizer.Models.DocumentSummary? summary = null,
+        IReadOnlyList<Segment> segments,
+        IReadOnlyList<ExtractedEntity>? entities = null,
+        DocumentSummary? summary = null,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Add an embedding to an entity.
+    ///     Add an embedding to an entity.
     /// </summary>
-    Task AddEmbeddingAsync(string entityId, string name, float[] vector, string? model = null, CancellationToken ct = default);
+    Task AddEmbeddingAsync(string entityId, string name, float[] vector, string? model = null,
+        CancellationToken ct = default);
 }
 
 /// <summary>
-/// Implementation of cross-modal retrieval storage with multi-vector support.
-/// Uses PostgreSQL/SQLite for entity and embedding storage.
+///     Implementation of cross-modal retrieval storage with multi-vector support.
+///     Uses PostgreSQL/SQLite for entity and embedding storage.
 /// </summary>
 public class RetrievalEntityService : IRetrievalEntityService
 {
@@ -111,17 +113,12 @@ public class RetrievalEntityService : IRetrievalEntityService
 
         // Store embeddings
         if (entity.Embedding != null)
-        {
-            await AddEmbeddingInternalAsync(record.Id, EmbeddingNames.Text, entity.Embedding, entity.EmbeddingModel, ct);
-        }
+            await AddEmbeddingInternalAsync(record.Id, EmbeddingNames.Text, entity.Embedding, entity.EmbeddingModel,
+                ct);
 
         if (entity.AdditionalEmbeddings != null)
-        {
             foreach (var (name, vector) in entity.AdditionalEmbeddings)
-            {
                 await AddEmbeddingInternalAsync(record.Id, name, vector, null, ct);
-            }
-        }
 
         _logger.LogInformation(
             "Stored {ContentType} entity {Id} in collection {Collection}",
@@ -220,7 +217,8 @@ public class RetrievalEntityService : IRetrievalEntityService
         }
     }
 
-    public async Task<IReadOnlyList<RetrievalEntity>> GetNeedsReviewAsync(Guid? collectionId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<RetrievalEntity>> GetNeedsReviewAsync(Guid? collectionId = null,
+        CancellationToken ct = default)
     {
         var query = _dbContext.RetrievalEntities
             .Include(e => e.Embeddings)
@@ -233,7 +231,8 @@ public class RetrievalEntityService : IRetrievalEntityService
         return records.Select(ConvertToEntity).ToList();
     }
 
-    public async Task<Dictionary<ContentType, int>> GetCountsByTypeAsync(Guid? collectionId = null, CancellationToken ct = default)
+    public async Task<Dictionary<ContentType, int>> GetCountsByTypeAsync(Guid? collectionId = null,
+        CancellationToken ct = default)
     {
         var query = _dbContext.RetrievalEntities.AsQueryable();
 
@@ -252,9 +251,9 @@ public class RetrievalEntityService : IRetrievalEntityService
 
     public async Task<RetrievalEntity> StoreDocumentAsync(
         DocumentEntity document,
-        IReadOnlyList<Mostlylucid.DocSummarizer.Models.Segment> segments,
-        IReadOnlyList<LucidRAG.Entities.ExtractedEntity>? entities = null,
-        Mostlylucid.DocSummarizer.Models.DocumentSummary? summary = null,
+        IReadOnlyList<Segment> segments,
+        IReadOnlyList<ExtractedEntity>? entities = null,
+        DocumentSummary? summary = null,
         CancellationToken ct = default)
     {
         var builder = new EntityBuilder()
@@ -300,28 +299,31 @@ public class RetrievalEntityService : IRetrievalEntityService
         // Add topic summaries to signals if available
         if (summary?.TopicSummaries?.Count > 0)
         {
-            var topicsJson = System.Text.Json.JsonSerializer.Serialize(summary.TopicSummaries.Select(t => new { t.Topic, t.Summary }));
+            var topicsJson = JsonSerializer.Serialize(summary.TopicSummaries.Select(t => new { t.Topic, t.Summary }));
             builder.WithSignal(new StyloSignal { Key = "document.topics", Value = topicsJson, Source = "BertRAG" });
         }
 
         // Add open questions to signals if available
         if (summary?.OpenQuestions?.Count > 0)
         {
-            var questionsJson = System.Text.Json.JsonSerializer.Serialize(summary.OpenQuestions);
-            builder.WithSignal(new StyloSignal { Key = "document.open_questions", Value = questionsJson, Source = "BertRAG" });
+            var questionsJson = JsonSerializer.Serialize(summary.OpenQuestions);
+            builder.WithSignal(new StyloSignal
+                { Key = "document.open_questions", Value = questionsJson, Source = "BertRAG" });
         }
 
         // Add signals
-        builder.WithSignal(new StyloSignal { Key = "document.segment_count", Value = segments.Count, Source = "LucidRAG" });
-        builder.WithSignal(new StyloSignal { Key = "document.file_size", Value = document.FileSizeBytes, Source = "LucidRAG" });
-        builder.WithSignal(new StyloSignal { Key = "document.mime_type", Value = document.MimeType, Source = "LucidRAG" });
-        builder.WithSignal(new StyloSignal { Key = "document.status", Value = document.Status.ToString(), Source = "LucidRAG" });
+        builder.WithSignal(new StyloSignal
+            { Key = "document.segment_count", Value = segments.Count, Source = "LucidRAG" });
+        builder.WithSignal(new StyloSignal
+            { Key = "document.file_size", Value = document.FileSizeBytes, Source = "LucidRAG" });
+        builder.WithSignal(new StyloSignal
+            { Key = "document.mime_type", Value = document.MimeType, Source = "LucidRAG" });
+        builder.WithSignal(new StyloSignal
+            { Key = "document.status", Value = document.Status.ToString(), Source = "LucidRAG" });
 
         // Add entities if available
         if (entities != null)
-        {
             foreach (var entity in entities)
-            {
                 builder.WithEntity(new StyloFlow.Retrieval.Entities.ExtractedEntity
                 {
                     Id = entity.Id.ToString("N"),
@@ -331,8 +333,6 @@ public class RetrievalEntityService : IRetrievalEntityService
                     Confidence = 1.0,
                     Source = "GraphRAG"
                 });
-            }
-        }
 
         // Build metadata
         var metadata = new StyloContentMetadata
@@ -357,7 +357,8 @@ public class RetrievalEntityService : IRetrievalEntityService
         return retrievalEntity;
     }
 
-    public async Task AddEmbeddingAsync(string entityId, string name, float[] vector, string? model = null, CancellationToken ct = default)
+    public async Task AddEmbeddingAsync(string entityId, string name, float[] vector, string? model = null,
+        CancellationToken ct = default)
     {
         if (!Guid.TryParse(entityId, out var id))
             throw new ArgumentException("Invalid entity ID", nameof(entityId));
@@ -365,7 +366,8 @@ public class RetrievalEntityService : IRetrievalEntityService
         await AddEmbeddingInternalAsync(id, name, vector, model, ct);
     }
 
-    private async Task AddEmbeddingInternalAsync(Guid entityId, string name, float[] vector, string? model, CancellationToken ct)
+    private async Task AddEmbeddingInternalAsync(Guid entityId, string name, float[] vector, string? model,
+        CancellationToken ct)
     {
         var existing = await _dbContext.EntityEmbeddings
             .FirstOrDefaultAsync(e => e.EntityId == entityId && e.Name == name, ct);
@@ -404,7 +406,9 @@ public class RetrievalEntityService : IRetrievalEntityService
             ContentType = entity.ContentType.ToString(),
             Source = entity.Source,
             ContentHash = entity.ContentHash,
-            CollectionId = !string.IsNullOrEmpty(entity.Collection) && Guid.TryParse(entity.Collection, out var cid) ? cid : null,
+            CollectionId = !string.IsNullOrEmpty(entity.Collection) && Guid.TryParse(entity.Collection, out var cid)
+                ? cid
+                : null,
             Title = entity.Title,
             Summary = entity.Summary,
             TextContent = entity.TextContent,
@@ -428,13 +432,15 @@ public class RetrievalEntityService : IRetrievalEntityService
     {
         var embeddings = new Dictionary<string, float[]>();
         float[]? primaryEmbedding = null;
-        string? embeddingModel = record.EmbeddingModel;
+        var embeddingModel = record.EmbeddingModel;
 
         foreach (var emb in record.Embeddings)
         {
             var vector = emb.VectorBinary != null
                 ? BytesToVector(emb.VectorBinary)
-                : (!string.IsNullOrEmpty(emb.Vector) ? JsonSerializer.Deserialize<float[]>(emb.Vector) : null);
+                : !string.IsNullOrEmpty(emb.Vector)
+                    ? JsonSerializer.Deserialize<float[]>(emb.Vector)
+                    : null;
 
             if (vector != null)
             {
@@ -468,11 +474,22 @@ public class RetrievalEntityService : IRetrievalEntityService
             NeedsReview = record.NeedsReview,
             ReviewReason = record.ReviewReason,
             Tags = !string.IsNullOrEmpty(record.Tags) ? JsonSerializer.Deserialize<List<string>>(record.Tags) : null,
-            Metadata = !string.IsNullOrEmpty(record.Metadata) ? JsonSerializer.Deserialize<StyloContentMetadata>(record.Metadata) : null,
-            CustomMetadata = !string.IsNullOrEmpty(record.CustomMetadata) ? JsonSerializer.Deserialize<Dictionary<string, object>>(record.CustomMetadata) : null,
-            Signals = !string.IsNullOrEmpty(record.Signals) ? JsonSerializer.Deserialize<List<StyloSignal>>(record.Signals) : null,
-            Entities = !string.IsNullOrEmpty(record.ExtractedEntities) ? JsonSerializer.Deserialize<List<StyloFlow.Retrieval.Entities.ExtractedEntity>>(record.ExtractedEntities) : null,
-            Relationships = !string.IsNullOrEmpty(record.Relationships) ? JsonSerializer.Deserialize<List<StyloEntityRelationship>>(record.Relationships) : null,
+            Metadata = !string.IsNullOrEmpty(record.Metadata)
+                ? JsonSerializer.Deserialize<StyloContentMetadata>(record.Metadata)
+                : null,
+            CustomMetadata = !string.IsNullOrEmpty(record.CustomMetadata)
+                ? JsonSerializer.Deserialize<Dictionary<string, object>>(record.CustomMetadata)
+                : null,
+            Signals = !string.IsNullOrEmpty(record.Signals)
+                ? JsonSerializer.Deserialize<List<StyloSignal>>(record.Signals)
+                : null,
+            Entities = !string.IsNullOrEmpty(record.ExtractedEntities)
+                ? JsonSerializer.Deserialize<List<StyloFlow.Retrieval.Entities.ExtractedEntity>>(
+                    record.ExtractedEntities)
+                : null,
+            Relationships = !string.IsNullOrEmpty(record.Relationships)
+                ? JsonSerializer.Deserialize<List<StyloEntityRelationship>>(record.Relationships)
+                : null,
             CreatedAt = record.CreatedAt.UtcDateTime,
             UpdatedAt = record.UpdatedAt.UtcDateTime
         };
@@ -486,17 +503,10 @@ public class RetrievalEntityService : IRetrievalEntityService
         var centroid = new float[dimension];
 
         foreach (var embedding in embeddings)
-        {
-            for (int i = 0; i < dimension; i++)
-            {
+            for (var i = 0; i < dimension; i++)
                 centroid[i] += embedding[i];
-            }
-        }
 
-        for (int i = 0; i < dimension; i++)
-        {
-            centroid[i] /= embeddings.Count;
-        }
+        for (var i = 0; i < dimension; i++) centroid[i] /= embeddings.Count;
 
         return centroid;
     }

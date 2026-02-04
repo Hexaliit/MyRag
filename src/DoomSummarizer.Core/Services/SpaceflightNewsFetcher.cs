@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
@@ -5,16 +6,16 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Fetches from the Spaceflight News API (SNAPI) — free, no auth, REST JSON.
-/// Covers launches, events, and articles from NASA, ESA, SpaceX, etc.
-/// https://api.spaceflightnewsapi.net/v4/docs
+///     Fetches from the Spaceflight News API (SNAPI) — free, no auth, REST JSON.
+///     Covers launches, events, and articles from NASA, ESA, SpaceX, etc.
+///     https://api.spaceflightnewsapi.net/v4/docs
 /// </summary>
 public class SpaceflightNewsFetcher(HttpClient httpClient)
 {
     private const string BaseUrl = "https://api.spaceflightnewsapi.net/v4";
 
     /// <summary>
-    /// Fetch recent spaceflight news articles.
+    ///     Fetch recent spaceflight news articles.
     /// </summary>
     public async Task<List<ContentItem>> FetchAsync(int limit = 20, string? search = null)
     {
@@ -57,14 +58,14 @@ public class SpaceflightNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Spaceflight News API failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Spaceflight News API failed: {ex.Message}");
         }
 
         return items;
     }
 
     /// <summary>
-    /// Fetch upcoming and recent spaceflight events (launches, landings, docking).
+    ///     Fetch upcoming and recent spaceflight events (launches, landings, docking).
     /// </summary>
     public async Task<List<ContentItem>> FetchEventsAsync(int limit = 10)
     {
@@ -104,7 +105,7 @@ public class SpaceflightNewsFetcher(HttpClient httpClient)
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Warning: Spaceflight events API failed: {ex.Message}");
+            Debug.WriteLine($"Warning: Spaceflight events API failed: {ex.Message}");
         }
 
         return items;
@@ -112,14 +113,25 @@ public class SpaceflightNewsFetcher(HttpClient httpClient)
 
     // API response models
     private record SnapiResponse(int Count, List<SnapiArticle>? Results);
+
     private record SnapiArticle(
-        int Id, string? Title, string? Url, string? ImageUrl,
-        [property: JsonPropertyName("news_site")] string? NewsSite,
+        int Id,
+        string? Title,
+        string? Url,
+        string? ImageUrl,
+        [property: JsonPropertyName("news_site")]
+        string? NewsSite,
         string? Summary,
-        [property: JsonPropertyName("published_at")] DateTimeOffset? PublishedAt);
+        [property: JsonPropertyName("published_at")]
+        DateTimeOffset? PublishedAt);
 
     private record SnapiEventResponse(int Count, List<SnapiEvent>? Results);
+
     private record SnapiEvent(
-        int Id, string? Title, string? Url, string? Description,
-        string? Provider, DateTimeOffset? Date);
+        int Id,
+        string? Title,
+        string? Url,
+        string? Description,
+        string? Provider,
+        DateTimeOffset? Date);
 }

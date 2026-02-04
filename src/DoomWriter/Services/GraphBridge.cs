@@ -5,6 +5,11 @@ namespace DoomWriter.Services;
 
 public class GraphBridge
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private Func<string, Task<string?>>? _invokeScript;
 
     public void SetInvokeScript(Func<string, Task<string?>> invokeScript)
@@ -104,9 +109,4 @@ public class GraphBridge
             // Ignore malformed messages
         }
     }
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
 }

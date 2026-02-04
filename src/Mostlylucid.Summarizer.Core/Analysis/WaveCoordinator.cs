@@ -4,17 +4,17 @@ using System.Diagnostics;
 namespace Mostlylucid.Summarizer.Core.Analysis;
 
 /// <summary>
-/// Coordinates wave execution with priority ordering, concurrency lanes, and signal aggregation.
-/// Each lane (fast/io/ml/llm) has its own SemaphoreSlim to prevent resource contention.
-/// Waves execute in priority order (highest first) within their lane constraints.
+///     Coordinates wave execution with priority ordering, concurrency lanes, and signal aggregation.
+///     Each lane (fast/io/ml/llm) has its own SemaphoreSlim to prevent resource contention.
+///     Waves execute in priority order (highest first) within their lane constraints.
 /// </summary>
 public class WaveCoordinator
 {
-    private readonly List<IAnalysisWave> _waves = [];
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _lanes = new();
+    private readonly List<IAnalysisWave> _waves = [];
 
     /// <summary>
-    /// Register a wave for coordination.
+    ///     Register a wave for coordination.
     /// </summary>
     public void RegisterWave(IAnalysisWave wave)
     {
@@ -22,7 +22,7 @@ public class WaveCoordinator
     }
 
     /// <summary>
-    /// Register multiple waves.
+    ///     Register multiple waves.
     /// </summary>
     public void RegisterWaves(IEnumerable<IAnalysisWave> waves)
     {
@@ -31,7 +31,7 @@ public class WaveCoordinator
     }
 
     /// <summary>
-    /// Execute all registered typed waves for in-memory content.
+    ///     Execute all registered typed waves for in-memory content.
     /// </summary>
     public async Task<CoordinatorResult> ExecuteAsync<T>(
         T content,
@@ -188,7 +188,7 @@ public class WaveCoordinator
 }
 
 /// <summary>
-/// Result from coordinator execution.
+///     Result from coordinator execution.
 /// </summary>
 public record CoordinatorResult
 {
@@ -200,7 +200,7 @@ public record CoordinatorResult
 }
 
 /// <summary>
-/// Execution status for a wave.
+///     Execution status for a wave.
 /// </summary>
 public enum WaveStatus
 {
@@ -211,7 +211,7 @@ public enum WaveStatus
 }
 
 /// <summary>
-/// Execution log entry for a single wave.
+///     Execution log entry for a single wave.
 /// </summary>
 public record WaveExecutionLog
 {
@@ -225,7 +225,7 @@ public record WaveExecutionLog
 }
 
 /// <summary>
-/// Lane configuration for concurrency control.
+///     Lane configuration for concurrency control.
 /// </summary>
 public sealed class LaneConfig
 {
@@ -237,13 +237,20 @@ public sealed class LaneConfig
     public static LaneConfig Ml => new() { Name = "ml", MaxConcurrency = 2 };
     public static LaneConfig Llm => new() { Name = "llm", MaxConcurrency = 1 };
 
-    public override int GetHashCode() => Name.GetHashCode();
-    public override bool Equals(object? obj) => obj is LaneConfig lc && lc.Name == Name;
+    public override int GetHashCode()
+    {
+        return Name.GetHashCode();
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is LaneConfig lc && lc.Name == Name;
+    }
 }
 
 /// <summary>
-/// Profile for coordinator execution.
-/// Controls concurrency limits, timeouts, and wave selection.
+///     Profile for coordinator execution.
+///     Controls concurrency limits, timeouts, and wave selection.
 /// </summary>
 public class CoordinatorProfile
 {
@@ -255,7 +262,7 @@ public class CoordinatorProfile
     {
         Name = "default",
         WaveTimeoutMs = 30000,
-        Lanes = new()
+        Lanes = new Dictionary<string, LaneConfig>
         {
             ["fast"] = LaneConfig.Fast,
             ["io"] = LaneConfig.Io,
@@ -265,13 +272,13 @@ public class CoordinatorProfile
     };
 
     /// <summary>
-    /// Fast profile — skip expensive ML/LLM operations, high parallelism.
+    ///     Fast profile — skip expensive ML/LLM operations, high parallelism.
     /// </summary>
     public static CoordinatorProfile Fast => new()
     {
         Name = "fast",
         WaveTimeoutMs = 5000,
-        Lanes = new()
+        Lanes = new Dictionary<string, LaneConfig>
         {
             ["fast"] = new() { Name = "fast", MaxConcurrency = 16 },
             ["io"] = new() { Name = "io", MaxConcurrency = 8 }
@@ -279,13 +286,13 @@ public class CoordinatorProfile
     };
 
     /// <summary>
-    /// Quality profile — run all waves including LLM, lower parallelism.
+    ///     Quality profile — run all waves including LLM, lower parallelism.
     /// </summary>
     public static CoordinatorProfile Quality => new()
     {
         Name = "quality",
         WaveTimeoutMs = 60000,
-        Lanes = new()
+        Lanes = new Dictionary<string, LaneConfig>
         {
             ["fast"] = new() { Name = "fast", MaxConcurrency = 4 },
             ["io"] = new() { Name = "io", MaxConcurrency = 2 },

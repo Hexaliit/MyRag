@@ -1,23 +1,22 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
 namespace LucidRAG.Manifests;
 
 /// <summary>
-/// Loads manifests from filesystem directories.
-/// Supports hot reload via file system watching.
-/// Follows StyloFlow pattern.
+///     Loads manifests from filesystem directories.
+///     Supports hot reload via file system watching.
+///     Follows StyloFlow pattern.
 /// </summary>
 public sealed class FileSystemManifestLoader<TManifest> : IManifestLoader<TManifest>
     where TManifest : class
 {
-    private readonly ILogger _logger;
+    private readonly ConcurrentDictionary<string, TManifest> _cache = new();
+    private readonly IDeserializer _deserializer;
     private readonly string[] _directories;
     private readonly string _filePattern;
-    private readonly IDeserializer _deserializer;
-    private readonly ConcurrentDictionary<string, TManifest> _cache = new();
+    private readonly ILogger _logger;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
 
     public FileSystemManifestLoader(
@@ -109,7 +108,6 @@ public sealed class FileSystemManifestLoader<TManifest> : IManifestLoader<TManif
         var files = Directory.GetFiles(directory, _filePattern, SearchOption.AllDirectories);
 
         foreach (var file in files)
-        {
             try
             {
                 var yaml = await File.ReadAllTextAsync(file, ct);
@@ -148,7 +146,6 @@ public sealed class FileSystemManifestLoader<TManifest> : IManifestLoader<TManif
             {
                 _logger.LogError(ex, "Error loading manifest from {File}", file);
             }
-        }
     }
 
     private async Task<TManifest?> TryLoadManifestAsync(string directory, string name, CancellationToken ct)

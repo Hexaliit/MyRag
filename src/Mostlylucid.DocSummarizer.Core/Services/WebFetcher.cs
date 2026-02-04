@@ -1,3 +1,9 @@
+#if !SLIM_BUILD
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Processing;
+#endif
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
@@ -12,12 +18,6 @@ using Mostlylucid.Summarizer.Core.Utilities;
 using Polly;
 using Polly.CircuitBreaker;
 using Polly.Retry;
-#if !SLIM_BUILD
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Processing;
-#endif
 using Configuration = AngleSharp.Configuration;
 
 namespace Mostlylucid.DocSummarizer.Services;

@@ -5,22 +5,21 @@ using Mostlylucid.DocSummarizer.Images.Models;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Main image analyzer that produces deterministic ImageProfile from images.
-/// Combines all sub-analyzers (Color, Edge, Blur, TextLikeliness) into a single profile.
+///     Main image analyzer that produces deterministic ImageProfile from images.
+///     Combines all sub-analyzers (Color, Edge, Blur, TextLikeliness) into a single profile.
 /// </summary>
 public class ImageAnalyzer : IImageAnalyzer
 {
-    private readonly ImageConfig _config;
-    private readonly ColorAnalyzer _colorAnalyzer;
-    private readonly EdgeAnalyzer _edgeAnalyzer;
     private readonly BlurAnalyzer _blurAnalyzer;
+    private readonly ColorAnalyzer _colorAnalyzer;
+    private readonly ImageConfig _config;
+    private readonly EdgeAnalyzer _edgeAnalyzer;
     private readonly TextLikelinessAnalyzer _textAnalyzer;
 
     public ImageAnalyzer(IOptions<ImageConfig> config)
@@ -143,7 +142,8 @@ public class ImageAnalyzer : IImageAnalyzer
     }
 
     /// <inheritdoc />
-    public async Task<byte[]> GenerateThumbnailAsync(string imagePath, int maxSize = 256, CancellationToken ct = default)
+    public async Task<byte[]> GenerateThumbnailAsync(string imagePath, int maxSize = 256,
+        CancellationToken ct = default)
     {
         using var image = Image.Load<Rgba32>(imagePath);
 
@@ -160,9 +160,10 @@ public class ImageAnalyzer : IImageAnalyzer
     }
 
     /// <summary>
-    /// Calculate brightness statistics
+    ///     Calculate brightness statistics
     /// </summary>
-    private (double Mean, double StdDev, double ClippedBlacks, double ClippedWhites) CalculateBrightnessStats(Image<Rgba32> image)
+    private (double Mean, double StdDev, double ClippedBlacks, double ClippedWhites) CalculateBrightnessStats(
+        Image<Rgba32> image)
     {
         var values = new List<double>();
         var clippedBlacks = 0;
@@ -198,7 +199,7 @@ public class ImageAnalyzer : IImageAnalyzer
     }
 
     /// <summary>
-    /// Detect JPEG compression artifacts (blockiness)
+    ///     Detect JPEG compression artifacts (blockiness)
     /// </summary>
     private double DetectJpegArtifacts(Image<Rgba32> image)
     {
@@ -243,7 +244,7 @@ public class ImageAnalyzer : IImageAnalyzer
     }
 
     /// <summary>
-    /// Detect image type based on measured properties
+    ///     Detect image type based on measured properties
     /// </summary>
     private (ImageType Type, double Confidence) DetectImageType(
         double edgeDensity, double luminanceEntropy, double straightEdgeRatio,
@@ -320,7 +321,7 @@ public class ImageAnalyzer : IImageAnalyzer
     }
 
     /// <summary>
-    /// Calculate difference hash (dHash) for perceptual deduplication
+    ///     Calculate difference hash (dHash) for perceptual deduplication
     /// </summary>
     private string CalculateDHash(Image<Rgba32> image)
     {
@@ -346,6 +347,8 @@ public class ImageAnalyzer : IImageAnalyzer
         return hash.ToString("X16");
     }
 
-    private static int GetLuminance(Rgba32 p) =>
-        (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    private static int GetLuminance(Rgba32 p)
+    {
+        return (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    }
 }

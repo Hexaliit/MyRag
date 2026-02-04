@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using Microsoft.EntityFrameworkCore;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Models;
@@ -12,25 +11,23 @@ using LucidRAG.Models;
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Service for managing content ingestion from external sources.
-/// Connects to the signal-based pipeline architecture.
+///     Service for managing content ingestion from external sources.
+///     Connects to the signal-based pipeline architecture.
 /// </summary>
 public class IngestionService : IIngestionService, IDisposable
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<IngestionService> _logger;
+    private const int MaxSignalsPerJob = 1000;
 
     // Active jobs in memory (for progress tracking and cancellation)
     private readonly ConcurrentDictionary<Guid, ActiveIngestionJob> _activeJobs = new();
 
-    // Signal channels for progress streaming
-    private readonly ConcurrentDictionary<Guid, Channel<IngestionProgress>> _progressChannels = new();
-
     // Signal history per job (limited)
     private readonly ConcurrentDictionary<Guid, ConcurrentQueue<IngestionSignal>> _jobSignals = new();
-    private const int MaxSignalsPerJob = 1000;
+    private readonly ILogger<IngestionService> _logger;
 
-    public event EventHandler<IngestionSignal>? SignalEmitted;
+    // Signal channels for progress streaming
+    private readonly ConcurrentDictionary<Guid, Channel<IngestionProgress>> _progressChannels = new();
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public IngestionService(
         IServiceScopeFactory scopeFactory,
@@ -40,7 +37,21 @@ public class IngestionService : IIngestionService, IDisposable
         _logger = logger;
     }
 
-    public async Task<IngestionSourceInfo> CreateSourceAsync(CreateIngestionSourceRequest request, CancellationToken ct = default)
+    public void Dispose()
+    {
+        foreach (var job in _activeJobs.Values)
+        {
+            job.CancellationSource?.Cancel();
+            job.CancellationSource?.Dispose();
+        }
+
+        foreach (var channel in _progressChannels.Values) channel.Writer.Complete();
+    }
+
+    public event EventHandler<IngestionSignal>? SignalEmitted;
+
+    public async Task<IngestionSourceInfo> CreateSourceAsync(CreateIngestionSourceRequest request,
+        CancellationToken ct = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
@@ -153,10 +164,7 @@ public class IngestionService : IIngestionService, IDisposable
 
     public IngestionJobInfo? GetJob(Guid jobId)
     {
-        if (_activeJobs.TryGetValue(jobId, out var active))
-        {
-            return ToJobInfo(active);
-        }
+        if (_activeJobs.TryGetValue(jobId, out var active)) return ToJobInfo(active);
 
         // Check database for completed jobs
         using var scope = _scopeFactory.CreateScope();
@@ -210,25 +218,16 @@ public class IngestionService : IIngestionService, IDisposable
         if (!_progressChannels.TryGetValue(jobId, out var channel))
         {
             // Return final status if job completed
-            if (_activeJobs.TryGetValue(jobId, out var job))
-            {
-                yield return CreateProgress(job);
-            }
+            if (_activeJobs.TryGetValue(jobId, out var job)) yield return CreateProgress(job);
             yield break;
         }
 
-        await foreach (var progress in channel.Reader.ReadAllAsync(ct))
-        {
-            yield return progress;
-        }
+        await foreach (var progress in channel.Reader.ReadAllAsync(ct)) yield return progress;
     }
 
     public IReadOnlyList<IngestionSignal> GetJobSignals(Guid jobId)
     {
-        if (_jobSignals.TryGetValue(jobId, out var signals))
-        {
-            return signals.ToArray();
-        }
+        if (_jobSignals.TryGetValue(jobId, out var signals)) return signals.ToArray();
         return Array.Empty<IngestionSignal>();
     }
 
@@ -247,7 +246,7 @@ public class IngestionService : IIngestionService, IDisposable
             await BroadcastProgressAsync(job);
 
             // Emit job started signal
-            EmitSignal(job.JobId, Entities.SignalTypes.JobStarted, new
+            EmitSignal(job.JobId, SignalTypes.JobStarted, new
             {
                 jobId = job.JobId,
                 sourceId = job.SourceId,
@@ -296,7 +295,7 @@ public class IngestionService : IIngestionService, IDisposable
             await UpdateSourceLastSyncAsync(source.Id, job.ItemsProcessed);
 
             // Emit job completed signal
-            EmitSignal(job.JobId, Entities.SignalTypes.JobCompleted, new
+            EmitSignal(job.JobId, SignalTypes.JobCompleted, new
             {
                 jobId = job.JobId,
                 sourceId = job.SourceId,
@@ -329,10 +328,7 @@ public class IngestionService : IIngestionService, IDisposable
             await BroadcastProgressAsync(job);
 
             // Close progress channel
-            if (_progressChannels.TryRemove(job.JobId, out var channel))
-            {
-                channel.Writer.Complete();
-            }
+            if (_progressChannels.TryRemove(job.JobId, out var channel)) channel.Writer.Complete();
         }
     }
 
@@ -357,10 +353,7 @@ public class IngestionService : IIngestionService, IDisposable
         }
 
         // Apply max items limit
-        if (request.MaxItems > 0 && items.Count > request.MaxItems)
-        {
-            items = items.Take(request.MaxItems).ToList();
-        }
+        if (request.MaxItems > 0 && items.Count > request.MaxItems) items = items.Take(request.MaxItems).ToList();
 
         return items;
     }
@@ -420,7 +413,7 @@ public class IngestionService : IIngestionService, IDisposable
 
         // Determine MIME type and content type for routing
         var mimeType = GetMimeType(item.Path);
-        var contentType = Entities.ContentTypes.FromExtension(Path.GetExtension(item.Path));
+        var contentType = ContentTypes.FromExtension(Path.GetExtension(item.Path));
 
         // Emit content stored signal for pipeline routing
         // This drives the signal-based architecture:
@@ -428,14 +421,14 @@ public class IngestionService : IIngestionService, IDisposable
         // - image → ImageSummarizer molecule
         // - data → DataSummarizer molecule
         // - audio/video → Transcription molecules
-        EmitSignal(job.JobId, Entities.SignalTypes.ContentStored, new
+        EmitSignal(job.JobId, SignalTypes.ContentStored, new
         {
             jobId = job.JobId,
-            itemHash = itemHash,
+            itemHash,
             sourcePath = item.Path,
             fileName = item.Name,
-            mimeType = mimeType,
-            contentType = contentType,  // Key for molecule routing
+            mimeType,
+            contentType, // Key for molecule routing
             sizeBytes = item.SizeBytes,
             sourceType = source.SourceType,
             collectionId = source.CollectionId,
@@ -455,7 +448,9 @@ public class IngestionService : IIngestionService, IDisposable
         if (_jobSignals.TryGetValue(jobId, out var signals))
         {
             signals.Enqueue(signal);
-            while (signals.Count > MaxSignalsPerJob && signals.TryDequeue(out _)) { }
+            while (signals.Count > MaxSignalsPerJob && signals.TryDequeue(out _))
+            {
+            }
         }
 
         // Raise event for pipeline subscribers
@@ -465,9 +460,7 @@ public class IngestionService : IIngestionService, IDisposable
     private async Task BroadcastProgressAsync(ActiveIngestionJob job)
     {
         if (_progressChannels.TryGetValue(job.JobId, out var channel))
-        {
             await channel.Writer.WriteAsync(CreateProgress(job));
-        }
     }
 
     private static IngestionProgress CreateProgress(ActiveIngestionJob job)
@@ -575,7 +568,8 @@ public class IngestionService : IIngestionService, IDisposable
             null,
             entity.ErrorMessage,
             entity.ItemsDiscovered > 0
-                ? (double)(entity.ItemsProcessed + entity.ItemsFailed + entity.ItemsSkipped) / entity.ItemsDiscovered * 100
+                ? (double)(entity.ItemsProcessed + entity.ItemsFailed + entity.ItemsSkipped) / entity.ItemsDiscovered *
+                  100
                 : 0,
             entity.StartedAt,
             entity.CompletedAt
@@ -583,8 +577,8 @@ public class IngestionService : IIngestionService, IDisposable
     }
 
     /// <summary>
-    /// Generate a non-reversible hash for item identification.
-    /// Combines source ID and path to create unique but non-leaking identifier.
+    ///     Generate a non-reversible hash for item identification.
+    ///     Combines source ID and path to create unique but non-leaking identifier.
     /// </summary>
     private static string GenerateSecureHash(Guid sourceId, string path)
     {
@@ -621,20 +615,6 @@ public class IngestionService : IIngestionService, IDisposable
             ".webm" => "video/webm",
             _ => "application/octet-stream"
         };
-    }
-
-    public void Dispose()
-    {
-        foreach (var job in _activeJobs.Values)
-        {
-            job.CancellationSource?.Cancel();
-            job.CancellationSource?.Dispose();
-        }
-
-        foreach (var channel in _progressChannels.Values)
-        {
-            channel.Writer.Complete();
-        }
     }
 
     private class ActiveIngestionJob

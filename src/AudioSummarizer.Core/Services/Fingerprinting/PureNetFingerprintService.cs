@@ -5,13 +5,11 @@ using NAudio.Wave;
 namespace AudioSummarizer.Core.Services.Fingerprinting;
 
 /// <summary>
-/// Pure .NET audio fingerprinting using spectral peak hashing (Shazam-style algorithm).
-/// Cross-platform, no native dependencies.
+///     Pure .NET audio fingerprinting using spectral peak hashing (Shazam-style algorithm).
+///     Cross-platform, no native dependencies.
 /// </summary>
 public sealed class PureNetFingerprintService : IFingerprintService
 {
-    private readonly ILogger<PureNetFingerprintService> _logger;
-
     // FFT parameters
     private const int FftSize = 4096;
     private const int HopSize = 2048;
@@ -20,22 +18,25 @@ public sealed class PureNetFingerprintService : IFingerprintService
     // Frequency bands for peak detection (Hz)
     private static readonly (int Low, int High)[] FrequencyBands =
     {
-        (0, 250),       // Sub-bass
-        (250, 500),     // Bass
-        (500, 2000),    // Midrange
-        (2000, 4000),   // Upper midrange
-        (4000, 8000),   // Presence
-        (8000, 16000)   // Brilliance
+        (0, 250), // Sub-bass
+        (250, 500), // Bass
+        (500, 2000), // Midrange
+        (2000, 4000), // Upper midrange
+        (4000, 8000), // Presence
+        (8000, 16000) // Brilliance
     };
 
-    public string ProviderName => "PureNet";
+    private readonly ILogger<PureNetFingerprintService> _logger;
 
     public PureNetFingerprintService(ILogger<PureNetFingerprintService> logger)
     {
         _logger = logger;
     }
 
-    public async Task<AudioFingerprint> GenerateFingerprintAsync(string audioPath, CancellationToken cancellationToken = default)
+    public string ProviderName => "PureNet";
+
+    public async Task<AudioFingerprint> GenerateFingerprintAsync(string audioPath,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -68,21 +69,14 @@ public sealed class PureNetFingerprintService : IFingerprintService
     public double CalculateSimilarity(AudioFingerprint fingerprint1, AudioFingerprint fingerprint2)
     {
         if (fingerprint1.Type != "spectral_peaks" || fingerprint2.Type != "spectral_peaks")
-        {
             throw new ArgumentException("Both fingerprints must be of type 'spectral_peaks'");
-        }
 
         // Exact match check
-        if (fingerprint1.Hash == fingerprint2.Hash)
-        {
-            return 1.0;
-        }
+        if (fingerprint1.Hash == fingerprint2.Hash) return 1.0;
 
         // If we have raw data, compute Hamming distance
         if (fingerprint1.RawData != null && fingerprint2.RawData != null)
-        {
             return CalculateHammingSimilarity(fingerprint1.RawData, fingerprint2.RawData);
-        }
 
         // Otherwise, compare hashes (less accurate)
         return fingerprint1.Hash == fingerprint2.Hash ? 1.0 : 0.0;
@@ -98,24 +92,16 @@ public sealed class PureNetFingerprintService : IFingerprintService
         var readBuffer = new float[reader.WaveFormat.SampleRate * reader.WaveFormat.Channels];
         int samplesRead;
 
-        while ((samplesRead = await Task.Run(() => reader.Read(readBuffer, 0, readBuffer.Length), cancellationToken)) > 0)
-        {
-            buffer.AddRange(readBuffer.Take(samplesRead));
-        }
+        while ((samplesRead = await Task.Run(() => reader.Read(readBuffer, 0, readBuffer.Length), cancellationToken)) >
+               0) buffer.AddRange(readBuffer.Take(samplesRead));
 
         var samples = buffer.ToArray();
 
         // Convert to mono if stereo
-        if (format.Channels > 1)
-        {
-            samples = ConvertToMono(samples, format.Channels);
-        }
+        if (format.Channels > 1) samples = ConvertToMono(samples, format.Channels);
 
         // Resample to standard rate if needed
-        if (format.SampleRate != SampleRate)
-        {
-            samples = Resample(samples, format.SampleRate, SampleRate);
-        }
+        if (format.SampleRate != SampleRate) samples = Resample(samples, format.SampleRate, SampleRate);
 
         return samples;
     }
@@ -123,15 +109,13 @@ public sealed class PureNetFingerprintService : IFingerprintService
     private float[] ConvertToMono(float[] samples, int channels)
     {
         var mono = new float[samples.Length / channels];
-        for (int i = 0; i < mono.Length; i++)
+        for (var i = 0; i < mono.Length; i++)
         {
             float sum = 0;
-            for (int ch = 0; ch < channels; ch++)
-            {
-                sum += samples[i * channels + ch];
-            }
+            for (var ch = 0; ch < channels; ch++) sum += samples[i * channels + ch];
             mono[i] = sum / channels;
         }
+
         return mono;
     }
 
@@ -143,21 +127,17 @@ public sealed class PureNetFingerprintService : IFingerprintService
         var newLength = (int)(samples.Length * ratio);
         var resampled = new float[newLength];
 
-        for (int i = 0; i < newLength; i++)
+        for (var i = 0; i < newLength; i++)
         {
             var srcIndex = i / ratio;
             var srcIndexInt = (int)srcIndex;
             var frac = srcIndex - srcIndexInt;
 
             if (srcIndexInt + 1 < samples.Length)
-            {
                 // Linear interpolation
                 resampled[i] = (float)(samples[srcIndexInt] * (1 - frac) + samples[srcIndexInt + 1] * frac);
-            }
             else
-            {
                 resampled[i] = samples[srcIndexInt];
-            }
         }
 
         return resampled;
@@ -168,21 +148,21 @@ public sealed class PureNetFingerprintService : IFingerprintService
         var peaks = new List<SpectralPeak>();
         var frameCount = (audioData.Length - FftSize) / HopSize;
 
-        for (int frame = 0; frame < frameCount; frame++)
+        for (var frame = 0; frame < frameCount; frame++)
         {
             var frameStart = frame * HopSize;
             var frameData = new double[FftSize];
 
             // Copy frame with Hann window
-            for (int i = 0; i < FftSize && frameStart + i < audioData.Length; i++)
+            for (var i = 0; i < FftSize && frameStart + i < audioData.Length; i++)
             {
                 var window = 0.5 * (1 - Math.Cos(2 * Math.PI * i / FftSize));
                 frameData[i] = audioData[frameStart + i] * window;
             }
 
             // Compute FFT using modern FftSharp API
-            var fft = FftSharp.FFT.Forward(frameData);
-            var magnitude = FftSharp.FFT.Magnitude(fft);
+            var fft = FFT.Forward(frameData);
+            var magnitude = FFT.Magnitude(fft);
 
             // Find peaks in each frequency band
             foreach (var (low, high) in FrequencyBands)
@@ -192,14 +172,12 @@ public sealed class PureNetFingerprintService : IFingerprintService
 
                 var peakBin = FindPeakInRange(magnitude, lowBin, highBin);
                 if (peakBin >= 0 && magnitude[peakBin] > 0.01) // Minimum magnitude threshold
-                {
                     peaks.Add(new SpectralPeak
                     {
                         TimeFrame = frame,
                         FrequencyBin = peakBin,
                         Magnitude = magnitude[peakBin]
                     });
-                }
             }
         }
 
@@ -216,14 +194,12 @@ public sealed class PureNetFingerprintService : IFingerprintService
         var maxBin = -1;
         var maxMagnitude = 0.0;
 
-        for (int i = low; i < high && i < magnitude.Length; i++)
-        {
+        for (var i = low; i < high && i < magnitude.Length; i++)
             if (magnitude[i] > maxMagnitude)
             {
                 maxMagnitude = magnitude[i];
                 maxBin = i;
             }
-        }
 
         return maxBin;
     }
@@ -274,7 +250,7 @@ public sealed class PureNetFingerprintService : IFingerprintService
         var differingBits = 0;
         var totalBits = maxLength * 8;
 
-        for (int i = 0; i < minLength; i++)
+        for (var i = 0; i < minLength; i++)
         {
             var xor = data1[i] ^ data2[i];
             differingBits += CountSetBits(xor);
@@ -283,7 +259,7 @@ public sealed class PureNetFingerprintService : IFingerprintService
         // Account for length difference
         differingBits += (maxLength - minLength) * 8;
 
-        var similarity = 1.0 - (differingBits / (double)totalBits);
+        var similarity = 1.0 - differingBits / (double)totalBits;
         return Math.Max(0.0, similarity);
     }
 
@@ -295,6 +271,7 @@ public sealed class PureNetFingerprintService : IFingerprintService
             count += b & 1;
             b >>= 1;
         }
+
         return count;
     }
 

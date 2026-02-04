@@ -1,77 +1,77 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <!-- Single-target: GraphRag (always ProjectRef) only supports net10.0 -->
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <RootNamespace>AudioSummarizer.Core</RootNamespace>
-    <Authors>Scott Galloway</Authors>
-    <Description>AudioSummarizer - Forensic audio characterization library with speech-to-text and speaker analysis</Description>
-    <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
-    <PackageId>Mostlylucid.LucidRAG.AudioSummarizer</PackageId>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageTags>audio;whisper;speech-to-text;transcription;diarization</PackageTags>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591;NU1605</NoWarn>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
+    <PropertyGroup>
+        <!-- Single-target: GraphRag (always ProjectRef) only supports net10.0 -->
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>AudioSummarizer.Core</RootNamespace>
+        <Authors>Scott Galloway</Authors>
+        <Description>AudioSummarizer - Forensic audio characterization library with speech-to-text and speaker analysis</Description>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageId>Mostlylucid.LucidRAG.AudioSummarizer</PackageId>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageTags>audio;whisper;speech-to-text;transcription;diarization</PackageTags>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591;NU1605</NoWarn>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
 
-  <!-- MinVer -->
-  <PropertyGroup>
-    <MinVerTagPrefix>audiosumv</MinVerTagPrefix>
-    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
-  </PropertyGroup>
+    <!-- MinVer -->
+    <PropertyGroup>
+        <MinVerTagPrefix>audiosumv</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
-  <!-- GraphRag: used for OnnxNerService (transcript entity extraction).
-       PrivateAssets=all embeds it in our package without declaring a NuGet dependency
-       (GraphRag is not published as a standalone NuGet package). -->
-  <ItemGroup>
-    <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" PrivateAssets="all" />
-  </ItemGroup>
+    <!-- GraphRag: used for OnnxNerService (transcript entity extraction).
+         PrivateAssets=all embeds it in our package without declaring a NuGet dependency
+         (GraphRag is not published as a standalone NuGet package). -->
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" PrivateAssets="all"/>
+    </ItemGroup>
 
-  <!-- Core dependencies (ProjectRef local, PackageRef CI) -->
-  <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
-    <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj" />
-    <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj" />
-    <ProjectReference Include="..\Mostlylucid.Storage.Core\Mostlylucid.Storage.Core.csproj" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
-    <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)" />
-    <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)" />
-    <PackageReference Include="Mostlylucid.LucidRAG.Storage.Core" Version="$(CorePackageVersion)" />
-  </ItemGroup>
+    <!-- Core dependencies (ProjectRef local, PackageRef CI) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.Storage.Core\Mostlylucid.Storage.Core.csproj"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.Storage.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
 
-  <!-- Audio processing -->
-  <ItemGroup>
-    <PackageReference Include="NAudio" Version="2.2.1" />
-    <PackageReference Include="FftSharp" Version="2.2.0" />
-  </ItemGroup>
+    <!-- Audio processing -->
+    <ItemGroup>
+        <PackageReference Include="NAudio" Version="2.2.1"/>
+        <PackageReference Include="FftSharp" Version="2.2.0"/>
+    </ItemGroup>
 
-  <!-- ML and ONNX -->
-  <ItemGroup>
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
-  </ItemGroup>
+    <!-- ML and ONNX -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2"/>
+    </ItemGroup>
 
-  <!-- Transcription - Whisper.NET -->
-  <ItemGroup>
-    <PackageReference Include="Whisper.net" Version="1.9.0" />
-    <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" />
-  </ItemGroup>
+    <!-- Transcription - Whisper.NET -->
+    <ItemGroup>
+        <PackageReference Include="Whisper.net" Version="1.9.0"/>
+        <PackageReference Include="Whisper.net.Runtime" Version="1.9.0"/>
+    </ItemGroup>
 
-  <!-- Utilities -->
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
-  </ItemGroup>
+    <!-- Utilities -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2"/>
+    </ItemGroup>
 
 </Project>

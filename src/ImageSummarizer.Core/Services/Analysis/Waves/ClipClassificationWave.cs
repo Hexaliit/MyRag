@@ -7,20 +7,16 @@ using Mostlylucid.DocSummarizer.Images.Services.Vision;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// CLIP Classification Wave - Zero-shot image classification using predetermined entity labels.
-/// Uses CLIP text encoder to match image embeddings against semantic labels.
-/// Produces entity-type signals for downstream NER integration.
-/// Priority: 46 (immediately after CLIP embedding, before synthesis)
+///     CLIP Classification Wave - Zero-shot image classification using predetermined entity labels.
+///     Uses CLIP text encoder to match image embeddings against semantic labels.
+///     Produces entity-type signals for downstream NER integration.
+///     Priority: 46 (immediately after CLIP embedding, before synthesis)
 /// </summary>
 public class ClipClassificationWave : IAnalysisWave
 {
     private readonly ClipZeroShotService _clipService;
     private readonly ImageConfig _config;
     private readonly ILogger<ClipClassificationWave>? _logger;
-
-    public string Name => "ClipClassificationWave";
-    public int Priority => 46; // Right after ClipEmbeddingWave (45)
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "classification", "clip", "ner" };
 
     public ClipClassificationWave(
         ClipZeroShotService clipService,
@@ -31,6 +27,10 @@ public class ClipClassificationWave : IAnalysisWave
         _config = config.Value;
         _logger = logger;
     }
+
+    public string Name => "ClipClassificationWave";
+    public int Priority => 46; // Right after ClipEmbeddingWave (45)
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "classification", "clip", "ner" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -87,9 +87,9 @@ public class ClipClassificationWave : IAnalysisWave
             // Classify against predetermined labels
             var classifications = await _clipService.ClassifyAsync(
                 embedding,
-                topK: 5,
-                minConfidence: 0.15,
-                ct: ct);
+                5,
+                0.15,
+                ct);
 
             if (classifications.Count == 0)
             {
@@ -147,7 +147,6 @@ public class ClipClassificationWave : IAnalysisWave
 
             // Emit individual entity signals for high-confidence matches
             foreach (var classification in classifications.Where(c => c.Confidence > 0.25))
-            {
                 signals.Add(new Signal
                 {
                     Key = $"clip.detected.{classification.EntityType}",
@@ -161,11 +160,9 @@ public class ClipClassificationWave : IAnalysisWave
                         ["rank"] = classification.Rank
                     }
                 });
-            }
 
             // Special signals for common entity types (for easier downstream consumption)
             if (classifications.Any(c => c.EntityType == "person" && c.Confidence > 0.3))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.has_person",
@@ -174,10 +171,8 @@ public class ClipClassificationWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "person", "ner" }
                 });
-            }
 
             if (classifications.Any(c => c.EntityType is "diagram" or "chart" or "document" && c.Confidence > 0.3))
-            {
                 signals.Add(new Signal
                 {
                     Key = "content.is_document",
@@ -188,7 +183,6 @@ public class ClipClassificationWave : IAnalysisWave
                     Source = Name,
                     Tags = new List<string> { SignalTags.Content, "document", "ner" }
                 });
-            }
 
             _logger?.LogInformation(
                 "CLIP classification: primary={Primary} ({Confidence:P0}), {Count} total entities",

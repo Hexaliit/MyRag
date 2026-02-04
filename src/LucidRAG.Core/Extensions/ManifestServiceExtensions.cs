@@ -1,23 +1,20 @@
+using System.Reflection;
 using LucidRAG.Coordination;
 using LucidRAG.Manifests;
 using LucidRAG.Services.Lenses;
 using LucidRAG.Services.Waves;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using System.Reflection;
 
 namespace LucidRAG.Extensions;
 
 /// <summary>
-/// Service registration extensions for YAML manifest-based systems.
-/// Supports lenses, waves, and processors.
+///     Service registration extensions for YAML manifest-based systems.
+///     Supports lenses, waves, and processors.
 /// </summary>
 public static class ManifestServiceExtensions
 {
     /// <summary>
-    /// Registers the YAML-based lens system.
-    /// Loads lens manifests from filesystem or embedded resources.
+    ///     Registers the YAML-based lens system.
+    ///     Loads lens manifests from filesystem or embedded resources.
     /// </summary>
     public static IServiceCollection AddYamlLenses(
         this IServiceCollection services,
@@ -26,7 +23,6 @@ public static class ManifestServiceExtensions
         Assembly[]? embeddedAssemblies = null)
     {
         if (useEmbedded)
-        {
             // Register embedded manifest loader
             services.AddSingleton<IManifestLoader<LensManifest>>(sp =>
             {
@@ -34,9 +30,7 @@ public static class ManifestServiceExtensions
                 var assemblies = embeddedAssemblies ?? [Assembly.GetExecutingAssembly()];
                 return new EmbeddedManifestLoader<LensManifest>(logger, assemblies, ".lens.yaml");
             });
-        }
         else
-        {
             // Register filesystem manifest loader
             services.AddSingleton<IManifestLoader<LensManifest>>(sp =>
             {
@@ -52,7 +46,6 @@ public static class ManifestServiceExtensions
                     [lensDirectory],
                     "*.lens.yaml");
             });
-        }
 
         // Register YAML-based lens loader
         services.AddSingleton<ILensLoader, YamlLensLoader>();
@@ -64,13 +57,13 @@ public static class ManifestServiceExtensions
         services.AddScoped<ILensRenderService, LensRenderService>();
 
         // Register background initializer (defined in LensServiceExtensions.cs)
-        services.AddHostedService<LucidRAG.Extensions.LensRegistryInitializer>();
+        services.AddHostedService<LensRegistryInitializer>();
 
         return services;
     }
 
     /// <summary>
-    /// Registers the YAML-based wave system for RAG pipeline orchestration.
+    ///     Registers the YAML-based wave system for RAG pipeline orchestration.
     /// </summary>
     public static IServiceCollection AddYamlWaves(
         this IServiceCollection services,
@@ -79,16 +72,13 @@ public static class ManifestServiceExtensions
         Assembly[]? embeddedAssemblies = null)
     {
         if (useEmbedded)
-        {
             services.AddSingleton<IManifestLoader<WaveManifest>>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<EmbeddedManifestLoader<WaveManifest>>>();
                 var assemblies = embeddedAssemblies ?? [Assembly.GetExecutingAssembly()];
                 return new EmbeddedManifestLoader<WaveManifest>(logger, assemblies, ".wave.yaml");
             });
-        }
         else
-        {
             services.AddSingleton<IManifestLoader<WaveManifest>>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<FileSystemManifestLoader<WaveManifest>>>();
@@ -102,7 +92,6 @@ public static class ManifestServiceExtensions
                     [waveDirectory],
                     "*.wave.yaml");
             });
-        }
 
         // Register wave registry
         services.AddSingleton<IWaveRegistry, WaveRegistry>();
@@ -117,7 +106,7 @@ public static class ManifestServiceExtensions
     }
 
     /// <summary>
-    /// Registers the YAML-based processor system for document processing.
+    ///     Registers the YAML-based processor system for document processing.
     /// </summary>
     public static IServiceCollection AddYamlProcessors(
         this IServiceCollection services,
@@ -126,16 +115,13 @@ public static class ManifestServiceExtensions
         Assembly[]? embeddedAssemblies = null)
     {
         if (useEmbedded)
-        {
             services.AddSingleton<IManifestLoader<ProcessorManifest>>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<EmbeddedManifestLoader<ProcessorManifest>>>();
                 var assemblies = embeddedAssemblies ?? [Assembly.GetExecutingAssembly()];
                 return new EmbeddedManifestLoader<ProcessorManifest>(logger, assemblies, ".processor.yaml");
             });
-        }
         else
-        {
             services.AddSingleton<IManifestLoader<ProcessorManifest>>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<FileSystemManifestLoader<ProcessorManifest>>>();
@@ -149,7 +135,6 @@ public static class ManifestServiceExtensions
                     [processorDirectory],
                     "*.processor.yaml");
             });
-        }
 
         // TODO: Register processor registry
 
@@ -157,7 +142,7 @@ public static class ManifestServiceExtensions
     }
 
     /// <summary>
-    /// Registers all YAML manifest systems (lenses, waves, processors).
+    ///     Registers all YAML manifest systems (lenses, waves, processors).
     /// </summary>
     public static IServiceCollection AddYamlManifestSystem(
         this IServiceCollection services,

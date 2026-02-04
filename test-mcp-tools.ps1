@@ -13,14 +13,18 @@ Write-Host "This would be called via MCP as: list_output_templates()" -Foregroun
 Write-Host "Simulating by checking if Config/output-templates.json exists..." -ForegroundColor Gray
 
 $templatesFile = "src/Mostlylucid.ImageSummarizer.Cli/bin/Debug/net10.0/Config/output-templates.json"
-if (Test-Path $templatesFile) {
+if (Test-Path $templatesFile)
+{
     Write-Host "✓ Templates file found at $templatesFile" -ForegroundColor Green
     $templates = Get-Content $templatesFile | ConvertFrom-Json
-    Write-Host "✓ Found $($templates.templates.Count) templates:" -ForegroundColor Green
-    foreach ($template in $templates.templates) {
-        Write-Host "  - $($template.name): $($template.description)" -ForegroundColor White
+    Write-Host "✓ Found $( $templates.templates.Count ) templates:" -ForegroundColor Green
+    foreach ($template in $templates.templates)
+    {
+        Write-Host "  - $( $template.name ): $( $template.description )" -ForegroundColor White
     }
-} else {
+}
+else
+{
     Write-Host "✗ Templates file not found!" -ForegroundColor Red
     exit 1
 }
@@ -28,9 +32,12 @@ if (Test-Path $templatesFile) {
 # Test 2: Build verification
 Write-Host "`n[2/5] Verifying build..." -ForegroundColor Yellow
 dotnet build $ProjectPath -v quiet
-if ($LASTEXITCODE -eq 0) {
+if ($LASTEXITCODE -eq 0)
+{
     Write-Host "✓ Build succeeded" -ForegroundColor Green
-} else {
+}
+else
+{
     Write-Host "✗ Build failed" -ForegroundColor Red
     exit 1
 }
@@ -47,10 +54,13 @@ $output = Receive-Job $job
 Stop-Job $job
 Remove-Job $job
 
-if ($output -match "transport reading messages") {
+if ($output -match "transport reading messages")
+{
     Write-Host "✓ MCP server started successfully" -ForegroundColor Green
     Write-Host "✓ Server name: imagesummarizer" -ForegroundColor Green
-} else {
+}
+else
+{
     Write-Host "✗ MCP server failed to start" -ForegroundColor Red
     Write-Host $output
     exit 1
@@ -71,7 +81,8 @@ $expectedTools = @(
     "list_output_templates"
 )
 
-foreach ($tool in $expectedTools) {
+foreach ($tool in $expectedTools)
+{
     Write-Host "  ✓ $tool" -ForegroundColor Green
 }
 
@@ -81,7 +92,7 @@ Write-Host "      Actual discovery tested by MCP client (Claude Desktop)" -Foreg
 # Test 5: Template processing simulation
 Write-Host "`n[5/5] Testing template variable reference..." -ForegroundColor Yellow
 $varRef = $templates.variable_reference
-Write-Host "✓ Found $($varRef.PSObject.Properties.Count) variable definitions:" -ForegroundColor Green
+Write-Host "✓ Found $( $varRef.PSObject.Properties.Count ) variable definitions:" -ForegroundColor Green
 Write-Host "  - identity.*: format, width, height, is_animated, etc." -ForegroundColor White
 Write-Host "  - colors.*: dominant, is_grayscale, mean_saturation" -ForegroundColor White
 Write-Host "  - text.*: extracted_text, confidence, word_count" -ForegroundColor White

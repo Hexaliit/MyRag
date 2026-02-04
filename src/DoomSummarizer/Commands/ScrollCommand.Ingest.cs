@@ -3,17 +3,15 @@ using System.Text;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
-using DoomSummarizer.Plugins.Runtime;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services;
-using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 
 namespace DoomSummarizer.Commands;
 
 /// <summary>
-/// Document type classification for adaptive retrieval and template selection.
-/// Mirrors FrontMatterDetector.DocumentProfileType but lightweight (no LLM dependency).
+///     Document type classification for adaptive retrieval and template selection.
+///     Mirrors FrontMatterDetector.DocumentProfileType but lightweight (no LLM dependency).
 /// </summary>
 public enum IngestDocumentType
 {
@@ -25,16 +23,18 @@ public enum IngestDocumentType
 }
 
 /// <summary>
-/// Local file/folder ingestion for the scroll command.
-/// When -s points to a file or folder, or the prompt is a file path,
-/// we auto-ingest into a named collection then query against it.
+///     Local file/folder ingestion for the scroll command.
+///     When -s points to a file or folder, or the prompt is a file path,
+///     we auto-ingest into a named collection then query against it.
 /// </summary>
 public sealed partial class ScrollCommand
 {
     private static readonly string[] ImageExtensions = [".gif", ".jpg", ".jpeg", ".png", ".webp"];
 
-    internal static bool IsImageFile(string path) =>
-        ImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
+    internal static bool IsImageFile(string path)
+    {
+        return ImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
+    }
 
     internal static string DescriptionFromFilename(string filePath)
     {
@@ -46,8 +46,8 @@ public sealed partial class ScrollCommand
     }
 
     /// <summary>
-    /// Classify document type from early content using heuristic scoring.
-    /// Same approach as FrontMatterDetector.DetectDocumentType but standalone.
+    ///     Classify document type from early content using heuristic scoring.
+    ///     Same approach as FrontMatterDetector.DetectDocumentType but standalone.
     /// </summary>
     internal static IngestDocumentType DetectDocumentType(string earlyContent)
     {
@@ -95,7 +95,8 @@ public sealed partial class ScrollCommand
         if (lower.Contains("foreword") || lower.Contains("preface") || lower.Contains("introduction"))
             nonfictionScore += 3;
 
-        var best = new[] {
+        var best = new[]
+        {
             (IngestDocumentType.Fiction, fictionScore),
             (IngestDocumentType.Academic, academicScore),
             (IngestDocumentType.Technical, technicalScore),
@@ -104,10 +105,11 @@ public sealed partial class ScrollCommand
 
         return best.Item2 >= 3 ? best.Item1 : IngestDocumentType.Unknown;
     }
+
     /// <summary>
-    /// Detect whether any of the given paths are local files or directories.
-    /// Returns the list of resolved file paths, a suggested collection name,
-    /// and whether the source is predominantly images.
+    ///     Detect whether any of the given paths are local files or directories.
+    ///     Returns the list of resolved file paths, a suggested collection name,
+    ///     and whether the source is predominantly images.
     /// </summary>
     internal static (List<string> files, string collectionName, bool isImageSource) ResolveLocalSources(
         string[] sources, string? explicitName, bool recurse = false)
@@ -116,7 +118,7 @@ public sealed partial class ScrollCommand
         var searchOption = recurse ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
         // Build supported extension set from registered handlers (single source of truth)
-        var handlers = new Mostlylucid.DocSummarizer.Services.DocumentHandlerRegistry();
+        var handlers = new DocumentHandlerRegistry();
         handlers.RegisterDefaultHandlers();
         var supportedExtensions = new HashSet<string>(
             handlers.GetSupportedExtensions(), StringComparer.OrdinalIgnoreCase);
@@ -131,7 +133,6 @@ public sealed partial class ScrollCommand
 #endif
 
         foreach (var source in sources)
-        {
             if (File.Exists(source))
             {
                 var ext = Path.GetExtension(source);
@@ -144,7 +145,6 @@ public sealed partial class ScrollCommand
                 foreach (var ext in supportedExtensions)
                     files.AddRange(Directory.EnumerateFiles(source, $"*{ext}", searchOption));
             }
-        }
 
         if (files.Count == 0)
             return (files, "", false);
@@ -160,9 +160,9 @@ public sealed partial class ScrollCommand
     }
 
     /// <summary>
-    /// Ingest local files into a named collection.
-    /// Extracts text, chunks by page/section, computes embeddings, stores in SQLite + Lucene FTS.
-    /// Returns the source filter string, item count, and detected document type.
+    ///     Ingest local files into a named collection.
+    ///     Extracts text, chunks by page/section, computes embeddings, stores in SQLite + Lucene FTS.
+    ///     Returns the source filter string, item count, and detected document type.
     /// </summary>
     internal static async Task<(string sourceFilter, int itemCount, IngestDocumentType docType)> IngestLocalFilesAsync(
         List<string> files,
@@ -175,7 +175,7 @@ public sealed partial class ScrollCommand
         var sourceTag = $"file:{collectionName}";
 
         // Skip ingestion if collection already has items (use --force to re-ingest)
-        var existing = await boot.Storage.GetRecentItemsAsync(days: 36500, source: sourceTag);
+        var existing = await boot.Storage.GetRecentItemsAsync(36500, sourceTag);
         if (existing.Count > 0 && !force)
         {
             // Detect document type from cached content
@@ -185,14 +185,16 @@ public sealed partial class ScrollCommand
             var cachedDocType = DetectDocumentType(sampleText);
 
             progressTask.Value = 100;
-            progressTask.Description = $"[green]Collection '{FormattingHelpers.Esc(collectionName)}' already has {existing.Count} segments (use --force to re-ingest)[/]";
+            progressTask.Description =
+                $"[green]Collection '{FormattingHelpers.Esc(collectionName)}' already has {existing.Count} segments (use --force to re-ingest)[/]";
             return (sourceTag, existing.Count, cachedDocType);
         }
 
-        using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, collectionName: collectionName, ct: ct);
+        using var processor =
+            await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, collectionName, ct);
 
         // Set up document handlers
-        var handlers = new Mostlylucid.DocSummarizer.Services.DocumentHandlerRegistry();
+        var handlers = new DocumentHandlerRegistry();
         handlers.RegisterDefaultHandlers();
 
         var totalIngested = 0;
@@ -282,7 +284,8 @@ public sealed partial class ScrollCommand
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[yellow]Warning: Failed to process {Markup.Escape(Path.GetFileName(filePath))}: {Markup.Escape(ex.Message)}[/]");
+                AnsiConsole.MarkupLine(
+                    $"[yellow]Warning: Failed to process {Markup.Escape(Path.GetFileName(filePath))}: {Markup.Escape(ex.Message)}[/]");
             }
 
             progressTask.Increment(increment);
@@ -319,7 +322,6 @@ public sealed partial class ScrollCommand
         // "characters" can leverage entity-aware retrieval.
         var entityCount = 0;
         if (boot.EntityStore != null && pendingItems.Count > 0)
-        {
             try
             {
                 using var nerService = new NerService();
@@ -346,21 +348,21 @@ public sealed partial class ScrollCommand
             {
                 AnsiConsole.MarkupLine($"[yellow]NER extraction skipped: {Markup.Escape(ex.Message)}[/]");
             }
-        }
 
         progressTask.Value = 100;
         var typeLabel = detectedDocType != IngestDocumentType.Unknown ? $" ({detectedDocType})" : "";
         var entityLabel = entityCount > 0 ? $", {entityCount} entities" : "";
-        progressTask.Description = $"[green]Ingested {totalIngested} segments from {files.Count} file(s){typeLabel}{entityLabel}[/]";
+        progressTask.Description =
+            $"[green]Ingested {totalIngested} segments from {files.Count} file(s){typeLabel}{entityLabel}[/]";
 
         return (sourceTag, totalIngested, detectedDocType);
     }
 
     /// <summary>
-    /// Split a document into retrieval-sized chunks.
-    /// Delegates to the shared DocumentChunker from DocSummarizer.Core which handles
-    /// page markers (PDFs), heading-based splitting, paragraph fallback, and section merging.
-    /// Chunk size adapts to document type: books use larger chunks for narrative continuity.
+    ///     Split a document into retrieval-sized chunks.
+    ///     Delegates to the shared DocumentChunker from DocSummarizer.Core which handles
+    ///     page markers (PDFs), heading-based splitting, paragraph fallback, and section merging.
+    ///     Chunk size adapts to document type: books use larger chunks for narrative continuity.
     /// </summary>
     private static List<(string title, string text, int index)> ChunkDocument(
         string markdown, string docTitle, string filePath,
@@ -369,11 +371,13 @@ public sealed partial class ScrollCommand
         // Books need larger chunks to preserve narrative context (~5000 chars = ~1250 tokens)
         // Technical/general content uses default (~400 tokens = ~1600 chars)
         var targetTokens = docType is IngestDocumentType.Fiction or IngestDocumentType.NonFiction
-            ? 1250 : 400;
+            ? 1250
+            : 400;
         var minTokens = docType is IngestDocumentType.Fiction or IngestDocumentType.NonFiction
-            ? 200 : 50;
+            ? 200
+            : 50;
 
-        var chunker = new Mostlylucid.DocSummarizer.Services.DocumentChunker(
+        var chunker = new DocumentChunker(
             targetChunkTokens: targetTokens, minChunkTokens: minTokens);
         var docChunks = chunker.ChunkByStructure(markdown);
 

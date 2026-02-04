@@ -7,21 +7,20 @@ using Lucene.Net.QueryParsers.Classic;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using Lucene.Net.Util;
+using Directory = System.IO.Directory;
 
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Lucene.NET-based full-text search service with file-based index persistence.
-/// Provides advanced search features: fuzzy matching, phrase proximity, field boosting.
-///
-/// Index is stored on disk and reused across sessions. Documents are indexed by ID
-/// to support incremental updates without full rebuilds.
-///
-/// Architecture:
-/// - FSDirectory: file-based index storage (persisted)
-/// - StandardAnalyzer: tokenization + lowercasing + stop words
-/// - BM25Similarity: modern relevance scoring (default in Lucene 4.8+)
-/// - MultiFieldQueryParser: searches across title, keywords, content with boosts
+///     Lucene.NET-based full-text search service with file-based index persistence.
+///     Provides advanced search features: fuzzy matching, phrase proximity, field boosting.
+///     Index is stored on disk and reused across sessions. Documents are indexed by ID
+///     to support incremental updates without full rebuilds.
+///     Architecture:
+///     - FSDirectory: file-based index storage (persisted)
+///     - StandardAnalyzer: tokenization + lowercasing + stop words
+///     - BM25Similarity: modern relevance scoring (default in Lucene 4.8+)
+///     - MultiFieldQueryParser: searches across title, keywords, content with boosts
 /// </summary>
 public sealed class LuceneSearchService : IDisposable
 {
@@ -37,36 +36,53 @@ public sealed class LuceneSearchService : IDisposable
 
     private static readonly Dictionary<string, float> FieldBoosts = new()
     {
-        [FieldTitle] = 3.0f,      // Title matches most important
-        [FieldKeywords] = 2.5f,   // Keywords are topic-defining
-        [FieldContent] = 1.0f    // Content is baseline
+        [FieldTitle] = 3.0f, // Title matches most important
+        [FieldKeywords] = 2.5f, // Keywords are topic-defining
+        [FieldContent] = 1.0f // Content is baseline
     };
 
-    private readonly FSDirectory _directory;
     private readonly StandardAnalyzer _analyzer;
-    private IndexWriter? _writer;
+
+    private readonly FSDirectory _directory;
+    private readonly object _lock = new();
     private DirectoryReader? _reader;
     private IndexSearcher? _searcher;
-    private readonly object _lock = new();
-
-    public string IndexPath { get; }
-    public bool IsOpen => _writer != null;
+    private IndexWriter? _writer;
 
     /// <summary>
-    /// Create a Lucene search service with file-based index at the specified path.
+    ///     Create a Lucene search service with file-based index at the specified path.
     /// </summary>
     public LuceneSearchService(string indexPath)
     {
         IndexPath = indexPath;
-        System.IO.Directory.CreateDirectory(indexPath);
+        Directory.CreateDirectory(indexPath);
 
         _directory = FSDirectory.Open(indexPath);
         _analyzer = new StandardAnalyzer(AppLuceneVersion);
     }
 
+    public string IndexPath { get; }
+    public bool IsOpen => _writer != null;
+
     /// <summary>
-    /// Open the index for reading and writing.
-    /// Creates a new index if one doesn't exist.
+    ///     Get document count in the index.
+    /// </summary>
+    public int DocumentCount => _reader?.NumDocs ?? 0;
+
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            _reader?.Dispose();
+            _writer?.Dispose();
+            _analyzer.Dispose();
+            _directory.Dispose();
+        }
+    }
+
+    /// <summary>
+    ///     Open the index for reading and writing.
+    ///     Creates a new index if one doesn't exist.
     /// </summary>
     public void Open()
     {
@@ -85,7 +101,7 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Index a content item. If an item with the same ID exists, it's updated.
+    ///     Index a content item. If an item with the same ID exists, it's updated.
     /// </summary>
     public void IndexItem(ContentItem item)
     {
@@ -106,7 +122,7 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Index multiple items in a batch. More efficient than individual calls.
+    ///     Index multiple items in a batch. More efficient than individual calls.
     /// </summary>
     public void IndexItems(IEnumerable<ContentItem> items)
     {
@@ -115,7 +131,7 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Commit pending changes and refresh the reader for searching.
+    ///     Commit pending changes and refresh the reader for searching.
     /// </summary>
     public void Commit()
     {
@@ -127,17 +143,18 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Search the index with Lucene query syntax.
-    /// Supports: fuzzy (~), phrase ("..."), boosting (^), AND/OR, field-specific (title:...)
-    ///
-    /// Examples:
-    /// - "htmx asp.net" → phrase search
-    /// - htmx~ → fuzzy match (finds "htms", "htxm")
-    /// - title:htmx^3 → boost title matches
-    /// - htmx AND "asp.net core" → boolean + phrase
+    ///     Search the index with Lucene query syntax.
+    ///     Supports: fuzzy (~), phrase ("..."), boosting (^), AND/OR, field-specific (title:...)
+    ///     Examples:
+    ///     - "htmx asp.net" → phrase search
+    ///     - htmx~ → fuzzy match (finds "htms", "htxm")
+    ///     - title:htmx^3 → boost title matches
+    ///     - htmx AND "asp.net core" → boolean + phrase
     /// </summary>
     public List<LuceneSearchResult> Search(string query, string? sourceFilter = null, int limit = 50)
-        => Search(query, sourceFilter != null ? [sourceFilter] : null, limit);
+    {
+        return Search(query, sourceFilter != null ? [sourceFilter] : null, limit);
+    }
 
     public List<LuceneSearchResult> Search(string query, IReadOnlyList<string>? sourceFilters, int limit)
     {
@@ -155,8 +172,8 @@ public sealed class LuceneSearchService : IDisposable
             {
                 DefaultOperator = Operator.OR,
                 AllowLeadingWildcard = false,
-                FuzzyMinSim = 0.7f,  // Fuzzy threshold
-                PhraseSlop = 2       // Phrase proximity tolerance
+                FuzzyMinSim = 0.7f, // Fuzzy threshold
+                PhraseSlop = 2 // Phrase proximity tolerance
             };
 
             var luceneQuery = ApplySourceFilter(parser.Parse(EscapeSpecialChars(query)), sourceFilters);
@@ -184,7 +201,7 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Simple search without query parsing (for fallback).
+    ///     Simple search without query parsing (for fallback).
     /// </summary>
     private List<LuceneSearchResult> SearchSimple(string query, IReadOnlyList<string>? sourceFilters, int limit)
     {
@@ -195,13 +212,11 @@ public sealed class LuceneSearchService : IDisposable
 
         var contentQuery = new BooleanQuery();
         foreach (var term in terms)
+        foreach (var field in new[] { FieldTitle, FieldKeywords, FieldContent })
         {
-            foreach (var field in new[] { FieldTitle, FieldKeywords, FieldContent })
-            {
-                var boost = FieldBoosts.GetValueOrDefault(field, 1.0f);
-                var fuzzyQuery = new FuzzyQuery(new Term(field, term), 2) { Boost = boost };
-                contentQuery.Add(fuzzyQuery, Occur.SHOULD);
-            }
+            var boost = FieldBoosts.GetValueOrDefault(field, 1.0f);
+            var fuzzyQuery = new FuzzyQuery(new Term(field, term), 2) { Boost = boost };
+            contentQuery.Add(fuzzyQuery, Occur.SHOULD);
         }
 
         var finalQuery = ApplySourceFilter(contentQuery, sourceFilters);
@@ -222,11 +237,13 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Search with automatic fuzzy enhancement for better recall.
-    /// Appends ~ to terms that look like they could benefit from fuzzy matching.
+    ///     Search with automatic fuzzy enhancement for better recall.
+    ///     Appends ~ to terms that look like they could benefit from fuzzy matching.
     /// </summary>
     public List<LuceneSearchResult> SearchWithFuzzy(string query, string? sourceFilter = null, int limit = 50)
-        => SearchWithFuzzy(query, sourceFilter != null ? [sourceFilter] : null, limit);
+    {
+        return SearchWithFuzzy(query, sourceFilter != null ? [sourceFilter] : null, limit);
+    }
 
     public List<LuceneSearchResult> SearchWithFuzzy(string query, IReadOnlyList<string>? sourceFilters, int limit)
     {
@@ -240,11 +257,13 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Suggest document titles matching a prefix query.
-    /// Uses PrefixQuery on title and keywords fields for fast autocomplete.
+    ///     Suggest document titles matching a prefix query.
+    ///     Uses PrefixQuery on title and keywords fields for fast autocomplete.
     /// </summary>
     public List<LuceneSearchResult> Suggest(string prefix, string? sourceFilter = null, int limit = 8)
-        => Suggest(prefix, sourceFilter != null ? [sourceFilter] : null, limit);
+    {
+        return Suggest(prefix, sourceFilter != null ? [sourceFilter] : null, limit);
+    }
 
     public List<LuceneSearchResult> Suggest(string prefix, IReadOnlyList<string>? sourceFilters, int limit)
     {
@@ -294,12 +313,7 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Get document count in the index.
-    /// </summary>
-    public int DocumentCount => _reader?.NumDocs ?? 0;
-
-    /// <summary>
-    /// Check if a document with the given ID exists in the index.
+    ///     Check if a document with the given ID exists in the index.
     /// </summary>
     public bool ContainsDocument(string id)
     {
@@ -311,12 +325,14 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Check if an exact term exists in the content/title/keywords fields.
-    /// Uses TermQuery — no fuzzy matching, no stemming, no query parsing.
-    /// The term must be lowercased (StandardAnalyzer lowercases at index time).
+    ///     Check if an exact term exists in the content/title/keywords fields.
+    ///     Uses TermQuery — no fuzzy matching, no stemming, no query parsing.
+    ///     The term must be lowercased (StandardAnalyzer lowercases at index time).
     /// </summary>
     public bool ContainsTerm(string term, string? sourceFilter = null)
-        => ContainsTerm(term, sourceFilter != null ? [sourceFilter] : null);
+    {
+        return ContainsTerm(term, sourceFilter != null ? [sourceFilter] : null);
+    }
 
     public bool ContainsTerm(string term, IReadOnlyList<string>? sourceFilters)
     {
@@ -336,8 +352,8 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Build a Lucene query clause for filtering by one or more source values (OR semantics).
-    /// Returns null if no sources specified.
+    ///     Build a Lucene query clause for filtering by one or more source values (OR semantics).
+    ///     Returns null if no sources specified.
     /// </summary>
     private static Query? BuildSourceIncludeFilter(IReadOnlyList<string>? sources)
     {
@@ -351,9 +367,9 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Wrap a content query with include/exclude source filters.
-    /// Supports <see cref="SourceFilterSet"/> for ^ exclusion syntax, KB exclusion,
-    /// and URL glob exclusions.
+    ///     Wrap a content query with include/exclude source filters.
+    ///     Supports <see cref="SourceFilterSet" /> for ^ exclusion syntax, KB exclusion,
+    ///     and URL glob exclusions.
     /// </summary>
     private static Query ApplySourceFilter(Query contentQuery, IReadOnlyList<string>? sources)
     {
@@ -403,7 +419,7 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Delete a document by ID.
+    ///     Delete a document by ID.
     /// </summary>
     public void DeleteDocument(string id)
     {
@@ -411,7 +427,7 @@ public sealed class LuceneSearchService : IDisposable
     }
 
     /// <summary>
-    /// Delete all documents from the index.
+    ///     Delete all documents from the index.
     /// </summary>
     public void DeleteAll()
     {
@@ -426,7 +442,7 @@ public sealed class LuceneSearchService : IDisposable
         {
             var oldReader = _reader;
             _reader = _writer != null
-                ? DirectoryReader.Open(_writer, applyAllDeletes: true)
+                ? DirectoryReader.Open(_writer, true)
                 : DirectoryReader.Open(_directory);
             _searcher = new IndexSearcher(_reader);
             oldReader?.Dispose();
@@ -452,21 +468,10 @@ public sealed class LuceneSearchService : IDisposable
 
         return result;
     }
-
-    public void Dispose()
-    {
-        lock (_lock)
-        {
-            _reader?.Dispose();
-            _writer?.Dispose();
-            _analyzer.Dispose();
-            _directory.Dispose();
-        }
-    }
 }
 
 /// <summary>
-/// Search result from Lucene index.
+///     Search result from Lucene index.
 /// </summary>
 public record LuceneSearchResult
 {
@@ -478,22 +483,23 @@ public record LuceneSearchResult
 }
 
 /// <summary>
-/// Generates optimized Lucene queries from natural language using a fast LLM call.
-/// Leverages Lucene's advanced syntax: fuzzy (~), phrase (""), boosting (^), field-specific.
+///     Generates optimized Lucene queries from natural language using a fast LLM call.
+///     Leverages Lucene's advanced syntax: fuzzy (~), phrase (""), boosting (^), field-specific.
 /// </summary>
 public static partial class LuceneQueryGenerator
 {
-    // Source-generated regex for extracting backtick-delimited queries from verbose LLM responses
-    [GeneratedRegex(@"`([^`]+)`")]
-    private static partial Regex BacktickQueryRx();
     // Ultra-compact prompt for 0.6b class models (pipe-separated rules)
     private const string QueryGenerationPrompt =
         "NL→Lucene | ~=fuzzy | \"\"=phrase | title:^3=boost | htmx work?→title:htmx~^3 AND work~ | Query:";
 
+    // Source-generated regex for extracting backtick-delimited queries from verbose LLM responses
+    [GeneratedRegex(@"`([^`]+)`")]
+    private static partial Regex BacktickQueryRx();
+
     /// <summary>
-    /// Generate an optimized Lucene query from natural language.
-    /// Uses simple deterministic query building (0.6b models are unreliable for query syntax).
-    /// LLM query generation can be re-enabled with useLlm=true for larger models.
+    ///     Generate an optimized Lucene query from natural language.
+    ///     Uses simple deterministic query building (0.6b models are unreliable for query syntax).
+    ///     LLM query generation can be re-enabled with useLlm=true for larger models.
     /// </summary>
     public static async Task<string> GenerateQueryAsync(
         string naturalLanguageQuery,
@@ -536,8 +542,8 @@ public static partial class LuceneQueryGenerator
             if (query.Contains('\n'))
             {
                 var firstLine = query.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                    .FirstOrDefault(l => l.Contains('~') || l.Contains(':') || l.Contains('^'))
-                    ?? query.Split('\n')[0];
+                                    .FirstOrDefault(l => l.Contains('~') || l.Contains(':') || l.Contains('^'))
+                                ?? query.Split('\n')[0];
                 query = firstLine.Trim();
             }
 
@@ -557,9 +563,9 @@ public static partial class LuceneQueryGenerator
     }
 
     /// <summary>
-    /// Build an optimized Lucene query without LLM assistance.
-    /// Features: required primary term (+), title field boosting, fuzzy matching, phrase detection.
-    /// Uses RelevanceScorer.Tokenize for stop word filtering.
+    ///     Build an optimized Lucene query without LLM assistance.
+    ///     Features: required primary term (+), title field boosting, fuzzy matching, phrase detection.
+    ///     Uses RelevanceScorer.Tokenize for stop word filtering.
     /// </summary>
     public static string BuildSimpleQuery(string naturalLanguageQuery)
     {
@@ -573,8 +579,8 @@ public static partial class LuceneQueryGenerator
             .Where(t => t.Length > 1)
             .ToList();
 
-        var requiredTerms = new List<string>();  // MUST match (first important noun)
-        var boostTerms = new List<string>();     // SHOULD match with boost
+        var requiredTerms = new List<string>(); // MUST match (first important noun)
+        var boostTerms = new List<string>(); // SHOULD match with boost
         var keyTerms = new List<string>();
         var filteredSet = new HashSet<string>(filteredTokens, StringComparer.OrdinalIgnoreCase);
         var foundPrimarySubject = false;
@@ -624,7 +630,7 @@ public static partial class LuceneQueryGenerator
             {
                 foundPrimarySubject = true;
                 var term = token.ToLowerInvariant();
-                requiredTerms.Add($"+{term}");  // MUST match
+                requiredTerms.Add($"+{term}"); // MUST match
                 keyTerms.Add(term);
             }
             // Technical terms: exact match with boost, no fuzzy

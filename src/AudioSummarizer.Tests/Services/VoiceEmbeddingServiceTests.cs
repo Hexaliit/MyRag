@@ -20,7 +20,7 @@ public class VoiceEmbeddingServiceTests
         var config = Options.Create(new AudioConfig());
         var service = new VoiceEmbeddingService(logger, downloader, config);
 
-        var embedding = new float[] { 0.1f, 0.2f, 0.3f, 0.4f };
+        var embedding = new[] { 0.1f, 0.2f, 0.3f, 0.4f };
 
         // Act
         var similarity = service.CalculateSimilarity(embedding, embedding);
@@ -42,8 +42,8 @@ public class VoiceEmbeddingServiceTests
         var config = Options.Create(new AudioConfig());
         var service = new VoiceEmbeddingService(logger, downloader, config);
 
-        var embedding1 = new float[] { 1.0f, 0.0f };
-        var embedding2 = new float[] { 0.0f, 1.0f };
+        var embedding1 = new[] { 1.0f, 0.0f };
+        var embedding2 = new[] { 0.0f, 1.0f };
 
         // Act
         var similarity = service.CalculateSimilarity(embedding1, embedding2);
@@ -65,8 +65,8 @@ public class VoiceEmbeddingServiceTests
         var config = Options.Create(new AudioConfig());
         var service = new VoiceEmbeddingService(logger, downloader, config);
 
-        var embedding1 = new float[] { 1.0f, 0.0f, 0.0f };
-        var embedding2 = new float[] { -1.0f, 0.0f, 0.0f };
+        var embedding1 = new[] { 1.0f, 0.0f, 0.0f };
+        var embedding2 = new[] { -1.0f, 0.0f, 0.0f };
 
         // Act
         var similarity = service.CalculateSimilarity(embedding1, embedding2);
@@ -88,8 +88,8 @@ public class VoiceEmbeddingServiceTests
         var config = Options.Create(new AudioConfig());
         var service = new VoiceEmbeddingService(logger, downloader, config);
 
-        var embedding1 = new float[] { 1.0f, 2.0f };
-        var embedding2 = new float[] { 1.0f, 2.0f, 3.0f };
+        var embedding1 = new[] { 1.0f, 2.0f };
+        var embedding2 = new[] { 1.0f, 2.0f, 3.0f };
 
         // Act & Assert
         Assert.Throws<ArgumentException>(() =>
@@ -109,8 +109,8 @@ public class VoiceEmbeddingServiceTests
         var config = Options.Create(new AudioConfig());
         var service = new VoiceEmbeddingService(logger, downloader, config);
 
-        var embedding1 = new float[] { 0.0f, 0.0f, 0.0f };
-        var embedding2 = new float[] { 1.0f, 2.0f, 3.0f };
+        var embedding1 = new[] { 0.0f, 0.0f, 0.0f };
+        var embedding2 = new[] { 1.0f, 2.0f, 3.0f };
 
         // Act
         var similarity = service.CalculateSimilarity(embedding1, embedding2);
@@ -132,8 +132,8 @@ public class VoiceEmbeddingServiceTests
         var config = Options.Create(new AudioConfig());
         var service = new VoiceEmbeddingService(logger, downloader, config);
 
-        var embedding1 = new float[] { 1.0f, 2.0f, 3.0f };
-        var embedding2 = new float[] { 1.1f, 2.1f, 2.9f }; // Very similar
+        var embedding1 = new[] { 1.0f, 2.0f, 3.0f };
+        var embedding2 = new[] { 1.1f, 2.1f, 2.9f }; // Very similar
 
         // Act
         var similarity = service.CalculateSimilarity(embedding1, embedding2);

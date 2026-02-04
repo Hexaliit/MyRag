@@ -1,14 +1,22 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Web;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Brave Search API — independent index, privacy-first.
-/// Free tier: 2,000 queries/month (~66/day). No credit card needed for Data for AI plan.
-/// Supports web search and news search.
+///     Brave Search API — independent index, privacy-first.
+///     Free tier: 2,000 queries/month (~66/day). No credit card needed for Data for AI plan.
+///     Supports web search and news search.
 /// </summary>
-public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class BraveSearchService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "brave_search";
     private const string WebEndpoint = "https://api.search.brave.com/res/v1/web/search";
@@ -17,7 +25,7 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
     public bool IsAvailable => keys.IsAvailable(ServiceName) && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search Brave and return results as ContentItems.
+    ///     Search Brave and return results as ContentItems.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 10, bool newsOnly = false,
@@ -67,7 +75,7 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cts.Token);
-                System.Diagnostics.Debug.WriteLine($"Brave Search {(int)response.StatusCode}: {Truncate(body, 200)}");
+                Debug.WriteLine($"Brave Search {(int)response.StatusCode}: {Truncate(body, 200)}");
                 return [];
             }
 
@@ -79,12 +87,12 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
         }
         catch (OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine("Brave Search timed out");
+            Debug.WriteLine("Brave Search timed out");
             return [];
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Brave Search error: {ex.Message}");
+            Debug.WriteLine($"Brave Search error: {ex.Message}");
             return [];
         }
     }
@@ -104,22 +112,18 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
             var url = r.TryGetProperty("url", out var u) ? u.GetString() : null;
             var description = r.TryGetProperty("description", out var d) ? d.GetString() : null;
             var thumbnail = r.TryGetProperty("thumbnail", out var th) && th.TryGetProperty("src", out var src)
-                ? src.GetString() : null;
+                ? src.GetString()
+                : null;
 
             var createdAt = DateTimeOffset.UtcNow;
             if (r.TryGetProperty("age", out var age))
-            {
                 // Brave returns "2 hours ago", "3 days ago" etc. — parse as best-effort
                 createdAt = ParseAge(age.GetString()) ?? createdAt;
-            }
             else if (r.TryGetProperty("page_age", out var pageAge) &&
                      DateTimeOffset.TryParse(pageAge.GetString(), out var parsed))
-            {
                 createdAt = parsed;
-            }
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(url))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"brave_{Hash(url)}",
@@ -130,8 +134,8 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
                     ImageUrl = thumbnail,
                     CreatedAt = createdAt
                 });
-            }
         }
+
         return items;
     }
 
@@ -150,16 +154,17 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
             var url = r.TryGetProperty("url", out var u) ? u.GetString() : null;
             var description = r.TryGetProperty("description", out var d) ? d.GetString() : null;
             var thumbnail = r.TryGetProperty("thumbnail", out var th) && th.TryGetProperty("src", out var src)
-                ? src.GetString() : null;
+                ? src.GetString()
+                : null;
             var source = r.TryGetProperty("meta_url", out var mu) && mu.TryGetProperty("hostname", out var h)
-                ? h.GetString() : null;
+                ? h.GetString()
+                : null;
 
             var createdAt = DateTimeOffset.UtcNow;
             if (r.TryGetProperty("age", out var age))
                 createdAt = ParseAge(age.GetString()) ?? createdAt;
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(url))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"brave_news_{Hash(url)}",
@@ -169,10 +174,10 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
                     Content = description,
                     ImageUrl = thumbnail,
                     CreatedAt = createdAt,
-                    Metadata = source != null ? new() { ["source_domain"] = source } : null
+                    Metadata = source != null ? new Dictionary<string, string> { ["source_domain"] = source } : null
                 });
-            }
         }
+
         return items;
     }
 
@@ -193,10 +198,14 @@ public class BraveSearchService(HttpClient httpClient, ApiKeyService keys, ApiBu
         };
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

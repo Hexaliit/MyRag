@@ -4,31 +4,23 @@ using Mostlylucid.DocSummarizer.Images.Config;
 using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Services.Vision;
 using OpenCvSharp;
-using static Mostlylucid.DocSummarizer.Images.Models.Dynamic.ImageLedger;
 
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// Florence-2 Wave - Fast local captioning and OCR using ONNX models.
-/// Provides sub-second inference without requiring external services.
-/// Uses ColorWave signals to compensate for Florence-2's weak color detection.
-/// Also runs OpenCV complexity assessment to help decide on LLM escalation.
-/// Priority: 56 (before MotionWave so its entities can be reused for motion identification)
-///
-/// In full learning mode, Florence-2 runs alongside Vision LLM to compare results
-/// and learn from differences between fast/local vs slow/cloud approaches.
+///     Florence-2 Wave - Fast local captioning and OCR using ONNX models.
+///     Provides sub-second inference without requiring external services.
+///     Uses ColorWave signals to compensate for Florence-2's weak color detection.
+///     Also runs OpenCV complexity assessment to help decide on LLM escalation.
+///     Priority: 56 (before MotionWave so its entities can be reused for motion identification)
+///     In full learning mode, Florence-2 runs alongside Vision LLM to compare results
+///     and learn from differences between fast/local vs slow/cloud approaches.
 /// </summary>
 public class Florence2Wave : IAnalysisWave
 {
-    private readonly Florence2CaptionService _florence2Service;
     private readonly IOptions<ImageConfig> _configOptions;
+    private readonly Florence2CaptionService _florence2Service;
     private readonly ILogger<Florence2Wave>? _logger;
-
-    private ImageConfig Config => _configOptions.Value;
-
-    public string Name => "Florence2Wave";
-    public int Priority => 56; // Before MotionWave (55) so entities are available for motion ID
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "vision", "florence2", "onnx", "local" };
 
     public Florence2Wave(
         Florence2CaptionService florence2Service,
@@ -40,10 +32,16 @@ public class Florence2Wave : IAnalysisWave
         _logger = logger;
     }
 
+    private ImageConfig Config => _configOptions.Value;
+
+    public string Name => "Florence2Wave";
+    public int Priority => 56; // Before MotionWave (55) so entities are available for motion ID
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "vision", "florence2", "onnx", "local" };
+
     /// <summary>
-    /// Florence-2 should run if it's enabled and available.
-    /// For animated GIFs: Skip if MlOcrWave is using filmstrip mode (VisionLlmWave will handle OCR).
-    /// It's a fast alternative to Vision LLM that works offline.
+    ///     Florence-2 should run if it's enabled and available.
+    ///     For animated GIFs: Skip if MlOcrWave is using filmstrip mode (VisionLlmWave will handle OCR).
+    ///     It's a fast alternative to Vision LLM that works offline.
     /// </summary>
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -106,9 +104,9 @@ public class Florence2Wave : IAnalysisWave
             // Get caption with OCR using Florence-2
             var result = await _florence2Service.GetCaptionAsync(
                 effectivePath,
-                detailed: true,
-                enhanceWithColors: true, // Use ColorWave signals
-                ct: ct);
+                true,
+                true, // Use ColorWave signals
+                ct);
 
             if (!result.Success)
             {
@@ -188,7 +186,6 @@ public class Florence2Wave : IAnalysisWave
                 // but only if we don't already have OCR text from a better source
                 var existingOcr = context.GetValue<string>("content.extracted_text");
                 if (string.IsNullOrWhiteSpace(existingOcr))
-                {
                     signals.Add(new Signal
                     {
                         Key = "content.extracted_text",
@@ -197,7 +194,6 @@ public class Florence2Wave : IAnalysisWave
                         Source = Name,
                         Tags = new List<string> { SignalTags.Content, "text" }
                     });
-                }
             }
 
             // Add timing signal
@@ -267,7 +263,6 @@ public class Florence2Wave : IAnalysisWave
             {
                 // Emit individual entity signals
                 foreach (var entity in nerResult.Entities)
-                {
                     signals.Add(new Signal
                     {
                         Key = $"florence2.entity.{entity.Type.ToLowerInvariant()}",
@@ -276,7 +271,6 @@ public class Florence2Wave : IAnalysisWave
                         Source = Name,
                         Tags = new List<string> { SignalTags.Content, "entity", "ner", entity.Type.ToLowerInvariant() }
                     });
-                }
 
                 // Emit aggregated entity types signal
                 signals.Add(new Signal
@@ -295,7 +289,6 @@ public class Florence2Wave : IAnalysisWave
 
                 // Emit short description for NER if different from main caption
                 if (!string.IsNullOrWhiteSpace(nerResult.ShortDescription))
-                {
                     signals.Add(new Signal
                     {
                         Key = "florence2.ner_description",
@@ -304,7 +297,6 @@ public class Florence2Wave : IAnalysisWave
                         Source = Name,
                         Tags = new List<string> { SignalTags.Content, "description", "ner" }
                     });
-                }
 
                 _logger?.LogDebug("Florence-2 NER: extracted {Count} entities", nerResult.Entities.Count);
             }
@@ -346,37 +338,28 @@ public class Florence2Wave : IAnalysisWave
     }
 
     /// <summary>
-    /// Calculate confidence score for Florence-2 caption based on various factors.
+    ///     Calculate confidence score for Florence-2 caption based on various factors.
     /// </summary>
     private double CalculateCaptionConfidence(Florence2CaptionResult result)
     {
         var confidence = 0.8; // Base confidence for Florence-2
 
         // Boost for color enhancement (means we added accurate color info)
-        if (result.EnhancedWithColors)
-        {
-            confidence += 0.05;
-        }
+        if (result.EnhancedWithColors) confidence += 0.05;
 
         // Slight penalty for multi-frame GIFs (caption may be less focused)
-        if (result.FrameCount > 4)
-        {
-            confidence -= 0.05;
-        }
+        if (result.FrameCount > 4) confidence -= 0.05;
 
         // Boost if we also got OCR text (supports the caption)
-        if (!string.IsNullOrWhiteSpace(result.OcrText))
-        {
-            confidence += 0.03;
-        }
+        if (!string.IsNullOrWhiteSpace(result.OcrText)) confidence += 0.03;
 
         return Math.Min(0.95, Math.Max(0.6, confidence));
     }
 
     /// <summary>
-    /// Determine if we should escalate to a more powerful Vision LLM.
-    /// Uses OpenCV complexity assessment and other signals.
-    /// Florence-2 is weak at describing animations, so always escalate GIFs.
+    ///     Determine if we should escalate to a more powerful Vision LLM.
+    ///     Uses OpenCV complexity assessment and other signals.
+    ///     Florence-2 is weak at describing animations, so always escalate GIFs.
     /// </summary>
     private bool ShouldEscalateToLlm(Florence2CaptionResult result, AnalysisContext context)
     {
@@ -449,18 +432,15 @@ public class Florence2Wave : IAnalysisWave
     }
 
     /// <summary>
-    /// Quick OpenCV complexity assessment using Canny edge detection.
-    /// Returns normalized edge density (0-1).
+    ///     Quick OpenCV complexity assessment using Canny edge detection.
+    ///     Returns normalized edge density (0-1).
     /// </summary>
     private (double edgeDensity, double laplacianVariance) AssessComplexityOpenCv(string imagePath)
     {
         try
         {
             using var img = Cv2.ImRead(imagePath, ImreadModes.Grayscale);
-            if (img.Empty())
-            {
-                return (0, 0);
-            }
+            if (img.Empty()) return (0, 0);
 
             // Resize for consistent analysis
             var maxDim = 512;

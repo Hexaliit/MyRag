@@ -7,7 +7,8 @@ This spec describes a bounded, inspectable retrieval loop for DoomSummarizer tha
 3. Tailors subqueries to fill specific evidence gaps.
 4. Logs a structured retrieval trace for reuse and tuning.
 
-The design is inspired by DeepRAG’s framing of retrieval as iterative decisions (continue vs stop; retrieve vs proceed). For DoomSummarizer we map this to **continue vs stop** and **use cached/KB vs fetch live**.
+The design is inspired by DeepRAG’s framing of retrieval as iterative decisions (continue vs stop; retrieve vs proceed).
+For DoomSummarizer we map this to **continue vs stop** and **use cached/KB vs fetch live**.
 
 ## Status
 
@@ -38,9 +39,12 @@ The design is inspired by DeepRAG’s framing of retrieval as iterative decision
 
 ## User Stories
 
-1. As a user, when I ask a question similar to one I asked recently, DoomSummarizer should reuse prior evidence and answer quickly.
-2. As a user, when my question asks for “latest” information, DoomSummarizer should detect stale evidence and fetch fresh items (unless I forbid it).
-3. As a user, if the initial evidence is missing specifics (numbers, dates, one side of a comparison), DoomSummarizer should run targeted follow-up queries rather than broad re-search.
+1. As a user, when I ask a question similar to one I asked recently, DoomSummarizer should reuse prior evidence and
+   answer quickly.
+2. As a user, when my question asks for “latest” information, DoomSummarizer should detect stale evidence and fetch
+   fresh items (unless I forbid it).
+3. As a user, if the initial evidence is missing specifics (numbers, dates, one side of a comparison), DoomSummarizer
+   should run targeted follow-up queries rather than broad re-search.
 4. As a user, I can see (and export) why the system stopped and what it retrieved.
 
 ## CLI / UX Requirements
@@ -48,25 +52,26 @@ The design is inspired by DeepRAG’s framing of retrieval as iterative decision
 ### New flags (Ask)
 
 - `doomsummarizer ask "<question>" --auto`
-  - Enables adaptive retrieval (cache reuse + gap-fill + optional live retrieval).
+    - Enables adaptive retrieval (cache reuse + gap-fill + optional live retrieval).
 - `--cache <MODE>` where `<MODE>` is:
-  - `only`: never fetch live; answer from KB or return “insufficient evidence”.
-  - `prefer`: use KB/cache unless gap analysis requires live retrieval. *(default for `--auto`)*
-  - `bypass`: skip cache reuse; still allowed to use KB, but forces a fresh retrieval plan.
+    - `only`: never fetch live; answer from KB or return “insufficient evidence”.
+    - `prefer`: use KB/cache unless gap analysis requires live retrieval. *(default for `--auto`)*
+    - `bypass`: skip cache reuse; still allowed to use KB, but forces a fresh retrieval plan.
 - `--max-rounds <N>` (default: `3`)
 - `--max-new-items <N>` (default: `30` total across rounds)
 - `--freshness-days <D>`
-  - Default: `30`
-  - If the question implies recency (e.g., “latest”, “today”, “this week”), effective default becomes `7` unless overridden.
+    - Default: `30`
+    - If the question implies recency (e.g., “latest”, “today”, “this week”), effective default becomes `7` unless
+      overridden.
 - `--trace` prints a compact round-by-round trace to console.
 - `--trace-json <PATH>` writes the full trace JSON to a file.
 
 ### Output behavior
 
 - If `--cache only` and evidence is insufficient: return an “insufficient evidence” response that includes:
-  - a short gap summary (what’s missing),
-  - suggested follow-up queries (the planner output),
-  - and (if `--trace`) the stop reason.
+    - a short gap summary (what’s missing),
+    - suggested follow-up queries (the planner output),
+    - and (if `--trace`) the stop reason.
 
 ## Functional Requirements
 
@@ -83,11 +88,12 @@ The design is inspired by DeepRAG’s framing of retrieval as iterative decision
 
 1. Attempt to find a similar recent query (`FindSimilarQueryAsync`).
 2. Apply similarity thresholds:
-   - **Hard hit**: similarity ≥ `0.95` → reuse cached evidence as round 0 evidence.
-   - **Soft hit**: similarity ≥ `0.90` → reuse as starting evidence, but must re-evaluate sufficiency.
-   - **Miss**: similarity < `0.90` → no reuse; proceed to KB retrieval.
+    - **Hard hit**: similarity ≥ `0.95` → reuse cached evidence as round 0 evidence.
+    - **Soft hit**: similarity ≥ `0.90` → reuse as starting evidence, but must re-evaluate sufficiency.
+    - **Miss**: similarity < `0.90` → no reuse; proceed to KB retrieval.
 3. Apply a freshness gate when recency intent is detected:
-   - If newest evidence item is older than `now - freshnessDays`, treat as soft hit at best and prefer gap-fill / live retrieval.
+    - If newest evidence item is older than `now - freshnessDays`, treat as soft hit at best and prefer gap-fill / live
+      retrieval.
 
 ### Notes
 
@@ -108,8 +114,8 @@ Each round consists of:
 1. **Retrieve baseline evidence** from KB if evidence set is empty.
 2. **Evaluate sufficiency** (terminate vs continue, and gap list if continuing).
 3. If continue:
-   - If `--cache only`: stop with insufficient evidence.
-   - Else: plan subqueries, then decide per subquery whether to use KB-only retrieval or live retrieval.
+    - If `--cache only`: stop with insufficient evidence.
+    - Else: plan subqueries, then decide per subquery whether to use KB-only retrieval or live retrieval.
 4. Merge results, dedupe, rescore, and proceed to next round.
 
 ## 3) Cached-vs-live decision (per subquery)
@@ -124,8 +130,10 @@ This is the “atomic decision” for DoomSummarizer:
 Choose **KB** when all are true:
 
 - The gap is not freshness/time-sensitive, **and**
-- KB search for the subquery returns at least `K` candidates above a relevance threshold (suggested: `K=5`, `threshold=0.25`), **and**
-- The last KB attempt for the same gap produced meaningful novelty (e.g., ≥2 new high-relevance items not already in the working set).
+- KB search for the subquery returns at least `K` candidates above a relevance threshold (suggested: `K=5`,
+  `threshold=0.25`), **and**
+- The last KB attempt for the same gap produced meaningful novelty (e.g., ≥2 new high-relevance items not already in the
+  working set).
 
 Choose **Live** when any are true:
 
@@ -158,7 +166,8 @@ Each gap has a stable `gap_id` and `type`:
 - Recency intent: keyword/regex (and optionally sentinel classification).
 - Numeric intent: keyword/regex (“how many”, “cost”, “percent”, “when”, “date”, etc.).
 - Entity/term extraction: keyword extraction + NER if available; verify presence in titles/snippets/keywords.
-- Provenance: count items with citable URLs; detect unresolvable URLs; prefer primary sources when gap requests authority.
+- Provenance: count items with citable URLs; detect unresolvable URLs; prefer primary sources when gap requests
+  authority.
 
 ## 5) Subquery planning (gap-filling)
 
@@ -171,11 +180,11 @@ Each planned subquery includes:
 - `query` (string)
 - `gap_id` (string)
 - `constraints`:
-  - `quoted_entities` (string[])
-  - `time_window_days` (int?)
-  - `preferred_sources` (string[]?)
-  - `site_filters` (string[]?)
-  - `required_fields` (string[]; e.g., `["number","date","primary_source"]`)
+    - `quoted_entities` (string[])
+    - `time_window_days` (int?)
+    - `preferred_sources` (string[]?)
+    - `site_filters` (string[]?)
+    - `required_fields` (string[]; e.g., `["number","date","primary_source"]`)
 
 ### Rules
 
@@ -222,13 +231,13 @@ Option B: new table `retrieval_trace` (separate lifecycle and indexing).
 - `version`
 - `settings` (cache mode, budgets, freshness)
 - `rounds[]`:
-  - `round_index`
-  - `starting_from_cache`
-  - `kb_queries[]`
-  - `live_queries[]`
-  - `new_items_count`
-  - `gaps[]`
-  - `stop_decision` (if terminated)
+    - `round_index`
+    - `starting_from_cache`
+    - `kb_queries[]`
+    - `live_queries[]`
+    - `new_items_count`
+    - `gaps[]`
+    - `stop_decision` (if terminated)
 
 ## Stopping policy (SufficiencyEvaluator)
 
@@ -238,8 +247,8 @@ Option B: new table `retrieval_trace` (separate lifecycle and indexing).
 - At least `minEvidenceCount = 5` citable items, and
 - No `FreshnessGap`, and
 - Either:
-  - numeric intent satisfied (a number/date is present in at least one high-ranked snippet), or
-  - non-numeric intent has ≥2 corroborating items.
+    - numeric intent satisfied (a number/date is present in at least one high-ranked snippet), or
+    - non-numeric intent has ≥2 corroborating items.
 
 ### Continue when ANY are true
 
@@ -266,7 +275,9 @@ Track:
 ## Acceptance Criteria
 
 1. `ask --auto` reuses evidence from a similar recent query when similarity ≥ 0.95.
-2. `ask --auto` detects stale evidence for recency questions and performs at least one live round (unless `--cache only`).
-3. Gap-filling produces targeted subqueries tied to specific gap types and stops when sufficiency criteria are met or budgets are exhausted.
+2. `ask --auto` detects stale evidence for recency questions and performs at least one live round (unless
+   `--cache only`).
+3. Gap-filling produces targeted subqueries tied to specific gap types and stops when sufficiency criteria are met or
+   budgets are exhausted.
 4. `--trace` shows: rounds, queries, cache/liveness decisions, stop reason.
 5. `--trace-json` writes a valid JSON trace reflecting the session.

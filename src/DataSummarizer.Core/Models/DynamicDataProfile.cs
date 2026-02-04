@@ -1,48 +1,42 @@
 namespace Mostlylucid.DocSummarizer.Data.Models;
 
 /// <summary>
-/// Aggregates all signals from analysis waves into a unified data profile.
-/// Provides type-safe access to signals and conversion to RAG-ready chunks.
+///     Aggregates all signals from analysis waves into a unified data profile.
+///     Provides type-safe access to signals and conversion to RAG-ready chunks.
 /// </summary>
 public class DynamicDataProfile
 {
     private readonly Dictionary<string, List<DataSignal>> _signals = new();
 
     /// <summary>
-    /// Source file path.
+    ///     Source file path.
     /// </summary>
     public string? SourcePath { get; set; }
 
     /// <summary>
-    /// Time taken to profile.
+    ///     Time taken to profile.
     /// </summary>
     public TimeSpan ProfileTime { get; set; }
 
     /// <summary>
-    /// Add a signal to the profile.
+    ///     Add a signal to the profile.
     /// </summary>
     public void AddSignal(DataSignal signal)
     {
-        if (!_signals.ContainsKey(signal.Key))
-        {
-            _signals[signal.Key] = new List<DataSignal>();
-        }
+        if (!_signals.ContainsKey(signal.Key)) _signals[signal.Key] = new List<DataSignal>();
         _signals[signal.Key].Add(signal);
     }
 
     /// <summary>
-    /// Add multiple signals.
+    ///     Add multiple signals.
     /// </summary>
     public void AddSignals(IEnumerable<DataSignal> signals)
     {
-        foreach (var signal in signals)
-        {
-            AddSignal(signal);
-        }
+        foreach (var signal in signals) AddSignal(signal);
     }
 
     /// <summary>
-    /// Get all signals for a key.
+    ///     Get all signals for a key.
     /// </summary>
     public IEnumerable<DataSignal> GetSignals(string key)
     {
@@ -50,7 +44,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Get the most confident signal for a key.
+    ///     Get the most confident signal for a key.
     /// </summary>
     public DataSignal? GetBestSignal(string key)
     {
@@ -58,7 +52,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Get value from the most confident signal.
+    ///     Get value from the most confident signal.
     /// </summary>
     public T? GetValue<T>(string key)
     {
@@ -67,7 +61,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Check if a signal exists.
+    ///     Check if a signal exists.
     /// </summary>
     public bool HasSignal(string key)
     {
@@ -75,7 +69,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Get all signals.
+    ///     Get all signals.
     /// </summary>
     public IEnumerable<DataSignal> GetAllSignals()
     {
@@ -83,7 +77,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Get signals by tag.
+    ///     Get signals by tag.
     /// </summary>
     public IEnumerable<DataSignal> GetSignalsByTag(string tag)
     {
@@ -91,7 +85,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Get signals by source wave.
+    ///     Get signals by source wave.
     /// </summary>
     public IEnumerable<DataSignal> GetSignalsBySource(string source)
     {
@@ -99,7 +93,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Get all signal keys.
+    ///     Get all signal keys.
     /// </summary>
     public IEnumerable<string> GetSignalKeys()
     {
@@ -107,7 +101,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Convert profile to dictionary for serialization.
+    ///     Convert profile to dictionary for serialization.
     /// </summary>
     public Dictionary<string, object?> ToDictionary()
     {
@@ -116,17 +110,14 @@ public class DynamicDataProfile
         foreach (var kvp in _signals)
         {
             var bestSignal = kvp.Value.OrderByDescending(s => s.Confidence).FirstOrDefault();
-            if (bestSignal != null)
-            {
-                result[kvp.Key] = bestSignal.Value;
-            }
+            if (bestSignal != null) result[kvp.Key] = bestSignal.Value;
         }
 
         return result;
     }
 
     /// <summary>
-    /// Convert profile to metadata dictionary suitable for ContentChunk.
+    ///     Convert profile to metadata dictionary suitable for ContentChunk.
     /// </summary>
     public Dictionary<string, object?> ToMetadata()
     {
@@ -137,7 +128,7 @@ public class DynamicDataProfile
     }
 
     /// <summary>
-    /// Get a summary of the profile for RAG text representation.
+    ///     Get a summary of the profile for RAG text representation.
     /// </summary>
     public string ToSummaryText()
     {
@@ -160,7 +151,6 @@ public class DynamicDataProfile
 
         // Per-column summaries
         if (columnNames != null)
-        {
             foreach (var col in columnNames)
             {
                 var colLines = new List<string>();
@@ -187,7 +177,6 @@ public class DynamicDataProfile
                 if (colLines.Count > 0)
                     lines.Add($"  {col}: {string.Join(", ", colLines)}");
             }
-        }
 
         // Quality alerts
         var duplicates = GetValue<int>(DataSignalKeys.DuplicateRows);

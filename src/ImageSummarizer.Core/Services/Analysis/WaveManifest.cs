@@ -1,63 +1,58 @@
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Declares what signals a wave emits and what signals it depends on.
-/// Used for dynamic pipeline construction and dependency resolution.
+///     Declares what signals a wave emits and what signals it depends on.
+///     Used for dynamic pipeline construction and dependency resolution.
 /// </summary>
 public class WaveManifest
 {
     /// <summary>
-    /// Wave name (e.g., "IdentityWave", "ColorWave")
+    ///     Wave name (e.g., "IdentityWave", "ColorWave")
     /// </summary>
     public required string WaveName { get; init; }
 
     /// <summary>
-    /// Wave priority (lower runs first)
+    ///     Wave priority (lower runs first)
     /// </summary>
     public int Priority { get; init; }
 
     /// <summary>
-    /// Tags for this wave (used for tag-based filtering)
+    ///     Tags for this wave (used for tag-based filtering)
     /// </summary>
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
     /// <summary>
-    /// Signals this wave emits. Supports glob patterns.
-    /// E.g., ["identity.*", "identity.sha256"]
+    ///     Signals this wave emits. Supports glob patterns.
+    ///     E.g., ["identity.*", "identity.sha256"]
     /// </summary>
     public IReadOnlyList<string> Emits { get; init; } = Array.Empty<string>();
 
     /// <summary>
-    /// Required signals this wave depends on.
-    /// If these signals are not available, the wave will fail or skip.
-    /// E.g., ["identity.is_animated"]
+    ///     Required signals this wave depends on.
+    ///     If these signals are not available, the wave will fail or skip.
+    ///     E.g., ["identity.is_animated"]
     /// </summary>
     public IReadOnlyList<string> Requires { get; init; } = Array.Empty<string>();
 
     /// <summary>
-    /// Optional signals this wave can use if available.
-    /// The wave will still run without these, but with reduced capability.
-    /// E.g., ["color.dominant_*"]
+    ///     Optional signals this wave can use if available.
+    ///     The wave will still run without these, but with reduced capability.
+    ///     E.g., ["color.dominant_*"]
     /// </summary>
     public IReadOnlyList<string> Optional { get; init; } = Array.Empty<string>();
 
     /// <summary>
-    /// Human-readable description of what this wave does
+    ///     Human-readable description of what this wave does
     /// </summary>
     public string? Description { get; init; }
 }
 
 /// <summary>
-/// Static registry of all wave manifests.
-/// This provides the metadata for dynamic pipeline construction.
+///     Static registry of all wave manifests.
+///     This provides the metadata for dynamic pipeline construction.
 /// </summary>
 public static class WaveRegistry
 {
-    /// <summary>
-    /// All registered wave manifests
-    /// </summary>
-    public static IReadOnlyList<WaveManifest> Manifests => _manifests;
-
     private static readonly List<WaveManifest> _manifests = new()
     {
         new WaveManifest
@@ -65,11 +60,12 @@ public static class WaveRegistry
             WaveName = "AutoRoutingWave",
             Priority = 98,
             Tags = ["routing", "auto", "optimization"],
-            Emits = [
-                "route.selected",       // "fast", "balanced", or "quality"
-                "route.reason",         // Why this route was selected
-                "route.skip_waves",     // List of waves to skip
-                "route.quality_tier"    // 1=fast, 2=balanced, 3=quality
+            Emits =
+            [
+                "route.selected", // "fast", "balanced", or "quality"
+                "route.reason", // Why this route was selected
+                "route.skip_waves", // List of waves to skip
+                "route.quality_tier" // 1=fast, 2=balanced, 3=quality
             ],
             Requires = ["identity.*", "content.text_likeliness", "quality.edge_density"],
             Optional = ["color.*"],
@@ -81,7 +77,8 @@ public static class WaveRegistry
             WaveName = "IdentityWave",
             Priority = 10,
             Tags = ["identity"],
-            Emits = [
+            Emits =
+            [
                 "identity.sha256",
                 "identity.format",
                 "identity.width",
@@ -102,7 +99,8 @@ public static class WaveRegistry
             WaveName = "ColorWave",
             Priority = 20,
             Tags = ["color", "quality"],
-            Emits = [
+            Emits =
+            [
                 "color.dominant_rgb",
                 "color.dominant_name",
                 "color.dominant_confidence",
@@ -125,13 +123,14 @@ public static class WaveRegistry
             WaveName = "TextDetectionWave",
             Priority = 82,
             Tags = ["text", "detection", "ml"],
-            Emits = [
-                "text_detection.method",       // EAST, CRAFT, or TesseractPSM
+            Emits =
+            [
+                "text_detection.method", // EAST, CRAFT, or TesseractPSM
                 "text_detection.region_count", // Number of detected regions
-                "text_detection.has_text",     // Boolean: text regions found
-                "text_detection.coverage",     // % of image covered by text
-                "text_detection.region.*",     // Individual region bounding boxes
-                "text_detection.regions"       // Collection of all regions
+                "text_detection.has_text", // Boolean: text regions found
+                "text_detection.coverage", // % of image covered by text
+                "text_detection.region.*", // Individual region bounding boxes
+                "text_detection.regions" // Collection of all regions
             ],
             Requires = ["identity.width", "identity.height"],
             Optional = ["route.selected", "content.text_likeliness"],
@@ -143,7 +142,8 @@ public static class WaveRegistry
             WaveName = "MotionWave",
             Priority = 25,
             Tags = ["motion"],
-            Emits = [
+            Emits =
+            [
                 "motion.has_motion",
                 "motion.type",
                 "motion.direction",
@@ -164,7 +164,8 @@ public static class WaveRegistry
             WaveName = "MlOcrWave",
             Priority = 65, // Before MotionWave/Florence2Wave (55), VisionLlmWave (50)
             Tags = ["ocr", "ml", "opencv", "content"],
-            Emits = [
+            Emits =
+            [
                 // OpenCV fast detection signals
                 "ocr.opencv.has_text",
                 "ocr.opencv.text_regions",
@@ -181,7 +182,8 @@ public static class WaveRegistry
             ],
             Requires = [],
             Optional = ["identity.is_animated", "identity.frame_count", "content.text_likeliness"],
-            Description = "Fast OpenCV MSER detection for animated GIFs (filmstrip mode - caches frames for VisionLlmWave)"
+            Description =
+                "Fast OpenCV MSER detection for animated GIFs (filmstrip mode - caches frames for VisionLlmWave)"
         },
 
         new WaveManifest
@@ -189,17 +191,19 @@ public static class WaveRegistry
             WaveName = "OcrWave",
             Priority = 30,
             Tags = ["ocr", "content"],
-            Emits = [
+            Emits =
+            [
                 "ocr.text",
                 "ocr.confidence",
                 "content.extracted_text"
             ],
             Requires = [],
-            Optional = [
+            Optional =
+            [
                 "content.text_likeliness",
                 "ocr.escalation.run_tesseract",
                 "ocr.escalation.skip_tesseract",
-                "ocr.opencv.text_regions",  // Use cached OpenCV regions for targeted OCR
+                "ocr.opencv.text_regions", // Use cached OpenCV regions for targeted OCR
                 "ocr.opencv.has_text"
             ],
             Description = "Basic OCR text extraction using Tesseract (uses OpenCV regions if available)"
@@ -210,7 +214,8 @@ public static class WaveRegistry
             WaveName = "AdvancedOcrWave",
             Priority = 35,
             Tags = ["ocr", "content"],
-            Emits = [
+            Emits =
+            [
                 "ocr.voting.text",
                 "ocr.voting.confidence",
                 "ocr.voting.agreement",
@@ -218,11 +223,12 @@ public static class WaveRegistry
                 "ocr.frame_count"
             ],
             Requires = [],
-            Optional = [
+            Optional =
+            [
                 "identity.is_animated",
                 "content.text_likeliness",
-                "ocr.ml.text_changed_indices",       // Use ML-detected text change frames
-                "ocr.opencv.per_frame_regions"       // Use per-frame text regions for targeted OCR
+                "ocr.ml.text_changed_indices", // Use ML-detected text change frames
+                "ocr.opencv.per_frame_regions" // Use per-frame text regions for targeted OCR
             ],
             Description = "Multi-frame OCR with voting for animated images (uses OpenCV regions if available)"
         },
@@ -232,7 +238,8 @@ public static class WaveRegistry
             WaveName = "Florence2Wave",
             Priority = 55,
             Tags = ["florence2", "vision", "content"],
-            Emits = [
+            Emits =
+            [
                 "florence2.caption",
                 "florence2.ocr_text",
                 "florence2.should_escalate",
@@ -250,7 +257,8 @@ public static class WaveRegistry
             WaveName = "NanonetsOcrWave",
             Priority = 54,
             Tags = ["ocr", "vlm", "nanonets", "content"],
-            Emits = [
+            Emits =
+            [
                 "ocr.nanonets.markdown",
                 "ocr.nanonets.text",
                 "ocr.markdown",
@@ -260,7 +268,8 @@ public static class WaveRegistry
                 "content.extracted_markdown"
             ],
             Requires = [],
-            Optional = [
+            Optional =
+            [
                 "content.text_likeliness",
                 "ocr.quality.*",
                 "florence2.ocr_text"
@@ -273,7 +282,8 @@ public static class WaveRegistry
             WaveName = "OlmOcr2Wave",
             Priority = 51,
             Tags = ["ocr", "vlm", "olmocr2", "content"],
-            Emits = [
+            Emits =
+            [
                 "ocr.olmocr2.markdown",
                 "ocr.olmocr2.text",
                 "ocr.markdown",
@@ -283,7 +293,8 @@ public static class WaveRegistry
                 "content.extracted_markdown"
             ],
             Requires = [],
-            Optional = [
+            Optional =
+            [
                 "content.text_likeliness",
                 "ocr.quality.*",
                 "ocr.nanonets.*",
@@ -297,7 +308,8 @@ public static class WaveRegistry
             WaveName = "DeepseekOcrWave",
             Priority = 53,
             Tags = ["ocr", "vlm", "deepseek", "content"],
-            Emits = [
+            Emits =
+            [
                 "ocr.deepseek.markdown",
                 "ocr.deepseek.text",
                 "ocr.deepseek.duration_ms",
@@ -308,7 +320,8 @@ public static class WaveRegistry
                 "content.extracted_markdown"
             ],
             Requires = [],
-            Optional = [
+            Optional =
+            [
                 "content.text_likeliness",
                 "ocr.quality.*",
                 "ocr.nanonets.*",
@@ -322,7 +335,8 @@ public static class WaveRegistry
             WaveName = "OcrBenchmarkWave",
             Priority = 45,
             Tags = ["benchmark", "ocr", "quality"],
-            Emits = [
+            Emits =
+            [
                 "benchmark.ocr.results",
                 "benchmark.ocr.winner",
                 "benchmark.ocr.winner.accuracy",
@@ -332,7 +346,8 @@ public static class WaveRegistry
                 "benchmark.ocr.report_path"
             ],
             Requires = [],
-            Optional = [
+            Optional =
+            [
                 "ocr.full_text",
                 "ocr.voting.consensus_text",
                 "florence2.ocr_text",
@@ -349,7 +364,8 @@ public static class WaveRegistry
             WaveName = "VisionLlmWave",
             Priority = 60,
             Tags = ["vision", "llm", "content"],
-            Emits = [
+            Emits =
+            [
                 "vision.llm.caption",
                 "vision.llm.scene",
                 "vision.llm.entities",
@@ -358,7 +374,8 @@ public static class WaveRegistry
                 "vision.llm.duration_ms"
             ],
             Requires = [],
-            Optional = [
+            Optional =
+            [
                 "color.dominant_*",
                 "motion.*",
                 "ocr.*",
@@ -372,7 +389,8 @@ public static class WaveRegistry
             WaveName = "FaceDetectionWave",
             Priority = 40,
             Tags = ["face"],
-            Emits = [
+            Emits =
+            [
                 "face.count",
                 "face.regions",
                 "face.embeddings"
@@ -387,7 +405,8 @@ public static class WaveRegistry
             WaveName = "ClipEmbeddingWave",
             Priority = 50,
             Tags = ["clip", "embedding"],
-            Emits = [
+            Emits =
+            [
                 "clip.embedding",
                 "clip.model"
             ],
@@ -401,7 +420,8 @@ public static class WaveRegistry
             WaveName = "ContradictionWave",
             Priority = 100,
             Tags = ["validation"],
-            Emits = [
+            Emits =
+            [
                 "validation.contradiction.count",
                 "validation.contradiction.status",
                 "validation.contradiction.details"
@@ -413,7 +433,12 @@ public static class WaveRegistry
     };
 
     /// <summary>
-    /// Find waves that emit a given signal pattern
+    ///     All registered wave manifests
+    /// </summary>
+    public static IReadOnlyList<WaveManifest> Manifests => _manifests;
+
+    /// <summary>
+    ///     Find waves that emit a given signal pattern
     /// </summary>
     public static IEnumerable<WaveManifest> FindWavesEmitting(string signalPattern)
     {
@@ -422,7 +447,7 @@ public static class WaveRegistry
     }
 
     /// <summary>
-    /// Find waves required to produce a set of signals (transitive closure)
+    ///     Find waves required to produce a set of signals (transitive closure)
     /// </summary>
     public static IEnumerable<WaveManifest> GetRequiredWaves(IEnumerable<string> signalPatterns)
     {
@@ -434,7 +459,6 @@ public static class WaveRegistry
         {
             var emitters = FindWavesEmitting(pattern);
             foreach (var wave in emitters)
-            {
                 if (!waves.Contains(wave))
                 {
                     waves.Add(wave);
@@ -442,7 +466,6 @@ public static class WaveRegistry
                     foreach (var req in wave.Requires)
                         needed.Add(req);
                 }
-            }
         }
 
         // Recursively find waves for required signals
@@ -455,14 +478,12 @@ public static class WaveRegistry
             {
                 var emitters = FindWavesEmitting(req);
                 foreach (var wave in emitters)
-                {
                     if (!waves.Contains(wave))
                     {
                         waves.Add(wave);
                         foreach (var r in wave.Requires)
                             needed.Add(r);
                     }
-                }
             }
         }
 
@@ -470,7 +491,7 @@ public static class WaveRegistry
     }
 
     /// <summary>
-    /// Get all signals that can be emitted by any wave
+    ///     Get all signals that can be emitted by any wave
     /// </summary>
     public static IEnumerable<string> GetAllEmittedSignals()
     {
@@ -478,7 +499,7 @@ public static class WaveRegistry
     }
 
     /// <summary>
-    /// Find orphan signals (required but never emitted)
+    ///     Find orphan signals (required but never emitted)
     /// </summary>
     public static IEnumerable<string> FindOrphanSignals()
     {
@@ -489,7 +510,7 @@ public static class WaveRegistry
     }
 
     /// <summary>
-    /// Check if a signal pattern matches an actual signal key
+    ///     Check if a signal pattern matches an actual signal key
     /// </summary>
     private static bool SignalPatternMatches(string pattern, string signal)
     {
@@ -500,6 +521,7 @@ public static class WaveRegistry
             var prefix = pattern[..^1];
             return signal.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
+
         return false;
     }
 }

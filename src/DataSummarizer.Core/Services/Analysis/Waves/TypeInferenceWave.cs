@@ -6,18 +6,17 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Third wave: infers semantic data types for each column.
-/// Types: numeric, categorical, datetime, text, id, boolean
+///     Third wave: infers semantic data types for each column.
+///     Types: numeric, categorical, datetime, text, id, boolean
 /// </summary>
 public partial class TypeInferenceWave : IDataAnalysisWave
 {
-    private readonly ILogger<TypeInferenceWave>? _logger;
-
     // Threshold for categorical vs text (if distinct values / total < threshold, it's categorical)
     private const double CategoricalThreshold = 0.5;
 
     // Minimum distinct values to consider as ID
     private const int IdMinDistinct = 100;
+    private readonly ILogger<TypeInferenceWave>? _logger;
 
     public TypeInferenceWave(ILogger<TypeInferenceWave>? logger = null)
     {

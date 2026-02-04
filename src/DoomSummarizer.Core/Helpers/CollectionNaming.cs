@@ -3,16 +3,16 @@ using System.Text.RegularExpressions;
 namespace DoomSummarizer.Helpers;
 
 /// <summary>
-/// Derives collection names from URLs, file paths, or document names.
-/// Used when no explicit --name is provided.
+///     Derives collection names from URLs, file paths, or document names.
+///     Used when no explicit --name is provided.
 /// </summary>
 public static partial class CollectionNaming
 {
     /// <summary>
-    /// Derive a collection name from a URL.
-    /// Examples:
-    ///   https://docs.example.com/api/v2 → docs-example-com
-    ///   https://www.myblog.io → myblog-io
+    ///     Derive a collection name from a URL.
+    ///     Examples:
+    ///     https://docs.example.com/api/v2 → docs-example-com
+    ///     https://www.myblog.io → myblog-io
     /// </summary>
     public static string FromUrl(string url)
     {
@@ -35,11 +35,11 @@ public static partial class CollectionNaming
     }
 
     /// <summary>
-    /// Derive a collection name from a file or directory path.
-    /// Examples:
-    ///   E:\books\scifi → books-scifi
-    ///   C:\Users\scott\Documents\research.pdf → research
-    ///   /home/user/markdown → markdown
+    ///     Derive a collection name from a file or directory path.
+    ///     Examples:
+    ///     E:\books\scifi → books-scifi
+    ///     C:\Users\scott\Documents\research.pdf → research
+    ///     /home/user/markdown → markdown
     /// </summary>
     public static string FromPath(string path)
     {
@@ -59,7 +59,7 @@ public static partial class CollectionNaming
     }
 
     /// <summary>
-    /// Derive a collection name from any input (URL, path, or text).
+    ///     Derive a collection name from any input (URL, path, or text).
     /// </summary>
     public static string Auto(string input)
     {
@@ -81,8 +81,10 @@ public static partial class CollectionNaming
         return clean.Length > 50 ? clean[..50].TrimEnd('-') : clean;
     }
 
-    private static bool IsDriveRoot(string segment) =>
-        segment.Length <= 2 && segment.EndsWith(':');
+    private static bool IsDriveRoot(string segment)
+    {
+        return segment.Length <= 2 && segment.EndsWith(':');
+    }
 
     [GeneratedRegex("[^a-z0-9-]")]
     private static partial Regex InvalidCharsRx();

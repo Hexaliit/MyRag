@@ -3,16 +3,16 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Core.Services;
 
 /// <summary>
-/// Verifies query terms against a Lucene index to detect terms the corpus has no knowledge of.
-/// Uses RelevanceScorer.Tokenize (shared stop words from StopwordLists) and strict TermQuery
-/// lookups — no fuzzy matching, no stemming, no query parsing.
+///     Verifies query terms against a Lucene index to detect terms the corpus has no knowledge of.
+///     Uses RelevanceScorer.Tokenize (shared stop words from StopwordLists) and strict TermQuery
+///     lookups — no fuzzy matching, no stemming, no query parsing.
 /// </summary>
 public static class TermVerifier
 {
     /// <summary>
-    /// Tokenize the query using the shared pipeline (RelevanceScorer.Tokenize + StopwordLists),
-    /// merge with any known entities, then check each term against the Lucene inverted index
-    /// using strict TermQuery. Returns terms with zero hits (DF=0 in the corpus).
+    ///     Tokenize the query using the shared pipeline (RelevanceScorer.Tokenize + StopwordLists),
+    ///     merge with any known entities, then check each term against the Lucene inverted index
+    ///     using strict TermQuery. Returns terms with zero hits (DF=0 in the corpus).
     /// </summary>
     /// <param name="query">The user's natural language query</param>
     /// <param name="dataPath">Storage data path (parent of Lucene indexes)</param>
@@ -37,8 +37,8 @@ public static class TermVerifier
             if (entityList != null)
                 foreach (var e in entityList.Where(e => e.Length >= 3))
                     // Tokenize entity names too (multi-word entities become individual terms)
-                    foreach (var token in RelevanceScorer.Tokenize(e))
-                        terms.Add(token);
+                foreach (var token in RelevanceScorer.Tokenize(e))
+                    terms.Add(token);
 
         if (terms.Count == 0)
             return null;
@@ -57,11 +57,9 @@ public static class TermVerifier
 
             var missing = new List<string>();
             foreach (var term in terms)
-            {
                 // Strict TermQuery — no fuzzy, no stemming. Exact inverted-index lookup.
                 if (!lucene.ContainsTerm(term, sourceFilters))
                     missing.Add(term);
-            }
 
             return missing.Count > 0 ? missing : null;
         }

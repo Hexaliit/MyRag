@@ -2,90 +2,88 @@ using DoomSummarizer.Models;
 using DoomSummarizer.Models.LongFormGeneration;
 using DoomSummarizer.Services;
 using DoomSummarizer.Services.LongFormGeneration;
-using Mostlylucid.DocSummarizer.Models;
-using LfValidationResult = DoomSummarizer.Models.LongFormGeneration.ValidationResult;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Integration tests for the long-form document generation pipeline using
-/// real ONNX embeddings and article content from mostlylucid.net.
-/// Uses OnnxEmbeddingService (via ArticleProcessor) which auto-downloads models.
+///     Integration tests for the long-form document generation pipeline using
+///     real ONNX embeddings and article content from mostlylucid.net.
+///     Uses OnnxEmbeddingService (via ArticleProcessor) which auto-downloads models.
 /// </summary>
 [Trait("Category", "Network")]
 public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
 {
-    private readonly ArticleProcessor _articleProcessor;
-
     // Real article content from mostlylucid.net
     private static readonly string Article1Content = """
-        This system applies deterministic and probabilistic techniques to extract candidate segments,
-        evaluate informational value, and retain strongest representatives. Simple string equality is
-        not enough. Concepts expressed through different wording, structure, or format require
-        sophisticated handling.
+                                                     This system applies deterministic and probabilistic techniques to extract candidate segments,
+                                                     evaluate informational value, and retain strongest representatives. Simple string equality is
+                                                     not enough. Concepts expressed through different wording, structure, or format require
+                                                     sophisticated handling.
 
-        Phase 1: Ingestion Deduplication operates per-document. Extracts, embeds, and deduplicates
-        before indexing. Near-duplicates receive salience boosts rather than deletion. Exact duplicates
-        drop silently.
+                                                     Phase 1: Ingestion Deduplication operates per-document. Extracts, embeds, and deduplicates
+                                                     before indexing. Near-duplicates receive salience boosts rather than deletion. Exact duplicates
+                                                     drop silently.
 
-        Phase 2: Retrieval Deduplication operates cross-document after Reciprocal Rank Fusion ranking.
-        Preserves highest-scoring segment when duplicates exist. Maintains semantic ordering.
+                                                     Phase 2: Retrieval Deduplication operates cross-document after Reciprocal Rank Fusion ranking.
+                                                     Preserves highest-scoring segment when duplicates exist. Maintains semantic ordering.
 
-        The deduplication strategy uses cosine similarity with a 0.90 threshold aligned with NVIDIA
-        NeMo standards. Near-duplicate segments receive salience boosts rather than deletion, preserving
-        signal while reducing redundancy. Logarithmic boost decay prevents runaway salience inflation.
+                                                     The deduplication strategy uses cosine similarity with a 0.90 threshold aligned with NVIDIA
+                                                     NeMo standards. Near-duplicate segments receive salience boosts rather than deletion, preserving
+                                                     signal while reducing redundancy. Logarithmic boost decay prevents runaway salience inflation.
 
-        Five core invariants: ordering preserved, no concept loss, document boundary respected,
-        content immutable, deterministic output. Identical inputs yield identical outputs.
+                                                     Five core invariants: ordering preserved, no concept loss, document boundary respected,
+                                                     content immutable, deterministic output. Identical inputs yield identical outputs.
 
-        Performance: Ingestion phase O(n²) on 50-500 segments with less than 100ms impact.
-        Retrieval phase O(m²) on 20-100 segments with less than 10ms impact.
-        """;
+                                                     Performance: Ingestion phase O(n²) on 50-500 segments with less than 100ms impact.
+                                                     Retrieval phase O(m²) on 20-100 segments with less than 10ms impact.
+                                                     """;
 
     private static readonly string Article2Content = """
-        VideoSummarizer is an orchestration system for video analysis implementing the Reduced RAG
-        pattern. It processes video files by decomposing them into three reduction stages: structural
-        analysis with shots and frames, content extraction with embeddings and transcription, and
-        scene assembly for RAG indexing.
+                                                     VideoSummarizer is an orchestration system for video analysis implementing the Reduced RAG
+                                                     pattern. It processes video files by decomposing them into three reduction stages: structural
+                                                     analysis with shots and frames, content extraction with embeddings and transcription, and
+                                                     scene assembly for RAG indexing.
 
-        Perceptual hash deduplication using dHash filters visually similar frames before expensive ML
-        operations. Resize to 9x8 grayscale, compare adjacent pixels horizontally to generate 64-bit
-        hashes. Achieves approximately 40% frame reduction with less than 1ms overhead per frame.
+                                                     Perceptual hash deduplication using dHash filters visually similar frames before expensive ML
+                                                     operations. Resize to 9x8 grayscale, compare adjacent pixels horizontally to generate 64-bit
+                                                     hashes. Achieves approximately 40% frame reduction with less than 1ms overhead per frame.
 
-        Batch CLIP embedding processes 8 images per GPU pass instead of one, delivering 3-5x speedup.
-        A 30-frame batch completes in approximately 1.4 seconds versus 6 seconds with serial processing.
+                                                     Batch CLIP embedding processes 8 images per GPU pass instead of one, delivering 3-5x speedup.
+                                                     A 30-frame batch completes in approximately 1.4 seconds versus 6 seconds with serial processing.
 
-        The 16-wave pipeline processes video sequentially with signal dependencies from FFprobe
-        metadata extraction through evidence generation. Multi-signal scene clustering uses embedding
-        dissimilarity at 40%, transcript semantic shift at 30%, cut type detection at 20%, and
-        temporal pressure at 10%.
+                                                     The 16-wave pipeline processes video sequentially with signal dependencies from FFprobe
+                                                     metadata extraction through evidence generation. Multi-signal scene clustering uses embedding
+                                                     dissimilarity at 40%, transcript semantic shift at 30%, cut type detection at 20%, and
+                                                     temporal pressure at 10%.
 
-        BERT-NER extracts named entities from transcripts: persons, organizations, and locations.
-        Entities are deduplicated and emitted as signals for cross-modal linking.
-        """;
+                                                     BERT-NER extracts named entities from transcripts: persons, organizations, and locations.
+                                                     Entities are deduplicated and emitted as signals for cross-modal linking.
+                                                     """;
 
     private static readonly string Article3Content = """
-        MCP operates as a wire protocol that transmits inputs, outputs, schemas, tool metadata,
-        and capability discovery. MCP does not determine when tools should run, validate truth,
-        enforce trust, or manage side effects.
+                                                     MCP operates as a wire protocol that transmits inputs, outputs, schemas, tool metadata,
+                                                     and capability discovery. MCP does not determine when tools should run, validate truth,
+                                                     enforce trust, or manage side effects.
 
-        The core principle: Probabilistic components propose while deterministic systems decide.
-        LLMs never serve as authorities. Tools operate non-autonomously. Every MCP response
-        represents a proposal, not fact.
+                                                     The core principle: Probabilistic components propose while deterministic systems decide.
+                                                     LLMs never serve as authorities. Tools operate non-autonomously. Every MCP response
+                                                     represents a proposal, not fact.
 
-        The constrainer is deterministic logic that evaluates competing proposals, enforces policy
-        rules, determines persistence versus rejection, and routes escalation for low-confidence
-        scenarios. Most tutorials omit the constrainer.
+                                                     The constrainer is deterministic logic that evaluates competing proposals, enforces policy
+                                                     rules, determines persistence versus rejection, and routes escalation for low-confidence
+                                                     scenarios. Most tutorials omit the constrainer.
 
-        MCP functions as a hard boundary through process isolation, explicit inputs and outputs,
-        no shared mutable state, no ambient context, and typed contracts. Schema violations are errors.
+                                                     MCP functions as a hard boundary through process isolation, explicit inputs and outputs,
+                                                     no shared mutable state, no ambient context, and typed contracts. Schema violations are errors.
 
-        Signal contracts require type safety, bounded values, attributable sources, confidence metrics,
-        provenance tracking, and evidence pointers. If a result cannot be validated, it is not accepted.
+                                                     Signal contracts require type safety, bounded values, attributable sources, confidence metrics,
+                                                     provenance tracking, and evidence pointers. If a result cannot be validated, it is not accepted.
 
-        The synthesis: MCP enables composition. Determinism enables trust. LLMs enable fluency.
-        Probability proposes and determinism persists.
-        """;
+                                                     The synthesis: MCP enables composition. Determinism enables trust. LLMs enable fluency.
+                                                     Probability proposes and determinism persists.
+                                                     """;
+
+    private readonly ArticleProcessor _articleProcessor;
 
     public LongFormIntegrationTests()
     {
@@ -97,7 +95,10 @@ public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
         await _articleProcessor.EnsureInitializedAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
 
     public void Dispose()
     {
@@ -205,22 +206,29 @@ public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
                 {
                     Heading = "Deduplication Strategy",
                     ThemeKeywords = "deduplication cosine similarity salience boost near-duplicate RAG segments",
-                    ThemeEmbedding = _articleProcessor.Embed("deduplication cosine similarity salience boost near-duplicate RAG segments")
+                    ThemeEmbedding =
+                        _articleProcessor.Embed(
+                            "deduplication cosine similarity salience boost near-duplicate RAG segments")
                 },
                 new PlannedSection
                 {
                     Heading = "Video Intelligence Pipeline",
                     ThemeKeywords = "video pipeline CLIP dHash keyframe scene wave analysis perceptual hash",
-                    ThemeEmbedding = _articleProcessor.Embed("video pipeline CLIP dHash keyframe scene wave analysis perceptual hash")
+                    ThemeEmbedding =
+                        _articleProcessor.Embed(
+                            "video pipeline CLIP dHash keyframe scene wave analysis perceptual hash")
                 },
                 new PlannedSection
                 {
                     Heading = "MCP and Deterministic Control",
                     ThemeKeywords = "MCP transport protocol constrainer deterministic authority signal contracts",
-                    ThemeEmbedding = _articleProcessor.Embed("MCP transport protocol constrainer deterministic authority signal contracts")
+                    ThemeEmbedding =
+                        _articleProcessor.Embed(
+                            "MCP transport protocol constrainer deterministic authority signal contracts")
                 }
             ],
-            ThemeEmbedding = _articleProcessor.Embed("deduplication video analysis MCP transport architecture signals pipelines"),
+            ThemeEmbedding =
+                _articleProcessor.Embed("deduplication video analysis MCP transport architecture signals pipelines"),
             QueryType = QueryType.General
         };
 
@@ -356,19 +364,22 @@ public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
                 {
                     Heading = "Evidence Deduplication",
                     ThemeKeywords = "deduplication cosine similarity salience boost evidence segments",
-                    ThemeEmbedding = _articleProcessor.Embed("deduplication cosine similarity salience boost evidence segments")
+                    ThemeEmbedding =
+                        _articleProcessor.Embed("deduplication cosine similarity salience boost evidence segments")
                 },
                 new PlannedSection
                 {
                     Heading = "Multi-Modal Video Intelligence",
                     ThemeKeywords = "video pipeline CLIP dHash keyframe scene analysis batch processing",
-                    ThemeEmbedding = _articleProcessor.Embed("video pipeline CLIP dHash keyframe scene analysis batch processing")
+                    ThemeEmbedding =
+                        _articleProcessor.Embed("video pipeline CLIP dHash keyframe scene analysis batch processing")
                 },
                 new PlannedSection
                 {
                     Heading = "Protocol-Driven Architecture",
                     ThemeKeywords = "MCP transport protocol constrainer deterministic authority signals",
-                    ThemeEmbedding = _articleProcessor.Embed("MCP transport protocol constrainer deterministic authority signals")
+                    ThemeEmbedding =
+                        _articleProcessor.Embed("MCP transport protocol constrainer deterministic authority signals")
                 }
             ],
             ThemeEmbedding = _articleProcessor.Embed(
@@ -394,17 +405,13 @@ public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
 
             // "Generate" content from assigned evidence
             if (section.AssignedEvidence.Count > 0)
-            {
                 section.GeneratedContent = string.Join(" ",
                     section.AssignedEvidence
                         .OrderByDescending(e => e.Segment.SalienceScore)
                         .Take(3)
                         .Select(e => e.Segment.Text));
-            }
             else
-            {
                 section.GeneratedContent = $"This section covers {section.Heading}.";
-            }
 
             runningSummary.RecordSection(section, i);
             entityTracker.ScanGenerated(section.GeneratedContent, i);
@@ -426,8 +433,8 @@ public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
         // Phase 6: Assemble
         var result = DocumentAssembler.Assemble(
             plan,
-            introduction: "This article explores signal-driven AI architecture across deduplication, video, and MCP.",
-            conclusion: "Deterministic systems enable trust in AI pipelines.",
+            "This article explores signal-driven AI architecture across deduplication, video, and MCP.",
+            "Deterministic systems enable trust in AI pipelines.",
             validation,
             corpus);
 
@@ -437,7 +444,7 @@ public class LongFormIntegrationTests : IAsyncLifetime, IDisposable
         result.Conclusion.Should().Contain("Validated:");
 
         // Print summary for manual inspection
-        Console.WriteLine($"\n=== Full Pipeline Results ===");
+        Console.WriteLine("\n=== Full Pipeline Results ===");
         Console.WriteLine($"Title: {result.Title}");
         Console.WriteLine($"Sections: {result.Sections.Count}");
         Console.WriteLine($"Total segments in corpus: {corpus.Segments.Count}");

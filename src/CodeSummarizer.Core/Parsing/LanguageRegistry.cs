@@ -68,6 +68,11 @@ public static class LanguageRegistry
     };
 
     /// <summary>
+    ///     Get all supported fence language tags.
+    /// </summary>
+    public static IReadOnlyCollection<string> SupportedLanguages => FenceToTreeSitter.Keys;
+
+    /// <summary>
     ///     Get the Tree-sitter grammar name for a markdown fence language.
     ///     Returns null if the language isn't supported.
     /// </summary>
@@ -83,9 +88,4 @@ public static class LanguageRegistry
     {
         return FenceToTreeSitter.ContainsKey(fenceLanguage.Trim());
     }
-
-    /// <summary>
-    ///     Get all supported fence language tags.
-    /// </summary>
-    public static IReadOnlyCollection<string> SupportedLanguages => FenceToTreeSitter.Keys;
 }

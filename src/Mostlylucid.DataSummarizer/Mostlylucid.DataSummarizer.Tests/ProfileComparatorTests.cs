@@ -4,7 +4,7 @@ using Mostlylucid.DataSummarizer.Services;
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for ProfileComparator - drift detection and profile comparison
+///     Tests for ProfileComparator - drift detection and profile comparison
 /// </summary>
 public class ProfileComparatorTests
 {
@@ -84,8 +84,8 @@ public class ProfileComparatorTests
     public void Compare_DetectsRowCountIncrease()
     {
         // Arrange
-        var baseline = CreateProfile(rowCount: 1000);
-        var current = CreateProfile(rowCount: 1500);
+        var baseline = CreateProfile(1000);
+        var current = CreateProfile(1500);
 
         // Act
         var result = _comparator.Compare(baseline, current);
@@ -100,8 +100,8 @@ public class ProfileComparatorTests
     public void Compare_DetectsRowCountDecrease()
     {
         // Arrange
-        var baseline = CreateProfile(rowCount: 1000);
-        var current = CreateProfile(rowCount: 100);
+        var baseline = CreateProfile(1000);
+        var current = CreateProfile(100);
 
         // Act
         var result = _comparator.Compare(baseline, current);
@@ -119,8 +119,8 @@ public class ProfileComparatorTests
     public void Compare_DetectsNumericDrift()
     {
         // Arrange
-        var baseline = CreateProfileWithStats("A", mean: 100, stdDev: 10);
-        var current = CreateProfileWithStats("A", mean: 150, stdDev: 10); // Mean shifted significantly
+        var baseline = CreateProfileWithStats("A", 100, 10);
+        var current = CreateProfileWithStats("A", 150, 10); // Mean shifted significantly
 
         // Act
         var result = _comparator.Compare(baseline, current);
@@ -134,8 +134,8 @@ public class ProfileComparatorTests
     public void Compare_DetectsNullRateChange()
     {
         // Arrange
-        var baseline = CreateProfileWithNulls("A", nullPercent: 0);
-        var current = CreateProfileWithNulls("A", nullPercent: 50);
+        var baseline = CreateProfileWithNulls("A", 0);
+        var current = CreateProfileWithNulls("A", 50);
 
         // Act
         var result = _comparator.Compare(baseline, current);
@@ -148,8 +148,8 @@ public class ProfileComparatorTests
     public void Compare_StableData_LowDriftScore()
     {
         // Arrange
-        var baseline = CreateProfileWithStats("Value", mean: 100, stdDev: 10);
-        var current = CreateProfileWithStats("Value", mean: 101, stdDev: 10.5); // Minor changes
+        var baseline = CreateProfileWithStats("Value", 100, 10);
+        var current = CreateProfileWithStats("Value", 101, 10.5); // Minor changes
 
         // Act
         var result = _comparator.Compare(baseline, current);
@@ -166,8 +166,8 @@ public class ProfileComparatorTests
     public void Compare_GeneratesSummary()
     {
         // Arrange
-        var baseline = CreateProfile(rowCount: 1000, columns: new[] { "A", "B" });
-        var current = CreateProfile(rowCount: 1200, columns: new[] { "A", "B", "C" });
+        var baseline = CreateProfile(1000, new[] { "A", "B" });
+        var current = CreateProfile(1200, new[] { "A", "B", "C" });
 
         // Act
         var result = _comparator.Compare(baseline, current);

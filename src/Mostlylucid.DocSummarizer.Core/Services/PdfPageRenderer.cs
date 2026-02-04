@@ -5,23 +5,13 @@ using SkiaSharp;
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
 /// <summary>
-/// Renders PDF pages as images for VLM-based OCR processing.
-/// Uses PDFium via PDFtoImage for high-quality rendering.
+///     Renders PDF pages as images for VLM-based OCR processing.
+///     Uses PDFium via PDFtoImage for high-quality rendering.
 /// </summary>
 public class PdfPageRenderer
 {
     private readonly ILogger<PdfPageRenderer>? _logger;
     private readonly string _outputDirectory;
-
-    /// <summary>
-    /// Default DPI for rendering (300 is good for OCR)
-    /// </summary>
-    public int DefaultDpi { get; set; } = 300;
-
-    /// <summary>
-    /// Maximum dimension (width or height) before downscaling
-    /// </summary>
-    public int MaxDimension { get; set; } = 4096;
 
     public PdfPageRenderer(ILogger<PdfPageRenderer>? logger = null)
     {
@@ -31,7 +21,17 @@ public class PdfPageRenderer
     }
 
     /// <summary>
-    /// Get the number of pages in a PDF document.
+    ///     Default DPI for rendering (300 is good for OCR)
+    /// </summary>
+    public int DefaultDpi { get; set; } = 300;
+
+    /// <summary>
+    ///     Maximum dimension (width or height) before downscaling
+    /// </summary>
+    public int MaxDimension { get; set; } = 4096;
+
+    /// <summary>
+    ///     Get the number of pages in a PDF document.
     /// </summary>
     public int GetPageCount(string pdfPath)
     {
@@ -40,7 +40,7 @@ public class PdfPageRenderer
     }
 
     /// <summary>
-    /// Render a single page to an image file.
+    ///     Render a single page to an image file.
     /// </summary>
     /// <param name="pdfPath">Path to the PDF file</param>
     /// <param name="pageIndex">Zero-based page index</param>
@@ -63,9 +63,9 @@ public class PdfPageRenderer
         await Task.Run(() =>
         {
             using var inputStream = File.OpenRead(pdfPath);
-            var options = new RenderOptions(Dpi: effectiveDpi);
+            var options = new RenderOptions(effectiveDpi);
             // Use Index for page parameter (PDFtoImage 5.x API)
-            using var bitmap = Conversion.ToImage(inputStream, (Index)pageIndex, options: options);
+            using var bitmap = Conversion.ToImage(inputStream, pageIndex, options: options);
 
             // Downscale if too large
             var finalBitmap = DownscaleIfNeeded(bitmap);
@@ -82,7 +82,7 @@ public class PdfPageRenderer
     }
 
     /// <summary>
-    /// Render all pages of a PDF to images.
+    ///     Render all pages of a PDF to images.
     /// </summary>
     /// <param name="pdfPath">Path to the PDF file</param>
     /// <param name="dpi">Resolution (default: 300)</param>
@@ -100,7 +100,7 @@ public class PdfPageRenderer
 
         _logger?.LogInformation("Rendering {Count} pages from {Pdf}", pageCount, Path.GetFileName(pdfPath));
 
-        for (int i = 0; i < pageCount; i++)
+        for (var i = 0; i < pageCount; i++)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -120,7 +120,7 @@ public class PdfPageRenderer
     }
 
     /// <summary>
-    /// Render specific pages of a PDF.
+    ///     Render specific pages of a PDF.
     /// </summary>
     /// <param name="pdfPath">Path to the PDF file</param>
     /// <param name="pageNumbers">One-based page numbers to render</param>
@@ -153,7 +153,7 @@ public class PdfPageRenderer
     }
 
     /// <summary>
-    /// Downscale bitmap if it exceeds maximum dimensions.
+    ///     Downscale bitmap if it exceeds maximum dimensions.
     /// </summary>
     private SKBitmap DownscaleIfNeeded(SKBitmap bitmap)
     {
@@ -176,12 +176,11 @@ public class PdfPageRenderer
     }
 
     /// <summary>
-    /// Clean up rendered page images.
+    ///     Clean up rendered page images.
     /// </summary>
     public void CleanupRenderedPages(IEnumerable<RenderedPage> pages)
     {
         foreach (var page in pages)
-        {
             try
             {
                 if (File.Exists(page.ImagePath))
@@ -191,12 +190,11 @@ public class PdfPageRenderer
             {
                 _logger?.LogDebug(ex, "Failed to cleanup rendered page: {Path}", page.ImagePath);
             }
-        }
     }
 }
 
 /// <summary>
-/// Represents a rendered PDF page.
+///     Represents a rendered PDF page.
 /// </summary>
 public record RenderedPage
 {

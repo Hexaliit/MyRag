@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Mostlylucid.DocSummarizer.Images.Models;
+using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 using Mostlylucid.DocSummarizer.Images.Orchestration;
 using Mostlylucid.DocSummarizer.Images.Services.Analysis;
 using Mostlylucid.Summarizer.Core.FileAnalysis;
@@ -7,19 +9,19 @@ using Mostlylucid.Summarizer.Core.Pipeline;
 namespace Mostlylucid.DocSummarizer.Images.Pipeline;
 
 /// <summary>
-/// Pipeline implementation for image files (GIF, PNG, JPG, WebP, etc.).
-/// Wraps the WaveOrchestrator for OCR and vision model captioning.
+///     Pipeline implementation for image files (GIF, PNG, JPG, WebP, etc.).
+///     Wraps the WaveOrchestrator for OCR and vision model captioning.
 /// </summary>
 public class ImagePipeline : PipelineBase
 {
-    private readonly IFileSummarizer _fileSummarizer;
-    private readonly WaveOrchestrator _orchestrator;
-    private readonly ILogger<ImagePipeline> _logger;
-
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".gif", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif"
     };
+
+    private readonly IFileSummarizer _fileSummarizer;
+    private readonly ILogger<ImagePipeline> _logger;
+    private readonly WaveOrchestrator _orchestrator;
 
     public ImagePipeline(
         WaveOrchestrator orchestrator,
@@ -118,13 +120,10 @@ public class ImagePipeline : PipelineBase
         var entityMetadata = new Dictionary<string, object?>();
 
         // VisionLLM entities (high quality, from vision model)
-        var visionEntities = profile.GetValue<List<Models.Dynamic.EntityDetection>>("vision.llm.entities");
+        var visionEntities = profile.GetValue<List<EntityDetection>>("vision.llm.entities");
         if (visionEntities != null)
         {
-            foreach (var e in visionEntities.Where(e => !string.IsNullOrWhiteSpace(e.Label)))
-            {
-                allEntities.Add(e.Label!);
-            }
+            foreach (var e in visionEntities.Where(e => !string.IsNullOrWhiteSpace(e.Label))) allEntities.Add(e.Label!);
             entityMetadata["vision_llm_count"] = visionEntities.Count;
         }
 
@@ -137,10 +136,8 @@ public class ImagePipeline : PipelineBase
         if (florence2EntitySignals.Count > 0)
         {
             foreach (var e in florence2EntitySignals)
-            {
                 if (!allEntities.Contains(e!, StringComparer.OrdinalIgnoreCase))
                     allEntities.Add(e!);
-            }
             entityMetadata["florence2_count"] = florence2EntitySignals.Count;
         }
 
@@ -149,10 +146,8 @@ public class ImagePipeline : PipelineBase
         if (motionObjects != null)
         {
             foreach (var obj in motionObjects.Where(o => !string.IsNullOrWhiteSpace(o)))
-            {
                 if (!allEntities.Contains(obj, StringComparer.OrdinalIgnoreCase))
                     allEntities.Add(obj);
-            }
             entityMetadata["motion_count"] = motionObjects.Count;
         }
 
@@ -181,7 +176,7 @@ public class ImagePipeline : PipelineBase
 
         // Include salient signals for graph relationships
         // These enable cross-modal linking (images with similar colors, motion types, etc.)
-        var dominantColors = profile.GetValue<List<Models.DominantColor>>("color.dominant_colors");
+        var dominantColors = profile.GetValue<List<DominantColor>>("color.dominant_colors");
         var sceneType = profile.GetValue<string>("vision.llm.scene_type");
         var motionType = profile.GetValue<string>("motion.type");
         var isAnimated = profile.GetValue<bool>("identity.is_animated");
@@ -191,7 +186,7 @@ public class ImagePipeline : PipelineBase
         if (chunks.Count > 0)
         {
             var mainChunk = chunks.FirstOrDefault(c => c.ContentType == ContentType.ImageCaption)
-                           ?? chunks.First();
+                            ?? chunks.First();
             // content.* namespace for cross-modal consistency
             mainChunk.Metadata["content.colors"] = dominantColors?.Take(3).Select(c => c.Name).ToList();
             mainChunk.Metadata["content.scene"] = sceneType;
@@ -230,7 +225,7 @@ public class ImagePipeline : PipelineBase
         return chunks;
     }
 
-    private static string BuildMetadataText(string filePath, Models.Dynamic.DynamicImageProfile profile)
+    private static string BuildMetadataText(string filePath, DynamicImageProfile profile)
     {
         var width = profile.GetValue<int?>(ImageSignalKeys.ImageWidth);
         var height = profile.GetValue<int?>(ImageSignalKeys.ImageHeight);

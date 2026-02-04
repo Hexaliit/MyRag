@@ -21,13 +21,13 @@
 sources:
   hacker_news:
     enabled: true
-    sections: [top, best, new]   # HN sections to fetch: top, best, new, ask, show, job
+    sections: [ top, best, new ]   # HN sections to fetch: top, best, new, ask, show, job
     max_stories: 30              # Max stories to fetch per run
     min_score: 50                # Minimum upvote score to include
 
   reddit:
     enabled: true
-    subreddits:                  # Subreddits to monitor
+    subreddits: # Subreddits to monitor
       - programming
       - csharp
       - dotnet
@@ -37,16 +37,16 @@ sources:
     max_posts: 25                # Max posts to fetch per run
     min_score: 20                # Minimum upvote score to include
 
-  websites: []                   # Custom website entries: [{url, selector, use_playwright}]
-                                 # Example:
-                                 #   - url: "https://example.com/blog"
-                                 #     selector: "article"      # CSS selector for content
-                                 #     use_playwright: false     # Use headless browser for JS sites
+  websites: [ ]                   # Custom website entries: [{url, selector, use_playwright}]
+    # Example:
+    #   - url: "https://example.com/blog"
+    #     selector: "article"      # CSS selector for content
+  #     use_playwright: false     # Use headless browser for JS sites
 
 # ─── Source Filtering & Weighting ────────────────────────────────────
 source_filter:
-  allowed_domains: []            # If non-empty, ONLY items from these domains are kept (allowlist)
-  blocked_domains: []            # Items from these domains are removed post-fetch
+  allowed_domains: [ ]            # If non-empty, ONLY items from these domains are kept (allowlist)
+  blocked_domains: [ ]            # Items from these domains are removed post-fetch
 
   # Source reliability weights — applied as RRF score multipliers.
   # Key = source name or domain substring. Value = multiplier.
@@ -162,16 +162,16 @@ storage:
 # ─── Plugins ─────────────────────────────────────────────────────────
 plugins:
   enable_runtime_plugins: true         # Load plugins from ~/.doomsummarizer/plugins/
-  auto_install: []                     # Auto-install on first run (shorthand or NuGet ID)
-  disabled: []                         # Plugin keys to disable even if installed
-  settings: {}                         # Per-plugin overrides: {key: {enabled, max_items, options}}
-                                       # Example:
-                                       #   settings:
-                                       #     hn:
-                                       #       enabled: true
-                                       #       max_items: 50
-                                       #       options:
-                                       #         sort: "top"
+  auto_install: [ ]                     # Auto-install on first run (shorthand or NuGet ID)
+  disabled: [ ]                         # Plugin keys to disable even if installed
+  settings: { }                         # Per-plugin overrides: {key: {enabled, max_items, options}}
+    # Example:
+    #   settings:
+    #     hn:
+    #       enabled: true
+    #       max_items: 50
+    #       options:
+  #         sort: "top"
 
 # ─── API Keys & Services ────────────────────────────────────────────
 # Each entry defines a service with its API key, budget, and rate limits.

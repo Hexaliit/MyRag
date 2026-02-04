@@ -1,6 +1,4 @@
-using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Resilience;
-using FluentAssertions;
 
 namespace DoomSummarizer.Tests;
 
@@ -19,8 +17,30 @@ public class CircuitBreakerServiceTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _circuit.DisposeAsync();
-        try { File.Delete(_dbPath); } catch { /* cleanup best-effort */ }
+        try
+        {
+            File.Delete(_dbPath);
+        }
+        catch
+        {
+            /* cleanup best-effort */
+        }
     }
+
+    #region Trip Circuit
+
+    [Fact]
+    public async Task TripCircuitAsync_OpensCircuitWithMessage()
+    {
+        await _circuit.TripCircuitAsync("brave_search", CircuitFailureType.DailyLimit, "Daily limit exhausted");
+
+        _circuit.IsCircuitOpen("brave_search").Should().BeTrue();
+        var state = _circuit.GetState("brave_search");
+        state!.Status.Should().Be(CircuitStatus.Open);
+        state.FailureType.Should().Be(CircuitFailureType.DailyLimit);
+    }
+
+    #endregion
 
     #region Initial State
 
@@ -177,21 +197,6 @@ public class CircuitBreakerServiceTests : IAsyncLifetime
         await _circuit.ReportFailureAsync("newsapi", CircuitFailureType.ServerError);
         var state2 = _circuit.GetState("newsapi");
         state2!.RetryAfter.Should().BeCloseTo(DateTimeOffset.UtcNow.AddMinutes(5), TimeSpan.FromSeconds(10));
-    }
-
-    #endregion
-
-    #region Trip Circuit
-
-    [Fact]
-    public async Task TripCircuitAsync_OpensCircuitWithMessage()
-    {
-        await _circuit.TripCircuitAsync("brave_search", CircuitFailureType.DailyLimit, "Daily limit exhausted");
-
-        _circuit.IsCircuitOpen("brave_search").Should().BeTrue();
-        var state = _circuit.GetState("brave_search");
-        state!.Status.Should().Be(CircuitStatus.Open);
-        state.FailureType.Should().Be(CircuitFailureType.DailyLimit);
     }
 
     #endregion

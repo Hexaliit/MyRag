@@ -1,9 +1,9 @@
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Byte-conversion helpers for embedding storage.
-/// Remaining utility after migrating to IEmbeddingService from DocSummarizer.Core.
-/// CosineSimilarity calls now go through VectorMath (shared, SIMD-accelerated).
+///     Byte-conversion helpers for embedding storage.
+///     Remaining utility after migrating to IEmbeddingService from DocSummarizer.Core.
+///     CosineSimilarity calls now go through VectorMath (shared, SIMD-accelerated).
 /// </summary>
 internal static class EmbeddingCompat
 {

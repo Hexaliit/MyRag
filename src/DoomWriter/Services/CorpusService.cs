@@ -1,37 +1,31 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.IO.Hashing;
+using System.Text;
+using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using DoomWriter.Models;
 using Mostlylucid.DocSummarizer.Services;
 
 namespace DoomWriter.Services;
 
 /// <summary>
-/// Manages a searchable knowledge base from markdown directories.
-/// Ingests, indexes, and watches corpus folders using DoomSummarizer.Core pipeline.
+///     Manages a searchable knowledge base from markdown directories.
+///     Ingests, indexes, and watches corpus folders using DoomSummarizer.Core pipeline.
 /// </summary>
 public class CorpusService : IDisposable
 {
     private readonly IEmbeddingService _embedding;
-    private readonly StorageService _storage;
-    private readonly NerService _ner;
-    private readonly EntityProfileService _entityProfiles;
-    private readonly DuckDbVectorStore _vectorStore;
     private readonly IEntityGraphStore _entityGraph;
-    private readonly WriterSettingsService _settings;
-
-    private readonly ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
+    private readonly EntityProfileService _entityProfiles;
     private readonly ConcurrentDictionary<string, string> _fileHashes = new();
     private readonly SemaphoreSlim _indexLock = new(1, 1);
+    private readonly NerService _ner;
+    private readonly WriterSettingsService _settings;
+    private readonly StorageService _storage;
+    private readonly DuckDbVectorStore _vectorStore;
+
+    private readonly ConcurrentDictionary<string, FileSystemWatcher> _watchers = new();
     private CancellationTokenSource? _watcherDebounceCts;
-    private LuceneSearchService? _lucene;
-
-    public event EventHandler<CorpusIndexProgress>? IndexProgress;
-    public event EventHandler? IndexCompleted;
-
-    public bool IsInitialized { get; private set; }
-    public int TotalDocuments { get; private set; }
-    public int TotalSegments { get; private set; }
-    public LuceneSearchService? Lucene => _lucene;
 
     public CorpusService(
         IEmbeddingService embedding,
@@ -51,8 +45,30 @@ public class CorpusService : IDisposable
         _settings = settings;
     }
 
+    public bool IsInitialized { get; private set; }
+    public int TotalDocuments { get; private set; }
+    public int TotalSegments { get; private set; }
+    public LuceneSearchService? Lucene { get; private set; }
+
+    public void Dispose()
+    {
+        Lucene?.Dispose();
+        foreach (var (_, watcher) in _watchers)
+        {
+            watcher.EnableRaisingEvents = false;
+            watcher.Dispose();
+        }
+
+        _watchers.Clear();
+        _watcherDebounceCts?.Dispose();
+        _indexLock.Dispose();
+    }
+
+    public event EventHandler<CorpusIndexProgress>? IndexProgress;
+    public event EventHandler? IndexCompleted;
+
     /// <summary>
-    /// Initialize storage backends (SQLite + DuckDB + Lucene FTS).
+    ///     Initialize storage backends (SQLite + DuckDB + Lucene FTS).
     /// </summary>
     public async Task InitializeAsync()
     {
@@ -62,14 +78,14 @@ public class CorpusService : IDisposable
         // Initialize Lucene FTS index for fast keyword search and autocomplete
         var lucenePath = Path.Combine(_storage.DataPath, "lucene", "corpus");
         Directory.CreateDirectory(lucenePath);
-        _lucene = new LuceneSearchService(lucenePath);
-        _lucene.Open();
+        Lucene = new LuceneSearchService(lucenePath);
+        Lucene.Open();
 
         IsInitialized = true;
     }
 
     /// <summary>
-    /// Ingest all markdown files from a directory.
+    ///     Ingest all markdown files from a directory.
     /// </summary>
     public async Task IngestDirectoryAsync(string directoryPath, CancellationToken ct = default)
     {
@@ -103,19 +119,19 @@ public class CorpusService : IDisposable
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to ingest {file}: {ex.Message}");
+                Debug.WriteLine($"Failed to ingest {file}: {ex.Message}");
             }
         }
 
         // Commit Lucene index after batch ingestion
-        _lucene?.Commit();
+        Lucene?.Commit();
 
         TotalDocuments = processed;
         IndexCompleted?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
-    /// Ingest a single markdown file into the corpus.
+    ///     Ingest a single markdown file into the corpus.
     /// </summary>
     public async Task IngestFileAsync(string filePath, CancellationToken ct = default)
     {
@@ -135,7 +151,7 @@ public class CorpusService : IDisposable
 
         // Create content item for storage
         var itemId = $"corpus:{slug}";
-        var item = new DoomSummarizer.Models.ContentItem
+        var item = new ContentItem
         {
             Id = itemId,
             Source = "corpus",
@@ -162,9 +178,9 @@ public class CorpusService : IDisposable
         {
             var centroid = new float[384];
             foreach (var emb in validEmbeddings)
-                for (int i = 0; i < centroid.Length && i < emb.Length; i++)
+                for (var i = 0; i < centroid.Length && i < emb.Length; i++)
                     centroid[i] += emb[i];
-            for (int i = 0; i < centroid.Length; i++)
+            for (var i = 0; i < centroid.Length; i++)
                 centroid[i] /= validEmbeddings.Count;
             VectorMath.L2Normalize(centroid);
             item.Embedding = centroid;
@@ -172,17 +188,15 @@ public class CorpusService : IDisposable
 
         // Store document-level embedding in vector store (DuckDB HNSW)
         if (item.Embedding != null)
-        {
             await _vectorStore.UpsertItemEmbeddingAsync(
                 itemId, title, "corpus", filePath, item.Embedding);
-        }
 
         // Store item in SQLite
         await _storage.SaveItemAsync(item);
 
         // Index in Lucene FTS for keyword search and autocomplete
         item.Keywords = metadata.GetValueOrDefault("tags") ?? metadata.GetValueOrDefault("categories");
-        _lucene?.IndexItem(item);
+        Lucene?.IndexItem(item);
 
         // Extract entities and persist into knowledge graph
         await PersistEntitiesForItemAsync(itemId, title, body, ct);
@@ -219,34 +233,29 @@ public class CorpusService : IDisposable
             }
 
             // Build co-occurrence edges (all pairs)
-            for (int i = 0; i < entityIds.Count; i++)
-            {
-                for (int j = i + 1; j < entityIds.Count; j++)
-                {
-                    await _entityGraph.UpsertRelationshipAsync(
-                        entityIds[i], entityIds[j], "co_occurs");
-                }
-            }
+            for (var i = 0; i < entityIds.Count; i++)
+            for (var j = i + 1; j < entityIds.Count; j++)
+                await _entityGraph.UpsertRelationshipAsync(
+                    entityIds[i], entityIds[j]);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Entity persistence failed for {itemId}: {ex.Message}");
+            Debug.WriteLine($"Entity persistence failed for {itemId}: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// Search the corpus using semantic similarity.
-    /// Returns matching segments ranked by relevance.
+    ///     Search the corpus using semantic similarity.
+    ///     Returns matching segments ranked by relevance.
     /// </summary>
     public async Task<List<CorpusMatch>> SearchAsync(string query, int topK = 10)
     {
         var results = new List<CorpusMatch>();
 
         var queryEmbedding = await _embedding.EmbedAsync(query);
-        var matches = await _vectorStore.FindSimilarItemsAsync(queryEmbedding, topK, minSimilarity: 0.3f);
+        var matches = await _vectorStore.FindSimilarItemsAsync(queryEmbedding, topK, 0.3f);
 
         foreach (var (itemId, title, url, similarity) in matches)
-        {
             results.Add(new CorpusMatch
             {
                 Id = itemId,
@@ -255,21 +264,20 @@ public class CorpusService : IDisposable
                 Text = "", // Full text retrieved from StorageService if needed
                 Source = url ?? itemId
             });
-        }
 
         return results;
     }
 
     /// <summary>
-    /// Fast keyword-based suggestions using Lucene prefix matching.
-    /// Ideal for autocomplete as it avoids embedding computation.
+    ///     Fast keyword-based suggestions using Lucene prefix matching.
+    ///     Ideal for autocomplete as it avoids embedding computation.
     /// </summary>
     public List<CorpusMatch> Suggest(string prefix, int limit = 8)
     {
-        if (_lucene == null || string.IsNullOrWhiteSpace(prefix))
+        if (Lucene == null || string.IsNullOrWhiteSpace(prefix))
             return [];
 
-        return _lucene.Suggest(prefix, limit: limit)
+        return Lucene.Suggest(prefix, limit: limit)
             .Select(r => new CorpusMatch
             {
                 Id = r.Id,
@@ -282,15 +290,15 @@ public class CorpusService : IDisposable
     }
 
     /// <summary>
-    /// Full-text keyword search using Lucene FTS.
-    /// Complements the embedding-based SeachAsync with exact keyword matching.
+    ///     Full-text keyword search using Lucene FTS.
+    ///     Complements the embedding-based SeachAsync with exact keyword matching.
     /// </summary>
     public List<CorpusMatch> KeywordSearch(string query, int limit = 10)
     {
-        if (_lucene == null || string.IsNullOrWhiteSpace(query))
+        if (Lucene == null || string.IsNullOrWhiteSpace(query))
             return [];
 
-        return _lucene.Search(query, limit: limit)
+        return Lucene.Search(query, limit: limit)
             .Select(r => new CorpusMatch
             {
                 Id = r.Id,
@@ -303,7 +311,7 @@ public class CorpusService : IDisposable
     }
 
     /// <summary>
-    /// Search corpus by entity name.
+    ///     Search corpus by entity name.
     /// </summary>
     public async Task<List<CorpusMatch>> SearchByEntityAsync(string entityName, int topK = 5)
     {
@@ -314,7 +322,7 @@ public class CorpusService : IDisposable
     // --- FileSystemWatcher ---
 
     /// <summary>
-    /// Start watching a directory for markdown file changes.
+    ///     Start watching a directory for markdown file changes.
     /// </summary>
     public void StartWatching(string directoryPath)
     {
@@ -331,13 +339,14 @@ public class CorpusService : IDisposable
 
         watcher.Changed += OnFileChanged;
         watcher.Created += OnFileChanged;
-        watcher.Renamed += (_, e) => OnFileChanged(null, new FileSystemEventArgs(WatcherChangeTypes.Changed, Path.GetDirectoryName(e.FullPath) ?? "", e.Name ?? ""));
+        watcher.Renamed += (_, e) => OnFileChanged(null,
+            new FileSystemEventArgs(WatcherChangeTypes.Changed, Path.GetDirectoryName(e.FullPath) ?? "", e.Name ?? ""));
 
         _watchers[directoryPath] = watcher;
     }
 
     /// <summary>
-    /// Stop watching a directory.
+    ///     Stop watching a directory.
     /// </summary>
     public void StopWatching(string directoryPath)
     {
@@ -362,28 +371,28 @@ public class CorpusService : IDisposable
             try
             {
                 await IngestFileAsync(e.FullPath, ct);
-                _lucene?.Commit();
+                Lucene?.Commit();
             }
             finally
             {
                 _indexLock.Release();
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     /// <summary>
-    /// Start watching all configured corpus directories.
+    ///     Start watching all configured corpus directories.
     /// </summary>
     public void StartWatchingAll()
     {
         if (!_settings.Config.AutoIndexOnChange) return;
 
         foreach (var dir in _settings.Config.CorpusDirectories)
-        {
             if (Directory.Exists(dir))
                 StartWatching(dir);
-        }
     }
 
     // --- Helpers ---
@@ -445,22 +454,9 @@ public class CorpusService : IDisposable
 
     private static string ComputeHash(string content)
     {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
-        var hash = System.IO.Hashing.XxHash64.Hash(bytes);
+        var bytes = Encoding.UTF8.GetBytes(content);
+        var hash = XxHash64.Hash(bytes);
         return Convert.ToHexString(hash);
-    }
-
-    public void Dispose()
-    {
-        _lucene?.Dispose();
-        foreach (var (_, watcher) in _watchers)
-        {
-            watcher.EnableRaisingEvents = false;
-            watcher.Dispose();
-        }
-        _watchers.Clear();
-        _watcherDebounceCts?.Dispose();
-        _indexLock.Dispose();
     }
 }
 

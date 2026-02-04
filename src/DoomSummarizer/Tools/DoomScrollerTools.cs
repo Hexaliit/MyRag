@@ -2,27 +2,25 @@ using System.ComponentModel;
 using System.Text.Json;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using ModelContextProtocol.Server;
 using Mostlylucid.DocSummarizer.Content;
 using Mostlylucid.DocSummarizer.Services;
-using ModelContextProtocol.Server;
+using OllamaService = DoomSummarizer.Services.OllamaService;
 
 namespace DoomSummarizer.Tools;
 
 /// <summary>
-/// MCP tools exposing DoomSummarizer's knowledge base, entity graph, and search pipeline
-/// to AI agents via the Model Context Protocol.
-///
-/// Start with: doomsummarizer --mcp
-///
-/// Tool categories:
-///   Search:      search_kb, keyword_search, semantic_search
-///   Content:     get_item_content, extract_keywords, compare_items
-///   Ingestion:   ingest_url
-///   Collections: list_collections, get_collection_items
-///   Entities:    list_entities, get_entity_details, find_related_by_entities, get_entity_network
-///   Analytics:   get_kb_stats, get_trends
-///
-/// All tools return JSON. Services are lazily initialized on first call.
+///     MCP tools exposing DoomSummarizer's knowledge base, entity graph, and search pipeline
+///     to AI agents via the Model Context Protocol.
+///     Start with: doomsummarizer --mcp
+///     Tool categories:
+///     Search:      search_kb, keyword_search, semantic_search
+///     Content:     get_item_content, extract_keywords, compare_items
+///     Ingestion:   ingest_url
+///     Collections: list_collections, get_collection_items
+///     Entities:    list_entities, get_entity_details, find_related_by_entities, get_entity_network
+///     Analytics:   get_kb_stats, get_trends
+///     All tools return JSON. Services are lazily initialized on first call.
 /// </summary>
 [McpServerToolType]
 public static class DoomScrollerTools
@@ -33,14 +31,14 @@ public static class DoomScrollerTools
     private static readonly HttpClient SharedHttp = new()
     {
         Timeout = TimeSpan.FromSeconds(30),
-        DefaultRequestHeaders = { { "User-Agent", $"{Services.HttpClientFactory.UserAgent} (MCP)" } }
+        DefaultRequestHeaders = { { "User-Agent", $"{HttpClientFactory.UserAgent} (MCP)" } }
     };
 
     // Lazy-initialized shared services
     private static StorageService? _storage;
     private static IEntityGraphStore? _entityStore;
     private static IEmbeddingService? _embedding;
-    private static DoomSummarizer.Services.OllamaService? _ollama;
+    private static OllamaService? _ollama;
     private static DoomConfig? _config;
     private static bool _servicesInitialized;
     private static readonly SemaphoreSlim InitLock = new(1, 1);
@@ -79,7 +77,7 @@ public static class DoomScrollerTools
             }
 
             // Initialize Ollama for LLM-based Lucene query generation
-            _ollama = new DoomSummarizer.Services.OllamaService(_config.Ollama);
+            _ollama = new OllamaService(_config.Ollama);
             if (!await _ollama.IsAvailableAsync())
                 _ollama = null; // Fall back to deterministic if Ollama unavailable
 
@@ -126,8 +124,9 @@ public static class DoomScrollerTools
                 lucene.Open();
 
                 // Ensure items are indexed
-                var recentItems = await _storage.GetRecentItemsAsync(days: 90, source: source);
-                var itemsToIndex = recentItems.Where(s => !lucene.ContainsDocument(s.Id)).Select(s => s.ToContentItem()).ToList();
+                var recentItems = await _storage.GetRecentItemsAsync(90, source);
+                var itemsToIndex = recentItems.Where(s => !lucene.ContainsDocument(s.Id)).Select(s => s.ToContentItem())
+                    .ToList();
                 if (itemsToIndex.Count > 0)
                 {
                     lucene.IndexItems(itemsToIndex);
@@ -135,13 +134,18 @@ public static class DoomScrollerTools
                 }
 
                 // Use LLM-based query generation when Ollama is available
-                var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(query, _ollama!, CancellationToken.None, useLlm: _ollama != null);
-                var luceneResults = lucene.Search(luceneQuery, source, limit: limit * 3);
+                var luceneQuery =
+                    await LuceneQueryGenerator.GenerateQueryAsync(query, _ollama!, CancellationToken.None,
+                        _ollama != null);
+                var luceneResults = lucene.Search(luceneQuery, source, limit * 3);
                 foreach (var r in luceneResults) candidateIds.Add(r.Id);
                 // Capture FTS scores for RRF fusion in a single pass
                 luceneScores = luceneResults.ToDictionary(r => r.Id, r => (double)r.Score);
             }
-            catch { /* Lucene search failed - fall through to embeddings */ }
+            catch
+            {
+                /* Lucene search failed - fall through to embeddings */
+            }
 
             List<ContentItem> items;
             if (candidateIds.Count > 0)
@@ -152,12 +156,14 @@ public static class DoomScrollerTools
             {
                 // Fallback: embedding search when Lucene misses
                 var queryEmbed = await _embedding.EmbedAsync(query);
-                var similar = await _storage!.FindSimilarAsync(queryEmbed, limit: limit * 2, threshold: 0.20, source: source);
+                var similar = await _storage!.FindSimilarAsync(queryEmbed, limit * 2, 0.20, source);
                 items = similar.Select(s => s.ToContentItem()).ToList();
             }
             else
             {
-                return Json(new { success = true, query, results = Array.Empty<object>(),
+                return Json(new
+                {
+                    success = true, query, results = Array.Empty<object>(),
                     message = "No results. Lucene returned no matches and embeddings unavailable.",
                     diagnostics = GetDiagnostics(),
                     suggestions = new[]
@@ -170,7 +176,9 @@ public static class DoomScrollerTools
             }
 
             if (items.Count == 0)
-                return Json(new { success = true, query, results = Array.Empty<object>(),
+                return Json(new
+                {
+                    success = true, query, results = Array.Empty<object>(),
                     message = "No matching documents found in the knowledge base.",
                     suggestions = new[]
                     {
@@ -181,7 +189,7 @@ public static class DoomScrollerTools
                 });
 
             // Layer 2: Unified scoring pipeline (5-signal RRF + optional Lucene FTS)
-            float[]? queryEmbedding = _embedding is not null ? await _embedding.EmbedAsync(query) : null;
+            var queryEmbedding = _embedding is not null ? await _embedding.EmbedAsync(query) : null;
 
             if (queryEmbedding != null)
             {
@@ -193,7 +201,7 @@ public static class DoomScrollerTools
                     IsKnowledgeBase = true,
                     TextRelevanceScores = luceneScores,
                     UseOutlierPenalty = true,
-                    UseEmbeddingDedup = true,
+                    UseEmbeddingDedup = true
                 });
                 items = scoringResult.Items;
             }
@@ -227,7 +235,8 @@ public static class DoomScrollerTools
             {
                 success = true,
                 query, source_filter = source,
-                pipeline = "ScoreItemsAsync (keyword profiles → embeddings → quality anchors → Lucene FTS → ScoreFast → PRF → ScoreFull → outlier → dedup)",
+                pipeline =
+                    "ScoreItemsAsync (keyword profiles → embeddings → quality anchors → Lucene FTS → ScoreFast → PRF → ScoreFull → outlier → dedup)",
                 total_candidates = candidateIds.Count > 0 ? candidateIds.Count : items.Count,
                 result_count = results.Count,
                 results
@@ -264,11 +273,16 @@ public static class DoomScrollerTools
                 lucene.Open();
 
                 // Use LLM-based query generation when Ollama is available
-                var luceneQuery = await LuceneQueryGenerator.GenerateQueryAsync(keywords, _ollama!, CancellationToken.None, useLlm: _ollama != null);
-                var luceneHits = lucene.Search(luceneQuery, source, limit: limit);
+                var luceneQuery =
+                    await LuceneQueryGenerator.GenerateQueryAsync(keywords, _ollama!, CancellationToken.None,
+                        _ollama != null);
+                var luceneHits = lucene.Search(luceneQuery, source, limit);
                 ids = luceneHits.Select(r => r.Id).ToList();
             }
-            catch { /* Lucene failed */ }
+            catch
+            {
+                /* Lucene failed */
+            }
 
             if (ids.Count == 0)
                 return Json(new { success = true, keywords, results = Array.Empty<object>() });
@@ -280,10 +294,16 @@ public static class DoomScrollerTools
                 source = s.Source, created_at = s.CreatedAt.ToString("yyyy-MM-dd")
             }).ToList();
 
-            return Json(new { success = true, keywords, source_filter = source,
-                result_count = results.Count, results });
+            return Json(new
+            {
+                success = true, keywords, source_filter = source,
+                result_count = results.Count, results
+            });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [McpServerTool(Name = "semantic_search")]
@@ -307,7 +327,8 @@ public static class DoomScrollerTools
             await EnsureServicesAsync();
 
             if (_embedding is null)
-                return Json(new {
+                return Json(new
+                {
                     success = false,
                     error = "Embedding model not available",
                     fix = new[]
@@ -320,8 +341,8 @@ public static class DoomScrollerTools
                 });
 
             var queryEmbed = await _embedding.EmbedAsync(query);
-            var similar = await _storage!.FindSimilarAsync(queryEmbed, limit: limit,
-                threshold: threshold, source: source);
+            var similar = await _storage!.FindSimilarAsync(queryEmbed, limit,
+                threshold, source);
 
             var results = similar.Select((s, idx) =>
             {
@@ -337,10 +358,16 @@ public static class DoomScrollerTools
                 };
             }).ToList();
 
-            return Json(new { success = true, query, threshold,
-                source_filter = source, result_count = results.Count, results });
+            return Json(new
+            {
+                success = true, query, threshold,
+                source_filter = source, result_count = results.Count, results
+            });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -370,10 +397,11 @@ public static class DoomScrollerTools
             var content = item.Content ?? item.Summary ?? "";
             var fullLength = content.Length;
             if (maxLength > 0 && content.Length > maxLength)
-                content = content[..maxLength] + $"\n\n[Truncated at {maxLength}/{fullLength} chars. Set maxLength=0 for full content.]";
+                content = content[..maxLength] +
+                          $"\n\n[Truncated at {maxLength}/{fullLength} chars. Set maxLength=0 for full content.]";
 
             // Compute keyword profile if missing
-            string? keywordsText = item.Keywords;
+            var keywordsText = item.Keywords;
             List<object>? topKeywords = null;
             if (string.IsNullOrEmpty(keywordsText) && !string.IsNullOrEmpty(item.Content))
             {
@@ -392,7 +420,7 @@ public static class DoomScrollerTools
                 var entityList = await _entityStore.GetEntitiesForItemsAsync([itemId]);
                 entities = entityList
                     .Where(e => e.itemId == itemId)
-                    .Select(e => (object)new { name = e.name, type = e.type, confidence = Math.Round(e.confidence, 2) })
+                    .Select(e => (object)new { e.name, e.type, confidence = Math.Round(e.confidence, 2) })
                     .ToList();
             }
 
@@ -412,7 +440,10 @@ public static class DoomScrollerTools
                 entities
             });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [McpServerTool(Name = "extract_keywords")]
@@ -422,8 +453,7 @@ public static class DoomScrollerTools
         "Returns top unigrams and bigrams with weights. " +
         "Useful for profiling documents before searching or comparing.")]
     public static Task<string> ExtractKeywordsAsync(
-        [Description("Title of the document")]
-        string title,
+        [Description("Title of the document")] string title,
         [Description("Full text content (markdown or plain text)")]
         string content)
     {
@@ -438,7 +468,7 @@ public static class DoomScrollerTools
 
             var bigrams = profile.TopBigrams.Select(b => new
             {
-                phrase = b.ngram, count = b.count
+                phrase = b.ngram, b.count
             }).ToList();
 
             return Task.FromResult(Json(new
@@ -450,7 +480,10 @@ public static class DoomScrollerTools
                 weighting = "title:4x, headings:3x, intro:2x, body:1x"
             }));
         }
-        catch (Exception ex) { return Task.FromResult(Json(new { success = false, error = ex.Message })); }
+        catch (Exception ex)
+        {
+            return Task.FromResult(Json(new { success = false, error = ex.Message }));
+        }
     }
 
     [McpServerTool(Name = "compare_items")]
@@ -459,17 +492,16 @@ public static class DoomScrollerTools
         "Returns similarity score and keyword overlap. " +
         "Useful for deduplication or finding how related two articles are.")]
     public static async Task<string> CompareItemsAsync(
-        [Description("First item ID")]
-        string itemId1,
-        [Description("Second item ID")]
-        string itemId2)
+        [Description("First item ID")] string itemId1,
+        [Description("Second item ID")] string itemId2)
     {
         try
         {
             await EnsureServicesAsync();
 
             if (itemId1 == itemId2)
-                return Json(new { success = false, error = "Both IDs are the same. Provide two different item IDs to compare." });
+                return Json(new
+                    { success = false, error = "Both IDs are the same. Provide two different item IDs to compare." });
 
             var items = await _storage!.GetItemsByIdsAsync([itemId1, itemId2]);
             if (items.Count < 2)
@@ -517,7 +549,10 @@ public static class DoomScrollerTools
                 }
             });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -606,7 +641,10 @@ public static class DoomScrollerTools
                 top_keywords = profile.TopKeywords.Take(10).Select(k => k.Keyword).ToList()
             });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -633,10 +671,16 @@ public static class DoomScrollerTools
                 avg_content_length = c.AvgContentLength
             }).ToList();
 
-            return Json(new { success = true, total_collections = results.Count,
-                total_items = results.Sum(r => r.item_count), collections = results });
+            return Json(new
+            {
+                success = true, total_collections = results.Count,
+                total_items = results.Sum(r => r.item_count), collections = results
+            });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [McpServerTool(Name = "get_collection_items")]
@@ -664,10 +708,16 @@ public static class DoomScrollerTools
                 has_embedding = s.Embedding != null
             }).ToList();
 
-            return Json(new { success = true, source,
-                item_count = results.Count, items = results });
+            return Json(new
+            {
+                success = true, source,
+                item_count = results.Count, items = results
+            });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -700,10 +750,16 @@ public static class DoomScrollerTools
                 freshness_score = Math.Round(e.FreshnessScore, 2)
             }).ToList();
 
-            return Json(new { success = true, type_filter = type,
-                days_back = daysBack, entity_count = results.Count, entities = results });
+            return Json(new
+            {
+                success = true, type_filter = type,
+                days_back = daysBack, entity_count = results.Count, entities = results
+            });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [McpServerTool(Name = "get_entity_details")]
@@ -711,8 +767,7 @@ public static class DoomScrollerTools
         "Get entity details: relationships to other entities and articles mentioning it. " +
         "Use list_entities first to find entity IDs.")]
     public static async Task<string> GetEntityDetailsAsync(
-        [Description("Entity ID")]
-        string entityId)
+        [Description("Entity ID")] string entityId)
     {
         try
         {
@@ -733,12 +788,16 @@ public static class DoomScrollerTools
                 }),
                 articles = articles.Select(a => new
                 {
-                    item_id = a.itemId, title = a.title,
-                    url = a.url, confidence = Math.Round(a.confidence, 2)
+                    item_id = a.itemId,
+                    a.title,
+                    a.url, confidence = Math.Round(a.confidence, 2)
                 })
             });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [McpServerTool(Name = "get_entity_network")]
@@ -757,7 +816,8 @@ public static class DoomScrollerTools
         {
             await EnsureServicesAsync();
 
-            var seedIds = entityIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            var seedIds = entityIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
             if (seedIds.Count == 0)
                 return Json(new { success = false, error = "No entity IDs provided" });
 
@@ -785,17 +845,13 @@ public static class DoomScrollerTools
                     allRelationships.AddRange(rels);
 
                     foreach (var r in rels)
-                    {
                         // Discover new entities at this hop level
-                        foreach (var neighborId in new[] { r.SourceId, r.TargetId })
+                    foreach (var neighborId in new[] { r.SourceId, r.TargetId })
+                        if (!entityHop.ContainsKey(neighborId))
                         {
-                            if (!entityHop.ContainsKey(neighborId))
-                            {
-                                entityHop[neighborId] = hop;
-                                nextFrontier.Add(neighborId);
-                            }
+                            entityHop[neighborId] = hop;
+                            nextFrontier.Add(neighborId);
                         }
-                    }
                 }
 
                 frontier = nextFrontier;
@@ -808,7 +864,8 @@ public static class DoomScrollerTools
                 .ToList();
 
             // Get articles for seed entities (limit article lookups to seeds to keep response size reasonable)
-            var articlesPerEntity = new Dictionary<string, List<(string itemId, string title, string? url, double confidence)>>();
+            var articlesPerEntity =
+                new Dictionary<string, List<(string itemId, string title, string? url, double confidence)>>();
             foreach (var id in seedIds)
             {
                 var articles = await _entityStore!.GetArticlesForEntityAsync(id);
@@ -855,10 +912,13 @@ public static class DoomScrollerTools
                 co_occurring_articles = coOccurrences,
                 articles_per_seed = articlesPerEntity.ToDictionary(
                     kv => kv.Key,
-                    kv => kv.Value.Select(a => new { item_id = a.itemId, title = a.title }).ToList())
+                    kv => kv.Value.Select(a => new { item_id = a.itemId, a.title }).ToList())
             });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [McpServerTool(Name = "find_related_by_entities")]
@@ -875,14 +935,18 @@ public static class DoomScrollerTools
         {
             await EnsureServicesAsync();
 
-            var ids = itemIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            var ids = itemIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
             if (ids.Count == 0)
                 return Json(new { success = false, error = "No item IDs provided" });
 
             var relatedIds = await _storage!.FindRelatedByEntitiesAsync(ids, limit: limit);
             if (relatedIds.Count == 0)
-                return Json(new { success = true, source_items = ids.Count,
-                    related = Array.Empty<object>(), message = "No related documents found via entity co-occurrence." });
+                return Json(new
+                {
+                    success = true, source_items = ids.Count,
+                    related = Array.Empty<object>(), message = "No related documents found via entity co-occurrence."
+                });
 
             var relatedItems = await _storage.GetItemsByIdsAsync(relatedIds);
             var results = relatedItems.Select(s => new
@@ -891,10 +955,16 @@ public static class DoomScrollerTools
                 source = s.Source, summary = Truncate(s.Summary ?? s.Content, 200)
             }).ToList();
 
-            return Json(new { success = true, source_items = ids.Count,
-                related_count = results.Count, related = results });
+            return Json(new
+            {
+                success = true, source_items = ids.Count,
+                related_count = results.Count, related = results
+            });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -926,13 +996,19 @@ public static class DoomScrollerTools
                 entities, relationships, entity_mentions = mentions,
                 lucene_indexed = !ftsEmpty,
                 keyword_corpus = new { terms = corpus.Count, docs = corpusSize },
-                embedding = new { model = "all-MiniLM-L6-v2", dimensions = 384,
-                    available = _embedding is not null },
+                embedding = new
+                {
+                    model = "all-MiniLM-L6-v2", dimensions = 384,
+                    available = _embedding is not null
+                },
                 available_tools = 15,
                 diagnostics = GetDiagnostics()
             });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     [McpServerTool(Name = "get_trends")]
@@ -965,14 +1041,20 @@ public static class DoomScrollerTools
                 })
             });
         }
-        catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, error = ex.Message });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
     //  HELPERS
     // ═══════════════════════════════════════════════════════════════
 
-    private static string Json(object obj) => JsonSerializer.Serialize(obj, JsonOpts);
+    private static string Json(object obj)
+    {
+        return JsonSerializer.Serialize(obj, JsonOpts);
+    }
 
     private static string? Truncate(string? text, int maxLen)
     {
@@ -981,8 +1063,8 @@ public static class DoomScrollerTools
     }
 
     /// <summary>
-    /// Returns diagnostic info for troubleshooting when things aren't working.
-    /// Designed to help calling LLMs guide users through fixes.
+    ///     Returns diagnostic info for troubleshooting when things aren't working.
+    ///     Designed to help calling LLMs guide users through fixes.
     /// </summary>
     private static object GetDiagnostics()
     {
@@ -990,7 +1072,6 @@ public static class DoomScrollerTools
 
         // Ollama status
         if (_ollama == null)
-        {
             diag.Add(new
             {
                 issue = "Ollama not available",
@@ -1003,11 +1084,9 @@ public static class DoomScrollerTools
                     "Check Ollama URL in config (default: http://localhost:11434)"
                 }
             });
-        }
 
         // Embedding status
         if (_embedding is null)
-        {
             diag.Add(new
             {
                 issue = "ONNX embedding model not available",
@@ -1018,18 +1097,15 @@ public static class DoomScrollerTools
                     "The model (all-MiniLM-L6-v2) is ~80MB and stored in ~/.doomsummarizer/models/"
                 }
             });
-        }
 
         // Storage status
         if (_storage == null)
-        {
             diag.Add(new
             {
                 issue = "Storage not initialized",
                 impact = "No knowledge base available",
                 fix = new[] { "This is unexpected — try restarting the MCP server" }
             });
-        }
 
         return new
         {

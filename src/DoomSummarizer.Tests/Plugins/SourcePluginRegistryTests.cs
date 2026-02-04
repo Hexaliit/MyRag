@@ -89,8 +89,10 @@ public class SourcePluginRegistryTests
         registry.Register(feedPlugin);
         registry.Register(bothPlugin);
 
-        registry.FindByCapability(SourceCapabilities.Search).Should().Contain(searchPlugin).And.Contain(bothPlugin).And.NotContain(feedPlugin);
-        registry.FindByCapability(SourceCapabilities.Feed).Should().Contain(feedPlugin).And.Contain(bothPlugin).And.NotContain(searchPlugin);
+        registry.FindByCapability(SourceCapabilities.Search).Should().Contain(searchPlugin).And.Contain(bothPlugin).And
+            .NotContain(feedPlugin);
+        registry.FindByCapability(SourceCapabilities.Feed).Should().Contain(feedPlugin).And.Contain(bothPlugin).And
+            .NotContain(searchPlugin);
     }
 
     [Fact]
@@ -169,15 +171,18 @@ public class SourcePluginRegistryTests
         registry.HasKey("guardian").Should().BeTrue();
     }
 
-    private static SourcePluginServices CreateFakeServices() => new()
+    private static SourcePluginServices CreateFakeServices()
     {
-        HttpClient = new HttpClient(),
-        ApiKeys = ApiKeyService.Load(new DoomConfig().Keys),
-        ApiBudget = new ApiBudgetService(new ApiBudgetConfig(), ApiKeyService.Load(new DoomConfig().Keys),
-            Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
-        CircuitBreaker = new CircuitBreakerService(
-            Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db"))
-    };
+        return new SourcePluginServices
+        {
+            HttpClient = new HttpClient(),
+            ApiKeys = ApiKeyService.Load(new DoomConfig().Keys),
+            ApiBudget = new ApiBudgetService(new ApiBudgetConfig(), ApiKeyService.Load(new DoomConfig().Keys),
+                Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
+            CircuitBreaker = new CircuitBreakerService(
+                Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db"))
+        };
+    }
 
     private sealed class FakePlugin(
         string primaryKey,
@@ -204,6 +209,8 @@ public class SourcePluginRegistryTests
         }
 
         public Task<List<ContentItem>> FetchAsync(SourceFetchContext context, CancellationToken ct = default)
-            => Task.FromResult(new List<ContentItem>());
+        {
+            return Task.FromResult(new List<ContentItem>());
+        }
     }
 }

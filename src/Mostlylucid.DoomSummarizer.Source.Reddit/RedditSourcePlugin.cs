@@ -5,8 +5,8 @@ using DoomSummarizer.Services;
 namespace DoomSummarizer.Sources.Reddit;
 
 /// <summary>
-/// Standalone Reddit source plugin for DoomSummarizer.
-/// Fetches posts from configured or specified subreddits.
+///     Standalone Reddit source plugin for DoomSummarizer.
+///     Fetches posts from configured or specified subreddits.
 /// </summary>
 public sealed class RedditSourcePlugin : ISourcePlugin
 {
@@ -35,10 +35,7 @@ public sealed class RedditSourcePlugin : ISourcePlugin
         var redditConfig = context.Config?.Sources.Reddit ?? new RedditConfig();
 
         // Override subreddit if specified as sub-parameter (e.g. "reddit:csharp")
-        if (context.SubParams.Count > 0)
-        {
-            redditConfig = redditConfig with { Subreddits = [context.SubParams[0]] };
-        }
+        if (context.SubParams.Count > 0) redditConfig = redditConfig with { Subreddits = [context.SubParams[0]] };
 
         var fetcher = new RedditFetcher(_httpClient);
         return await fetcher.FetchAsync(redditConfig, context.Limit, context.Progress);

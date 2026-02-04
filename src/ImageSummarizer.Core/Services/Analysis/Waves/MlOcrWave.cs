@@ -12,12 +12,11 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// ML-based OCR Wave - Uses OpenCV + Florence-2 for fast text detection before Tesseract.
-///
-/// Signal Contract (see waves/ml-ocr.wave.yaml):
-/// - Emits: ocr.ml.fused_text, ocr.ml.text, ocr.ml.frames_with_text, ocr.ml.has_text
-/// - Listens: identity.is_animated, identity.frame_count, ocr.opencv.text_regions (cached)
-/// - Caches: ocr.frames, ocr.opencv.per_frame_regions
+///     ML-based OCR Wave - Uses OpenCV + Florence-2 for fast text detection before Tesseract.
+///     Signal Contract (see waves/ml-ocr.wave.yaml):
+///     - Emits: ocr.ml.fused_text, ocr.ml.text, ocr.ml.frames_with_text, ocr.ml.has_text
+///     - Listens: identity.is_animated, identity.frame_count, ocr.opencv.text_regions (cached)
+///     - Caches: ocr.frames, ocr.opencv.per_frame_regions
 /// </summary>
 [EmitsSignal("ocr.ml.fused_text", Type = "string", Description = "Fused OCR text from OpenCV+Florence2")]
 [EmitsSignal("ocr.ml.text", Type = "string", Description = "Raw concatenated OCR text")]
@@ -33,74 +32,13 @@ namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 [Caches("ocr.opencv.per_frame_regions", Type = "Dictionary<int, List<BoundingBox>>")]
 public class MlOcrWave : IAnalysisWave, ISignalAware
 {
-    private readonly Florence2CaptionService? _florence2;
-    private readonly OpenCvTextDetector _opencvDetector;
-    private readonly TextRegionChangeDetector _textChangeDetector;
-    private readonly ImageConfig _config;
-    private readonly ILogger<MlOcrWave>? _logger;
-
-    public string Name => "MlOcrWave";
-    public string ManifestName => Name; // Links to waves/ml-ocr.wave.yaml
-    public int Priority => 65; // Before MotionWave (55), Florence2Wave (55), VisionLlmWave (50)
-    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "ml", "text" };
-
-    // ISignalAware implementation - fallback if manifest not loaded
-    // Primary source of truth is waves/ml-ocr.wave.yaml
-    public IReadOnlyList<string> EmittedSignals => new[]
-    {
-        "ocr.ml.fused_text",
-        "ocr.ml.text",
-        "ocr.ml.frames_with_text",
-        "ocr.ml.has_text",
-        "ocr.opencv.has_text",
-        "ocr.ml.skipped"
-    };
-
-    public IReadOnlyList<string> RequiredSignals => new[]
-    {
-        "identity.is_animated",
-        "identity.frame_count"
-    };
-
-    public IReadOnlyList<string> OptionalSignals => new[]
-    {
-        "ocr.opencv.text_regions",
-        "route.quality_tier"
-    };
-
-    public IReadOnlyList<string> CacheEmits => new[]
-    {
-        "ocr.frames",
-        "ocr.opencv.per_frame_regions"
-    };
-
-    public IReadOnlyList<string> CacheUses => new[]
-    {
-        "ocr.opencv.text_regions"
-    };
-
     // Minimum text length to consider "meaningful"
     private const int MinMeaningfulTextLength = 3;
-
-    /// <summary>
-    /// Check if this wave should run.
-    /// MlOcrWave runs on ALL routes (provides fast Florence-2 OCR for captions).
-    /// Only skip if OpenCV detection was already done in AutoRoutingWave.
-    /// </summary>
-    public bool ShouldRun(string imagePath, AnalysisContext context)
-    {
-        // MlOcrWave should always run - it's the FAST path for OCR
-        // It provides Florence-2 results even when Tesseract is skipped
-
-        // However, if AutoRoutingWave already did OpenCV detection, we can reuse those results
-        var existingRegions = context.GetCached<List<Dictionary<string, int>>>("ocr.opencv.text_regions");
-        if (existingRegions != null)
-        {
-            _logger?.LogDebug("MlOcrWave: Reusing OpenCV detection from AutoRoutingWave ({Count} regions)", existingRegions.Count);
-        }
-
-        return true;
-    }
+    private readonly ImageConfig _config;
+    private readonly Florence2CaptionService? _florence2;
+    private readonly ILogger<MlOcrWave>? _logger;
+    private readonly OpenCvTextDetector _opencvDetector;
+    private readonly TextRegionChangeDetector _textChangeDetector;
 
     public MlOcrWave(
         Florence2CaptionService? florence2,
@@ -112,6 +50,29 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
         _opencvDetector = new OpenCvTextDetector(logger as ILogger<OpenCvTextDetector>);
         _textChangeDetector = new TextRegionChangeDetector(logger as ILogger<TextRegionChangeDetector>);
         _logger = logger;
+    }
+
+    public string Name => "MlOcrWave";
+    public int Priority => 65; // Before MotionWave (55), Florence2Wave (55), VisionLlmWave (50)
+    public IReadOnlyList<string> Tags => new[] { SignalTags.Content, "ocr", "ml", "text" };
+
+    /// <summary>
+    ///     Check if this wave should run.
+    ///     MlOcrWave runs on ALL routes (provides fast Florence-2 OCR for captions).
+    ///     Only skip if OpenCV detection was already done in AutoRoutingWave.
+    /// </summary>
+    public bool ShouldRun(string imagePath, AnalysisContext context)
+    {
+        // MlOcrWave should always run - it's the FAST path for OCR
+        // It provides Florence-2 results even when Tesseract is skipped
+
+        // However, if AutoRoutingWave already did OpenCV detection, we can reuse those results
+        var existingRegions = context.GetCached<List<Dictionary<string, int>>>("ocr.opencv.text_regions");
+        if (existingRegions != null)
+            _logger?.LogDebug("MlOcrWave: Reusing OpenCV detection from AutoRoutingWave ({Count} regions)",
+                existingRegions.Count);
+
+        return true;
     }
 
     public async Task<IEnumerable<Signal>> AnalyzeAsync(
@@ -153,14 +114,15 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                 TextAreaRatio = textCoverage,
                 DetectionTimeMs = 0, // Already done
                 Confidence = 0.8,
-                TextBoundingBoxes = cachedRegions.Select(r => new OpenCvSharp.Rect(
+                TextBoundingBoxes = cachedRegions.Select(r => new Rect(
                     r.GetValueOrDefault("x", 0),
                     r.GetValueOrDefault("y", 0),
                     r.GetValueOrDefault("width", 0),
                     r.GetValueOrDefault("height", 0)
                 )).ToList()
             };
-            _logger?.LogDebug("MlOcrWave: Reused OpenCV detection from AutoRoutingWave ({Regions} regions)", cachedRegions.Count);
+            _logger?.LogDebug("MlOcrWave: Reused OpenCV detection from AutoRoutingWave ({Regions} regions)",
+                cachedRegions.Count);
         }
         else
         {
@@ -195,10 +157,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                 ["height"] = b.Height
             }).ToList();
 
-            if (cachedRegions == null)
-            {
-                context.SetCached("ocr.opencv.text_regions", boxesData);
-            }
+            if (cachedRegions == null) context.SetCached("ocr.opencv.text_regions", boxesData);
 
             signals.Add(new Signal
             {
@@ -217,7 +176,6 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
         // Check for subtitle region specifically (even faster ~2-5ms)
         var hasSubtitles = _opencvDetector.HasSubtitleRegion(imagePath);
         if (hasSubtitles)
-        {
             signals.Add(new Signal
             {
                 Key = "ocr.opencv.has_subtitles",
@@ -226,7 +184,6 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                 Source = Name,
                 Tags = new List<string> { "ocr", "opencv", "subtitles" }
             });
-        }
 
         // STEP 2: Check text likeliness threshold combined with OpenCV result
         var textLikeliness = context.GetValue<double>("content.text_likeliness");
@@ -245,7 +202,8 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
         // For STATIC images: Skip if BOTH OpenCV and text likeliness indicate no text
         else if (!opencvResult.HasTextLikeRegions && textLikeliness < 0.1)
         {
-            _logger?.LogDebug("OpenCV ({Regions} regions) and text likeliness {Score:F3} both indicate no text, skipping ML OCR",
+            _logger?.LogDebug(
+                "OpenCV ({Regions} regions) and text likeliness {Score:F3} both indicate no text, skipping ML OCR",
                 opencvResult.TextRegionCount, textLikeliness);
             signals.Add(new Signal
             {
@@ -280,7 +238,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
             // isAnimated and frameCount already retrieved above
 
             string? mlText = null;
-            int framesWithText = 0;
+            var framesWithText = 0;
             List<int>? textChangedFrameIndices = null;
 
             if (isAnimated && frameCount > 1)
@@ -314,25 +272,17 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
 
                 // Cache data for downstream waves
                 if (textChangedFrameIndices != null && textChangedFrameIndices.Count > 0)
-                {
                     context.SetCached("ocr.ml.text_changed_indices", textChangedFrameIndices);
-                }
 
                 // Cache per-frame text regions for VisionLlmWave text-region filmstrip
                 if (result.PerFrameTextRegions != null && result.PerFrameTextRegions.Count > 0)
-                {
                     context.SetCached("ocr.opencv.per_frame_regions", result.PerFrameTextRegions);
-                }
 
                 // Cache frames for VisionLlmWave to create text-only strip
-                if (result.Frames != null && result.Frames.Count > 0)
-                {
-                    context.SetCached("ocr.frames", result.Frames);
-                }
+                if (result.Frames != null && result.Frames.Count > 0) context.SetCached("ocr.frames", result.Frames);
 
                 // Emit fused text signal - Florence-2 extracted text (VisionLlmWave will skip text extraction)
                 if (!string.IsNullOrWhiteSpace(mlText))
-                {
                     signals.Add(new Signal
                     {
                         Key = "ocr.ml.fused_text",
@@ -346,7 +296,6 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                             ["frames_with_text"] = framesWithText
                         }
                     });
-                }
             }
             else
             {
@@ -370,7 +319,6 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
 
                 // Emit fused text signal for static images too (used by VisionLlmWave to skip)
                 if (!string.IsNullOrWhiteSpace(mlText))
-                {
                     signals.Add(new Signal
                     {
                         Key = "ocr.ml.fused_text",
@@ -383,7 +331,6 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                             ["source"] = "florence2_static"
                         }
                     });
-                }
             }
 
             // Emit ML OCR result
@@ -414,9 +361,9 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
 
             // Decide whether to escalate to Tesseract
             var shouldEscalate = hasText && (
-                textLikeliness > 0.3 ||           // High text probability
-                (mlText?.Length ?? 0) > 10 ||     // Substantial text found
-                framesWithText > 1                 // Multiple frames have text
+                textLikeliness > 0.3 || // High text probability
+                (mlText?.Length ?? 0) > 10 || // Substantial text found
+                framesWithText > 1 // Multiple frames have text
             );
 
             signals.Add(new Signal
@@ -430,7 +377,9 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                 {
                     ["reason"] = shouldEscalate
                         ? "meaningful_text_detected"
-                        : hasText ? "minimal_text" : "no_text_found",
+                        : hasText
+                            ? "minimal_text"
+                            : "no_text_found",
                     ["ml_text_preview"] = mlText?.Substring(0, Math.Min(50, mlText?.Length ?? 0)) ?? ""
                 }
             });
@@ -469,24 +418,49 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
         }
     }
 
-    /// <summary>
-    /// Result of animated text analysis with OpenCV.
-    /// </summary>
-    private record AnimatedTextResult(
-        string? Text,
-        int FramesWithText,
-        List<int>? TextChangedFrameIndices,
-        int FramesWithTextRegions,
-        Dictionary<int, List<Dictionary<string, int>>>? PerFrameTextRegions,
-        List<Image<Rgba32>>? Frames = null,
-        bool StripCached = false);
+    public string ManifestName => Name; // Links to waves/ml-ocr.wave.yaml
+
+    // ISignalAware implementation - fallback if manifest not loaded
+    // Primary source of truth is waves/ml-ocr.wave.yaml
+    public IReadOnlyList<string> EmittedSignals => new[]
+    {
+        "ocr.ml.fused_text",
+        "ocr.ml.text",
+        "ocr.ml.frames_with_text",
+        "ocr.ml.has_text",
+        "ocr.opencv.has_text",
+        "ocr.ml.skipped"
+    };
+
+    public IReadOnlyList<string> RequiredSignals => new[]
+    {
+        "identity.is_animated",
+        "identity.frame_count"
+    };
+
+    public IReadOnlyList<string> OptionalSignals => new[]
+    {
+        "ocr.opencv.text_regions",
+        "route.quality_tier"
+    };
+
+    public IReadOnlyList<string> CacheEmits => new[]
+    {
+        "ocr.frames",
+        "ocr.opencv.per_frame_regions"
+    };
+
+    public IReadOnlyList<string> CacheUses => new[]
+    {
+        "ocr.opencv.text_regions"
+    };
 
     /// <summary>
-    /// FAST analysis for animated GIFs - uses filmstrip approach instead of per-frame OCR.
-    /// ~10-15x faster than AnalyzeAnimatedTextWithOpenCvAsync:
-    /// - Extracts frames and detects text regions with OpenCV (fast)
-    /// - Caches frames/regions for VisionLlmWave to create text-only strip
-    /// - Skips per-frame Florence-2 OCR entirely (VisionLLM is better for subtitles)
+    ///     FAST analysis for animated GIFs - uses filmstrip approach instead of per-frame OCR.
+    ///     ~10-15x faster than AnalyzeAnimatedTextWithOpenCvAsync:
+    ///     - Extracts frames and detects text regions with OpenCV (fast)
+    ///     - Caches frames/regions for VisionLlmWave to create text-only strip
+    ///     - Skips per-frame Florence-2 OCR entirely (VisionLLM is better for subtitles)
     /// </summary>
     private async Task<AnimatedTextResult> AnalyzeAnimatedTextFastAsync(
         string imagePath, int frameCount, AnalysisContext context, CancellationToken ct)
@@ -497,17 +471,14 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
             var maxFramesToAnalyze = Math.Min(10, frameCount);
             var frames = await ExtractKeyFramesAsync(imagePath, maxFramesToAnalyze, ct);
 
-            if (frames.Count == 0)
-            {
-                return new AnimatedTextResult(null, 0, null, 0, null);
-            }
+            if (frames.Count == 0) return new AnimatedTextResult(null, 0, null, 0, null);
 
             // Run OpenCV text detection on each frame (~5-20ms per frame)
             // This is the ONLY per-frame processing we do - no Florence-2 OCR
             var perFrameRegions = new Dictionary<int, List<Dictionary<string, int>>>();
             var framesWithTextRegions = 0;
 
-            for (int i = 0; i < frames.Count; i++)
+            for (var i = 0; i < frames.Count; i++)
             {
                 var result = _opencvDetector.DetectTextRegions(frames[i]);
                 if (result.HasTextLikeRegions)
@@ -551,7 +522,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                 framesWithTextRegions,
                 perFrameRegions,
                 frames, // Pass frames to cache
-                true    // Signal that strip approach is being used
+                true // Signal that strip approach is being used
             );
         }
         catch (Exception ex)
@@ -563,8 +534,8 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
     }
 
     /// <summary>
-    /// Legacy analysis for animated images using OpenCV per-frame + Florence-2 OCR.
-    /// Slower but more thorough - use when filmstrip approach fails.
+    ///     Legacy analysis for animated images using OpenCV per-frame + Florence-2 OCR.
+    ///     Slower but more thorough - use when filmstrip approach fails.
     /// </summary>
     private async Task<AnimatedTextResult> AnalyzeAnimatedTextWithOpenCvAsync(
         string imagePath, int frameCount, CancellationToken ct)
@@ -575,16 +546,13 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
             var maxFramesToAnalyze = Math.Min(8, frameCount);
             var frames = await ExtractKeyFramesAsync(imagePath, maxFramesToAnalyze, ct);
 
-            if (frames.Count == 0)
-            {
-                return new AnimatedTextResult(null, 0, null, 0, null);
-            }
+            if (frames.Count == 0) return new AnimatedTextResult(null, 0, null, 0, null);
 
             // STEP 1: Run OpenCV text detection on each frame (~5-20ms per frame)
             var perFrameRegions = new Dictionary<int, List<Dictionary<string, int>>>();
             var framesWithTextRegions = 0;
 
-            for (int i = 0; i < frames.Count; i++)
+            for (var i = 0; i < frames.Count; i++)
             {
                 var result = _opencvDetector.DetectTextRegions(frames[i]);
                 if (result.HasTextLikeRegions)
@@ -623,7 +591,6 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
             var textsFound = new List<string>();
 
             foreach (var idx in framesToOcr)
-            {
                 if (idx < frames.Count)
                 {
                     var frame = frames[idx];
@@ -634,18 +601,11 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                         ? await ExtractTextFromFrameRegionsAsync(frame, regions, ct)
                         : await ExtractTextFromFrameAsync(frame, ct);
 
-                    if (!string.IsNullOrWhiteSpace(text))
-                    {
-                        textsFound.Add(text);
-                    }
+                    if (!string.IsNullOrWhiteSpace(text)) textsFound.Add(text);
                 }
-            }
 
             // Cleanup
-            foreach (var frame in frames)
-            {
-                frame.Dispose();
-            }
+            foreach (var frame in frames) frame.Dispose();
 
             // Combine unique texts
             var uniqueTexts = textsFound.Distinct().ToList();
@@ -677,7 +637,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
             if (totalFrames <= maxFrames)
             {
                 // Extract all frames
-                for (int i = 0; i < totalFrames; i++)
+                for (var i = 0; i < totalFrames; i++)
                 {
                     using var genericFrame = gif.Frames.CloneFrame(i);
                     frames.Add(genericFrame.CloneAs<Rgba32>());
@@ -687,7 +647,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
             {
                 // Extract evenly spaced frames
                 var step = (double)(totalFrames - 1) / (maxFrames - 1);
-                for (int i = 0; i < maxFrames; i++)
+                for (var i = 0; i < maxFrames; i++)
                 {
                     var frameIdx = (int)(i * step);
                     using var genericFrame = gif.Frames.CloneFrame(frameIdx);
@@ -717,19 +677,23 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
         finally
         {
             if (File.Exists(tempPath))
-            {
-                try { File.Delete(tempPath); } catch { }
-            }
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch
+                {
+                }
         }
     }
 
     /// <summary>
-    /// Extracts text from specific OpenCV-detected regions in a static image.
-    /// More accurate than full-image OCR as it focuses on text areas only.
+    ///     Extracts text from specific OpenCV-detected regions in a static image.
+    ///     More accurate than full-image OCR as it focuses on text areas only.
     /// </summary>
     private async Task<string?> ExtractTextFromRegionsAsync(
         string imagePath,
-        IReadOnlyList<OpenCvSharp.Rect> regions,
+        IReadOnlyList<Rect> regions,
         CancellationToken ct)
     {
         try
@@ -746,7 +710,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
     }
 
     /// <summary>
-    /// Extracts text from specific regions in a frame.
+    ///     Extracts text from specific regions in a frame.
     /// </summary>
     private async Task<string?> ExtractTextFromFrameRegionsAsync(
         Image<Rgba32> frame,
@@ -756,7 +720,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
         try
         {
             // Convert dictionary regions back to Rect
-            var rects = regions.Select(r => new OpenCvSharp.Rect(
+            var rects = regions.Select(r => new Rect(
                 r["x"], r["y"], r["width"], r["height"]
             )).ToList();
 
@@ -770,11 +734,11 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
     }
 
     /// <summary>
-    /// Core method that extracts text from cropped regions of an image.
+    ///     Core method that extracts text from cropped regions of an image.
     /// </summary>
     private async Task<string?> ExtractTextFromImageRegionsAsync(
         Image<Rgba32> image,
-        IReadOnlyList<OpenCvSharp.Rect> regions,
+        IReadOnlyList<Rect> regions,
         CancellationToken ct)
     {
         var textsFound = new List<string>();
@@ -808,9 +772,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                 // OCR the cropped region
                 var ocrResult = await _florence2!.ExtractTextAsync(tempPath, ct);
                 if (ocrResult.Success && !string.IsNullOrWhiteSpace(ocrResult.Text))
-                {
                     textsFound.Add(ocrResult.Text.Trim());
-                }
             }
 
             return textsFound.Count > 0 ? string.Join(" ", textsFound.Distinct()) : null;
@@ -819,40 +781,46 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
         {
             // Cleanup temp files
             foreach (var path in tempPaths)
-            {
-                try { if (File.Exists(path)) File.Delete(path); } catch { }
-            }
+                try
+                {
+                    if (File.Exists(path)) File.Delete(path);
+                }
+                catch
+                {
+                }
         }
     }
 
     /// <summary>
-    /// Merges nearby text regions to reduce OCR calls.
+    ///     Merges nearby text regions to reduce OCR calls.
     /// </summary>
-    private List<OpenCvSharp.Rect> MergeNearbyRegions(
-        IReadOnlyList<OpenCvSharp.Rect> regions,
+    private List<Rect> MergeNearbyRegions(
+        IReadOnlyList<Rect> regions,
         int imageWidth,
         int imageHeight)
     {
         if (regions.Count <= 1) return regions.ToList();
 
-        var merged = new List<OpenCvSharp.Rect>();
+        var merged = new List<Rect>();
         var used = new bool[regions.Count];
         var proximity = Math.Min(imageWidth, imageHeight) / 10; // 10% of smaller dimension
 
-        for (int i = 0; i < regions.Count; i++)
+        for (var i = 0; i < regions.Count; i++)
         {
             if (used[i]) continue;
 
             var current = regions[i];
 
-            for (int j = i + 1; j < regions.Count; j++)
+            for (var j = i + 1; j < regions.Count; j++)
             {
                 if (used[j]) continue;
 
                 // Check if regions are close enough to merge
                 var other = regions[j];
-                var horizontalDist = Math.Max(0, Math.Max(current.Left, other.Left) - Math.Min(current.Right, other.Right));
-                var verticalDist = Math.Max(0, Math.Max(current.Top, other.Top) - Math.Min(current.Bottom, other.Bottom));
+                var horizontalDist = Math.Max(0,
+                    Math.Max(current.Left, other.Left) - Math.Min(current.Right, other.Right));
+                var verticalDist = Math.Max(0,
+                    Math.Max(current.Top, other.Top) - Math.Min(current.Bottom, other.Bottom));
 
                 if (horizontalDist < proximity && verticalDist < proximity)
                 {
@@ -861,7 +829,7 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
                     var top = Math.Min(current.Top, other.Top);
                     var right = Math.Max(current.Right, other.Right);
                     var bottom = Math.Max(current.Bottom, other.Bottom);
-                    current = new OpenCvSharp.Rect(left, top, right - left, bottom - top);
+                    current = new Rect(left, top, right - left, bottom - top);
                     used[j] = true;
                 }
             }
@@ -871,4 +839,16 @@ public class MlOcrWave : IAnalysisWave, ISignalAware
 
         return merged;
     }
+
+    /// <summary>
+    ///     Result of animated text analysis with OpenCV.
+    /// </summary>
+    private record AnimatedTextResult(
+        string? Text,
+        int FramesWithText,
+        List<int>? TextChangedFrameIndices,
+        int FramesWithTextRegions,
+        Dictionary<int, List<Dictionary<string, int>>>? PerFrameTextRegions,
+        List<Image<Rgba32>>? Frames = null,
+        bool StripCached = false);
 }

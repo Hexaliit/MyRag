@@ -1,12 +1,11 @@
-using NAudio.Wave;
-using System.IO;
 using AudioSummarizer.Core.Services.Voice;
+using NAudio.Wave;
 
 namespace AudioSummarizer.Core.Services.Audio;
 
 /// <summary>
-/// Extracts time-range segments from audio files for evidence and playback.
-/// Used to create small clips of speaker turns for diarization evidence.
+///     Extracts time-range segments from audio files for evidence and playback.
+///     Used to create small clips of speaker turns for diarization evidence.
 /// </summary>
 public class AudioSegmentExtractor
 {
@@ -18,7 +17,7 @@ public class AudioSegmentExtractor
     }
 
     /// <summary>
-    /// Extract a time range from an audio file and return as Base64-encoded WAV
+    ///     Extract a time range from an audio file and return as Base64-encoded WAV
     /// </summary>
     /// <param name="audioPath">Source audio file path</param>
     /// <param name="startSeconds">Start time in seconds</param>
@@ -44,7 +43,7 @@ public class AudioSegmentExtractor
     }
 
     /// <summary>
-    /// Extract a time range from an audio file and return as WAV bytes
+    ///     Extract a time range from an audio file and return as WAV bytes
     /// </summary>
     public async Task<byte[]> ExtractSegmentAsWavBytesAsync(
         string audioPath,
@@ -74,7 +73,7 @@ public class AudioSegmentExtractor
     }
 
     /// <summary>
-    /// Extract a time range from an audio file and save to a file
+    ///     Extract a time range from an audio file and save to a file
     /// </summary>
     public async Task ExtractSegmentToFileAsync(
         string audioPath,
@@ -86,10 +85,7 @@ public class AudioSegmentExtractor
     {
         // Clamp duration to max
         var duration = endSeconds - startSeconds;
-        if (duration > maxDurationSeconds)
-        {
-            endSeconds = startSeconds + maxDurationSeconds;
-        }
+        if (duration > maxDurationSeconds) endSeconds = startSeconds + maxDurationSeconds;
 
         await using var outputStream = File.Create(outputPath);
         await ExtractSegmentToStreamAsync(
@@ -104,7 +100,7 @@ public class AudioSegmentExtractor
     }
 
     /// <summary>
-    /// Extract audio segment and write to stream as WAV
+    ///     Extract audio segment and write to stream as WAV
     /// </summary>
     private async Task ExtractSegmentToStreamAsync(
         string audioPath,
@@ -153,8 +149,8 @@ public class AudioSegmentExtractor
     }
 
     /// <summary>
-    /// Extract speaker sample clips from diarization result
-    /// Returns dictionary of speaker ID -> Base64 WAV
+    ///     Extract speaker sample clips from diarization result
+    ///     Returns dictionary of speaker ID -> Base64 WAV
     /// </summary>
     public virtual async Task<Dictionary<string, string>> ExtractSpeakerSamplesAsync(
         string audioPath,
@@ -171,7 +167,6 @@ public class AudioSegmentExtractor
             .ToList();
 
         foreach (var turn in speakerFirstTurns)
-        {
             try
             {
                 // Extract sample from start of first turn
@@ -192,20 +187,19 @@ public class AudioSegmentExtractor
             {
                 _logger.LogWarning(ex, "Failed to extract sample for {SpeakerId}", turn.SpeakerId);
             }
-        }
 
         return samples;
     }
 }
 
 /// <summary>
-/// Helper class to create a trimmed stream view of an audio stream
+///     Helper class to create a trimmed stream view of an audio stream
 /// </summary>
 internal class TrimmedStream : Stream
 {
+    private readonly long _length;
     private readonly Stream _sourceStream;
     private readonly long _startPosition;
-    private readonly long _length;
     private long _position;
 
     public TrimmedStream(Stream sourceStream, long length)
@@ -247,7 +241,7 @@ internal class TrimmedStream : Stream
 
     public override long Seek(long offset, SeekOrigin origin)
     {
-        long newPosition = origin switch
+        var newPosition = origin switch
         {
             SeekOrigin.Begin => offset,
             SeekOrigin.Current => _position + offset,
@@ -259,7 +253,17 @@ internal class TrimmedStream : Stream
         return newPosition;
     }
 
-    public override void Flush() { }
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override void Flush()
+    {
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
 }

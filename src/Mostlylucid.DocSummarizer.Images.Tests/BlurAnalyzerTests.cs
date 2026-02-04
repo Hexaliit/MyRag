@@ -9,6 +9,12 @@ public class BlurAnalyzerTests
 {
     private readonly BlurAnalyzer _analyzer = new();
 
+    private static string GetTestImagePath(string filename)
+    {
+        var dir = Path.GetDirectoryName(typeof(BlurAnalyzerTests).Assembly.Location)!;
+        return Path.Combine(dir, "TestImages", filename);
+    }
+
     #region CalculateLaplacianVariance Tests
 
     [Fact]
@@ -44,7 +50,7 @@ public class BlurAnalyzerTests
     [Fact]
     public void CalculateLaplacianVariance_Checkerboard_ReturnsHighVariance()
     {
-        using var image = TestImageGenerator.CreateCheckerboard(200, 200, 10);
+        using var image = TestImageGenerator.CreateCheckerboard(200, 200);
 
         var variance = _analyzer.CalculateLaplacianVariance(image);
 
@@ -141,10 +147,7 @@ public class BlurAnalyzerTests
     public void CalculateLaplacianVariance_RealScreenshot_IsSharp()
     {
         var testImagePath = GetTestImagePath("01-home.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var variance = _analyzer.CalculateLaplacianVariance(image);
@@ -159,10 +162,7 @@ public class BlurAnalyzerTests
     public void CalculateLaplacianVariance_Icon_IsSharp()
     {
         var testImagePath = GetTestImagePath("icon.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var variance = _analyzer.CalculateLaplacianVariance(image);
@@ -172,10 +172,4 @@ public class BlurAnalyzerTests
     }
 
     #endregion
-
-    private static string GetTestImagePath(string filename)
-    {
-        var dir = Path.GetDirectoryName(typeof(BlurAnalyzerTests).Assembly.Location)!;
-        return Path.Combine(dir, "TestImages", filename);
-    }
 }

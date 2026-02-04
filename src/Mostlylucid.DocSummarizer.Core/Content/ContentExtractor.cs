@@ -1,14 +1,13 @@
 using System.Text.RegularExpressions;
-using SmartReader;
 using AngleSharp;
 using AngleSharp.Dom;
-using ReverseMarkdown;
+using SmartReader;
 
 namespace Mostlylucid.DocSummarizer.Content;
 
 /// <summary>
-/// Robust content extraction using SmartReader (Mozilla Readability port).
-/// Extracts main article content, removing boilerplate (ads, nav, sidebars).
+///     Robust content extraction using SmartReader (Mozilla Readability port).
+///     Extracts main article content, removing boilerplate (ads, nav, sidebars).
 /// </summary>
 public partial class ContentExtractor
 {
@@ -20,8 +19,8 @@ public partial class ContentExtractor
     }
 
     /// <summary>
-    /// Extract main content from a URL using SmartReader.
-    /// Returns enriched content with author, date, featured image, etc.
+    ///     Extract main content from a URL using SmartReader.
+    ///     Returns enriched content with author, date, featured image, etc.
     /// </summary>
     public async Task<ExtractedContent?> ExtractAsync(string url, CancellationToken ct = default)
     {
@@ -29,7 +28,8 @@ public partial class ContentExtractor
         {
             // Fetch the HTML
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 MostlyLucid-DoomSummarizer/1.0");
+            request.Headers.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 MostlyLucid-DoomSummarizer/1.0");
             request.Headers.Add("Accept", "text/html,application/xhtml+xml");
 
             using var response = await _httpClient.SendAsync(request, ct);
@@ -43,10 +43,8 @@ public partial class ContentExtractor
             var article = await reader.GetArticleAsync();
 
             if (article == null || !article.IsReadable)
-            {
                 // Fallback to basic extraction
                 return FallbackExtract(html, url);
-            }
 
             var extracted = new ExtractedContent
             {
@@ -75,7 +73,7 @@ public partial class ContentExtractor
     }
 
     /// <summary>
-    /// Extract content from HTML string directly.
+    ///     Extract content from HTML string directly.
     /// </summary>
     public ExtractedContent? ExtractFromHtml(string html, string baseUrl)
     {
@@ -84,10 +82,7 @@ public partial class ContentExtractor
             var reader = new Reader(baseUrl, html);
             var article = reader.GetArticle();
 
-            if (article == null || !article.IsReadable)
-            {
-                return FallbackExtract(html, baseUrl);
-            }
+            if (article == null || !article.IsReadable) return FallbackExtract(html, baseUrl);
 
             var extracted = new ExtractedContent
             {
@@ -114,8 +109,8 @@ public partial class ContentExtractor
     }
 
     /// <summary>
-    /// Convert HTML content to Markdown and analyze structure.
-    /// Stores structured Markdown that preserves headings, lists, tables, code blocks.
+    ///     Convert HTML content to Markdown and analyze structure.
+    ///     Stores structured Markdown that preserves headings, lists, tables, code blocks.
     /// </summary>
     private static void EnrichWithMarkdown(ExtractedContent content)
     {
@@ -132,9 +127,7 @@ public partial class ContentExtractor
                 // If the Markdown version has more structure than plain text,
                 // use it as the primary content (preserves headings, lists, etc.)
                 if (structure.QualityScore > 0.2 && markdown.Length > content.Content.Length * 0.5)
-                {
                     content.Content = markdown;
-                }
             }
         }
         catch
@@ -144,8 +137,8 @@ public partial class ContentExtractor
     }
 
     /// <summary>
-    /// Basic fallback extraction when SmartReader fails.
-    /// Uses heuristics to find main content.
+    ///     Basic fallback extraction when SmartReader fails.
+    ///     Uses heuristics to find main content.
     /// </summary>
     private static ExtractedContent? FallbackExtract(string html, string url)
     {
@@ -171,7 +164,7 @@ public partial class ContentExtractor
                 ".article"
             };
 
-            AngleSharp.Dom.IElement? contentElement = null;
+            IElement? contentElement = null;
             foreach (var selector in contentSelectors)
             {
                 contentElement = document.QuerySelector(selector);
@@ -192,12 +185,8 @@ public partial class ContentExtractor
             };
 
             foreach (var selector in boilerplateSelectors)
-            {
-                foreach (var el in contentElement.QuerySelectorAll(selector).ToList())
-                {
-                    el.Remove();
-                }
-            }
+            foreach (var el in contentElement.QuerySelectorAll(selector).ToList())
+                el.Remove();
 
             var title = document.QuerySelector("title")?.TextContent ??
                         document.QuerySelector("h1")?.TextContent ?? "";
@@ -232,7 +221,7 @@ public partial class ContentExtractor
 }
 
 /// <summary>
-/// Extracted content from a web page.
+///     Extracted content from a web page.
 /// </summary>
 public class ExtractedContent
 {
@@ -251,7 +240,7 @@ public class ExtractedContent
     public bool IsReadable { get; init; }
 
     /// <summary>
-    /// Best available content: structured Markdown if available, otherwise plain text.
+    ///     Best available content: structured Markdown if available, otherwise plain text.
     /// </summary>
     public string BestContent => MarkdownContent ?? Content;
 }

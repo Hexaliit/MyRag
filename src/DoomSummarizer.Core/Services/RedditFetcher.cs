@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using System.Web;
 using DoomSummarizer.Models;
 
 namespace DoomSummarizer.Services;
@@ -42,17 +44,13 @@ public class RedditFetcher(HttpClient httpClient)
                     // Get best available image
                     string? imageUrl = null;
                     if (post.Preview?.Images?.FirstOrDefault()?.Source?.Url is { } previewUrl)
-                    {
                         // Reddit HTML-encodes the URL
-                        imageUrl = System.Web.HttpUtility.HtmlDecode(previewUrl);
-                    }
+                        imageUrl = HttpUtility.HtmlDecode(previewUrl);
                     else if (post.Thumbnail is { } thumb &&
                              thumb.StartsWith("http") &&
                              !thumb.Contains("self") &&
                              !thumb.Contains("default"))
-                    {
                         imageUrl = thumb;
-                    }
 
                     items.Add(new ContentItem
                     {
@@ -76,7 +74,7 @@ public class RedditFetcher(HttpClient httpClient)
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch r/{subreddit}: {ex.Message}");
+                Debug.WriteLine($"Warning: Failed to fetch r/{subreddit}: {ex.Message}");
             }
 
             if (items.Count >= limit) break;

@@ -13,28 +13,27 @@ using SixLabors.ImageSharp.Processing;
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Batch CLIP embedding service for keyframe processing.
-/// Processes multiple images in a single GPU pass for 3-5x speedup.
-/// Uses capability atoms for backpressure control and time estimation.
+///     Batch CLIP embedding service for keyframe processing.
+///     Processes multiple images in a single GPU pass for 3-5x speedup.
+///     Uses capability atoms for backpressure control and time estimation.
 /// </summary>
 public class BatchClipEmbeddingService
 {
-    private readonly ImageConfig _config;
-    private readonly ModelDownloader? _modelDownloader;
-    private readonly OnnxSessionFactory? _sessionFactory;
-    private readonly ILogger<BatchClipEmbeddingService> _logger;
-
-    private static InferenceSession? _clipSession;
-    private static readonly object _modelLock = new();
-
     // CLIP ViT-B/32 parameters
     private const int ClipImageSize = 224;
     private const int ClipEmbeddingSize = 512;
     private const int DefaultBatchSize = 8; // Process 8 images at a time
 
+    private static InferenceSession? _clipSession;
+    private static readonly object _modelLock = new();
+
     // CLIP normalization values
     private static readonly float[] Mean = { 0.48145466f, 0.4578275f, 0.40821073f };
     private static readonly float[] Std = { 0.26862954f, 0.26130258f, 0.27577711f };
+    private readonly ImageConfig _config;
+    private readonly ILogger<BatchClipEmbeddingService> _logger;
+    private readonly ModelDownloader? _modelDownloader;
+    private readonly OnnxSessionFactory? _sessionFactory;
 
     public BatchClipEmbeddingService(
         IOptions<ImageConfig> config,
@@ -49,8 +48,8 @@ public class BatchClipEmbeddingService
     }
 
     /// <summary>
-    /// Generate CLIP embeddings for multiple images in batches.
-    /// Significantly faster than processing one at a time.
+    ///     Generate CLIP embeddings for multiple images in batches.
+    ///     Significantly faster than processing one at a time.
     /// </summary>
     /// <param name="framePaths">Dictionary of frame index -> image path</param>
     /// <param name="backpressure">Backpressure controller for adaptive concurrency</param>
@@ -89,7 +88,7 @@ public class BatchClipEmbeddingService
             "Processing {Count} frames in {Batches} batches (size {BatchSize})",
             totalFrames, batchCount, batchSize);
 
-        for (int batchIdx = 0; batchIdx < batchCount; batchIdx++)
+        for (var batchIdx = 0; batchIdx < batchCount; batchIdx++)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -106,10 +105,7 @@ public class BatchClipEmbeddingService
             {
                 var batchResults = await ProcessBatchAsync(batch, session, ct);
 
-                foreach (var (frameIndex, embedding) in batchResults)
-                {
-                    results[frameIndex] = embedding;
-                }
+                foreach (var (frameIndex, embedding) in batchResults) results[frameIndex] = embedding;
 
                 _logger.LogDebug(
                     "Batch {Batch}/{Total}: processed {Count} frames",
@@ -121,20 +117,15 @@ public class BatchClipEmbeddingService
 
                 // Fallback: process failed batch images one at a time
                 foreach (var (frameIndex, path) in batch)
-                {
                     try
                     {
                         var embedding = await ProcessSingleImageAsync(path, session, ct);
-                        if (embedding != null)
-                        {
-                            results[frameIndex] = embedding;
-                        }
+                        if (embedding != null) results[frameIndex] = embedding;
                     }
                     catch (Exception innerEx)
                     {
                         _logger.LogWarning(innerEx, "Failed to process frame {Index}", frameIndex);
                     }
-                }
             }
         }
 
@@ -150,8 +141,8 @@ public class BatchClipEmbeddingService
     }
 
     /// <summary>
-    /// Process a batch of images in a single GPU pass.
-    /// Sequential preprocessing - backpressure is handled at batch level.
+    ///     Process a batch of images in a single GPU pass.
+    ///     Sequential preprocessing - backpressure is handled at batch level.
     /// </summary>
     private async Task<Dictionary<int, float[]>> ProcessBatchAsync(
         List<KeyValuePair<int, string>> batch,
@@ -168,7 +159,7 @@ public class BatchClipEmbeddingService
         var indexMappings = new List<(int batchIdx, int frameIndex)>();
 
         // Load and preprocess images sequentially into tensor slots
-        for (int idx = 0; idx < batch.Count; idx++)
+        for (var idx = 0; idx < batch.Count; idx++)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -180,15 +171,13 @@ public class BatchClipEmbeddingService
             image.Mutate(x => x.Resize(ClipImageSize, ClipImageSize));
 
             // Fill tensor for this batch index
-            for (int y = 0; y < ClipImageSize; y++)
+            for (var y = 0; y < ClipImageSize; y++)
+            for (var x = 0; x < ClipImageSize; x++)
             {
-                for (int x = 0; x < ClipImageSize; x++)
-                {
-                    var pixel = image[x, y];
-                    tensor[idx, 0, y, x] = (pixel.R / 255f - Mean[0]) / Std[0];
-                    tensor[idx, 1, y, x] = (pixel.G / 255f - Mean[1]) / Std[1];
-                    tensor[idx, 2, y, x] = (pixel.B / 255f - Mean[2]) / Std[2];
-                }
+                var pixel = image[x, y];
+                tensor[idx, 0, y, x] = (pixel.R / 255f - Mean[0]) / Std[0];
+                tensor[idx, 1, y, x] = (pixel.G / 255f - Mean[1]) / Std[1];
+                tensor[idx, 2, y, x] = (pixel.B / 255f - Mean[2]) / Std[2];
             }
 
             indexMappings.Add((idx, frameIndex));
@@ -227,7 +216,7 @@ public class BatchClipEmbeddingService
     }
 
     /// <summary>
-    /// Process a single image (fallback for batch failures).
+    ///     Process a single image (fallback for batch failures).
     /// </summary>
     private async Task<float[]?> ProcessSingleImageAsync(
         string imagePath,
@@ -241,15 +230,13 @@ public class BatchClipEmbeddingService
 
         var tensor = new DenseTensor<float>(new[] { 1, 3, ClipImageSize, ClipImageSize });
 
-        for (int y = 0; y < ClipImageSize; y++)
+        for (var y = 0; y < ClipImageSize; y++)
+        for (var x = 0; x < ClipImageSize; x++)
         {
-            for (int x = 0; x < ClipImageSize; x++)
-            {
-                var pixel = image[x, y];
-                tensor[0, 0, y, x] = (pixel.R / 255f - Mean[0]) / Std[0];
-                tensor[0, 1, y, x] = (pixel.G / 255f - Mean[1]) / Std[1];
-                tensor[0, 2, y, x] = (pixel.B / 255f - Mean[2]) / Std[2];
-            }
+            var pixel = image[x, y];
+            tensor[0, 0, y, x] = (pixel.R / 255f - Mean[0]) / Std[0];
+            tensor[0, 1, y, x] = (pixel.G / 255f - Mean[1]) / Std[1];
+            tensor[0, 2, y, x] = (pixel.B / 255f - Mean[2]) / Std[2];
         }
 
         var inputName = session.InputNames.FirstOrDefault() ?? "input";
@@ -307,25 +294,18 @@ public class BatchClipEmbeddingService
     private async Task<string?> GetOrDownloadClipModelAsync(CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(_config.ClipModelPath) && File.Exists(_config.ClipModelPath))
-        {
             return _config.ClipModelPath;
-        }
 
         if (_modelDownloader != null)
-        {
             try
             {
                 var path = await _modelDownloader.GetModelPathAsync(ModelType.ClipVisual, ct);
-                if (path != null && File.Exists(path))
-                {
-                    return path;
-                }
+                if (path != null && File.Exists(path)) return path;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to get CLIP model from ModelDownloader");
             }
-        }
 
         // Fallback paths
         var paths = new[]
@@ -345,10 +325,7 @@ public class BatchClipEmbeddingService
         if (norm < 1e-10) return embedding;
 
         var normalized = new float[embedding.Length];
-        for (int i = 0; i < embedding.Length; i++)
-        {
-            normalized[i] = embedding[i] / (float)norm;
-        }
+        for (var i = 0; i < embedding.Length; i++) normalized[i] = embedding[i] / (float)norm;
 
         return normalized;
     }

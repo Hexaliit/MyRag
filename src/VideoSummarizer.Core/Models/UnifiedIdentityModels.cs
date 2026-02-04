@@ -1,8 +1,8 @@
 namespace VideoSummarizer.Core.Models;
 
 /// <summary>
-/// Unified identity that can link faces, speakers, and named entities across modalities.
-/// Designed for cross-referencing people detected in documents, audio, and video.
+///     Unified identity that can link faces, speakers, and named entities across modalities.
+///     Designed for cross-referencing people detected in documents, audio, and video.
 /// </summary>
 public record UnifiedIdentity
 {
@@ -66,7 +66,7 @@ public enum NameSource
 }
 
 /// <summary>
-/// Named entity mention in a document.
+///     Named entity mention in a document.
 /// </summary>
 public record NamedEntityMention
 {
@@ -80,7 +80,7 @@ public record NamedEntityMention
 }
 
 /// <summary>
-/// Link between a unified identity and a specific appearance.
+///     Link between a unified identity and a specific appearance.
 /// </summary>
 public record IdentityAppearance
 {
@@ -93,10 +93,12 @@ public record IdentityAppearance
 
     /// <summary>Time range (for video/audio)</summary>
     public double? StartTime { get; init; }
+
     public double? EndTime { get; init; }
 
     /// <summary>Text offset (for documents)</summary>
     public int? StartOffset { get; init; }
+
     public int? EndOffset { get; init; }
 
     /// <summary>Reference to face track (for video)</summary>
@@ -122,7 +124,7 @@ public enum AppearanceType
 }
 
 /// <summary>
-/// Request to merge multiple identities into one.
+///     Request to merge multiple identities into one.
 /// </summary>
 public record MergeIdentitiesRequest
 {
@@ -132,7 +134,7 @@ public record MergeIdentitiesRequest
 }
 
 /// <summary>
-/// Request to split an identity into multiple.
+///     Request to split an identity into multiple.
 /// </summary>
 public record SplitIdentityRequest
 {
@@ -142,7 +144,7 @@ public record SplitIdentityRequest
 }
 
 /// <summary>
-/// Face signature selection for identity assignment (Immich-style).
+///     Face signature selection for identity assignment (Immich-style).
 /// </summary>
 public record FaceSignatureSelection
 {
@@ -162,7 +164,7 @@ public record FaceSignatureSelection
 }
 
 /// <summary>
-/// Suggestion for identity assignment.
+///     Suggestion for identity assignment.
 /// </summary>
 public record IdentitySuggestion
 {
@@ -189,7 +191,7 @@ public enum SuggestionSource
 }
 
 /// <summary>
-/// Statistics for identity tracking.
+///     Statistics for identity tracking.
 /// </summary>
 public record IdentityTrackingStats
 {

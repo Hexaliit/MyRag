@@ -1,13 +1,13 @@
 namespace Mostlylucid.Summarizer.Core.FileAnalysis;
 
 /// <summary>
-/// Standard signal keys for file metadata.
-/// All keys use the "file." namespace prefix for consistency.
+///     Standard signal keys for file metadata.
+///     All keys use the "file." namespace prefix for consistency.
 /// </summary>
 public static class FileSignalKeys
 {
     /// <summary>
-    /// Namespace prefix for all file signals.
+    ///     Namespace prefix for all file signals.
     /// </summary>
     public const string Prefix = "file.";
 

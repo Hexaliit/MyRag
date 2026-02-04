@@ -5,13 +5,13 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Orchestrates execution of analysis waves to build a dynamic image profile.
-/// Executes waves in priority order and manages signal aggregation.
+///     Orchestrates execution of analysis waves to build a dynamic image profile.
+///     Executes waves in priority order and manages signal aggregation.
 /// </summary>
 public class WaveOrchestrator
 {
-    private readonly IEnumerable<IAnalysisWave> _waves;
     private readonly ILogger<WaveOrchestrator>? _logger;
+    private readonly IEnumerable<IAnalysisWave> _waves;
 
     public WaveOrchestrator(
         IEnumerable<IAnalysisWave> waves,
@@ -22,7 +22,7 @@ public class WaveOrchestrator
     }
 
     /// <summary>
-    /// Analyze an image using all registered waves.
+    ///     Analyze an image using all registered waves.
     /// </summary>
     public async Task<DynamicImageProfile> AnalyzeAsync(
         string imagePath,
@@ -41,7 +41,6 @@ public class WaveOrchestrator
 
         // Execute waves in priority order
         foreach (var wave in _waves)
-        {
             try
             {
                 // Check preconditions before running expensive waves
@@ -90,7 +89,6 @@ public class WaveOrchestrator
                     Tags = new List<string> { "error" }
                 });
             }
-        }
 
         // Clear context cache to free memory
         context.ClearCache();
@@ -98,14 +96,15 @@ public class WaveOrchestrator
         stopwatch.Stop();
         profile.AnalysisDurationMs = stopwatch.ElapsedMilliseconds;
 
-        _logger?.LogInformation("Analysis completed in {Duration}ms, {SignalCount} total signals from {WaveCount} waves",
+        _logger?.LogInformation(
+            "Analysis completed in {Duration}ms, {SignalCount} total signals from {WaveCount} waves",
             stopwatch.ElapsedMilliseconds, profile.GetAllSignals().Count(), profile.ContributingWaves.Count);
 
         return profile;
     }
 
     /// <summary>
-    /// Analyze an image using only specific waves (filtered by name or tag).
+    ///     Analyze an image using only specific waves (filtered by name or tag).
     /// </summary>
     public async Task<DynamicImageProfile> AnalyzeWithFilterAsync(
         string imagePath,
@@ -118,7 +117,7 @@ public class WaveOrchestrator
     }
 
     /// <summary>
-    /// Analyze an image using only waves with specific tags.
+    ///     Analyze an image using only waves with specific tags.
     /// </summary>
     public async Task<DynamicImageProfile> AnalyzeByTagsAsync(
         string imagePath,
@@ -133,7 +132,7 @@ public class WaveOrchestrator
     }
 
     /// <summary>
-    /// Get information about registered waves.
+    ///     Get information about registered waves.
     /// </summary>
     public IEnumerable<WaveInfo> GetRegisteredWaves()
     {
@@ -147,7 +146,7 @@ public class WaveOrchestrator
 }
 
 /// <summary>
-/// Information about a registered analysis wave.
+///     Information about a registered analysis wave.
 /// </summary>
 public record WaveInfo
 {

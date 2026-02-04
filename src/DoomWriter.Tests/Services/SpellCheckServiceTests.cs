@@ -4,9 +4,9 @@ using DoomWriter.Services;
 namespace DoomWriter.Tests.Services;
 
 /// <summary>
-/// Tests for SpellCheckService.
-/// Note: Most tests exercise pure logic without a Hunspell dictionary loaded.
-/// Tests that require a dictionary are marked with [Trait("Category", "RequiresDictionary")].
+///     Tests for SpellCheckService.
+///     Note: Most tests exercise pure logic without a Hunspell dictionary loaded.
+///     Tests that require a dictionary are marked with [Trait("Category", "RequiresDictionary")].
 /// </summary>
 public class SpellCheckServiceTests : IDisposable
 {
@@ -16,6 +16,11 @@ public class SpellCheckServiceTests : IDisposable
     {
         var settings = new WriterSettingsService();
         _sut = new SpellCheckService(settings);
+    }
+
+    public void Dispose()
+    {
+        _sut.Dispose();
     }
 
     // --- CheckWord (without dictionary loaded — assumes correct) ---
@@ -178,10 +183,5 @@ public class SpellCheckServiceTests : IDisposable
         Enum.GetValues<DiagnosticType>().Should().Contain(DiagnosticType.Grammar);
         Enum.GetValues<DiagnosticType>().Should().Contain(DiagnosticType.Suggestion);
         Enum.GetValues<DiagnosticType>().Should().Contain(DiagnosticType.EntityLink);
-    }
-
-    public void Dispose()
-    {
-        _sut.Dispose();
     }
 }

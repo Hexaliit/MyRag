@@ -1,49 +1,54 @@
 using Microsoft.Extensions.Logging;
 using VideoSummarizer.Core.Coordination;
-using VideoSummarizer.Core.Models;
 using VideoSummarizer.Core.Services;
 
 namespace VideoSummarizer.Core.Waves;
 
 /// <summary>
-/// Selects optimal keyframes based on shots and I-frame positions.
-/// Prioritizes: shot keyframes, codec I-frames aligned with shots, regular intervals.
-/// Emits: keyframes.selected
+///     Selects optimal keyframes based on shots and I-frame positions.
+///     Prioritizes: shot keyframes, codec I-frames aligned with shots, regular intervals.
+///     Emits: keyframes.selected
 /// </summary>
 public class KeyframeSelectionWave : IVideoWave, ISignalAwareVideoWave
 {
-    private readonly ILogger<KeyframeSelectionWave> _logger;
-
     // Configuration
     private const int MaxKeyframesToProcess = 50;
     private const double MinKeyframeInterval = 2.0;
-
-    public string Name => "keyframe_selection";
-    public int Priority => 840; // After I-frame detection
-    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
-
-    // Signal contracts
-    public IReadOnlyList<string> RequiredSignals => [
-        VideoSignals.ShotsDetected,
-        VideoSignals.IframesDetected
-    ];
-    public IReadOnlyList<string> OptionalSignals => [];
-    public IReadOnlyList<string> EmittedSignals => [
-        VideoSignals.KeyframesSelected,
-        VideoSignals.KeyframesSelectedCount
-    ];
-    public IReadOnlyList<string> CacheEmits => ["keyframe_selections"];
-    public IReadOnlyList<string> CacheUses => ["iframes"];
+    private readonly ILogger<KeyframeSelectionWave> _logger;
 
     public KeyframeSelectionWave(ILogger<KeyframeSelectionWave> logger)
     {
         _logger = logger;
     }
 
-    public bool ShouldRun(VideoContext context) =>
-        context.Metadata != null &&
-        context.Shots.Count > 0 &&
-        context.GetCached<List<IFrameInfo>>("iframes") != null;
+    // Signal contracts
+    public IReadOnlyList<string> RequiredSignals =>
+    [
+        VideoSignals.ShotsDetected,
+        VideoSignals.IframesDetected
+    ];
+
+    public IReadOnlyList<string> OptionalSignals => [];
+
+    public IReadOnlyList<string> EmittedSignals =>
+    [
+        VideoSignals.KeyframesSelected,
+        VideoSignals.KeyframesSelectedCount
+    ];
+
+    public IReadOnlyList<string> CacheEmits => ["keyframe_selections"];
+    public IReadOnlyList<string> CacheUses => ["iframes"];
+
+    public string Name => "keyframe_selection";
+    public int Priority => 840; // After I-frame detection
+    public IReadOnlyList<string> Tags => [VideoSignalTags.Visual, VideoSignalTags.Shot];
+
+    public bool ShouldRun(VideoContext context)
+    {
+        return context.Metadata != null &&
+               context.Shots.Count > 0 &&
+               context.GetCached<List<IFrameInfo>>("iframes") != null;
+    }
 
     public Task ProcessAsync(VideoContext context, CancellationToken ct = default)
     {
@@ -132,7 +137,7 @@ public class KeyframeSelectionWave : IVideoWave, ISignalAwareVideoWave
 }
 
 /// <summary>
-/// Represents a selected keyframe candidate.
+///     Represents a selected keyframe candidate.
 /// </summary>
 public record KeyframeSelection
 {

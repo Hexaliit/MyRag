@@ -1,21 +1,21 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace LucidRAG.Core.Services.Caching;
 
 /// <summary>
-/// Thread-safe Least Frequently Used (LFU) cache with memory tracking.
-/// Evicts least frequently accessed items when capacity is reached.
-/// Optimized for RAG workloads where certain segments are accessed repeatedly.
+///     Thread-safe Least Frequently Used (LFU) cache with memory tracking.
+///     Evicts least frequently accessed items when capacity is reached.
+///     Optimized for RAG workloads where certain segments are accessed repeatedly.
 /// </summary>
 public class LfuCache<TKey, TValue> where TKey : notnull
 {
-    private readonly int _capacity;
-    private readonly long _maxMemoryBytes;
     private readonly ConcurrentDictionary<TKey, CacheEntry> _cache;
+    private readonly int _capacity;
     private readonly object _evictionLock = new();
-    private long _currentVersion;
+    private readonly long _maxMemoryBytes;
     private long _currentMemoryBytes;
+    private long _currentVersion;
 
     public LfuCache(int capacity, long maxMemoryBytes = long.MaxValue)
     {
@@ -27,10 +27,12 @@ public class LfuCache<TKey, TValue> where TKey : notnull
         _cache = new ConcurrentDictionary<TKey, CacheEntry>();
     }
 
+    public CacheStatistics Statistics { get; private set; } = new();
+
     /// <summary>
-    /// Try to get a value from the cache. Increments frequency on hit.
+    ///     Try to get a value from the cache. Increments frequency on hit.
     /// </summary>
-    public bool TryGet(TKey key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TValue? value)
+    public bool TryGet(TKey key, [NotNullWhen(true)] out TValue? value)
     {
         if (_cache.TryGetValue(key, out var entry))
         {
@@ -54,7 +56,7 @@ public class LfuCache<TKey, TValue> where TKey : notnull
     }
 
     /// <summary>
-    /// Set a value in the cache. Evicts LFU items if capacity exceeded.
+    ///     Set a value in the cache. Evicts LFU items if capacity exceeded.
     /// </summary>
     public void Set(TKey key, TValue value, int sizeBytes = 0)
     {
@@ -70,10 +72,7 @@ public class LfuCache<TKey, TValue> where TKey : notnull
         }
 
         // Check if eviction needed
-        if (_cache.Count >= _capacity || _currentMemoryBytes + sizeBytes > _maxMemoryBytes)
-        {
-            EvictLeastFrequentlyUsed();
-        }
+        if (_cache.Count >= _capacity || _currentMemoryBytes + sizeBytes > _maxMemoryBytes) EvictLeastFrequentlyUsed();
 
         // Add new entry
         var entry = new CacheEntry
@@ -86,14 +85,11 @@ public class LfuCache<TKey, TValue> where TKey : notnull
             SizeBytes = sizeBytes
         };
 
-        if (_cache.TryAdd(key, entry))
-        {
-            Interlocked.Add(ref _currentMemoryBytes, sizeBytes);
-        }
+        if (_cache.TryAdd(key, entry)) Interlocked.Add(ref _currentMemoryBytes, sizeBytes);
     }
 
     /// <summary>
-    /// Remove a specific key from the cache.
+    ///     Remove a specific key from the cache.
     /// </summary>
     public bool Remove(TKey key)
     {
@@ -102,11 +98,12 @@ public class LfuCache<TKey, TValue> where TKey : notnull
             Interlocked.Add(ref _currentMemoryBytes, -entry.SizeBytes);
             return true;
         }
+
         return false;
     }
 
     /// <summary>
-    /// Clear all entries from the cache.
+    ///     Clear all entries from the cache.
     /// </summary>
     public void Clear()
     {
@@ -117,7 +114,7 @@ public class LfuCache<TKey, TValue> where TKey : notnull
     }
 
     /// <summary>
-    /// Get current cache statistics.
+    ///     Get current cache statistics.
     /// </summary>
     public CacheStatistics GetStatistics()
     {
@@ -130,8 +127,6 @@ public class LfuCache<TKey, TValue> where TKey : notnull
 
         return Statistics;
     }
-
-    public CacheStatistics Statistics { get; private set; } = new();
 
     private void EvictLeastFrequentlyUsed()
     {
@@ -181,7 +176,7 @@ public class LfuCache<TKey, TValue> where TKey : notnull
 }
 
 /// <summary>
-/// Cache performance statistics.
+///     Cache performance statistics.
 /// </summary>
 public class CacheStatistics
 {

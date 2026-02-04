@@ -1,18 +1,19 @@
-using CodeSummarizer.Mermaid.Jint;
-using CodeSummarizer.Parsing;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeSummarizer.Mermaid.Jint.Tests;
 
 /// <summary>
-///     Tests for <see cref="JintMermaidParser"/> — parity with regex parser
+///     Tests for <see cref="JintMermaidParser" /> — parity with regex parser
 ///     and compliance with mermaid.js spec.
 /// </summary>
 public class JintMermaidParserTests : IDisposable
 {
     private readonly JintMermaidParser _parser = new(NullLogger<JintMermaidParser>.Instance);
 
-    public void Dispose() => _parser.Dispose();
+    public void Dispose()
+    {
+        _parser.Dispose();
+    }
 
     // === Parity tests: same inputs as MermaidParserTests → same DiagramType ===
 
@@ -20,11 +21,11 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_Flowchart_DetectsDiagramType()
     {
         var mermaid = """
-            graph TD
-                A[Start] --> B{Decision}
-                B -->|Yes| C[Process]
-                B -->|No| D[End]
-            """;
+                      graph TD
+                          A[Start] --> B{Decision}
+                          B -->|Yes| C[Process]
+                          B -->|No| D[End]
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -37,9 +38,9 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_FlowchartLR_DetectsDiagramType()
     {
         var mermaid = """
-            flowchart LR
-                A --> B --> C
-            """;
+                      flowchart LR
+                          A --> B --> C
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -50,12 +51,12 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_SequenceDiagram_DetectsDiagramType()
     {
         var mermaid = """
-            sequenceDiagram
-                participant Alice
-                participant Bob
-                Alice->>Bob: Hello Bob
-                Bob-->>Alice: Hi Alice
-            """;
+                      sequenceDiagram
+                          participant Alice
+                          participant Bob
+                          Alice->>Bob: Hello Bob
+                          Bob-->>Alice: Hi Alice
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -66,11 +67,11 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_ClassDiagram_DetectsDiagramType()
     {
         var mermaid = """
-            classDiagram
-                class Animal
-                class Duck
-                Animal <|-- Duck
-            """;
+                      classDiagram
+                          class Animal
+                          class Duck
+                          Animal <|-- Duck
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -81,12 +82,12 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_StateDiagram_DetectsDiagramType()
     {
         var mermaid = """
-            stateDiagram
-                [*] --> Idle
-                Idle --> Processing
-                Processing --> Done
-                Done --> [*]
-            """;
+                      stateDiagram
+                          [*] --> Idle
+                          Idle --> Processing
+                          Processing --> Done
+                          Done --> [*]
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -97,12 +98,12 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_Pie_DetectsDiagramType()
     {
         var mermaid = """
-            pie title Browser Market Share
-                "Chrome" : 65
-                "Firefox" : 15
-                "Safari" : 12
-                "Other" : 8
-            """;
+                      pie title Browser Market Share
+                          "Chrome" : 65
+                          "Firefox" : 15
+                          "Safari" : 12
+                          "Other" : 8
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -113,14 +114,14 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_Gantt_DetectsDiagramType()
     {
         var mermaid = """
-            gantt
-                title Project Plan
-                section Design
-                    Wireframes : a1, 2024-01-01, 7d
-                    Mockups : a2, after a1, 5d
-                section Development
-                    Backend : b1, 2024-01-15, 14d
-            """;
+                      gantt
+                          title Project Plan
+                          section Design
+                              Wireframes : a1, 2024-01-01, 7d
+                              Mockups : a2, after a1, 5d
+                          section Development
+                              Backend : b1, 2024-01-15, 14d
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -156,11 +157,11 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_Mindmap_DetectsDiagramType()
     {
         var mermaid = """
-            mindmap
-                root((Root))
-                    Child1
-                    Child2
-            """;
+                      mindmap
+                          root((Root))
+                              Child1
+                              Child2
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -173,9 +174,9 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_ValidDiagram_SourceIsJintOrParser()
     {
         var mermaid = """
-            graph TD
-                A --> B
-            """;
+                      graph TD
+                          A --> B
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -189,11 +190,11 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_Flowchart_ExtractsNodesAndEdges()
     {
         var mermaid = """
-            graph TD
-                A[Start] --> B{Decision}
-                B -->|Yes| C[Process]
-                B -->|No| D[End]
-            """;
+                      graph TD
+                          A[Start] --> B{Decision}
+                          B -->|Yes| C[Process]
+                          B -->|No| D[End]
+                      """;
 
         var result = _parser.Parse(mermaid);
 
@@ -205,12 +206,12 @@ public class JintMermaidParserTests : IDisposable
     public void Parse_SequenceDiagram_ExtractsParticipants()
     {
         var mermaid = """
-            sequenceDiagram
-                participant Alice
-                participant Bob
-                Alice->>Bob: Hello Bob
-                Bob-->>Alice: Hi Alice
-            """;
+                      sequenceDiagram
+                          participant Alice
+                          participant Bob
+                          Alice->>Bob: Hello Bob
+                          Bob-->>Alice: Hi Alice
+                      """;
 
         var result = _parser.Parse(mermaid);
 

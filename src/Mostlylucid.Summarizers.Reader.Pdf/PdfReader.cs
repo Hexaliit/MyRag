@@ -7,13 +7,14 @@ using UglyToad.PdfPig;
 namespace Mostlylucid.Summarizers.Reader.Pdf;
 
 /// <summary>
-/// PDF document reader using PdfPig.
-/// Extracts text with page markers and paragraph normalization.
+///     PDF document reader using PdfPig.
+///     Extracts text with page markers and paragraph normalization.
 /// </summary>
 public class PdfReader : IDocumentReader
 {
     private const int DefaultMaxPages = 2000;
     private const int DefaultMaxTextChars = 5 * 1024 * 1024;
+    private static readonly string[] _extensions = [".pdf"];
 
     private readonly ILogger<PdfReader> _logger;
 
@@ -23,7 +24,6 @@ public class PdfReader : IDocumentReader
     }
 
     public string ReaderName => "pdf";
-    private static readonly string[] _extensions = [".pdf"];
     public IReadOnlyList<string> SupportedExtensions => _extensions;
     public int Priority => 100;
 
@@ -45,6 +45,7 @@ public class PdfReader : IDocumentReader
                 title = doc.Information.Title;
                 metadata["title"] = title;
             }
+
             if (!string.IsNullOrWhiteSpace(doc.Information.Author))
                 metadata["author"] = doc.Information.Author;
             if (!string.IsNullOrWhiteSpace(doc.Information.Subject))
@@ -52,6 +53,7 @@ public class PdfReader : IDocumentReader
             if (!string.IsNullOrWhiteSpace(doc.Information.Creator))
                 metadata["creator"] = doc.Information.Creator;
         }
+
         metadata["page_count"] = doc.NumberOfPages.ToString();
 
         var estimatedChars = Math.Min(doc.NumberOfPages, maxPages) * 2048;
@@ -101,25 +103,35 @@ public class PdfReader : IDocumentReader
         });
     }
 
-    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null, CancellationToken ct = default)
+    public async Task<ReaderResult> ReadAsync(Stream stream, string fileName, ReaderOptions? options = null,
+        CancellationToken ct = default)
     {
         // PdfPig requires a seekable stream or file; write to temp file
         var tempPath = Path.Combine(Path.GetTempPath(), $"reader-pdf-{Guid.NewGuid():N}{Path.GetExtension(fileName)}");
         try
         {
             await using (var fs = File.Create(tempPath))
+            {
                 await stream.CopyToAsync(fs, ct);
+            }
 
             return await ReadAsync(tempPath, options, ct);
         }
         finally
         {
-            try { File.Delete(tempPath); } catch { /* best effort cleanup */ }
+            try
+            {
+                File.Delete(tempPath);
+            }
+            catch
+            {
+                /* best effort cleanup */
+            }
         }
     }
 
     /// <summary>
-    /// Normalize PDF text by detecting and inserting paragraph breaks.
+    ///     Normalize PDF text by detecting and inserting paragraph breaks.
     /// </summary>
     private static string NormalizePdfText(string text)
     {

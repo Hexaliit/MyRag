@@ -3,13 +3,12 @@ using System.Diagnostics;
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// CLI integration smoke tests — runs the actual doomsummarizer binary
-/// and checks exit codes and basic output.
-///
-/// These require a pre-built binary and network access.
-/// Excluded from default test runs — use:
-///   dotnet test --filter "Category=Smoke"
-/// or run via test-all.ps1 which builds first.
+///     CLI integration smoke tests — runs the actual doomsummarizer binary
+///     and checks exit codes and basic output.
+///     These require a pre-built binary and network access.
+///     Excluded from default test runs — use:
+///     dotnet test --filter "Category=Smoke"
+///     or run via test-all.ps1 which builds first.
 /// </summary>
 [Trait("Category", "Smoke")]
 public class CliSmokeTests
@@ -22,10 +21,14 @@ public class CliSmokeTests
         var baseDir = AppContext.BaseDirectory;
         var candidates = new[]
         {
-            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Debug", "net10.0", "win-x64", "doomsummarizer.exe"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Debug", "net10.0", "doomsummarizer.exe"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Release", "net10.0", "win-x64", "doomsummarizer.exe"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Release", "net10.0", "doomsummarizer.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Debug", "net10.0", "win-x64",
+                "doomsummarizer.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Debug", "net10.0",
+                "doomsummarizer.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Release", "net10.0", "win-x64",
+                "doomsummarizer.exe"),
+            Path.Combine(baseDir, "..", "..", "..", "..", "DoomSummarizer", "bin", "Release", "net10.0",
+                "doomsummarizer.exe")
         };
 
         foreach (var c in candidates)
@@ -60,7 +63,7 @@ public class CliSmokeTests
         var completed = process.WaitForExit(timeoutSeconds * 1000);
         if (!completed)
         {
-            process.Kill(entireProcessTree: true);
+            process.Kill(true);
             throw new TimeoutException($"CLI command timed out after {timeoutSeconds}s: {args}");
         }
 
@@ -115,6 +118,33 @@ public class CliSmokeTests
 
     #endregion
 
+    #region Page Command
+
+    [Fact]
+    public async Task Page_InvalidUrl_HandlesGracefully()
+    {
+        var (exitCode, _, stderr) = await RunCliAsync(
+            "page \"not-a-valid-url\" -q", 15);
+
+        (exitCode != 0 || stderr.Length > 0).Should().BeTrue(
+            "page with invalid URL should report error, not crash");
+    }
+
+    #endregion
+
+    #region Help
+
+    [Fact]
+    public async Task Help_ShowsCommands()
+    {
+        var (exitCode, stdout, _) = await RunCliAsync("--help", 15);
+
+        exitCode.Should().Be(0, "--help should succeed");
+        stdout.Should().ContainAny("scroll", "config", "sources", "show");
+    }
+
+    #endregion
+
     #region Scroll Command
 
     [Fact]
@@ -122,7 +152,7 @@ public class CliSmokeTests
     public async Task Scroll_QuietNoLlm_ProducesOutput()
     {
         var (exitCode, _, stderr) = await RunCliAsync(
-            "scroll \"test query\" -q --no-llm --limit 3", timeoutSeconds: 120);
+            "scroll \"test query\" -q --no-llm --limit 3", 120);
 
         (exitCode == 0 || stderr.Contains("No items") || stderr.Contains("Error"))
             .Should().BeTrue($"scroll should exit cleanly or with known error. Exit: {exitCode}, stderr: {stderr}");
@@ -133,7 +163,7 @@ public class CliSmokeTests
     public async Task Scroll_JsonOutput_ProducesValidJson()
     {
         var (exitCode, stdout, stderr) = await RunCliAsync(
-            "scroll \"tech news\" -q --no-llm --limit 2 --json", timeoutSeconds: 120);
+            "scroll \"tech news\" -q --no-llm --limit 2 --json", 120);
 
         // Skip test if no items were found (common in CI without network)
         if (exitCode != 0 || stdout.Trim().Length == 0)
@@ -146,7 +176,9 @@ public class CliSmokeTests
         {
             var possibleJson = trimmed[jsonStart..];
             var isValidJson = possibleJson.StartsWith('[') || possibleJson.StartsWith('{');
-            isValidJson.Should().BeTrue($"--json flag should produce JSON output. Actual: {possibleJson[..Math.Min(200, possibleJson.Length)]}");
+            isValidJson.Should()
+                .BeTrue(
+                    $"--json flag should produce JSON output. Actual: {possibleJson[..Math.Min(200, possibleJson.Length)]}");
         }
         else
         {
@@ -160,7 +192,7 @@ public class CliSmokeTests
     public async Task Scroll_DebugFlag_DoesNotCrash()
     {
         var (exitCode, _, _) = await RunCliAsync(
-            "scroll \"test\" -q --no-llm --limit 2 --debug", timeoutSeconds: 120);
+            "scroll \"test\" -q --no-llm --limit 2 --debug", 120);
 
         (exitCode >= 0).Should().BeTrue("should not crash with --debug flag");
     }
@@ -169,37 +201,10 @@ public class CliSmokeTests
     public async Task Scroll_LocalOnly_ExitsCleanly()
     {
         var (exitCode, _, stderr) = await RunCliAsync(
-            "scroll \"test\" -q --no-llm --local --limit 2", timeoutSeconds: 60);
+            "scroll \"test\" -q --no-llm --local --limit 2", 60);
 
         (exitCode == 0 || stderr.Contains("No items") || stderr.Contains("No local"))
             .Should().BeTrue("--local should exit cleanly even with empty KB");
-    }
-
-    #endregion
-
-    #region Page Command
-
-    [Fact]
-    public async Task Page_InvalidUrl_HandlesGracefully()
-    {
-        var (exitCode, _, stderr) = await RunCliAsync(
-            "page \"not-a-valid-url\" -q", timeoutSeconds: 15);
-
-        (exitCode != 0 || stderr.Length > 0).Should().BeTrue(
-            "page with invalid URL should report error, not crash");
-    }
-
-    #endregion
-
-    #region Help
-
-    [Fact]
-    public async Task Help_ShowsCommands()
-    {
-        var (exitCode, stdout, _) = await RunCliAsync("--help", timeoutSeconds: 15);
-
-        exitCode.Should().Be(0, "--help should succeed");
-        stdout.Should().ContainAny("scroll", "config", "sources", "show");
     }
 
     #endregion

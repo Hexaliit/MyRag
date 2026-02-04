@@ -3,7 +3,7 @@ using OpenCvSharp;
 namespace Mostlylucid.DocSummarizer.Images.Services.Preprocessing;
 
 /// <summary>
-/// Ink extraction (binarization) with multiple methods.
+///     Ink extraction (binarization) with multiple methods.
 /// </summary>
 public class InkExtractor
 {
@@ -17,7 +17,7 @@ public class InkExtractor
     }
 
     /// <summary>
-    /// Extract ink using the specified method.
+    ///     Extract ink using the specified method.
     /// </summary>
     public Mat Extract(Mat gray, BinarizationMethod method)
     {
@@ -33,7 +33,7 @@ public class InkExtractor
     }
 
     /// <summary>
-    /// Simple Otsu binarization - best for clean scans.
+    ///     Simple Otsu binarization - best for clean scans.
     /// </summary>
     private static Mat OtsuBinarize(Mat gray)
     {
@@ -44,7 +44,7 @@ public class InkExtractor
     }
 
     /// <summary>
-    /// Adaptive thresholding - best for uneven illumination.
+    ///     Adaptive thresholding - best for uneven illumination.
     /// </summary>
     private static Mat AdaptiveBinarize(Mat gray, int blockSize = 31, double c = 10)
     {
@@ -57,8 +57,8 @@ public class InkExtractor
     }
 
     /// <summary>
-    /// Sauvola binarization - best for historical/degraded documents.
-    /// T(x,y) = mean(x,y) * (1 + k * (std(x,y) / r - 1))
+    ///     Sauvola binarization - best for historical/degraded documents.
+    ///     T(x,y) = mean(x,y) * (1 + k * (std(x,y) / r - 1))
     /// </summary>
     private static Mat SauvolaBinarize(Mat gray, int windowSize = 25,
         double k = 0.2, double r = 128)
@@ -103,7 +103,7 @@ public class InkExtractor
     }
 
     /// <summary>
-    /// CLAHE + Otsu - best for low contrast documents.
+    ///     CLAHE + Otsu - best for low contrast documents.
     /// </summary>
     private static Mat ClaheOtsuBinarize(Mat gray, double clipLimit = 2.0)
     {
@@ -114,7 +114,7 @@ public class InkExtractor
     }
 
     /// <summary>
-    /// Morphological background removal - best for complex backgrounds.
+    ///     Morphological background removal - best for complex backgrounds.
     /// </summary>
     private static Mat MorphologicalBinarize(Mat gray, int kernelSize = 15)
     {

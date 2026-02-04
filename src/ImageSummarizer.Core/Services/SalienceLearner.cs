@@ -5,20 +5,20 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services;
 
 /// <summary>
-/// Learns and stores salience patterns based on image fingerprints AND multi-vector embeddings.
-/// Uses both deterministic hashes (PDQ, block, color) and vector similarity (CLIP visual, color, motion)
-/// to identify similar images and accumulate which signals proved most useful.
-/// This is the "adaptive" pipeline - starts with defaults and learns from feedback.
+///     Learns and stores salience patterns based on image fingerprints AND multi-vector embeddings.
+///     Uses both deterministic hashes (PDQ, block, color) and vector similarity (CLIP visual, color, motion)
+///     to identify similar images and accumulate which signals proved most useful.
+///     This is the "adaptive" pipeline - starts with defaults and learns from feedback.
 /// </summary>
 public class SalienceLearner
 {
-    // In-memory cache of fingerprint -> signal weights
-    // In production, this would be backed by a persistent store
-    private readonly ConcurrentDictionary<string, SalienceProfile> _profileCache = new();
-
     // Multi-vector embeddings for similarity search
     // Keys are image IDs, values contain embeddings for different modalities
     private readonly ConcurrentDictionary<string, ImageEmbeddingSet> _embeddingCache = new();
+
+    // In-memory cache of fingerprint -> signal weights
+    // In production, this would be backed by a persistent store
+    private readonly ConcurrentDictionary<string, SalienceProfile> _profileCache = new();
 
     // Default profiles by image type (learned or preset)
     private readonly Dictionary<string, SalienceProfile> _typeProfiles = new()
@@ -34,7 +34,7 @@ public class SalienceLearner
                 ["colors"] = 0.3,
                 ["motion"] = 0.0,
                 ["text"] = 0.2,
-                ["quality"] = 0.2,
+                ["quality"] = 0.2
             }
         },
         ["screenshot"] = new SalienceProfile
@@ -47,8 +47,8 @@ public class SalienceLearner
                 ["scene"] = 0.2,
                 ["colors"] = 0.1,
                 ["motion"] = 0.0,
-                ["text"] = 1.0,  // Text is most important for screenshots
-                ["quality"] = 0.1,
+                ["text"] = 1.0, // Text is most important for screenshots
+                ["quality"] = 0.1
             }
         },
         ["meme"] = new SalienceProfile
@@ -61,8 +61,8 @@ public class SalienceLearner
                 ["scene"] = 0.3,
                 ["colors"] = 0.2,
                 ["motion"] = 0.5,
-                ["text"] = 1.0,  // Text is critical for memes
-                ["quality"] = 0.1,
+                ["text"] = 1.0, // Text is critical for memes
+                ["quality"] = 0.1
             }
         },
         ["animated"] = new SalienceProfile
@@ -74,9 +74,9 @@ public class SalienceLearner
                 ["entities"] = 0.8,
                 ["scene"] = 0.5,
                 ["colors"] = 0.2,
-                ["motion"] = 1.0,  // Motion is critical for animations
+                ["motion"] = 1.0, // Motion is critical for animations
                 ["text"] = 0.7,
-                ["quality"] = 0.1,
+                ["quality"] = 0.1
             }
         },
         ["diagram"] = new SalienceProfile
@@ -90,14 +90,14 @@ public class SalienceLearner
                 ["colors"] = 0.4,
                 ["motion"] = 0.0,
                 ["text"] = 1.0,
-                ["quality"] = 0.3,
+                ["quality"] = 0.3
             }
         }
     };
 
     /// <summary>
-    /// Get salience weights for an image based on its fingerprints and type.
-    /// Uses fingerprint similarity to find learned patterns, falls back to type-based defaults.
+    ///     Get salience weights for an image based on its fingerprints and type.
+    ///     Uses fingerprint similarity to find learned patterns, falls back to type-based defaults.
     /// </summary>
     public Dictionary<string, double> GetWeights(DynamicImageProfile profile, string purpose = "caption")
     {
@@ -108,30 +108,24 @@ public class SalienceLearner
 
         // Check for exact PDQ match (most specific)
         if (!string.IsNullOrEmpty(pdqHash) && _profileCache.TryGetValue($"pdq:{pdqHash}", out var pdqProfile))
-        {
             return MergeWithPurpose(pdqProfile.Weights, purpose);
-        }
 
         // Check for similar block hash (perceptual similarity)
         if (!string.IsNullOrEmpty(blockHash) && _profileCache.TryGetValue($"block:{blockHash}", out var blockProfile))
-        {
             return MergeWithPurpose(blockProfile.Weights, purpose);
-        }
 
         // Fall back to type-based profile
         var imageType = DetectImageType(profile);
         if (_typeProfiles.TryGetValue(imageType, out var typeProfile))
-        {
             return MergeWithPurpose(typeProfile.Weights, purpose);
-        }
 
         // Default weights
         return GetDefaultWeights(purpose);
     }
 
     /// <summary>
-    /// Record that certain signals were useful for an image (for learning).
-    /// Call this with feedback about which signals helped produce good output.
+    ///     Record that certain signals were useful for an image (for learning).
+    ///     Call this with feedback about which signals helped produce good output.
     /// </summary>
     public void RecordFeedback(DynamicImageProfile profile, Dictionary<string, double> usefulSignals)
     {
@@ -154,23 +148,18 @@ public class SalienceLearner
                 // Exponential moving average to blend new feedback with existing
                 var alpha = 0.3; // Learning rate
                 foreach (var (signal, weight) in usefulSignals)
-                {
                     if (existing.Weights.TryGetValue(signal, out var oldWeight))
-                    {
                         existing.Weights[signal] = oldWeight * (1 - alpha) + weight * alpha;
-                    }
                     else
-                    {
                         existing.Weights[signal] = weight;
-                    }
-                }
+
                 existing.SampleCount++;
                 return existing;
             });
     }
 
     /// <summary>
-    /// Find similar images by fingerprint and return their salience profiles.
+    ///     Find similar images by fingerprint and return their salience profiles.
     /// </summary>
     public IEnumerable<(string Hash, SalienceProfile Profile, double Similarity)> FindSimilar(
         DynamicImageProfile profile,
@@ -190,15 +179,13 @@ public class SalienceLearner
             var similarity = CalculatePdqSimilarity(pdqHash, cachedPdq);
 
             if (similarity > 0.7) // 70% similarity threshold
-            {
                 yield return (cachedPdq, cachedProfile, similarity);
-            }
         }
     }
 
     /// <summary>
-    /// Find similar images using multi-vector embeddings.
-    /// Combines visual, color, and motion similarity with configurable weights.
+    ///     Find similar images using multi-vector embeddings.
+    ///     Combines visual, color, and motion similarity with configurable weights.
     /// </summary>
     public IEnumerable<(string Id, SalienceProfile Profile, double Similarity)> FindSimilarByEmbeddings(
         ImageEmbeddingSet queryEmbeddings,
@@ -213,18 +200,15 @@ public class SalienceLearner
                 continue;
 
             var similarity = CalculateMultiVectorSimilarity(queryEmbeddings, cachedEmbeddings);
-            if (similarity >= threshold)
-            {
-                results.Add((id, profile, similarity));
-            }
+            if (similarity >= threshold) results.Add((id, profile, similarity));
         }
 
         return results.OrderByDescending(r => r.Similarity).Take(maxResults);
     }
 
     /// <summary>
-    /// Get weights using multi-vector similarity search.
-    /// Falls back to hash-based matching, then type-based defaults.
+    ///     Get weights using multi-vector similarity search.
+    ///     Falls back to hash-based matching, then type-based defaults.
     /// </summary>
     public Dictionary<string, double> GetWeightsAdaptive(
         DynamicImageProfile profile,
@@ -234,14 +218,12 @@ public class SalienceLearner
         // First try exact hash match (fastest)
         var pdqHash = profile.GetValue<string>("fingerprint.pdq_hash");
         if (!string.IsNullOrEmpty(pdqHash) && _profileCache.TryGetValue($"pdq:{pdqHash}", out var exactMatch))
-        {
             return MergeWithPurpose(exactMatch.Weights, purpose);
-        }
 
         // Try multi-vector similarity if embeddings available
         if (embeddings != null && (embeddings.VisualEmbedding != null || embeddings.ColorEmbedding != null))
         {
-            var similar = FindSimilarByEmbeddings(embeddings, maxResults: 3, threshold: 0.7).ToList();
+            var similar = FindSimilarByEmbeddings(embeddings, 3, 0.7).ToList();
             if (similar.Any())
             {
                 // Blend weights from similar images, weighted by similarity
@@ -255,7 +237,7 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Record feedback with embeddings for future similarity matching.
+    ///     Record feedback with embeddings for future similarity matching.
     /// </summary>
     public void RecordFeedbackWithEmbeddings(
         DynamicImageProfile profile,
@@ -274,7 +256,7 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Get statistics about learned profiles.
+    ///     Get statistics about learned profiles.
     /// </summary>
     public LearnerStatistics GetStatistics()
     {
@@ -294,7 +276,7 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Save learned data to disk for persistence.
+    ///     Save learned data to disk for persistence.
     /// </summary>
     public async Task SaveAsync(string filePath)
     {
@@ -311,16 +293,13 @@ public class SalienceLearner
         });
 
         var directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
 
         await File.WriteAllTextAsync(filePath, json);
     }
 
     /// <summary>
-    /// Load learned data from disk.
+    ///     Load learned data from disk.
     /// </summary>
     public async Task LoadAsync(string filePath)
     {
@@ -333,20 +312,12 @@ public class SalienceLearner
             var data = JsonSerializer.Deserialize<LearnedData>(json);
 
             if (data?.Profiles != null)
-            {
                 foreach (var (key, profile) in data.Profiles)
-                {
                     _profileCache.TryAdd(key, profile);
-                }
-            }
 
             if (data?.Embeddings != null)
-            {
                 foreach (var (key, embedding) in data.Embeddings)
-                {
                     _embeddingCache.TryAdd(key, embedding);
-                }
-            }
         }
         catch
         {
@@ -355,7 +326,7 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Clear all learned data.
+    ///     Clear all learned data.
     /// </summary>
     public void Clear()
     {
@@ -364,8 +335,8 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Blend weights from multiple similar images based on similarity scores.
-    /// Uses weighted average where weight = similarity^2 (emphasizes closer matches).
+    ///     Blend weights from multiple similar images based on similarity scores.
+    ///     Uses weighted average where weight = similarity^2 (emphasizes closer matches).
     /// </summary>
     private Dictionary<string, double> BlendWeights(
         List<(string Id, SalienceProfile Profile, double Similarity)> similar)
@@ -380,32 +351,22 @@ public class SalienceLearner
             totalWeight += weight;
 
             foreach (var (signal, value) in profile.Weights)
-            {
                 if (blended.TryGetValue(signal, out var existing))
-                {
                     blended[signal] = existing + value * weight;
-                }
                 else
-                {
                     blended[signal] = value * weight;
-                }
-            }
         }
 
         // Normalize
         if (totalWeight > 0)
-        {
             foreach (var key in blended.Keys.ToList())
-            {
                 blended[key] /= totalWeight;
-            }
-        }
 
         return blended;
     }
 
     /// <summary>
-    /// Calculate multi-vector similarity using weighted combination of modalities.
+    ///     Calculate multi-vector similarity using weighted combination of modalities.
     /// </summary>
     private double CalculateMultiVectorSimilarity(ImageEmbeddingSet a, ImageEmbeddingSet b)
     {
@@ -441,7 +402,7 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Cosine similarity between two vectors.
+    ///     Cosine similarity between two vectors.
     /// </summary>
     private static double CosineSimilarity(float[] a, float[] b)
     {
@@ -461,7 +422,7 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Detect image type from profile signals.
+    ///     Detect image type from profile signals.
     /// </summary>
     private string DetectImageType(DynamicImageProfile profile)
     {
@@ -471,7 +432,6 @@ public class SalienceLearner
 
         var detectedType = profile.GetValue<string>("content.type")?.ToLowerInvariant();
         if (!string.IsNullOrEmpty(detectedType))
-        {
             return detectedType switch
             {
                 "screenshot" => "screenshot",
@@ -480,7 +440,6 @@ public class SalienceLearner
                 "photo" or "photograph" => "photo",
                 _ => "photo" // Default
             };
-        }
 
         // Heuristics
         var textLikeliness = profile.GetValue<double>("content.text_likeliness");
@@ -491,7 +450,7 @@ public class SalienceLearner
     }
 
     /// <summary>
-    /// Merge learned weights with purpose-specific adjustments.
+    ///     Merge learned weights with purpose-specific adjustments.
     /// </summary>
     private Dictionary<string, double> MergeWithPurpose(Dictionary<string, double> baseWeights, string purpose)
     {
@@ -504,7 +463,7 @@ public class SalienceLearner
                 ["text"] = 1.0,
                 ["colors"] = 0.3,
                 ["quality"] = 0.0,
-                ["identity"] = 0.0,
+                ["identity"] = 0.0
             },
             "verbose" => new Dictionary<string, double>
             {
@@ -513,7 +472,7 @@ public class SalienceLearner
                 ["text"] = 1.0,
                 ["colors"] = 1.0,
                 ["quality"] = 1.0,
-                ["identity"] = 1.0,
+                ["identity"] = 1.0
             },
             "technical" => new Dictionary<string, double>
             {
@@ -522,25 +481,21 @@ public class SalienceLearner
                 ["text"] = 1.0,
                 ["colors"] = 1.2,
                 ["quality"] = 1.5,
-                ["identity"] = 1.5,
+                ["identity"] = 1.5
             },
             _ => new Dictionary<string, double>() // No adjustment
         };
 
         var result = new Dictionary<string, double>(baseWeights);
         foreach (var (signal, multiplier) in purposeMultipliers)
-        {
             if (result.TryGetValue(signal, out var weight))
-            {
                 result[signal] = weight * multiplier;
-            }
-        }
 
         return result;
     }
 
     /// <summary>
-    /// Default weights when no profile found.
+    ///     Default weights when no profile found.
     /// </summary>
     private Dictionary<string, double> GetDefaultWeights(string purpose)
     {
@@ -555,7 +510,7 @@ public class SalienceLearner
                 ["scene"] = 0.5,
                 ["colors"] = 0.1,
                 ["quality"] = 0.0,
-                ["identity"] = 0.0,
+                ["identity"] = 0.0
             },
             "verbose" => new Dictionary<string, double>
             {
@@ -566,7 +521,7 @@ public class SalienceLearner
                 ["scene"] = 0.75,
                 ["colors"] = 0.6,
                 ["quality"] = 0.5,
-                ["identity"] = 0.7,
+                ["identity"] = 0.7
             },
             _ => new Dictionary<string, double>
             {
@@ -577,13 +532,13 @@ public class SalienceLearner
                 ["scene"] = 0.6,
                 ["colors"] = 0.4,
                 ["quality"] = 0.3,
-                ["identity"] = 0.3,
+                ["identity"] = 0.3
             }
         };
     }
 
     /// <summary>
-    /// Calculate similarity between two PDQ hashes (normalized hamming distance).
+    ///     Calculate similarity between two PDQ hashes (normalized hamming distance).
     /// </summary>
     private double CalculatePdqSimilarity(string hash1, string hash2)
     {
@@ -621,59 +576,60 @@ public class SalienceLearner
             count += b & 1;
             b >>= 1;
         }
+
         return count;
     }
 }
 
 /// <summary>
-/// Stored salience profile for an image or image type.
+///     Stored salience profile for an image or image type.
 /// </summary>
 public class SalienceProfile
 {
     public string? ImageType { get; set; }
     public Dictionary<string, double> Weights { get; set; } = new();
-    public int SampleCount { get; set; } = 0;
+    public int SampleCount { get; set; }
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>
-/// Multi-vector embedding set for an image.
-/// Used for similarity search across different modalities.
+///     Multi-vector embedding set for an image.
+///     Used for similarity search across different modalities.
 /// </summary>
 public class ImageEmbeddingSet
 {
     /// <summary>
-    /// Image identifier (SHA256 or composite fingerprint)
+    ///     Image identifier (SHA256 or composite fingerprint)
     /// </summary>
     public string? Id { get; set; }
 
     /// <summary>
-    /// CLIP visual embedding (typically 512 or 768 dimensions)
+    ///     CLIP visual embedding (typically 512 or 768 dimensions)
     /// </summary>
     public float[]? VisualEmbedding { get; set; }
 
     /// <summary>
-    /// Color palette embedding (compact representation)
+    ///     Color palette embedding (compact representation)
     /// </summary>
     public float[]? ColorEmbedding { get; set; }
 
     /// <summary>
-    /// Motion signature for animated images
+    ///     Motion signature for animated images
     /// </summary>
     public float[]? MotionEmbedding { get; set; }
 
     /// <summary>
-    /// Text embedding from OCR content
+    ///     Text embedding from OCR content
     /// </summary>
     public float[]? TextEmbedding { get; set; }
 
     /// <summary>
-    /// Image type detected
+    ///     Image type detected
     /// </summary>
     public string? ImageType { get; set; }
 
     /// <summary>
-    /// Create from a dynamic profile (extracts any available embeddings)
+    ///     Create from a dynamic profile (extracts any available embeddings)
     /// </summary>
     public static ImageEmbeddingSet FromProfile(DynamicImageProfile profile)
     {
@@ -691,7 +647,7 @@ public class ImageEmbeddingSet
 }
 
 /// <summary>
-/// Statistics about the salience learner's current state.
+///     Statistics about the salience learner's current state.
 /// </summary>
 public record LearnerStatistics
 {
@@ -703,7 +659,7 @@ public record LearnerStatistics
 }
 
 /// <summary>
-/// Serializable container for persisting learned data.
+///     Serializable container for persisting learned data.
 /// </summary>
 public class LearnedData
 {

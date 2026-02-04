@@ -3,8 +3,8 @@ using DoomSummarizer.Models;
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// Contract for a source data plugin.
-/// Each plugin knows how to fetch <see cref="ContentItem"/>s from one or more related sources.
+///     Contract for a source data plugin.
+///     Each plugin knows how to fetch <see cref="ContentItem" />s from one or more related sources.
 /// </summary>
 public interface ISourcePlugin
 {
@@ -12,20 +12,20 @@ public interface ISourcePlugin
     SourcePluginMetadata Metadata { get; }
 
     /// <summary>
-    /// One-time initialization. Called once after registration, before any <see cref="FetchAsync"/> calls.
-    /// Use to validate API keys, warm caches, etc.
+    ///     One-time initialization. Called once after registration, before any <see cref="FetchAsync" /> calls.
+    ///     Use to validate API keys, warm caches, etc.
     /// </summary>
     Task InitializeAsync(SourcePluginServices services, CancellationToken ct = default);
 
     /// <summary>
-    /// Fetch content items for the given context.
-    /// The <see cref="SourceFetchContext.SourceKey"/> will be one of this plugin's registered keys.
+    ///     Fetch content items for the given context.
+    ///     The <see cref="SourceFetchContext.SourceKey" /> will be one of this plugin's registered keys.
     /// </summary>
     Task<List<ContentItem>> FetchAsync(SourceFetchContext context, CancellationToken ct = default);
 }
 
 /// <summary>
-/// Contract for an output plugin (email, file, webhook, etc.).
+///     Contract for an output plugin (email, file, webhook, etc.).
 /// </summary>
 public interface IOutputPlugin
 {
@@ -36,7 +36,7 @@ public interface IOutputPlugin
     Task InitializeAsync(SourcePluginServices services, CancellationToken ct = default);
 
     /// <summary>
-    /// Send/write output content.
+    ///     Send/write output content.
     /// </summary>
     Task SendAsync(OutputContext context, CancellationToken ct = default);
 }

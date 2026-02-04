@@ -17,6 +17,12 @@ public class ColorAnalyzerTests
         _analyzer = new ColorAnalyzer(new ColorGridConfig());
     }
 
+    private static string GetTestImagePath(string filename)
+    {
+        var dir = Path.GetDirectoryName(typeof(ColorAnalyzerTests).Assembly.Location)!;
+        return Path.Combine(dir, "TestImages", filename);
+    }
+
     #region ExtractDominantColors Tests
 
     [Fact]
@@ -51,7 +57,7 @@ public class ColorAnalyzerTests
     {
         using var image = TestImageGenerator.CreateColorBlocks(300, 200);
 
-        var colors = _analyzer.ExtractDominantColors(image, maxColors: 6);
+        var colors = _analyzer.ExtractDominantColors(image, 6);
 
         Assert.True(colors.Count >= 3, $"Expected at least 3 colors, got {colors.Count}");
         // Each block is ~16.6% of the image
@@ -64,7 +70,7 @@ public class ColorAnalyzerTests
     {
         using var image = TestImageGenerator.CreateCheckerboard(200, 200, 20);
 
-        var colors = _analyzer.ExtractDominantColors(image, maxColors: 2);
+        var colors = _analyzer.ExtractDominantColors(image, 2);
 
         Assert.Equal(2, colors.Count);
         var colorNames = colors.Select(c => c.Name).ToList();
@@ -212,10 +218,8 @@ public class ColorAnalyzerTests
     {
         var testImagePath = GetTestImagePath("01-home.png");
         if (!File.Exists(testImagePath))
-        {
             // Skip if test image not available
             return;
-        }
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var colors = _analyzer.ExtractDominantColors(image);
@@ -229,10 +233,7 @@ public class ColorAnalyzerTests
     public void ComputeColorGrid_Screenshot_ReturnsValidGrid()
     {
         var testImagePath = GetTestImagePath("02-chat-input.png");
-        if (!File.Exists(testImagePath))
-        {
-            return;
-        }
+        if (!File.Exists(testImagePath)) return;
 
         using var image = Image.Load<Rgba32>(testImagePath);
         var grid = _analyzer.ComputeColorGrid(image);
@@ -246,10 +247,4 @@ public class ColorAnalyzerTests
     }
 
     #endregion
-
-    private static string GetTestImagePath(string filename)
-    {
-        var dir = Path.GetDirectoryName(typeof(ColorAnalyzerTests).Assembly.Location)!;
-        return Path.Combine(dir, "TestImages", filename);
-    }
 }

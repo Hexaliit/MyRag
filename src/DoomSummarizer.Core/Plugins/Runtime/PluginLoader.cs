@@ -1,21 +1,21 @@
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Reflection;
+using System.Text.Json;
 
 namespace DoomSummarizer.Plugins.Runtime;
 
 /// <summary>
-/// Downloads NuGet packages and loads them as plugins at runtime.
-/// Uses NuGet HTTP API v3 directly (no NuGet.Protocol dependency) for simplicity
-/// and compatibility with single-file deployment.
+///     Downloads NuGet packages and loads them as plugins at runtime.
+///     Uses NuGet HTTP API v3 directly (no NuGet.Protocol dependency) for simplicity
+///     and compatibility with single-file deployment.
 /// </summary>
 public sealed class PluginLoader
 {
-    private readonly HttpClient _httpClient;
-    private readonly List<PluginLoadContext> _loadContexts = [];
-
     /// <summary>NuGet V3 service index URL.</summary>
     private const string NuGetServiceIndex = "https://api.nuget.org/v3/index.json";
+
+    private readonly HttpClient _httpClient;
+    private readonly List<PluginLoadContext> _loadContexts = [];
 
     public PluginLoader(HttpClient? httpClient = null)
     {
@@ -23,7 +23,7 @@ public sealed class PluginLoader
     }
 
     /// <summary>
-    /// Download and extract a NuGet package to the plugin directory.
+    ///     Download and extract a NuGet package to the plugin directory.
     /// </summary>
     /// <param name="packageId">NuGet package ID (or shorthand that has been resolved).</param>
     /// <param name="version">Specific version, or null for latest.</param>
@@ -56,15 +56,16 @@ public sealed class PluginLoader
             }
 
             // Download the .nupkg
-            var downloadUrl = $"https://api.nuget.org/v3-flatcontainer/{packageId.ToLowerInvariant()}/{version}/{packageId.ToLowerInvariant()}.{version}.nupkg";
+            var downloadUrl =
+                $"https://api.nuget.org/v3-flatcontainer/{packageId.ToLowerInvariant()}/{version}/{packageId.ToLowerInvariant()}.{version}.nupkg";
             var nupkgBytes = await _httpClient.GetByteArrayAsync(downloadUrl);
 
             progress?.Invoke($"Extracting {packageId} {version}...");
 
             // Extract DLLs from the nupkg (it's a ZIP)
             Directory.CreateDirectory(installDir);
-            using var archive = new System.IO.Compression.ZipArchive(
-                new MemoryStream(nupkgBytes), System.IO.Compression.ZipArchiveMode.Read);
+            using var archive = new ZipArchive(
+                new MemoryStream(nupkgBytes), ZipArchiveMode.Read);
 
             // Prefer net10.0 > net9.0 > net8.0 > netstandard2.1 > netstandard2.0
             var tfmPreference = new[] { "net10.0", "net9.0", "net8.0", "netstandard2.1", "netstandard2.0" };
@@ -96,7 +97,7 @@ public sealed class PluginLoader
                     continue;
 
                 var destPath = Path.Combine(installDir, entry.Name);
-                entry.ExtractToFile(destPath, overwrite: true);
+                entry.ExtractToFile(destPath, true);
                 extractedCount++;
             }
 
@@ -112,15 +113,15 @@ public sealed class PluginLoader
     }
 
     /// <summary>
-    /// Load plugin assemblies from an install directory and discover plugin types.
+    ///     Load plugin assemblies from an install directory and discover plugin types.
     /// </summary>
-    public (IReadOnlyList<ISourcePlugin> sources, IReadOnlyList<IOutputPlugin> outputs) LoadFromDirectory(string installDir)
+    public (IReadOnlyList<ISourcePlugin> sources, IReadOnlyList<IOutputPlugin> outputs) LoadFromDirectory(
+        string installDir)
     {
         var sources = new List<ISourcePlugin>();
         var outputs = new List<IOutputPlugin>();
 
         foreach (var dllPath in Directory.GetFiles(installDir, "*.dll"))
-        {
             try
             {
                 var loadContext = new PluginLoadContext(dllPath);
@@ -134,7 +135,6 @@ public sealed class PluginLoader
             {
                 Debug.WriteLine($"[PluginLoader] Failed to load {dllPath}: {ex.Message}");
             }
-        }
 
         return (sources, outputs);
     }
@@ -148,7 +148,7 @@ public sealed class PluginLoader
             var json = await _httpClient.GetStringAsync(url);
 
             // Simple JSON parsing — extract versions array
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            using var doc = JsonDocument.Parse(json);
             var versions = doc.RootElement.GetProperty("versions");
             var allVersions = new List<string>();
             foreach (var v in versions.EnumerateArray())

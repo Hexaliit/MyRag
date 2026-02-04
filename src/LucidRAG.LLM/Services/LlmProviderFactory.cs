@@ -11,15 +11,15 @@ using Mostlylucid.DocSummarizer.Services;
 namespace LucidRAG.LLM.Services;
 
 /// <summary>
-/// Factory for creating and caching named LLM providers.
+///     Factory for creating and caching named LLM providers.
 /// </summary>
 public class LlmProviderFactory : ILlmProviderFactory
 {
     private readonly LlmProviderConfig _config;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IPromptService _promptService;
     private readonly ILogger<LlmProviderFactory> _logger;
+    private readonly IPromptService _promptService;
     private readonly ConcurrentDictionary<string, INamedLlmProvider> _providers = new();
+    private readonly IServiceProvider _serviceProvider;
 
     public LlmProviderFactory(
         IOptions<LlmProviderConfig> config,
@@ -73,18 +73,26 @@ public class LlmProviderFactory : ILlmProviderFactory
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<string> GetProviderNames() => _providers.Keys.ToList();
+    public IReadOnlyList<string> GetProviderNames()
+    {
+        return _providers.Keys.ToList();
+    }
 
     /// <inheritdoc />
-    public bool HasProvider(string name) => _providers.ContainsKey(name);
+    public bool HasProvider(string name)
+    {
+        return _providers.ContainsKey(name);
+    }
 
     /// <inheritdoc />
-    public INamedLlmProvider GetDefault() => GetProviderForTier(ProviderTier.General);
+    public INamedLlmProvider GetDefault()
+    {
+        return GetProviderForTier(ProviderTier.General);
+    }
 
     private void InitializeProviders()
     {
         foreach (var (name, providerConfig) in _config.Providers)
-        {
             try
             {
                 var provider = CreateProvider(name, providerConfig);
@@ -100,7 +108,6 @@ public class LlmProviderFactory : ILlmProviderFactory
             {
                 _logger.LogWarning(ex, "Failed to create LLM provider: {Name}", name);
             }
-        }
 
         _logger.LogInformation("Initialized {Count} LLM providers", _providers.Count);
     }
@@ -171,9 +178,7 @@ public class LlmProviderFactory : ILlmProviderFactory
 
             // Single endpoint: direct creation (zero overhead)
             if (effectiveEndpoints.Count == 1)
-            {
                 return CreateSingleOllamaService(effectiveEndpoints[0].Url, backendConfig, modelConfig);
-            }
 
             // Multi-endpoint: create per-endpoint services and wrap in load balancer
             var endpoints = new List<EndpointState>();
@@ -299,7 +304,7 @@ public class LlmProviderFactory : ILlmProviderFactory
     }
 
     /// <summary>
-    /// Get effective endpoints for a backend, filtered by model-level endpoint restrictions.
+    ///     Get effective endpoints for a backend, filtered by model-level endpoint restrictions.
     /// </summary>
     private static List<EndpointEntry> GetFilteredEndpoints(BackendConfig backendConfig, ModelConfig modelConfig)
     {
@@ -340,11 +345,14 @@ public class LlmProviderFactory : ILlmProviderFactory
             backendConfig.HealthCheckIntervalSeconds);
     }
 
-    private static IEndpointSelector CreateSelector(EndpointSelectionStrategy strategy) => strategy switch
+    private static IEndpointSelector CreateSelector(EndpointSelectionStrategy strategy)
     {
-        EndpointSelectionStrategy.Fastest => new FastestSelector(),
-        _ => new RoundRobinSelector()
-    };
+        return strategy switch
+        {
+            EndpointSelectionStrategy.Fastest => new FastestSelector(),
+            _ => new RoundRobinSelector()
+        };
+    }
 
     private INamedLlmProvider CreateNamedProvider(
         string name,
@@ -372,7 +380,7 @@ public class LlmProviderFactory : ILlmProviderFactory
             LlmBackendType.LMStudio => new OpenAIProvider(
                 name, inner, _promptService, modelConfig, backendConfig,
                 loggerFactory.CreateLogger<OpenAIProvider>(),
-                isLmStudio: true),
+                true),
 
             LlmBackendType.LLamaSharp => new LLamaSharpProvider(
                 name, inner, _promptService, modelConfig, backendConfig,

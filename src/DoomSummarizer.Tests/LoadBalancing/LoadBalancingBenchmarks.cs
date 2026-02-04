@@ -2,15 +2,16 @@ using System.Diagnostics;
 using LucidRAG.LLM.Services.LoadBalancing;
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DocSummarizer.Services;
+using Xunit.Abstractions;
 
 namespace DoomSummarizer.Tests.LoadBalancing;
 
 /// <summary>
-/// Performance benchmarks for load balancing components.
-/// Uses xUnit [Fact] tests with Stopwatch timing (no BenchmarkDotNet dependency).
-/// Each benchmark reports ops/sec and allocation bytes via test output.
+///     Performance benchmarks for load balancing components.
+///     Uses xUnit [Fact] tests with Stopwatch timing (no BenchmarkDotNet dependency).
+///     Each benchmark reports ops/sec and allocation bytes via test output.
 /// </summary>
-public class LoadBalancingBenchmarks(Xunit.Abstractions.ITestOutputHelper output)
+public class LoadBalancingBenchmarks(ITestOutputHelper output)
 {
     // ── B1: EndpointState throughput ──────────────────────────────────────
 
@@ -150,19 +151,19 @@ public class LoadBalancingBenchmarks(Xunit.Abstractions.ITestOutputHelper output
         {
             new("http://ep0:11434", "ep0"),
             new("http://ep1:11434", "ep1"),
-            new("http://ep2:11434", "ep2"),
+            new("http://ep2:11434", "ep2")
         };
         var services = new Dictionary<string, ILlmService>
         {
-            ["http://ep0:11434"] = new FakeLlmService("ep0", shouldFail: true),
+            ["http://ep0:11434"] = new FakeLlmService("ep0", true),
             ["http://ep1:11434"] = new FakeLlmService("ep1"),
-            ["http://ep2:11434"] = new FakeLlmService("ep2"),
+            ["http://ep2:11434"] = new FakeLlmService("ep2")
         };
         var sut = new LoadBalancedLlmService(
             "bench", endpoints, services,
             new FixedFirstSelector(),
             NullLogger<LoadBalancedLlmService>.Instance,
-            healthCheckIntervalSeconds: 0);
+            0);
 
         var sw = Stopwatch.StartNew();
 
@@ -242,10 +243,12 @@ public class LoadBalancingBenchmarks(Xunit.Abstractions.ITestOutputHelper output
 
     // ── Helpers ──────────────────────────────────────────────────────────
 
-    private static List<EndpointState> CreateBenchEndpoints(int count) =>
-        Enumerable.Range(0, count)
+    private static List<EndpointState> CreateBenchEndpoints(int count)
+    {
+        return Enumerable.Range(0, count)
             .Select(i => new EndpointState($"http://ep{i}:11434", $"ep{i}"))
             .ToList();
+    }
 
     private static (LoadBalancedLlmService service, List<EndpointState> endpoints) CreateBenchService(
         int endpointCount,
@@ -259,18 +262,20 @@ public class LoadBalancingBenchmarks(Xunit.Abstractions.ITestOutputHelper output
         var service = new LoadBalancedLlmService(
             "bench", endpoints, services, selector,
             NullLogger<LoadBalancedLlmService>.Instance,
-            healthCheckIntervalSeconds: 0);
+            0);
 
         return (service, endpoints);
     }
 
     /// <summary>
-    /// Selector that always returns the first endpoint (to guarantee hitting
-    /// a specific endpoint for failover benchmarks).
+    ///     Selector that always returns the first endpoint (to guarantee hitting
+    ///     a specific endpoint for failover benchmarks).
     /// </summary>
     private class FixedFirstSelector : IEndpointSelector
     {
-        public EndpointState? Select(IReadOnlyList<EndpointState> endpoints) =>
-            endpoints.Count > 0 ? endpoints[0] : null;
+        public EndpointState? Select(IReadOnlyList<EndpointState> endpoints)
+        {
+            return endpoints.Count > 0 ? endpoints[0] : null;
+        }
     }
 }

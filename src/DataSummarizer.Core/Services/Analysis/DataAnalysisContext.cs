@@ -3,39 +3,33 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis;
 
 /// <summary>
-/// Shared context passed between analysis waves.
-/// Allows waves to access results from higher-priority waves.
+///     Shared context passed between analysis waves.
+///     Allows waves to access results from higher-priority waves.
 /// </summary>
 public class DataAnalysisContext
 {
-    private readonly Dictionary<string, List<DataSignal>> _signals = new();
     private readonly Dictionary<string, object> _cache = new();
+    private readonly Dictionary<string, List<DataSignal>> _signals = new();
 
     /// <summary>
-    /// Add a signal to the context.
+    ///     Add a signal to the context.
     /// </summary>
     public void AddSignal(DataSignal signal)
     {
-        if (!_signals.ContainsKey(signal.Key))
-        {
-            _signals[signal.Key] = new List<DataSignal>();
-        }
+        if (!_signals.ContainsKey(signal.Key)) _signals[signal.Key] = new List<DataSignal>();
         _signals[signal.Key].Add(signal);
     }
 
     /// <summary>
-    /// Add multiple signals to the context.
+    ///     Add multiple signals to the context.
     /// </summary>
     public void AddSignals(IEnumerable<DataSignal> signals)
     {
-        foreach (var signal in signals)
-        {
-            AddSignal(signal);
-        }
+        foreach (var signal in signals) AddSignal(signal);
     }
 
     /// <summary>
-    /// Get all signals for a given key.
+    ///     Get all signals for a given key.
     /// </summary>
     public IEnumerable<DataSignal> GetSignals(string key)
     {
@@ -43,7 +37,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get the most confident signal for a key.
+    ///     Get the most confident signal for a key.
     /// </summary>
     public DataSignal? GetBestSignal(string key)
     {
@@ -51,7 +45,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get value from the most confident signal.
+    ///     Get value from the most confident signal.
     /// </summary>
     public T? GetValue<T>(string key)
     {
@@ -60,7 +54,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Check if a signal exists for a key.
+    ///     Check if a signal exists for a key.
     /// </summary>
     public bool HasSignal(string key)
     {
@@ -68,7 +62,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get all signals.
+    ///     Get all signals.
     /// </summary>
     public IEnumerable<DataSignal> GetAllSignals()
     {
@@ -76,7 +70,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get signals by tag.
+    ///     Get signals by tag.
     /// </summary>
     public IEnumerable<DataSignal> GetSignalsByTag(string tag)
     {
@@ -84,7 +78,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get signals by source wave.
+    ///     Get signals by source wave.
     /// </summary>
     public IEnumerable<DataSignal> GetSignalsBySource(string source)
     {
@@ -92,7 +86,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Cache arbitrary data for sharing between waves.
+    ///     Cache arbitrary data for sharing between waves.
     /// </summary>
     public void SetCached<T>(string key, T value)
     {
@@ -100,7 +94,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Retrieve cached data.
+    ///     Retrieve cached data.
     /// </summary>
     public T? GetCached<T>(string key)
     {
@@ -108,7 +102,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Clear all cached data (useful for freeing memory after analysis).
+    ///     Clear all cached data (useful for freeing memory after analysis).
     /// </summary>
     public void ClearCache()
     {
@@ -116,7 +110,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get column names from identity wave.
+    ///     Get column names from identity wave.
     /// </summary>
     public IReadOnlyList<string> GetColumnNames()
     {
@@ -124,7 +118,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get row count from identity wave.
+    ///     Get row count from identity wave.
     /// </summary>
     public long GetRowCount()
     {
@@ -132,7 +126,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get the inferred type for a column.
+    ///     Get the inferred type for a column.
     /// </summary>
     public string? GetColumnType(string column)
     {
@@ -140,7 +134,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Get columns that have a specific inferred type.
+    ///     Get columns that have a specific inferred type.
     /// </summary>
     public IEnumerable<string> GetColumnsOfType(string type)
     {
@@ -148,7 +142,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Check if analysis is enabled for a specific feature.
+    ///     Check if analysis is enabled for a specific feature.
     /// </summary>
     public bool IsFeatureEnabled(string feature)
     {
@@ -156,7 +150,7 @@ public class DataAnalysisContext
     }
 
     /// <summary>
-    /// Set feature enablement state.
+    ///     Set feature enablement state.
     /// </summary>
     public void SetFeatureEnabled(string feature, bool enabled)
     {

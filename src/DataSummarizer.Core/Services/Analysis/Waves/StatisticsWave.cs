@@ -4,7 +4,7 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Sixth wave: computes statistics for numeric columns.
+///     Sixth wave: computes statistics for numeric columns.
 /// </summary>
 public class StatisticsWave : IDataAnalysisWave
 {
@@ -67,7 +67,7 @@ public class StatisticsWave : IDataAnalysisWave
                     var (q1, median, q3) = quartiles.Value;
                     colSignals.Add(CreateSignal(
                         DataSignalKeys.StatsQuartiles(column),
-                        new double[] { q1, median, q3 }));
+                        new[] { q1, median, q3 }));
                 }
             }
             catch (Exception ex)
@@ -79,10 +79,7 @@ public class StatisticsWave : IDataAnalysisWave
         });
 
         var results = await Task.WhenAll(tasks);
-        foreach (var colSignals in results)
-        {
-            signals.AddRange(colSignals);
-        }
+        foreach (var colSignals in results) signals.AddRange(colSignals);
 
         _logger?.LogDebug("StatisticsWave: Computed statistics for {Count} numeric columns", numericColumns.Count);
 

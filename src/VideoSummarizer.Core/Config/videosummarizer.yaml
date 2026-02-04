@@ -48,7 +48,7 @@ processing:
   # OCR (on-screen text)
   ocr:
     enabled: true
-    languages: [en]                 # Language codes for OCR
+    languages: [ en ]                 # Language codes for OCR
     track_text: true                # Track text across frames
     deduplicate: true               # Remove duplicate text detections
     min_confidence: 0.7
@@ -92,7 +92,7 @@ subtitles:
   # External subtitle download
   download:
     enabled: true
-    languages: [en]                # Preferred languages (ISO 639-1)
+    languages: [ en ]                # Preferred languages (ISO 639-1)
     hearing_impaired: false        # Prefer hearing impaired subtitles
     auto_select: true              # Auto-select best match
 

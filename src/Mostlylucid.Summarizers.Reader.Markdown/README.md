@@ -28,7 +28,8 @@ Console.WriteLine(result.Markdown); // Content (front matter stripped)
 
 ## Dependencies
 
-- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) - IDocumentReader interface
+- [Mostlylucid.LucidRAG.DoomSummarizer.Core](https://www.nuget.org/packages/Mostlylucid.LucidRAG.DoomSummarizer.Core) -
+  IDocumentReader interface
 
 ## License
 

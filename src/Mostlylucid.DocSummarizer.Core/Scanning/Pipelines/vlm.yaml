@@ -16,7 +16,7 @@ signals:
 waves:
   required:
     - VlmOcrWave
-  conditional: []  # VLM is the only wave
+  conditional: [ ]  # VLM is the only wave
 
 output:
   format: markdown

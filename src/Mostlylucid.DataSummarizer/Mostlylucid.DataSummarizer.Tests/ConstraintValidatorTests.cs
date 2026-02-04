@@ -4,7 +4,7 @@ using Mostlylucid.DataSummarizer.Services;
 namespace Mostlylucid.DataSummarizer.Tests;
 
 /// <summary>
-/// Tests for the data constraint validation system
+///     Tests for the data constraint validation system
 /// </summary>
 public class ConstraintValidatorTests
 {
@@ -150,7 +150,7 @@ public class ConstraintValidatorTests
                 new DataConstraint
                 {
                     Type = ConstraintType.ColumnNotNull,
-                    ColumnName = "name"  // This column has nulls
+                    ColumnName = "name" // This column has nulls
                 }
             ]
         };
@@ -196,7 +196,7 @@ public class ConstraintValidatorTests
                 {
                     Type = ConstraintType.ColumnTypeIs,
                     ColumnName = "age",
-                    ExpectedType = ColumnType.Text  // Wrong type
+                    ExpectedType = ColumnType.Text // Wrong type
                 }
             ]
         };
@@ -243,8 +243,8 @@ public class ConstraintValidatorTests
                 {
                     Type = ConstraintType.ValuesBetween,
                     ColumnName = "age",
-                    MinValue = 20,  // Min is 18, so this fails
-                    MaxValue = 80   // Max is 99, so this also fails
+                    MinValue = 20, // Min is 18, so this fails
+                    MaxValue = 80 // Max is 99, so this also fails
                 }
             ]
         };
@@ -311,7 +311,7 @@ public class ConstraintValidatorTests
                 new DataConstraint
                 {
                     Type = ConstraintType.ColumnUnique,
-                    ColumnName = "id"  // 100% unique
+                    ColumnName = "id" // 100% unique
                 }
             ]
         };
@@ -333,7 +333,7 @@ public class ConstraintValidatorTests
                 new DataConstraint
                 {
                     Type = ConstraintType.ColumnUnique,
-                    ColumnName = "status"  // Only 3 unique values
+                    ColumnName = "status" // Only 3 unique values
                 }
             ]
         };
@@ -379,7 +379,7 @@ public class ConstraintValidatorTests
                 {
                     Type = ConstraintType.ValuesInSet,
                     ColumnName = "status",
-                    AllowedValues = ["active", "inactive"]  // Missing "pending"
+                    AllowedValues = ["active", "inactive"] // Missing "pending"
                 }
             ]
         };
@@ -400,7 +400,7 @@ public class ConstraintValidatorTests
             [
                 new DataConstraint { Type = ConstraintType.RowCountBetween, MinValue = 500, MaxValue = 2000 },
                 new DataConstraint { Type = ConstraintType.ColumnNotNull, ColumnName = "id" },
-                new DataConstraint { Type = ConstraintType.ColumnNotNull, ColumnName = "name" }  // Fails - has nulls
+                new DataConstraint { Type = ConstraintType.ColumnNotNull, ColumnName = "name" } // Fails - has nulls
             ]
         };
 
@@ -416,21 +416,21 @@ public class ConstraintValidatorTests
     public void GenerateFromProfile_CreatesReasonableConstraints()
     {
         var profile = CreateTestProfile();
-        
+
         var suite = _validator.GenerateFromProfile(profile);
 
         Assert.NotNull(suite);
         Assert.True(suite.Constraints.Count > 0);
-        
+
         // Should have row count constraint
         Assert.Contains(suite.Constraints, c => c.Type == ConstraintType.RowCountBetween);
-        
+
         // Should have column count constraint
         Assert.Contains(suite.Constraints, c => c.Type == ConstraintType.ColumnCountEquals);
-        
+
         // Should have not-null constraint for columns with 0 nulls
         Assert.Contains(suite.Constraints, c => c.Type == ConstraintType.ColumnNotNull && c.ColumnName == "id");
-        
+
         // Should have type constraints
         Assert.Contains(suite.Constraints, c => c.Type == ConstraintType.ColumnTypeIs);
     }
@@ -439,12 +439,12 @@ public class ConstraintValidatorTests
     public void GenerateFromProfile_GeneratedConstraints_PassOnSameProfile()
     {
         var profile = CreateTestProfile();
-        
+
         var suite = _validator.GenerateFromProfile(profile);
         var result = _validator.Validate(profile, suite);
 
         // All auto-generated constraints should pass against the profile they were generated from
-        Assert.True(result.AllPassed, 
+        Assert.True(result.AllPassed,
             $"Generated constraints should pass on source profile. Failures: {string.Join(", ", result.GetFailures().Select(f => f.Constraint.Description))}");
     }
 
@@ -461,7 +461,7 @@ public class ConstraintValidatorTests
                 {
                     Type = ConstraintType.NullPercentBelow,
                     ColumnName = "name",
-                    MaxValue = 10  // 5% nulls, should pass
+                    MaxValue = 10 // 5% nulls, should pass
                 }
             ]
         };
@@ -484,7 +484,7 @@ public class ConstraintValidatorTests
                 {
                     Type = ConstraintType.NullPercentBelow,
                     ColumnName = "name",
-                    MaxValue = 2  // 5% nulls, should fail
+                    MaxValue = 2 // 5% nulls, should fail
                 }
             ]
         };

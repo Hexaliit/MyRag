@@ -19,13 +19,15 @@ Write-Host "Discriminator Learning System Test" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Check if test image exists
-if (-not (Test-Path $TestImage)) {
+if (-not (Test-Path $TestImage))
+{
     Write-Host "Test image not found: $TestImage" -ForegroundColor Red
     Write-Host "Creating test environment..." -ForegroundColor Yellow
 
     # Create test images directory
     $testDir = "E:\source\lucidrag\test-images"
-    if (-not (Test-Path $testDir)) {
+    if (-not (Test-Path $testDir))
+    {
         New-Item -ItemType Directory -Path $testDir | Out-Null
     }
 
@@ -37,7 +39,8 @@ if (-not (Test-Path $TestImage)) {
 # Build the project
 Write-Host "Building project..." -ForegroundColor Yellow
 dotnet build "E:\source\lucidrag\LucidRAG.sln" -c Release | Out-Null
-if ($LASTEXITCODE -ne 0) {
+if ($LASTEXITCODE -ne 0)
+{
     Write-Host "Build failed!" -ForegroundColor Red
     exit 1
 }
@@ -56,7 +59,8 @@ Write-Host "Image: $TestImage`n" -ForegroundColor Gray
 
 dotnet run --project $cliPath -- score $TestImage --model $Model --goal caption
 
-if ($LASTEXITCODE -ne 0) {
+if ($LASTEXITCODE -ne 0)
+{
     Write-Host "`nAnalysis failed! Check API keys:`n" -ForegroundColor Red
     Write-Host "For Anthropic: dotnet user-secrets set Anthropic:ApiKey YOUR_KEY --project $cliPath" -ForegroundColor Yellow
     Write-Host "For OpenAI: dotnet user-secrets set OpenAI:ApiKey YOUR_KEY --project $cliPath" -ForegroundColor Yellow
@@ -96,7 +100,8 @@ dotnet run --project $cliPath -- score $TestImage `
     --show-top
 
 # Test 5: Multi-Goal Analysis (OCR vs Caption)
-if ($RunFullSuite) {
+if ($RunFullSuite)
+{
     Write-Host "`n========================================" -ForegroundColor Cyan
     Write-Host "TEST 5: Multi-Goal Analysis" -ForegroundColor Cyan
     Write-Host "========================================`n" -ForegroundColor Cyan
@@ -129,18 +134,20 @@ if ($RunFullSuite) {
 # Test 6: Test with Different Image (if available)
 $testImages = Get-ChildItem "E:\source\lucidrag\test-images" -File -Include @("*.jpg", "*.png", "*.gif", "*.webp")
 
-if ($RunFullSuite -and $testImages.Count -gt 1) {
+if ($RunFullSuite -and $testImages.Count -gt 1)
+{
     Write-Host "`n========================================" -ForegroundColor Cyan
     Write-Host "TEST 6: Multi-Image Learning" -ForegroundColor Cyan
     Write-Host "========================================`n" -ForegroundColor Cyan
 
-    foreach ($img in $testImages | Select-Object -First 3) {
-        Write-Host "`nAnalyzing: $($img.Name)" -ForegroundColor Yellow
+    foreach ($img in $testImages | Select-Object -First 3)
+    {
+        Write-Host "`nAnalyzing: $( $img.Name )" -ForegroundColor Yellow
         dotnet run --project $cliPath -- score $img.FullName `
             --model $Model `
             --goal caption `
             --accept true `
-            --feedback "Processing $($img.Name)"
+            --feedback "Processing $( $img.Name )"
     }
 }
 
@@ -180,7 +187,8 @@ Write-Host "  [OK] Learning loop with positive and negative feedback" -Foregroun
 Write-Host "  [OK] Novelty detection vs prior analyses" -ForegroundColor Gray
 Write-Host "  [OK] Top discriminator display" -ForegroundColor Gray
 
-if ($RunFullSuite) {
+if ($RunFullSuite)
+{
     Write-Host "  [OK] Multi-goal analysis (caption, OCR, object detection)" -ForegroundColor Gray
     Write-Host "  [OK] Multi-image learning" -ForegroundColor Gray
 }

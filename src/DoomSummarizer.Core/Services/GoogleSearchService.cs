@@ -1,14 +1,22 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Web;
 using DoomSummarizer.Models;
+
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Google Custom Search JSON API (Programmable Search Engine).
-/// Free tier: 100 queries/day. Paid: $5/1000 queries.
-/// Requires API key + Custom Search Engine ID (CX).
+///     Google Custom Search JSON API (Programmable Search Engine).
+///     Free tier: 100 queries/day. Paid: $5/1000 queries.
+///     Requires API key + Custom Search Engine ID (CX).
 /// </summary>
-public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiBudgetService budget, CircuitBreakerService circuit)
+public class GoogleSearchService(
+    HttpClient httpClient,
+    ApiKeyService keys,
+    ApiBudgetService budget,
+    CircuitBreakerService circuit)
 {
     private const string ServiceName = "google_search";
     private const string Endpoint = "https://www.googleapis.com/customsearch/v1";
@@ -16,7 +24,7 @@ public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
     public bool IsAvailable => keys.HasGoogleSearch && !circuit.IsCircuitOpen(ServiceName);
 
     /// <summary>
-    /// Search Google and return results as ContentItems.
+    ///     Search Google and return results as ContentItems.
     /// </summary>
     public async Task<List<ContentItem>> SearchAsync(
         string query, int maxResults = 10, Action<string>? progress = null, CancellationToken ct = default)
@@ -65,7 +73,7 @@ public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
                 if (!response.IsSuccessStatusCode)
                 {
                     var body = await response.Content.ReadAsStringAsync(cts.Token);
-                    System.Diagnostics.Debug.WriteLine($"Google Search API {(int)response.StatusCode}: {Truncate(body, 200)}");
+                    Debug.WriteLine($"Google Search API {(int)response.StatusCode}: {Truncate(body, 200)}");
                     break;
                 }
 
@@ -74,12 +82,12 @@ public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             }
             catch (OperationCanceledException)
             {
-                System.Diagnostics.Debug.WriteLine("Google Search timed out");
+                Debug.WriteLine("Google Search timed out");
                 break;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Google Search error: {ex.Message}");
+                Debug.WriteLine($"Google Search error: {ex.Message}");
                 break;
             }
         }
@@ -127,7 +135,6 @@ public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
             }
 
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(link))
-            {
                 items.Add(new ContentItem
                 {
                     Id = $"gsearch_{Hash(link)}",
@@ -138,16 +145,19 @@ public class GoogleSearchService(HttpClient httpClient, ApiKeyService keys, ApiB
                     ImageUrl = imageUrl,
                     CreatedAt = createdAt
                 });
-            }
         }
 
         return items;
     }
 
-    private static string Hash(string input) =>
-        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    private static string Hash(string input)
+    {
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(input))[..8]).ToLowerInvariant();
+    }
 
-    private static string Truncate(string s, int max) =>
-        s.Length > max ? s[..max] + "..." : s;
+    private static string Truncate(string s, int max)
+    {
+        return s.Length > max ? s[..max] + "..." : s;
+    }
 }

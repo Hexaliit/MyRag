@@ -1,9 +1,9 @@
 namespace DoomSummarizer.Models;
 
 /// <summary>
-/// A single API service definition.
-/// Each entry is self-contained: name, key, service-specific config, enabled flag, and budget.
-/// API keys loaded from config JSON, user secrets ("keys:0:GoogleSearch"), or env vars (DOOM_GOOGLE_SEARCH).
+///     A single API service definition.
+///     Each entry is self-contained: name, key, service-specific config, enabled flag, and budget.
+///     API keys loaded from config JSON, user secrets ("keys:0:GoogleSearch"), or env vars (DOOM_GOOGLE_SEARCH).
 /// </summary>
 public record ApiKeyEntry
 {

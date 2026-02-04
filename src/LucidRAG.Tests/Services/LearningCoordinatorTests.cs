@@ -66,8 +66,8 @@ public class LearningCoordinatorTests : IAsyncDisposable
         var documentId = Guid.NewGuid();
 
         // Act - Submit same documentId for different tenants
-        var result1 = _coordinator.TrySubmitLearning(tenant1, documentId, "test", 50);
-        var result2 = _coordinator.TrySubmitLearning(tenant2, documentId, "test", 50);
+        var result1 = _coordinator.TrySubmitLearning(tenant1, documentId, "test");
+        var result2 = _coordinator.TrySubmitLearning(tenant2, documentId, "test");
 
         // Assert
         result1.Should().BeTrue("first tenant submission should succeed");
@@ -104,13 +104,13 @@ public class LearningCoordinatorTests : IAsyncDisposable
             });
 
         // Act - First submission (should process)
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test", 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test");
 
         // Wait a bit for processing
         await Task.Delay(2000);
 
         // Second submission with same hash (should skip)
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test", 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test");
 
         await Task.Delay(2000);
 
@@ -225,9 +225,9 @@ public class LearningCoordinatorTests : IAsyncDisposable
             });
 
         // Act - Submit multiple learning tasks
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test1", 50);
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test2", 50);
-        _coordinator.TrySubmitLearning(tenantId, documentId, "test3", 50);
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test1");
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test2");
+        _coordinator.TrySubmitLearning(tenantId, documentId, "test3");
 
         // Wait for processing
         await Task.Delay(3000);

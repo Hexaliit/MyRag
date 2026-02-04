@@ -1,42 +1,14 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace LucidRAG.Services;
 
 /// <summary>
-/// Hybrid date extraction that combines NER-based detection with regex parsing.
-/// NER identifies date spans (including relative dates like "last Tuesday"),
-/// then regex patterns parse them into structured DateTimeOffset values.
+///     Hybrid date extraction that combines NER-based detection with regex parsing.
+///     NER identifies date spans (including relative dates like "last Tuesday"),
+///     then regex patterns parse them into structured DateTimeOffset values.
 /// </summary>
 public partial class HybridDateExtractionService : IHybridDateExtractionService
 {
-    private readonly IDateExtractionService _regexService;
-
-    // Relative date patterns (source-generated for performance)
-    [GeneratedRegex(@"\b(today|yesterday|tomorrow)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex SimpleDayPattern();
-
-    [GeneratedRegex(@"\b(last|next|this)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex RelativeWeekdayPattern();
-
-    [GeneratedRegex(@"\b(last|next|this)\s+(week|month|year|quarter)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex RelativePeriodPattern();
-
-    [GeneratedRegex(@"\b(\d+)\s+(days?|weeks?|months?|years?)\s+(ago|from\s+now|later)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex RelativeOffsetPattern();
-
-    [GeneratedRegex(@"\bQ([1-4])\s+(\d{4})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex QuarterPattern();
-
-    [GeneratedRegex(@"\b(early|mid|late)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex ApproximateMonthPattern();
-
-    [GeneratedRegex(@"\b(fiscal\s+year|FY)\s*'?(\d{2,4})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex FiscalYearPattern();
-
-    [GeneratedRegex(@"\b(spring|summer|fall|autumn|winter)\s+(\d{4})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex SeasonPattern();
-
     private static readonly Dictionary<string, DayOfWeek> DayOfWeekNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ["monday"] = DayOfWeek.Monday,
@@ -55,15 +27,18 @@ public partial class HybridDateExtractionService : IHybridDateExtractionService
         ["september"] = 9, ["october"] = 10, ["november"] = 11, ["december"] = 12
     };
 
+    private readonly IDateExtractionService _regexService;
+
     public HybridDateExtractionService(IDateExtractionService regexService)
     {
         _regexService = regexService;
     }
 
     /// <summary>
-    /// Extract all dates including absolute and relative dates.
+    ///     Extract all dates including absolute and relative dates.
     /// </summary>
-    public List<HybridExtractedDate> ExtractAllDates(string text, LocaleHint? localeHint = null, DateTimeOffset? referenceDate = null)
+    public List<HybridExtractedDate> ExtractAllDates(string text, LocaleHint? localeHint = null,
+        DateTimeOffset? referenceDate = null)
     {
         if (string.IsNullOrWhiteSpace(text))
             return [];
@@ -103,8 +78,8 @@ public partial class HybridDateExtractionService : IHybridDateExtractionService
     }
 
     /// <summary>
-    /// Combine NER-detected DATE spans with regex parsing for enhanced extraction.
-    /// Call this with spans from NER model for hybrid approach.
+    ///     Combine NER-detected DATE spans with regex parsing for enhanced extraction.
+    ///     Call this with spans from NER model for hybrid approach.
     /// </summary>
     public List<HybridExtractedDate> ParseNerDateSpans(
         IEnumerable<(string Text, int StartOffset, double Confidence)> nerSpans,
@@ -171,6 +146,34 @@ public partial class HybridDateExtractionService : IHybridDateExtractionService
 
         return results;
     }
+
+    // Relative date patterns (source-generated for performance)
+    [GeneratedRegex(@"\b(today|yesterday|tomorrow)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SimpleDayPattern();
+
+    [GeneratedRegex(@"\b(last|next|this)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex RelativeWeekdayPattern();
+
+    [GeneratedRegex(@"\b(last|next|this)\s+(week|month|year|quarter)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex RelativePeriodPattern();
+
+    [GeneratedRegex(@"\b(\d+)\s+(days?|weeks?|months?|years?)\s+(ago|from\s+now|later)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex RelativeOffsetPattern();
+
+    [GeneratedRegex(@"\bQ([1-4])\s+(\d{4})\b", RegexOptions.IgnoreCase)]
+    private static partial Regex QuarterPattern();
+
+    [GeneratedRegex(
+        @"\b(early|mid|late)\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex ApproximateMonthPattern();
+
+    [GeneratedRegex(@"\b(fiscal\s+year|FY)\s*'?(\d{2,4})\b", RegexOptions.IgnoreCase)]
+    private static partial Regex FiscalYearPattern();
+
+    [GeneratedRegex(@"\b(spring|summer|fall|autumn|winter)\s+(\d{4})\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeasonPattern();
 
     private void ExtractRelativeDates(
         string text,
@@ -434,7 +437,7 @@ public partial class HybridDateExtractionService : IHybridDateExtractionService
                 // Start of week (Monday)
                 var daysToMonday = (int)refDate.DayOfWeek - 1;
                 if (daysToMonday < 0) daysToMonday = 6;
-                startDate = refDate.AddDays(-daysToMonday + (multiplier * 7));
+                startDate = refDate.AddDays(-daysToMonday + multiplier * 7);
                 precision = DatePrecision.Week;
                 break;
 
@@ -453,8 +456,8 @@ public partial class HybridDateExtractionService : IHybridDateExtractionService
                 var currentQuarter = (refDate.Month - 1) / 3;
                 var targetQuarter = currentQuarter + multiplier;
                 var targetYear = refDate.Year + (targetQuarter < 0 ? -1 : targetQuarter >= 4 ? 1 : 0);
-                targetQuarter = ((targetQuarter % 4) + 4) % 4;
-                startDate = new DateTimeOffset(targetYear, (targetQuarter * 3) + 1, 1, 0, 0, 0, TimeSpan.Zero);
+                targetQuarter = (targetQuarter % 4 + 4) % 4;
+                startDate = new DateTimeOffset(targetYear, targetQuarter * 3 + 1, 1, 0, 0, 0, TimeSpan.Zero);
                 precision = DatePrecision.Quarter;
                 break;
 
@@ -569,10 +572,7 @@ public partial class HybridDateExtractionService : IHybridDateExtractionService
             return null;
 
         // Handle 2-digit years
-        if (year < 100)
-        {
-            year += year < 50 ? 2000 : 1900;
-        }
+        if (year < 100) year += year < 50 ? 2000 : 1900;
 
         // Fiscal year typically starts July 1 (US federal) or varies by company
         // Default to calendar year start for simplicity
@@ -615,17 +615,18 @@ public partial class HybridDateExtractionService : IHybridDateExtractionService
 }
 
 /// <summary>
-/// Interface for hybrid date extraction combining NER and regex approaches.
+///     Interface for hybrid date extraction combining NER and regex approaches.
 /// </summary>
 public interface IHybridDateExtractionService
 {
     /// <summary>
-    /// Extract all dates (absolute and relative) from text.
+    ///     Extract all dates (absolute and relative) from text.
     /// </summary>
-    List<HybridExtractedDate> ExtractAllDates(string text, LocaleHint? localeHint = null, DateTimeOffset? referenceDate = null);
+    List<HybridExtractedDate> ExtractAllDates(string text, LocaleHint? localeHint = null,
+        DateTimeOffset? referenceDate = null);
 
     /// <summary>
-    /// Parse NER-detected date spans using regex patterns.
+    ///     Parse NER-detected date spans using regex patterns.
     /// </summary>
     List<HybridExtractedDate> ParseNerDateSpans(
         IEnumerable<(string Text, int StartOffset, double Confidence)> nerSpans,
@@ -635,7 +636,7 @@ public interface IHybridDateExtractionService
 }
 
 /// <summary>
-/// Extended date extraction result with precision and detection method info.
+///     Extended date extraction result with precision and detection method info.
 /// </summary>
 public record HybridExtractedDate
 {
@@ -652,7 +653,7 @@ public record HybridExtractedDate
 }
 
 /// <summary>
-/// Date precision level.
+///     Date precision level.
 /// </summary>
 public enum DatePrecision
 {

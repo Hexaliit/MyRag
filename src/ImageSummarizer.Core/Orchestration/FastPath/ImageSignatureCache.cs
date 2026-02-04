@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.DocSummarizer.Images.Orchestration.FastPath;
@@ -91,6 +93,7 @@ public sealed record CachedImageSignature
 
     /// <summary>Image dimensions.</summary>
     public int Width { get; init; }
+
     public int Height { get; init; }
 
     /// <summary>Content type detected.</summary>
@@ -137,12 +140,15 @@ public sealed record ImageCacheStats
     public long TotalHits { get; init; }
     public long TotalMisses { get; init; }
     public long PerceptualHits { get; init; }
+
     public double HitRate => TotalHits + TotalMisses > 0
         ? TotalHits / (double)(TotalHits + TotalMisses)
         : 0;
+
     public double PerceptualHitRate => TotalHits > 0
         ? PerceptualHits / (double)TotalHits
         : 0;
+
     public long TotalMemoryBytes { get; init; }
 }
 
@@ -153,13 +159,13 @@ public sealed record ImageCacheStats
 public sealed class ImageSignatureCache : IImageSignatureCache
 {
     private readonly ConcurrentDictionary<string, CachedImageSignature> _cache = new();
-    private readonly ConcurrentDictionary<string, string> _perceptualIndex = new(); // phash -> content hash
     private readonly ILogger<ImageSignatureCache> _logger;
     private readonly int _maxSize;
+    private readonly ConcurrentDictionary<string, string> _perceptualIndex = new(); // phash -> content hash
     private readonly TimeSpan _ttl;
+    private long _perceptualHits;
     private long _totalHits;
     private long _totalMisses;
-    private long _perceptualHits;
 
     public ImageSignatureCache(
         ILogger<ImageSignatureCache> logger,
@@ -204,7 +210,6 @@ public sealed class ImageSignatureCache : IImageSignatureCache
     {
         // Try exact perceptual hash match first
         if (_perceptualIndex.TryGetValue(perceptualHash, out var contentHash))
-        {
             if (_cache.TryGetValue(contentHash, out var exact))
             {
                 exact.LastAccessedAt = DateTimeOffset.UtcNow;
@@ -217,7 +222,6 @@ public sealed class ImageSignatureCache : IImageSignatureCache
 
                 return exact;
             }
-        }
 
         // Search for similar hashes within hamming distance
         var phashBits = HexToBits(perceptualHash);
@@ -230,7 +234,6 @@ public sealed class ImageSignatureCache : IImageSignatureCache
 
             var distance = HammingDistance(phashBits, storedBits);
             if (distance <= maxHammingDistance)
-            {
                 if (_cache.TryGetValue(storedContentHash, out var similar))
                 {
                     similar.LastAccessedAt = DateTimeOffset.UtcNow;
@@ -243,7 +246,6 @@ public sealed class ImageSignatureCache : IImageSignatureCache
 
                     return similar;
                 }
-            }
         }
 
         return null;
@@ -252,18 +254,13 @@ public sealed class ImageSignatureCache : IImageSignatureCache
     public void Set(string signatureKey, CachedImageSignature signature)
     {
         // Evict if at capacity
-        if (_cache.Count >= _maxSize)
-        {
-            EvictOldest();
-        }
+        if (_cache.Count >= _maxSize) EvictOldest();
 
         _cache[signatureKey] = signature;
 
         // Also index by perceptual hash if available
         if (signature.Signals.TryGetValue("_perceptual_hash", out var phash) && phash is string phashStr)
-        {
             _perceptualIndex[phashStr] = signatureKey;
-        }
 
         _logger.LogDebug(
             "Signature cached: {Key} (confidence={Confidence:F2}, waves={Waves})",
@@ -285,7 +282,7 @@ public sealed class ImageSignatureCache : IImageSignatureCache
         // 4. Each pixel above mean = 1, below = 0
         // Result: 64-bit hash
 
-        using var image = await SixLabors.ImageSharp.Image.LoadAsync<SixLabors.ImageSharp.PixelFormats.Rgba32>(imagePath, ct);
+        using var image = await Image.LoadAsync<Rgba32>(imagePath, ct);
 
         // Resize to 8x8 for hash computation
         image.Mutate(x => x.Resize(8, 8));
@@ -294,13 +291,11 @@ public sealed class ImageSignatureCache : IImageSignatureCache
         var pixels = new byte[64];
         var idx = 0;
         for (var y = 0; y < 8; y++)
+        for (var x = 0; x < 8; x++)
         {
-            for (var x = 0; x < 8; x++)
-            {
-                var pixel = image[x, y];
-                // Grayscale using luminance formula
-                pixels[idx++] = (byte)(0.299 * pixel.R + 0.587 * pixel.G + 0.114 * pixel.B);
-            }
+            var pixel = image[x, y];
+            // Grayscale using luminance formula
+            pixels[idx++] = (byte)(0.299 * pixel.R + 0.587 * pixel.G + 0.114 * pixel.B);
         }
 
         // Compute mean
@@ -309,12 +304,8 @@ public sealed class ImageSignatureCache : IImageSignatureCache
         // Generate hash: 1 if pixel >= mean, 0 otherwise
         var hash = 0UL;
         for (var i = 0; i < 64; i++)
-        {
             if (pixels[i] >= mean)
-            {
                 hash |= 1UL << i;
-            }
-        }
 
         return hash.ToString("x16"); // 16 hex chars = 64 bits
     }
@@ -368,16 +359,10 @@ public sealed class ImageSignatureCache : IImageSignatureCache
             .ToList();
 
         foreach (var key in toEvict)
-        {
             if (_cache.TryRemove(key, out var sig))
-            {
                 // Also remove from perceptual index
                 if (sig.Signals.TryGetValue("_perceptual_hash", out var phash) && phash is string phashStr)
-                {
                     _perceptualIndex.TryRemove(phashStr, out _);
-                }
-            }
-        }
 
         _logger.LogDebug("Evicted {Count} entries from signature cache", toEvict.Count);
     }
@@ -398,10 +383,7 @@ public sealed class ImageSignatureCache : IImageSignatureCache
         {
             var value = Convert.ToUInt64(hex, 16);
             var bits = new byte[64];
-            for (var i = 0; i < 64; i++)
-            {
-                bits[i] = (byte)((value >> i) & 1);
-            }
+            for (var i = 0; i < 64; i++) bits[i] = (byte)((value >> i) & 1);
             return bits;
         }
         catch
@@ -416,9 +398,8 @@ public sealed class ImageSignatureCache : IImageSignatureCache
 
         var distance = 0;
         for (var i = 0; i < a.Length; i++)
-        {
-            if (a[i] != b[i]) distance++;
-        }
+            if (a[i] != b[i])
+                distance++;
         return distance;
     }
 }

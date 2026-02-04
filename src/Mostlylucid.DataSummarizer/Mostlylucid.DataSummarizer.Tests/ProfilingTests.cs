@@ -1,7 +1,6 @@
 using System.Text;
 using Mostlylucid.DataSummarizer.Models;
 using Mostlylucid.DataSummarizer.Services;
-using Xunit;
 
 namespace Mostlylucid.DataSummarizer.Tests;
 
@@ -13,7 +12,7 @@ public class ProfilingTests
         // Use more rows so columns are classified as Numeric, not Id
         var csv = "A,B\n1,2\n3,4\n5,6\n1,2\n3,4\n5,6\n1,2\n3,4\n5,6\n1,2\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService(false, null, vectorStorePath: null);
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
 
@@ -28,12 +27,9 @@ public class ProfilingTests
     {
         var sb = new StringBuilder();
         sb.AppendLine("Id,Salary");
-        for (int i = 1; i <= 200; i++)
-        {
-            sb.AppendLine($"{i},{100000 + i}");
-        }
+        for (var i = 1; i <= 200; i++) sb.AppendLine($"{i},{100000 + i}");
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var alerts = report.Profile.Alerts;
@@ -46,7 +42,7 @@ public class ProfilingTests
         // Uniform distribution: 3 values with equal frequency
         var csv = "Category\nA\nB\nC\nA\nB\nC\nA\nB\nC\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var col = report.Profile.Columns.First(c => c.Name == "Category");
@@ -62,7 +58,7 @@ public class ProfilingTests
         sb.AppendLine("Value");
         // Generate approximately normal data
         var random = new Random(42);
-        for (int i = 0; i < 500; i++)
+        for (var i = 0; i < 500; i++)
         {
             // Box-Muller transform for normal distribution
             var u1 = random.NextDouble();
@@ -71,8 +67,9 @@ public class ProfilingTests
             var value = 100 + 15 * normal; // Mean=100, StdDev=15
             sb.AppendLine(value.ToString("F2"));
         }
+
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var col = report.Profile.Columns.First(c => c.Name == "Value");
@@ -87,7 +84,7 @@ public class ProfilingTests
     {
         var csv = "Amount\n0\n0\n0\n100\n200\n300\n0\n50\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var col = report.Profile.Columns.First(c => c.Name == "Amount");
@@ -101,7 +98,7 @@ public class ProfilingTests
         // High variability data
         var csv = "Value\n1\n10\n100\n1000\n10000\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var col = report.Profile.Columns.First(c => c.Name == "Value");
@@ -115,7 +112,7 @@ public class ProfilingTests
     {
         var csv = "Value\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var col = report.Profile.Columns.First(c => c.Name == "Value");
@@ -129,7 +126,7 @@ public class ProfilingTests
     {
         var csv = "Color\nRed\nBlue\nRed\nRed\nGreen\nBlue\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var col = report.Profile.Columns.First(c => c.Name == "Color");
@@ -143,12 +140,10 @@ public class ProfilingTests
         // Generate many unique values so the column is classified as Text, not Categorical
         var sb = new StringBuilder();
         sb.AppendLine("Description");
-        for (int i = 0; i < 100; i++)
-        {
+        for (var i = 0; i < 100; i++)
             sb.AppendLine($"This is a unique description number {i} with enough text to be classified as text");
-        }
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var report = await svc.SummarizeAsync(path, useLlm: false);
         var col = report.Profile.Columns.First(c => c.Name == "Description");
@@ -172,7 +167,7 @@ public class ProfilingTests
         sb.AppendLine("10,,12");
         sb.AppendLine("13,14,");
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         // AskAsync should work without LLM for common questions about nulls
         var insight = await svc.AskAsync(path, "Which columns have null values?");
@@ -193,7 +188,7 @@ public class ProfilingTests
     {
         var csv = "Name,Age,Salary\nAlice,30,50000\nBob,25,45000\n";
         var path = WriteTempCsv(csv);
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var insight = await svc.AskAsync(path, "What columns are in this dataset?");
 
@@ -210,12 +205,9 @@ public class ProfilingTests
         // Create data with many values so column is classified as Numeric
         var sb = new StringBuilder();
         sb.AppendLine("Value");
-        for (int i = 1; i <= 50; i++)
-        {
-            sb.AppendLine((i * 10).ToString());
-        }
+        for (var i = 1; i <= 50; i++) sb.AppendLine((i * 10).ToString());
         var path = WriteTempCsv(sb.ToString());
-        var svc = new DataSummarizerService(verbose: false, ollamaModel: null, vectorStorePath: null);
+        var svc = new DataSummarizerService();
 
         var insight = await svc.AskAsync(path, "What is the mean and median?");
 

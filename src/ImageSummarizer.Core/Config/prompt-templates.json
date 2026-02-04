@@ -1,7 +1,6 @@
 {
   "version": "2.4",
   "description": "Vision LLM prompt templates with PURPOSE-DRIVEN output and salience-based compression",
-
   "image_types": {
     "animated": {
       "name": "Animated Image",
@@ -129,66 +128,120 @@
       }
     }
   },
-
   "signal_categories": {
     "motion": {
-      "globs": ["motion.*", "complexity.*"],
+      "globs": [
+        "motion.*",
+        "complexity.*"
+      ],
       "compact_format": "{direction}-{intensity}-{frames}f"
     },
     "colors": {
-      "globs": ["color.*"],
+      "globs": [
+        "color.*"
+      ],
       "compact_format": "{dominant}|{saturation}"
     },
     "text": {
-      "globs": ["content.text*", "content.extracted*", "ocr.*"],
+      "globs": [
+        "content.text*",
+        "content.extracted*",
+        "ocr.*"
+      ],
       "compact_format": "{confidence}"
     },
     "quality": {
-      "globs": ["quality.*"],
+      "globs": [
+        "quality.*"
+      ],
       "compact_format": "{sharpness}"
     },
     "identity": {
-      "globs": ["identity.*"],
+      "globs": [
+        "identity.*"
+      ],
       "compact_format": "{w}x{h}"
     }
   },
-
   "output_formats": {
     "alttext": {
       "name": "Alt Text (WCAG 2.1)",
       "purpose": "WCAG: Answer what someone would miss if they couldn't see this image",
       "instruction": "1 sentence under 125 chars. Subjects first, then observable context. No inventory lists.",
       "max_length": 125,
-      "rules": ["subjects-first", "no-image-of-prefix", "observable-context-ok", "no-inventory", "no-names", "under-125-chars"],
-      "priority_order": ["people/subjects", "action/pose", "key-objects", "observable-context"],
-      "drop_order": ["wallpaper", "furniture-details", "exact-colors", "decorative-items", "background-objects"]
+      "rules": [
+        "subjects-first",
+        "no-image-of-prefix",
+        "observable-context-ok",
+        "no-inventory",
+        "no-names",
+        "under-125-chars"
+      ],
+      "priority_order": [
+        "people/subjects",
+        "action/pose",
+        "key-objects",
+        "observable-context"
+      ],
+      "drop_order": [
+        "wallpaper",
+        "furniture-details",
+        "exact-colors",
+        "decorative-items",
+        "background-objects"
+      ]
     },
     "caption": {
       "name": "Caption",
       "purpose": "Describe the scene for understanding, ordered by importance",
       "instruction": "2-3 sentences. Main subjects first, then setting. No inventory lists.",
       "max_length": 300,
-      "rules": ["salient-first", "subjects-then-setting", "factual", "no-names"],
-      "priority_order": ["subject", "action", "setting", "text", "mood"],
-      "drop_order": ["minor-decorations", "furniture-brands", "exact-colors"]
+      "rules": [
+        "salient-first",
+        "subjects-then-setting",
+        "factual",
+        "no-names"
+      ],
+      "priority_order": [
+        "subject",
+        "action",
+        "setting",
+        "text",
+        "mood"
+      ],
+      "drop_order": [
+        "minor-decorations",
+        "furniture-brands",
+        "exact-colors"
+      ]
     },
     "socialmedia": {
       "name": "Social",
       "purpose": "Engaging description that captures the moment",
       "instruction": "Brief, direct. Can aggregate observable context (decorations + cards = celebration).",
       "max_length": 280,
-      "rules": ["engaging", "brief", "context-aggregation-ok", "no-hashtags"],
-      "priority_order": ["subject", "action", "observable-context"],
-      "drop_order": ["technical-details", "exact-counts"]
+      "rules": [
+        "engaging",
+        "brief",
+        "context-aggregation-ok",
+        "no-hashtags"
+      ],
+      "priority_order": [
+        "subject",
+        "action",
+        "observable-context"
+      ],
+      "drop_order": [
+        "technical-details",
+        "exact-counts"
+      ]
     }
   },
-
   "global_rules": [
     "OUT:JSON {\"caption\":\"...\"}",
     "factual only",
     "no-names",
     "no-guess"
   ],
-
   "signal_threshold": 0.5
 }

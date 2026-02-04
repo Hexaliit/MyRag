@@ -32,7 +32,7 @@ public class RoundRobinSelectorTests
         {
             new("http://a:11434", "a"),
             new("http://b:11434", "b"),
-            new("http://c:11434", "c"),
+            new("http://c:11434", "c")
         };
 
         var counts = new Dictionary<string, int>();

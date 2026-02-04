@@ -1,22 +1,24 @@
-using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace VideoSummarizer.Core.Services;
 
 /// <summary>
-/// Extracts rich metadata from videos using FFmpeg/FFprobe utilities.
-/// Harvests: I-frames, scene changes, black frames, silence, loudness, frame types.
-/// Supports GPU acceleration via NVDEC (NVIDIA) or VAAPI (AMD/Intel).
+///     Extracts rich metadata from videos using FFmpeg/FFprobe utilities.
+///     Harvests: I-frames, scene changes, black frames, silence, loudness, frame types.
+///     Supports GPU acceleration via NVDEC (NVIDIA) or VAAPI (AMD/Intel).
 /// </summary>
 public class FFmpegAnalysisService
 {
-    private readonly ILogger<FFmpegAnalysisService>? _logger;
-    private readonly string _ffprobePath;
+    private static string? _ffmpegBinPath;
+    private static readonly object _ffmpegLock = new();
     private readonly string _ffmpegPath;
-    private readonly bool _useHardwareAcceleration;
+    private readonly string _ffprobePath;
     private readonly string _hwAccelType;
+    private readonly ILogger<FFmpegAnalysisService>? _logger;
+    private readonly bool _useHardwareAcceleration;
 
     public FFmpegAnalysisService(
         ILogger<FFmpegAnalysisService>? logger = null,
@@ -32,7 +34,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Detect available hardware acceleration (NVIDIA CUDA/NVDEC, AMD VAAPI, Intel QSV).
+    ///     Detect available hardware acceleration (NVIDIA CUDA/NVDEC, AMD VAAPI, Intel QSV).
     /// </summary>
     private string DetectHardwareAcceleration()
     {
@@ -64,7 +66,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Get FFmpeg input arguments with hardware acceleration if available.
+    ///     Get FFmpeg input arguments with hardware acceleration if available.
     /// </summary>
     private string GetHwAccelArgs()
     {
@@ -81,8 +83,8 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Extract codec-level keyframes (I-frames) from the video stream.
-    /// Much faster than decoding every frame - uses existing compression structure.
+    ///     Extract codec-level keyframes (I-frames) from the video stream.
+    ///     Much faster than decoding every frame - uses existing compression structure.
     /// </summary>
     public async Task<List<IFrameInfo>> ExtractIFramesAsync(string videoPath, CancellationToken ct = default)
     {
@@ -93,7 +95,8 @@ public class FFmpegAnalysisService
         // -show_frames - show frame info
         // -show_entries frame=key_frame,pkt_pts_time,pict_type - limit output
         // -of json - JSON output
-        var args = $"-v quiet -select_streams v:0 -show_frames -show_entries frame=key_frame,pkt_pts_time,pict_type,coded_picture_number -of json \"{videoPath}\"";
+        var args =
+            $"-v quiet -select_streams v:0 -show_frames -show_entries frame=key_frame,pkt_pts_time,pict_type,coded_picture_number -of json \"{videoPath}\"";
 
         _logger?.LogInformation("Extracting I-frames from video stream");
 
@@ -111,10 +114,7 @@ public class FFmpegAnalysisService
                 if (!isKeyFrame) continue;
 
                 var timestamp = 0.0;
-                if (frame.TryGetProperty("pkt_pts_time", out var pts))
-                {
-                    double.TryParse(pts.GetString(), out timestamp);
-                }
+                if (frame.TryGetProperty("pkt_pts_time", out var pts)) double.TryParse(pts.GetString(), out timestamp);
 
                 var pictType = frame.TryGetProperty("pict_type", out var pt) ? pt.GetString() : "I";
                 var frameNumber = frame.TryGetProperty("coded_picture_number", out var cpn) ? cpn.GetInt32() : -1;
@@ -138,9 +138,9 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Detect scene changes using FFmpeg's scene detection filter.
-    /// Returns timestamps where visual content changes significantly.
-    /// Uses GPU hardware acceleration (NVDEC/VAAPI) when available for 5-10x faster decoding.
+    ///     Detect scene changes using FFmpeg's scene detection filter.
+    ///     Returns timestamps where visual content changes significantly.
+    ///     Uses GPU hardware acceleration (NVDEC/VAAPI) when available for 5-10x faster decoding.
     /// </summary>
     public async Task<List<SceneChangeInfo>> DetectSceneChangesAsync(
         string videoPath,
@@ -154,19 +154,17 @@ public class FFmpegAnalysisService
         var filterPrefix = "";
 
         // If using CUDA, need to download frames from GPU before scene filter
-        if (_hwAccelType == "cuda" && _useHardwareAcceleration)
-        {
-            filterPrefix = "hwdownload,format=nv12,";
-        }
+        if (_hwAccelType == "cuda" && _useHardwareAcceleration) filterPrefix = "hwdownload,format=nv12,";
 
         // ffmpeg -hwaccel cuda -i input -vf "hwdownload,format=nv12,select='gt(scene,0.4)',showinfo" -f null -
         // Selects frames where scene score > threshold and outputs info
-        var args = $"{hwAccel}-i \"{videoPath}\" -vf \"{filterPrefix}select='gt(scene,{threshold:F2})',showinfo\" -f null - 2>&1";
+        var args =
+            $"{hwAccel}-i \"{videoPath}\" -vf \"{filterPrefix}select='gt(scene,{threshold:F2})',showinfo\" -f null - 2>&1";
 
         _logger?.LogInformation("Detecting scene changes (threshold: {Threshold}, hwaccel: {HwAccel})",
             threshold, string.IsNullOrEmpty(_hwAccelType) ? "none" : _hwAccelType);
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var output = await RunFFmpegAsync(args, ct);
         sw.Stop();
 
@@ -177,16 +175,12 @@ public class FFmpegAnalysisService
         var matches = regex.Matches(output);
 
         foreach (Match match in matches)
-        {
             if (double.TryParse(match.Groups[1].Value, out var timestamp))
-            {
                 scenes.Add(new SceneChangeInfo
                 {
                     Timestamp = timestamp,
                     Confidence = threshold
                 });
-            }
-        }
 
         _logger?.LogInformation("Detected {Count} scene changes in {Time}ms (hwaccel: {HwAccel})",
             scenes.Count, sw.ElapsedMilliseconds, string.IsNullOrEmpty(_hwAccelType) ? "none" : _hwAccelType);
@@ -194,7 +188,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Detect black frames in the video (useful for chapter/segment detection).
+    ///     Detect black frames in the video (useful for chapter/segment detection).
     /// </summary>
     public async Task<List<BlackFrameInfo>> DetectBlackFramesAsync(
         string videoPath,
@@ -213,25 +207,24 @@ public class FFmpegAnalysisService
         if (string.IsNullOrEmpty(output)) return blackFrames;
 
         // Parse: [blackdetect @ ...] black_start:0 black_end:0.5 black_duration:0.5
-        var regex = new Regex(@"black_start:(\d+\.?\d*)\s+black_end:(\d+\.?\d*)\s+black_duration:(\d+\.?\d*)", RegexOptions.Compiled);
+        var regex = new Regex(@"black_start:(\d+\.?\d*)\s+black_end:(\d+\.?\d*)\s+black_duration:(\d+\.?\d*)",
+            RegexOptions.Compiled);
         var matches = regex.Matches(output);
 
         foreach (Match match in matches)
-        {
             blackFrames.Add(new BlackFrameInfo
             {
                 StartTime = double.Parse(match.Groups[1].Value),
                 EndTime = double.Parse(match.Groups[2].Value),
                 Duration = double.Parse(match.Groups[3].Value)
             });
-        }
 
         _logger?.LogInformation("Found {Count} black frame segments", blackFrames.Count);
         return blackFrames;
     }
 
     /// <summary>
-    /// Detect silence in the audio track (useful for speech/non-speech detection).
+    ///     Detect silence in the audio track (useful for speech/non-speech detection).
     /// </summary>
     public async Task<List<SilenceInfo>> DetectSilenceAsync(
         string videoPath,
@@ -244,7 +237,8 @@ public class FFmpegAnalysisService
         // silencedetect filter: n=noise threshold in dB, d=minimum duration
         var args = $"-i \"{videoPath}\" -af \"silencedetect=n={noiseThreshold}dB:d={minDuration:F2}\" -f null - 2>&1";
 
-        _logger?.LogInformation("Detecting silence (threshold: {Threshold}dB, min: {Duration}s)", noiseThreshold, minDuration);
+        _logger?.LogInformation("Detecting silence (threshold: {Threshold}dB, min: {Duration}s)", noiseThreshold,
+            minDuration);
 
         var output = await RunFFmpegAsync(args, ct);
         if (string.IsNullOrEmpty(output)) return silences;
@@ -252,28 +246,27 @@ public class FFmpegAnalysisService
         // Parse: [silencedetect @ ...] silence_start: 10.5
         //        [silencedetect @ ...] silence_end: 15.2 | silence_duration: 4.7
         var startRegex = new Regex(@"silence_start:\s*(\d+\.?\d*)", RegexOptions.Compiled);
-        var endRegex = new Regex(@"silence_end:\s*(\d+\.?\d*)\s*\|\s*silence_duration:\s*(\d+\.?\d*)", RegexOptions.Compiled);
+        var endRegex = new Regex(@"silence_end:\s*(\d+\.?\d*)\s*\|\s*silence_duration:\s*(\d+\.?\d*)",
+            RegexOptions.Compiled);
 
         var startMatches = startRegex.Matches(output);
         var endMatches = endRegex.Matches(output);
 
-        for (int i = 0; i < Math.Min(startMatches.Count, endMatches.Count); i++)
-        {
+        for (var i = 0; i < Math.Min(startMatches.Count, endMatches.Count); i++)
             silences.Add(new SilenceInfo
             {
                 StartTime = double.Parse(startMatches[i].Groups[1].Value),
                 EndTime = double.Parse(endMatches[i].Groups[1].Value),
                 Duration = double.Parse(endMatches[i].Groups[2].Value)
             });
-        }
 
         _logger?.LogInformation("Found {Count} silence segments", silences.Count);
         return silences;
     }
 
     /// <summary>
-    /// Analyze audio loudness using EBU R128 standard.
-    /// Returns integrated loudness (LUFS), loudness range, true peak.
+    ///     Analyze audio loudness using EBU R128 standard.
+    ///     Returns integrated loudness (LUFS), loudness range, true peak.
     /// </summary>
     public async Task<LoudnessInfo?> AnalyzeLoudnessAsync(string videoPath, CancellationToken ct = default)
     {
@@ -313,7 +306,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Get frame type statistics (I/P/B frame distribution).
+    ///     Get frame type statistics (I/P/B frame distribution).
     /// </summary>
     public async Task<FrameTypeStats> GetFrameTypeStatsAsync(string videoPath, CancellationToken ct = default)
     {
@@ -330,14 +323,12 @@ public class FFmpegAnalysisService
         {
             var parts = line.Split(',');
             if (parts.Length >= 2)
-            {
                 switch (parts[1].Trim())
                 {
                     case "I": stats.IFrameCount++; break;
                     case "P": stats.PFrameCount++; break;
                     case "B": stats.BFrameCount++; break;
                 }
-            }
         }
 
         stats.TotalFrames = stats.IFrameCount + stats.PFrameCount + stats.BFrameCount;
@@ -348,7 +339,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Detect interlacing in the video.
+    ///     Detect interlacing in the video.
     /// </summary>
     public async Task<InterlaceInfo?> DetectInterlaceAsync(string videoPath, CancellationToken ct = default)
     {
@@ -362,7 +353,8 @@ public class FFmpegAnalysisService
 
         // Parse: [Parsed_idet_0 @ ...] Repeated Fields: Neither: xxx Top: xxx Bottom: xxx
         // Multi frame detection: TFF: x BFF: x Progressive: x Undetermined: x
-        var multiRegex = new Regex(@"Multi frame detection:\s*TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)", RegexOptions.Compiled);
+        var multiRegex = new Regex(@"Multi frame detection:\s*TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)",
+            RegexOptions.Compiled);
         var match = multiRegex.Match(output);
 
         if (match.Success)
@@ -374,7 +366,7 @@ public class FFmpegAnalysisService
 
             return new InterlaceInfo
             {
-                IsInterlaced = (tff + bff) > progressive,
+                IsInterlaced = tff + bff > progressive,
                 TffFrames = tff,
                 BffFrames = bff,
                 ProgressiveFrames = progressive,
@@ -386,8 +378,8 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Extract a single frame at a specific timestamp.
-    /// Uses GPU hardware acceleration for faster decoding when available.
+    ///     Extract a single frame at a specific timestamp.
+    ///     Uses GPU hardware acceleration for faster decoding when available.
     /// </summary>
     /// <param name="videoPath">Path to the video file</param>
     /// <param name="timestamp">Timestamp in seconds</param>
@@ -418,10 +410,7 @@ public class FFmpegAnalysisService
             filters.Add("format=nv12");
         }
 
-        if (width.HasValue)
-        {
-            filters.Add($"scale={width}:-1");
-        }
+        if (width.HasValue) filters.Add($"scale={width}:-1");
 
         var filterArg = filters.Count > 0 ? $"-vf \"{string.Join(",", filters)}\"" : "";
 
@@ -434,7 +423,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Extract frames at specific timestamps efficiently.
+    ///     Extract frames at specific timestamps efficiently.
     /// </summary>
     /// <param name="videoPath">Path to the video file</param>
     /// <param name="timestamps">Timestamps in seconds</param>
@@ -461,10 +450,7 @@ public class FFmpegAnalysisService
             ct.ThrowIfCancellationRequested();
 
             var framePath = await ExtractFrameAsync(videoPath, timestamp, outputDir, ct, prefix, width);
-            if (framePath != null)
-            {
-                results[timestamp] = framePath;
-            }
+            if (framePath != null) results[timestamp] = framePath;
         }
 
         _logger?.LogInformation("Extracted {Count} frames", results.Count);
@@ -472,8 +458,8 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Extract chapter marks from the video container.
-    /// Many videos have embedded chapters for navigation.
+    ///     Extract chapter marks from the video container.
+    ///     Many videos have embedded chapters for navigation.
     /// </summary>
     public async Task<List<ChapterInfo>> ExtractChaptersAsync(string videoPath, CancellationToken ct = default)
     {
@@ -496,16 +482,16 @@ public class FFmpegAnalysisService
             foreach (var chapter in chaptersArray.EnumerateArray())
             {
                 var startTime = chapter.TryGetProperty("start_time", out var st)
-                    ? double.Parse(st.GetString() ?? "0") : 0;
+                    ? double.Parse(st.GetString() ?? "0")
+                    : 0;
                 var endTime = chapter.TryGetProperty("end_time", out var et)
-                    ? double.Parse(et.GetString() ?? "0") : 0;
+                    ? double.Parse(et.GetString() ?? "0")
+                    : 0;
 
                 string? title = null;
                 if (chapter.TryGetProperty("tags", out var tags) &&
                     tags.TryGetProperty("title", out var titleProp))
-                {
                     title = titleProp.GetString();
-                }
 
                 chapters.Add(new ChapterInfo
                 {
@@ -528,10 +514,11 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Extract embedded subtitles from the video.
-    /// Returns list of subtitle streams with their language and format.
+    ///     Extract embedded subtitles from the video.
+    ///     Returns list of subtitle streams with their language and format.
     /// </summary>
-    public async Task<List<SubtitleStreamInfo>> GetSubtitleStreamsAsync(string videoPath, CancellationToken ct = default)
+    public async Task<List<SubtitleStreamInfo>> GetSubtitleStreamsAsync(string videoPath,
+        CancellationToken ct = default)
     {
         var streams = new List<SubtitleStreamInfo>();
 
@@ -581,7 +568,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Extract subtitles to SRT format for ingestion.
+    ///     Extract subtitles to SRT format for ingestion.
     /// </summary>
     public async Task<string?> ExtractSubtitlesToSrtAsync(
         string videoPath,
@@ -609,7 +596,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Parse an external SRT file into timed text entries.
+    ///     Parse an external SRT file into timed text entries.
     /// </summary>
     public List<SubtitleEntry> ParseSrtFile(string srtPath)
     {
@@ -630,7 +617,8 @@ public class FFmpegAnalysisService
         // First subtitle line
         // Second line (optional)
 
-        var timeRegex = new Regex(@"(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})", RegexOptions.Compiled);
+        var timeRegex = new Regex(@"(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})",
+            RegexOptions.Compiled);
 
         foreach (var block in blocks)
         {
@@ -678,7 +666,7 @@ public class FFmpegAnalysisService
     }
 
     /// <summary>
-    /// Get comprehensive stream info from the video.
+    ///     Get comprehensive stream info from the video.
     /// </summary>
     public async Task<StreamInfo?> GetStreamInfoAsync(string videoPath, CancellationToken ct = default)
     {
@@ -705,7 +693,6 @@ public class FFmpegAnalysisService
 
             // Parse streams
             if (root.TryGetProperty("streams", out var streams))
-            {
                 foreach (var stream in streams.EnumerateArray())
                 {
                     var codecType = stream.TryGetProperty("codec_type", out var ct2) ? ct2.GetString() : null;
@@ -720,10 +707,8 @@ public class FFmpegAnalysisService
                         {
                             var fpsStr = fps.GetString() ?? "0/1";
                             var parts = fpsStr.Split('/');
-                            if (parts.Length == 2 && double.TryParse(parts[0], out var num) && double.TryParse(parts[1], out var den) && den > 0)
-                            {
-                                info.FrameRate = num / den;
-                            }
+                            if (parts.Length == 2 && double.TryParse(parts[0], out var num) &&
+                                double.TryParse(parts[1], out var den) && den > 0) info.FrameRate = num / den;
                         }
 
                         info.PixelFormat = stream.TryGetProperty("pix_fmt", out var pf) ? pf.GetString() : null;
@@ -732,12 +717,14 @@ public class FFmpegAnalysisService
                     else if (codecType == "audio" && info.AudioCodec == null)
                     {
                         info.AudioCodec = stream.TryGetProperty("codec_name", out var cn) ? cn.GetString() : null;
-                        info.SampleRate = stream.TryGetProperty("sample_rate", out var sr) ? int.Parse(sr.GetString() ?? "0") : 0;
+                        info.SampleRate = stream.TryGetProperty("sample_rate", out var sr)
+                            ? int.Parse(sr.GetString() ?? "0")
+                            : 0;
                         info.Channels = stream.TryGetProperty("channels", out var ch) ? ch.GetInt32() : 0;
-                        info.ChannelLayout = stream.TryGetProperty("channel_layout", out var cl) ? cl.GetString() : null;
+                        info.ChannelLayout =
+                            stream.TryGetProperty("channel_layout", out var cl) ? cl.GetString() : null;
                     }
                 }
-            }
 
             return info;
         }
@@ -796,9 +783,6 @@ public class FFmpegAnalysisService
         }
     }
 
-    private static string? _ffmpegBinPath;
-    private static readonly object _ffmpegLock = new();
-
     private static string FindExecutable(string name)
     {
         var exeName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
@@ -817,7 +801,11 @@ public class FFmpegAnalysisService
             var fullPath = Path.Combine(dir, exeName);
             if (File.Exists(fullPath))
             {
-                lock (_ffmpegLock) { _ffmpegBinPath = dir; }
+                lock (_ffmpegLock)
+                {
+                    _ffmpegBinPath = dir;
+                }
+
                 return fullPath;
             }
         }
@@ -857,7 +845,11 @@ public class FFmpegAnalysisService
                     if (foundExe != null)
                     {
                         var binDir = Path.GetDirectoryName(foundExe)!;
-                        lock (_ffmpegLock) { _ffmpegBinPath = binDir; }
+                        lock (_ffmpegLock)
+                        {
+                            _ffmpegBinPath = binDir;
+                        }
+
                         return foundExe;
                     }
                 }
@@ -871,7 +863,11 @@ public class FFmpegAnalysisService
                 var fullPath = Path.Combine(basePath, exeName);
                 if (File.Exists(fullPath))
                 {
-                    lock (_ffmpegLock) { _ffmpegBinPath = basePath; }
+                    lock (_ffmpegLock)
+                    {
+                        _ffmpegBinPath = basePath;
+                    }
+
                     return fullPath;
                 }
             }
@@ -888,12 +884,13 @@ public class FFmpegAnalysisService
             var str = prop.GetString();
             if (double.TryParse(str, out var val)) return val;
         }
+
         return 0;
     }
 }
 
 /// <summary>
-/// Information about a codec-level I-frame (keyframe).
+///     Information about a codec-level I-frame (keyframe).
 /// </summary>
 public record IFrameInfo
 {
@@ -903,7 +900,7 @@ public record IFrameInfo
 }
 
 /// <summary>
-/// Information about a detected scene change.
+///     Information about a detected scene change.
 /// </summary>
 public record SceneChangeInfo
 {
@@ -912,7 +909,7 @@ public record SceneChangeInfo
 }
 
 /// <summary>
-/// Information about a black frame segment.
+///     Information about a black frame segment.
 /// </summary>
 public record BlackFrameInfo
 {
@@ -922,7 +919,7 @@ public record BlackFrameInfo
 }
 
 /// <summary>
-/// Information about a silence segment.
+///     Information about a silence segment.
 /// </summary>
 public record SilenceInfo
 {
@@ -932,7 +929,7 @@ public record SilenceInfo
 }
 
 /// <summary>
-/// Audio loudness measurements (EBU R128).
+///     Audio loudness measurements (EBU R128).
 /// </summary>
 public record LoudnessInfo
 {
@@ -953,7 +950,7 @@ public record LoudnessInfo
 }
 
 /// <summary>
-/// Frame type statistics.
+///     Frame type statistics.
 /// </summary>
 public record FrameTypeStats
 {
@@ -968,19 +965,19 @@ public record FrameTypeStats
 }
 
 /// <summary>
-/// Interlacing detection results.
+///     Interlacing detection results.
 /// </summary>
 public record InterlaceInfo
 {
     public bool IsInterlaced { get; init; }
-    public int TffFrames { get; init; }  // Top field first
-    public int BffFrames { get; init; }  // Bottom field first
+    public int TffFrames { get; init; } // Top field first
+    public int BffFrames { get; init; } // Bottom field first
     public int ProgressiveFrames { get; init; }
     public double InterlaceRatio { get; init; }
 }
 
 /// <summary>
-/// Comprehensive stream information.
+///     Comprehensive stream information.
 /// </summary>
 public record StreamInfo
 {
@@ -1006,7 +1003,7 @@ public record StreamInfo
 }
 
 /// <summary>
-/// Chapter mark from video container.
+///     Chapter mark from video container.
 /// </summary>
 public record ChapterInfo
 {
@@ -1018,7 +1015,7 @@ public record ChapterInfo
 }
 
 /// <summary>
-/// Embedded subtitle stream information.
+///     Embedded subtitle stream information.
 /// </summary>
 public record SubtitleStreamInfo
 {
@@ -1029,7 +1026,7 @@ public record SubtitleStreamInfo
 }
 
 /// <summary>
-/// Single subtitle entry from an SRT file.
+///     Single subtitle entry from an SRT file.
 /// </summary>
 public record SubtitleEntry
 {

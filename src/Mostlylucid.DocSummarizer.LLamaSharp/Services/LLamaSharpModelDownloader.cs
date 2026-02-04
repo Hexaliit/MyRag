@@ -7,8 +7,8 @@ namespace Mostlylucid.DocSummarizer.LLamaSharp.Services;
 /// </summary>
 public sealed class LLamaSharpModelDownloader : IDisposable
 {
-    private readonly HttpClient _httpClient;
     private readonly LLamaSharpConfig _config;
+    private readonly HttpClient _httpClient;
 
     public LLamaSharpModelDownloader(LLamaSharpConfig config)
     {
@@ -16,6 +16,11 @@ public sealed class LLamaSharpModelDownloader : IDisposable
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "DocSummarizer-LLamaSharp/1.0");
         _httpClient.Timeout = TimeSpan.FromMinutes(30);
+    }
+
+    public void Dispose()
+    {
+        _httpClient.Dispose();
     }
 
     /// <summary>
@@ -69,7 +74,9 @@ public sealed class LLamaSharpModelDownloader : IDisposable
     ///     Get the local path for a model (may not exist yet).
     /// </summary>
     public string GetModelPath(LLamaSharpModelRegistry.ModelInfo model)
-        => Path.Combine(_config.ResolvedModelDirectory, model.Filename);
+    {
+        return Path.Combine(_config.ResolvedModelDirectory, model.Filename);
+    }
 
     private async Task DownloadFileAsync(
         string url,
@@ -92,7 +99,8 @@ public sealed class LLamaSharpModelDownloader : IDisposable
             Console.Error.WriteLine($"Downloading {description} ({totalBytes / 1_000_000} MB)...");
 
             await using (var contentStream = await response.Content.ReadAsStreamAsync(ct))
-            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            await using (var fileStream =
+                         new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
             {
                 var buffer = new byte[81920];
                 long totalRead = 0;
@@ -107,7 +115,7 @@ public sealed class LLamaSharpModelDownloader : IDisposable
             }
 
             // Atomic move after streams are closed
-            File.Move(tempPath, localPath, overwrite: true);
+            File.Move(tempPath, localPath, true);
             Console.Error.WriteLine($"Downloaded {description} to {localPath}");
         }
         catch
@@ -116,10 +124,5 @@ public sealed class LLamaSharpModelDownloader : IDisposable
                 File.Delete(tempPath);
             throw;
         }
-    }
-
-    public void Dispose()
-    {
-        _httpClient.Dispose();
     }
 }

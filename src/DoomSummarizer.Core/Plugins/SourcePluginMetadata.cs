@@ -1,14 +1,14 @@
 namespace DoomSummarizer.Plugins;
 
 /// <summary>
-/// Describes a source plugin's identity and capabilities.
+///     Describes a source plugin's identity and capabilities.
 /// </summary>
 public record SourcePluginMetadata
 {
     /// <summary>Primary key used for lookup (e.g. "hn").</summary>
     public required string PrimaryKey { get; init; }
 
-    /// <summary>All keys this plugin responds to (includes <see cref="PrimaryKey"/>).</summary>
+    /// <summary>All keys this plugin responds to (includes <see cref="PrimaryKey" />).</summary>
     public required IReadOnlyList<string> Keys { get; init; }
 
     /// <summary>Human-readable name (e.g. "Hacker News").</summary>
@@ -34,7 +34,7 @@ public record SourcePluginMetadata
 }
 
 /// <summary>
-/// Describes an output plugin's identity and capabilities.
+///     Describes an output plugin's identity and capabilities.
 /// </summary>
 public record OutputPluginMetadata
 {
@@ -58,7 +58,7 @@ public record OutputPluginMetadata
 }
 
 /// <summary>
-/// Source plugin capability flags.
+///     Source plugin capability flags.
 /// </summary>
 [Flags]
 public enum SourceCapabilities

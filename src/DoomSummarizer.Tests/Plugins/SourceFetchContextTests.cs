@@ -43,7 +43,7 @@ public class SourceFetchContextTests
     [Fact]
     public void Parse_PreservesOptionalFields()
     {
-        var ctx = SourceFetchContext.Parse("hn", query: "test", limit: 50, vibe: "doom");
+        var ctx = SourceFetchContext.Parse("hn", "test", 50, "doom");
         ctx.Query.Should().Be("test");
         ctx.Limit.Should().Be(50);
         ctx.Vibe.Should().Be("doom");

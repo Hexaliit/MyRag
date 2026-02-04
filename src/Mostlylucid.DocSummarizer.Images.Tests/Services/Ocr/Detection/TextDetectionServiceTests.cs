@@ -2,26 +2,24 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Mostlylucid.DocSummarizer.Images.Config;
-using Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Detection;
 using Mostlylucid.DocSummarizer.Images.Services.Ocr.Models;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace Mostlylucid.DocSummarizer.Images.Tests.Services.Ocr.Detection;
 
 /// <summary>
-/// Tests for TextDetectionService - EAST/CRAFT ONNX text region detection.
+///     Tests for TextDetectionService - EAST/CRAFT ONNX text region detection.
 /// </summary>
 public class TextDetectionServiceTests : IDisposable
 {
+    private readonly OcrConfig _config;
+    private readonly Mock<ILogger<TextDetectionService>> _loggerMock;
     private readonly ITestOutputHelper _output;
     private readonly string _testDir;
-    private readonly Mock<ILogger<TextDetectionService>> _loggerMock;
-    private readonly OcrConfig _config;
 
     public TextDetectionServiceTests(ITestOutputHelper output)
     {
@@ -40,10 +38,14 @@ public class TextDetectionServiceTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_testDir))
-        {
-            try { Directory.Delete(_testDir, true); }
-            catch { /* ignore cleanup errors */ }
-        }
+            try
+            {
+                Directory.Delete(_testDir, true);
+            }
+            catch
+            {
+                /* ignore cleanup errors */
+            }
     }
 
     [Fact]
@@ -51,7 +53,7 @@ public class TextDetectionServiceTests : IDisposable
     {
         // Arrange
         var config = new OcrConfig { EnableTextDetection = false };
-        var modelDownloader = CreateMockModelDownloader(eastPath: null, craftPath: null);
+        var modelDownloader = CreateMockModelDownloader(null, null);
         var service = new TextDetectionService(modelDownloader, config, null, _loggerMock.Object);
         var imagePath = CreateTestImage("solid.png", 100, 100, Color.White);
 
@@ -70,7 +72,7 @@ public class TextDetectionServiceTests : IDisposable
     public async Task DetectTextRegionsAsync_WithNoModelsAvailable_FallsBackToTesseractPSM()
     {
         // Arrange
-        var modelDownloader = CreateMockModelDownloader(eastPath: null, craftPath: null);
+        var modelDownloader = CreateMockModelDownloader(null, null);
         var service = new TextDetectionService(modelDownloader, _config, null, _loggerMock.Object);
         var imagePath = CreateTestImage("nomodels.png", 200, 200, Color.White);
 
@@ -89,7 +91,7 @@ public class TextDetectionServiceTests : IDisposable
     public async Task DetectTextRegionsAsync_ReturnsValidResult_ForAnyImage()
     {
         // Arrange - Use mock that returns no models (fallback path)
-        var modelDownloader = CreateMockModelDownloader(eastPath: null, craftPath: null);
+        var modelDownloader = CreateMockModelDownloader(null, null);
         var service = new TextDetectionService(modelDownloader, _config, null, _loggerMock.Object);
         var imagePath = CreateTestImage("test.png", 300, 200, Color.LightGray);
 
@@ -112,15 +114,18 @@ public class TextDetectionServiceTests : IDisposable
         var modelDownloader = CreateMockModelDownloader(null, null);
         var service = new TextDetectionService(modelDownloader, _config, null, _loggerMock.Object);
 
-        var boxes = new List<Mostlylucid.DocSummarizer.Images.Services.Ocr.BoundingBox>
+        var boxes = new List<BoundingBox>
         {
             new() { X1 = 0, Y1 = 0, X2 = 100, Y2 = 50, Width = 100, Height = 50, Confidence = 0.9f },
             new() { X1 = 10, Y1 = 5, X2 = 90, Y2 = 45, Width = 80, Height = 40, Confidence = 0.8f }, // Overlapping
-            new() { X1 = 200, Y1 = 0, X2 = 300, Y2 = 50, Width = 100, Height = 50, Confidence = 0.85f } // Non-overlapping
+            new()
+            {
+                X1 = 200, Y1 = 0, X2 = 300, Y2 = 50, Width = 100, Height = 50, Confidence = 0.85f
+            } // Non-overlapping
         };
 
         // Act
-        var result = service.ApplyNonMaximumSuppression(boxes, iouThreshold: 0.5);
+        var result = service.ApplyNonMaximumSuppression(boxes, 0.5);
 
         // Assert
         result.Should().HaveCount(2, "overlapping box should be removed");
@@ -137,7 +142,7 @@ public class TextDetectionServiceTests : IDisposable
         var modelDownloader = CreateMockModelDownloader(null, null);
         var service = new TextDetectionService(modelDownloader, _config, null, _loggerMock.Object);
 
-        var boxes = new List<Mostlylucid.DocSummarizer.Images.Services.Ocr.BoundingBox>
+        var boxes = new List<BoundingBox>
         {
             new() { X1 = 0, Y1 = 0, X2 = 50, Y2 = 50, Width = 50, Height = 50, Confidence = 0.9f },
             new() { X1 = 100, Y1 = 0, X2 = 150, Y2 = 50, Width = 50, Height = 50, Confidence = 0.85f },
@@ -146,7 +151,7 @@ public class TextDetectionServiceTests : IDisposable
         };
 
         // Act
-        var result = service.ApplyNonMaximumSuppression(boxes, iouThreshold: 0.5);
+        var result = service.ApplyNonMaximumSuppression(boxes, 0.5);
 
         // Assert
         result.Should().HaveCount(4, "all non-overlapping boxes should be kept");
@@ -163,8 +168,8 @@ public class TextDetectionServiceTests : IDisposable
 
         // Act
         var result = service.ApplyNonMaximumSuppression(
-            new List<Mostlylucid.DocSummarizer.Images.Services.Ocr.BoundingBox>(),
-            iouThreshold: 0.5);
+            new List<BoundingBox>(),
+            0.5);
 
         // Assert
         result.Should().BeEmpty();
@@ -213,7 +218,7 @@ public class TextDetectionServiceTests : IDisposable
             File.WriteAllText(Path.Combine(craftDir, "craft_mlt_25k.onnx"), "dummy");
         }
 
-        return new ModelDownloader(modelsDir, autoDownload: false);
+        return new ModelDownloader(modelsDir, false);
     }
 
     private string CreateTestImage(string filename, int width, int height, Color color)

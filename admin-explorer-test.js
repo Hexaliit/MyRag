@@ -14,18 +14,18 @@ async function runTest() {
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setViewport({width: 1920, height: 1080});
 
     try {
         // Step 1: Navigate to login page
         console.log('1. Navigating to login page...');
-        await page.goto(`${BASE_URL}/auth/login`, { waitUntil: 'networkidle0', timeout: 30000 });
+        await page.goto(`${BASE_URL}/auth/login`, {waitUntil: 'networkidle0', timeout: 30000});
 
         // Step 2: Fill in login form
         console.log('2. Filling in login form...');
 
         // Wait for form elements to be available
-        await page.waitForSelector('input[type="email"], input[name="email"], input[name="Email"], #email, #Email', { timeout: 10000 });
+        await page.waitForSelector('input[type="email"], input[name="email"], input[name="Email"], #email, #Email', {timeout: 10000});
 
         // Try different selectors for email field
         const emailSelectors = ['input[type="email"]', 'input[name="email"]', 'input[name="Email"]', '#email', '#Email', 'input[name="Input.Email"]'];
@@ -34,13 +34,14 @@ async function runTest() {
             try {
                 const emailField = await page.$(selector);
                 if (emailField) {
-                    await emailField.click({ clickCount: 3 });
+                    await emailField.click({clickCount: 3});
                     await emailField.type('admin@lucidrag.local');
                     emailFilled = true;
                     console.log(`   Email filled using selector: ${selector}`);
                     break;
                 }
-            } catch (e) { }
+            } catch (e) {
+            }
         }
 
         if (!emailFilled) {
@@ -62,13 +63,14 @@ async function runTest() {
             try {
                 const passwordField = await page.$(selector);
                 if (passwordField) {
-                    await passwordField.click({ clickCount: 3 });
+                    await passwordField.click({clickCount: 3});
                     await passwordField.type('Admin123!');
                     passwordFilled = true;
                     console.log(`   Password filled using selector: ${selector}`);
                     break;
                 }
-            } catch (e) { }
+            } catch (e) {
+            }
         }
 
         // Step 3: Submit the form
@@ -86,12 +88,13 @@ async function runTest() {
                     console.log(`   Submitted using selector: ${selector}`);
                     break;
                 }
-            } catch (e) { }
+            } catch (e) {
+            }
         }
 
         // Wait for navigation/redirect
         console.log('4. Waiting for redirect...');
-        await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15000 }).catch(() => {
+        await page.waitForNavigation({waitUntil: 'networkidle0', timeout: 15000}).catch(() => {
             console.log('   Navigation timeout - may already be on target page');
         });
 
@@ -102,7 +105,7 @@ async function runTest() {
         console.log('5. Taking admin page screenshot...');
         const currentUrl = page.url();
         console.log(`   Current URL: ${currentUrl}`);
-        await page.screenshot({ path: ADMIN_SCREENSHOT, fullPage: true });
+        await page.screenshot({path: ADMIN_SCREENSHOT, fullPage: true});
         console.log(`   Saved to: ${ADMIN_SCREENSHOT}`);
 
         // Step 5: Look for Explorer button/tab
@@ -164,7 +167,7 @@ async function runTest() {
 
         // Step 7: Take screenshot of explorer mode
         console.log('8. Taking explorer mode screenshot...');
-        await page.screenshot({ path: EXPLORER_SCREENSHOT, fullPage: true });
+        await page.screenshot({path: EXPLORER_SCREENSHOT, fullPage: true});
         console.log(`   Saved to: ${EXPLORER_SCREENSHOT}`);
 
         // Report what we see
@@ -176,7 +179,7 @@ async function runTest() {
     } catch (error) {
         console.error('Error:', error.message);
         console.error(error.stack);
-        await page.screenshot({ path: 'E:\\source\\lucidrag\\error-state.png', fullPage: true });
+        await page.screenshot({path: 'E:\\source\\lucidrag\\error-state.png', fullPage: true});
         console.log('Error screenshot saved to E:\\source\\lucidrag\\error-state.png');
     } finally {
         await browser.close();

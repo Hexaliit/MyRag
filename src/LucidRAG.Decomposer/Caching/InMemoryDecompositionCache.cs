@@ -7,20 +7,20 @@ using Microsoft.Extensions.Logging;
 namespace LucidRAG.Decomposer.Caching;
 
 /// <summary>
-/// In-memory LRU cache with semantic key matching.
-/// Cache keys are embeddings matched by cosine similarity >= 0.92.
-/// TTL varies by temporal scope.
+///     In-memory LRU cache with semantic key matching.
+///     Cache keys are embeddings matched by cosine similarity >= 0.92.
+///     TTL varies by temporal scope.
 /// </summary>
 public class InMemoryDecompositionCache : IDecompositionCache
 {
-    private readonly ConcurrentDictionary<string, CacheItem> _cache = new();
-    private readonly ILogger<InMemoryDecompositionCache>? _logger;
-
     /// <summary>Cosine similarity threshold for cache key matching.</summary>
     private const float SimilarityThreshold = 0.92f;
 
     /// <summary>Maximum cache entries (LRU eviction beyond this).</summary>
     private const int MaxEntries = 500;
+
+    private readonly ConcurrentDictionary<string, CacheItem> _cache = new();
+    private readonly ILogger<InMemoryDecompositionCache>? _logger;
 
     public InMemoryDecompositionCache(ILogger<InMemoryDecompositionCache>? logger = null)
     {
@@ -111,10 +111,11 @@ public class InMemoryDecompositionCache : IDecompositionCache
     }
 
     /// <summary>
-    /// TTL tiers based on temporal scope.
+    ///     TTL tiers based on temporal scope.
     /// </summary>
-    private static TimeSpan GetTtl(TemporalScope? scope) =>
-        scope switch
+    private static TimeSpan GetTtl(TemporalScope? scope)
+    {
+        return scope switch
         {
             { RequiresFresh: true, TimeSensitivity: "breaking" } => TimeSpan.FromMinutes(30),
             { RequiresFresh: true } => TimeSpan.FromHours(1),
@@ -122,9 +123,10 @@ public class InMemoryDecompositionCache : IDecompositionCache
             { TimeSensitivity: "week" } => TimeSpan.FromHours(6),
             _ => TimeSpan.FromHours(24)
         };
+    }
 
     /// <summary>
-    /// Check if a cached entry's temporal scope is compatible with the requested scope.
+    ///     Check if a cached entry's temporal scope is compatible with the requested scope.
     /// </summary>
     private static bool IsTemporallyCompatible(TemporalScope? requested, TemporalScope? cached)
     {

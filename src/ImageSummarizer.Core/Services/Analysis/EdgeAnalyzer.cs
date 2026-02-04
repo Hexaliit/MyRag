@@ -7,14 +7,14 @@ using SixLabors.ImageSharp.Processing;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis;
 
 /// <summary>
-/// Analyzer for edge detection and density using OpenCV Sobel operators.
-/// Uses hardware-accelerated OpenCV instead of custom convolution.
+///     Analyzer for edge detection and density using OpenCV Sobel operators.
+///     Uses hardware-accelerated OpenCV instead of custom convolution.
 /// </summary>
 public class EdgeAnalyzer
 {
     /// <summary>
-    /// Calculate edge density (0-1) using OpenCV Sobel operator.
-    /// 10-30x faster than custom implementation due to hardware acceleration.
+    ///     Calculate edge density (0-1) using OpenCV Sobel operator.
+    ///     10-30x faster than custom implementation due to hardware acceleration.
     /// </summary>
     /// <param name="image">Image to analyze</param>
     /// <returns>Edge density score (0-1)</returns>
@@ -35,8 +35,8 @@ public class EdgeAnalyzer
         // Apply OpenCV Sobel operator for horizontal and vertical gradients
         using var gradX = new Mat();
         using var gradY = new Mat();
-        Cv2.Sobel(mat, gradX, MatType.CV_64F, 1, 0, ksize: 3); // Horizontal gradient
-        Cv2.Sobel(mat, gradY, MatType.CV_64F, 0, 1, ksize: 3); // Vertical gradient
+        Cv2.Sobel(mat, gradX, MatType.CV_64F, 1, 0, 3); // Horizontal gradient
+        Cv2.Sobel(mat, gradY, MatType.CV_64F, 0, 1, 3); // Vertical gradient
 
         // Calculate gradient magnitude: sqrt(Gx² + Gy²)
         using var magnitude = new Mat();
@@ -50,8 +50,8 @@ public class EdgeAnalyzer
     }
 
     /// <summary>
-    /// Convert ImageSharp image to OpenCV Mat (grayscale).
-    /// Uses ITU-R BT.601 formula for luminance conversion.
+    ///     Convert ImageSharp image to OpenCV Mat (grayscale).
+    ///     Uses ITU-R BT.601 formula for luminance conversion.
     /// </summary>
     private Mat ConvertToGrayscaleMat(Image<Rgba32> image)
     {
@@ -74,7 +74,7 @@ public class EdgeAnalyzer
     }
 
     /// <summary>
-    /// Calculate entropy of luminance histogram (0-8 range)
+    ///     Calculate entropy of luminance histogram (0-8 range)
     /// </summary>
     public double CalculateLuminanceEntropy(Image<Rgba32> image)
     {
@@ -110,7 +110,7 @@ public class EdgeAnalyzer
     }
 
     /// <summary>
-    /// Detect if image looks like it has straight edges (screenshot/UI indicator)
+    ///     Detect if image looks like it has straight edges (screenshot/UI indicator)
     /// </summary>
     public double CalculateStraightEdgeRatio(Image<Rgba32> image)
     {
@@ -166,6 +166,8 @@ public class EdgeAnalyzer
         return (horizontalEdges + verticalEdges) / (double)(totalEdges * 2);
     }
 
-    private static int GetLuminance(Rgba32 p) =>
-        (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    private static int GetLuminance(Rgba32 p)
+    {
+        return (int)(0.299 * p.R + 0.587 * p.G + 0.114 * p.B);
+    }
 }

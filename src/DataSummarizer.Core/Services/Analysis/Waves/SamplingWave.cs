@@ -6,14 +6,14 @@ using Mostlylucid.DocSummarizer.Data.Models;
 namespace Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves;
 
 /// <summary>
-/// Second wave: samples rows for subsequent analysis waves.
-/// Uses reservoir sampling for memory efficiency on large files.
+///     Second wave: samples rows for subsequent analysis waves.
+///     Uses reservoir sampling for memory efficiency on large files.
 /// </summary>
 public class SamplingWave : IDataAnalysisWave
 {
     private readonly DuckDbAnalyzer _analyzer;
-    private readonly DataProcessorOptions _options;
     private readonly ILogger<SamplingWave>? _logger;
+    private readonly DataProcessorOptions _options;
 
     public SamplingWave(
         DuckDbAnalyzer analyzer,
@@ -46,10 +46,7 @@ public class SamplingWave : IDataAnalysisWave
         var sampleSize = _options.SampleSize;
 
         // If SampleSize is 0 or row count is less than sample size, sample all
-        if (sampleSize <= 0 || rowCount <= sampleSize)
-        {
-            sampleSize = (int)Math.Min(rowCount, int.MaxValue);
-        }
+        if (sampleSize <= 0 || rowCount <= sampleSize) sampleSize = (int)Math.Min(rowCount, int.MaxValue);
 
         try
         {

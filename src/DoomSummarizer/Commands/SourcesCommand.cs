@@ -7,9 +7,8 @@ namespace DoomSummarizer.Commands;
 
 public sealed class SourcesCommand : AsyncCommand<SourcesCommand.Settings>
 {
-    public sealed class Settings : CommandSettings;
-
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
+        CancellationToken cancellationToken)
     {
         AnsiConsole.MarkupLine("[bold cyan]Available Sources[/]");
         AnsiConsole.WriteLine();
@@ -50,7 +49,8 @@ public sealed class SourcesCommand : AsyncCommand<SourcesCommand.Settings>
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold]Vibes:[/] doom, hopeful, snarky, funny, upbeat, friendly, neutral");
-        AnsiConsole.MarkupLine("[bold]Flags:[/] --images, --entities, --graph, --json, --raw, --no-llm, --local, --debug");
+        AnsiConsole.MarkupLine(
+            "[bold]Flags:[/] --images, --entities, --graph, --json, --raw, --no-llm, --local, --debug");
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]Examples:[/]");
@@ -71,4 +71,6 @@ public sealed class SourcesCommand : AsyncCommand<SourcesCommand.Settings>
 
         return 0;
     }
+
+    public sealed class Settings : CommandSettings;
 }

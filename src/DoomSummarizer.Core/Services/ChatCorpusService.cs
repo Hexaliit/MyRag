@@ -4,13 +4,13 @@ using Mostlylucid.DocSummarizer.Services;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// Indexes conversation turns as searchable ContentItems using existing
-/// storage infrastructure. Enables cross-session conversation memory.
+///     Indexes conversation turns as searchable ContentItems using existing
+///     storage infrastructure. Enables cross-session conversation memory.
 /// </summary>
 public sealed class ChatCorpusService
 {
-    private readonly StorageService _storage;
     private readonly IEmbeddingService _embedding;
+    private readonly StorageService _storage;
 
     public ChatCorpusService(StorageService storage, IEmbeddingService embedding)
     {
@@ -19,8 +19,8 @@ public sealed class ChatCorpusService
     }
 
     /// <summary>
-    /// Index a Q+A turn as a ContentItem, making it searchable in future sessions.
-    /// Designed to be called fire-and-forget (non-blocking).
+    ///     Index a Q+A turn as a ContentItem, making it searchable in future sessions.
+    ///     Designed to be called fire-and-forget (non-blocking).
     /// </summary>
     public async Task IndexTurnAsync(
         string sessionId, int turnNumber,
@@ -41,7 +41,7 @@ public sealed class ChatCorpusService
             FetchedAt = DateTimeOffset.UtcNow,
             Tags = ["chat", "conversation"],
             ParentDocumentId = $"chat:{sessionId}",
-            ChunkSequence = turnNumber,
+            ChunkSequence = turnNumber
         };
 
         // Step 1: Extract keywords
@@ -68,8 +68,8 @@ public sealed class ChatCorpusService
     }
 
     /// <summary>
-    /// Record implicit feedback for a conversation turn.
-    /// Continued-topic turns get a positive signal via the existing item_usage table.
+    ///     Record implicit feedback for a conversation turn.
+    ///     Continued-topic turns get a positive signal via the existing item_usage table.
     /// </summary>
     public async Task RecordFeedbackAsync(
         string sessionId, int turnNumber,
@@ -81,8 +81,8 @@ public sealed class ChatCorpusService
         // Leverage existing LogQueryAsync which increments access_count in item_usage
         await _storage.LogQueryAsync(
             $"feedback:{sessionId}:{turnNumber}",
-            queryEmbedding: null,
-            vibe: null,
-            itemIds: [itemId]);
+            null,
+            null,
+            [itemId]);
     }
 }

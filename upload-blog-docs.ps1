@@ -10,40 +10,50 @@ $apiUrl = "http://localhost:5019/api/documents/upload"
 
 # Get markdown files
 $files = Get-ChildItem -Path $sourceFolder -Filter "*.md" -File |
-    Select-Object -Skip $Skip -First $BatchSize
+        Select-Object -Skip $Skip -First $BatchSize
 
-Write-Host "Uploading $($files.Count) files (skipping $Skip)..." -ForegroundColor Cyan
+Write-Host "Uploading $( $files.Count ) files (skipping $Skip)..." -ForegroundColor Cyan
 
 $successCount = 0
 $errorCount = 0
 $duplicateCount = 0
 $processed = 0
 
-foreach ($file in $files) {
-    try {
+foreach ($file in $files)
+{
+    try
+    {
         # Use curl for multipart upload
         $result = & curl.exe -s -X POST $apiUrl `
-            -F "file=@$($file.FullName);filename=$($file.Name)" `
+            -F "file=@$( $file.FullName );filename=$( $file.Name )" `
             -H "Accept: application/json" 2>&1
 
         $response = $result | ConvertFrom-Json -ErrorAction SilentlyContinue
 
-        if ($response.status -eq "duplicate" -or $response.status -eq "exists") {
+        if ($response.status -eq "duplicate" -or $response.status -eq "exists")
+        {
             $duplicateCount++
-        } elseif ($response.documentId) {
+        }
+        elseif ($response.documentId)
+        {
             $successCount++
-        } else {
+        }
+        else
+        {
             $errorCount++
-            Write-Host "Unexpected response for $($file.Name): $result" -ForegroundColor Yellow
+            Write-Host "Unexpected response for $( $file.Name ): $result" -ForegroundColor Yellow
         }
 
         $processed++
-        if ($processed % 20 -eq 0) {
-            Write-Host "Progress: $processed/$($files.Count) - $successCount new, $duplicateCount existing..." -ForegroundColor Gray
+        if ($processed % 20 -eq 0)
+        {
+            Write-Host "Progress: $processed/$( $files.Count ) - $successCount new, $duplicateCount existing..." -ForegroundColor Gray
         }
-    } catch {
+    }
+    catch
+    {
         $errorCount++
-        Write-Host "Error uploading $($file.Name): $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Error uploading $( $file.Name ): $( $_.Exception.Message )" -ForegroundColor Red
     }
 }
 

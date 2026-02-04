@@ -1,8 +1,8 @@
 namespace LucidRAG.LLM.Services.LoadBalancing;
 
 /// <summary>
-/// Round-robin endpoint selection across healthy endpoints.
-/// Allocation-free: uses a for loop instead of LINQ.
+///     Round-robin endpoint selection across healthy endpoints.
+///     Allocation-free: uses a for loop instead of LINQ.
 /// </summary>
 public sealed class RoundRobinSelector : IEndpointSelector
 {
@@ -15,9 +15,8 @@ public sealed class RoundRobinSelector : IEndpointSelector
         // Count healthy endpoints in a single pass (no allocation)
         var healthyCount = 0;
         for (var i = 0; i < endpoints.Count; i++)
-        {
-            if (endpoints[i].IsHealthy) healthyCount++;
-        }
+            if (endpoints[i].IsHealthy)
+                healthyCount++;
 
         if (healthyCount == 0) return null;
 

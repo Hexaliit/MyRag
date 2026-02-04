@@ -1,6 +1,7 @@
 # Mostlylucid.LucidRAG.Decomposer
 
-Query decomposition utilities used for agentic retrieval (splitting complex questions into sub-queries and a search plan).
+Query decomposition utilities used for agentic retrieval (splitting complex questions into sub-queries and a search
+plan).
 
 ## Install
 

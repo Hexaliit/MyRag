@@ -5,28 +5,28 @@ using NAudio.Wave;
 namespace AudioSummarizer.Core.Services.Analysis.Waves;
 
 /// <summary>
-/// Identity Wave - Extracts deterministic cryptographic and file metadata signals.
-/// Priority: 100 (highest - runs first)
-/// Signals:
-/// - audio.hash.sha256: SHA-256 hash of file bytes
-/// - audio.hash.pcm_sha256: SHA-256 hash of decoded PCM audio
-/// - audio.format: File format (mp3, wav, etc.)
-/// - audio.duration_seconds: Total duration
-/// - audio.sample_rate: Sample rate in Hz
-/// - audio.channels: Number of audio channels
-/// - audio.bitrate: Bitrate in bps
+///     Identity Wave - Extracts deterministic cryptographic and file metadata signals.
+///     Priority: 100 (highest - runs first)
+///     Signals:
+///     - audio.hash.sha256: SHA-256 hash of file bytes
+///     - audio.hash.pcm_sha256: SHA-256 hash of decoded PCM audio
+///     - audio.format: File format (mp3, wav, etc.)
+///     - audio.duration_seconds: Total duration
+///     - audio.sample_rate: Sample rate in Hz
+///     - audio.channels: Number of audio channels
+///     - audio.bitrate: Bitrate in bps
 /// </summary>
 public sealed class IdentityWave : IAudioWave
 {
     private readonly ILogger<IdentityWave> _logger;
 
-    public string Name => "IdentityWave";
-    public int Priority => 100;
-
     public IdentityWave(ILogger<IdentityWave> logger)
     {
         _logger = logger;
     }
+
+    public string Name => "IdentityWave";
+    public int Priority => 100;
 
     public bool ShouldRun(string audioPath, AnalysisContext context)
     {
@@ -86,7 +86,7 @@ public sealed class IdentityWave : IAudioWave
 
     private static async Task<string> ComputeFileSha256Async(string filePath, CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
         var hash = await SHA256.HashDataAsync(stream, cancellationToken);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
@@ -248,7 +248,7 @@ public sealed class IdentityWave : IAudioWave
 
             // Average bytes per second (bitrate estimate)
             var averageBytesPerSecond = reader.WaveFormat.AverageBytesPerSecond;
-            var bitrateKbps = (averageBytesPerSecond * 8) / 1000;
+            var bitrateKbps = averageBytesPerSecond * 8 / 1000;
             signals.Add(new Signal
             {
                 Name = "audio.bitrate",

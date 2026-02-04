@@ -5,28 +5,26 @@ using Mostlylucid.DocSummarizer.Images.Models.Dynamic;
 namespace Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves;
 
 /// <summary>
-/// OCR Layout Validation Wave - Validates OCR output against layout-detected text regions.
-/// Compares OCR coverage with detected text/title/caption regions to assess extraction quality.
-///
-/// Priority: 55 (after main OCR waves at 60, before benchmark at 45)
-///
-/// Emits:
-/// - ocr.layout_validation.coverage: Percentage of text regions with OCR content
-/// - ocr.layout_validation.quality: Overall OCR quality score
-/// - ocr.layout_validation.missing_regions: Text regions without OCR output
+///     OCR Layout Validation Wave - Validates OCR output against layout-detected text regions.
+///     Compares OCR coverage with detected text/title/caption regions to assess extraction quality.
+///     Priority: 55 (after main OCR waves at 60, before benchmark at 45)
+///     Emits:
+///     - ocr.layout_validation.coverage: Percentage of text regions with OCR content
+///     - ocr.layout_validation.quality: Overall OCR quality score
+///     - ocr.layout_validation.missing_regions: Text regions without OCR output
 /// </summary>
 public class OcrLayoutValidationWave : IAnalysisWave
 {
     private readonly ILogger<OcrLayoutValidationWave>? _logger;
 
-    public string Name => "OcrLayoutValidationWave";
-    public int Priority => 55; // After OCR waves (60), before benchmark (45)
-    public IReadOnlyList<string> Tags => new[] { "ocr", "validation", "layout", "quality" };
-
     public OcrLayoutValidationWave(ILogger<OcrLayoutValidationWave>? logger = null)
     {
         _logger = logger;
     }
+
+    public string Name => "OcrLayoutValidationWave";
+    public int Priority => 55; // After OCR waves (60), before benchmark (45)
+    public IReadOnlyList<string> Tags => new[] { "ocr", "validation", "layout", "quality" };
 
     public bool ShouldRun(string imagePath, AnalysisContext context)
     {
@@ -183,7 +181,6 @@ public class OcrLayoutValidationWave : IAnalysisWave
             issues.Add("Single OCR system with low coverage - consider escalation");
 
         if (issues.Count > 0)
-        {
             signals.Add(new Signal
             {
                 Key = "ocr.layout_validation.issues",
@@ -192,7 +189,6 @@ public class OcrLayoutValidationWave : IAnalysisWave
                 Source = Name,
                 Tags = new List<string> { "ocr", "validation", "issues" }
             });
-        }
 
         // Per-OCR-system metrics
         foreach (var (system, text) in ocrOutputs)
@@ -236,7 +232,7 @@ public class OcrLayoutValidationWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Parse region types from cached text region bounds.
+    ///     Parse region types from cached text region bounds.
     /// </summary>
     private static Dictionary<string, int> ParseRegionTypes(List<object> regions)
     {
@@ -250,10 +246,7 @@ public class OcrLayoutValidationWave : IAnalysisWave
             if (classNameProp != null)
             {
                 var className = classNameProp.GetValue(region)?.ToString();
-                if (!string.IsNullOrEmpty(className))
-                {
-                    types[className] = types.GetValueOrDefault(className, 0) + 1;
-                }
+                if (!string.IsNullOrEmpty(className)) types[className] = types.GetValueOrDefault(className, 0) + 1;
             }
         }
 
@@ -261,7 +254,7 @@ public class OcrLayoutValidationWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Calculate total area of text regions.
+    ///     Calculate total area of text regions.
     /// </summary>
     private static long CalculateTotalArea(List<object> regions)
     {
@@ -285,7 +278,7 @@ public class OcrLayoutValidationWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Count words in text (simple whitespace split).
+    ///     Count words in text (simple whitespace split).
     /// </summary>
     private static int CountWords(string? text)
     {
@@ -297,7 +290,7 @@ public class OcrLayoutValidationWave : IAnalysisWave
     }
 
     /// <summary>
-    /// Check if OCR text contains likely title content.
+    ///     Check if OCR text contains likely title content.
     /// </summary>
     private static bool ContainsLikelyTitle(string text)
     {
@@ -313,16 +306,14 @@ public class OcrLayoutValidationWave : IAnalysisWave
                 char.IsUpper(trimmed[0]) &&
                 !trimmed.EndsWith('.') &&
                 !trimmed.EndsWith(','))
-            {
                 return true;
-            }
         }
 
         return false;
     }
 
     /// <summary>
-    /// Calculate overall quality score based on multiple factors.
+    ///     Calculate overall quality score based on multiple factors.
     /// </summary>
     private static double CalculateQualityScore(
         double coverageRatio,

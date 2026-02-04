@@ -3,15 +3,14 @@ using System.Text.RegularExpressions;
 namespace DoomSummarizer.Services;
 
 /// <summary>
-/// TextRank-style sentence centrality extraction.
-/// Selects the most informative sentences from a text by:
-/// 1. Splitting into sentences
-/// 2. Computing pairwise embedding similarity (graph edges)
-/// 3. Running PageRank-style power iteration to find central sentences
-/// 4. Returning top sentences in original order (preserves narrative flow)
-///
-/// Based on: Mihalcea and Tarau (TextRank, 2004), Erkan and Radev (LexRank, 2004).
-/// Uses local ONNX embeddings — deterministic, cheap, no LLM needed.
+///     TextRank-style sentence centrality extraction.
+///     Selects the most informative sentences from a text by:
+///     1. Splitting into sentences
+///     2. Computing pairwise embedding similarity (graph edges)
+///     3. Running PageRank-style power iteration to find central sentences
+///     4. Returning top sentences in original order (preserves narrative flow)
+///     Based on: Mihalcea and Tarau (TextRank, 2004), Erkan and Radev (LexRank, 2004).
+///     Uses local ONNX embeddings — deterministic, cheap, no LLM needed.
 /// </summary>
 public static partial class TextRankExtractor
 {
@@ -21,23 +20,27 @@ public static partial class TextRankExtractor
     private const float ConvergenceThreshold = 0.001f;
 
     /// <summary>
-    /// Extract the most central/informative sentences from text up to maxChars.
-    /// Falls back to simple truncation if text is short or embedding fails.
+    ///     Extract the most central/informative sentences from text up to maxChars.
+    ///     Falls back to simple truncation if text is short or embedding fails.
     /// </summary>
     /// <param name="text">Full article text (Markdown or plain text).</param>
     /// <param name="embedder">Embedding function (e.g. EmbeddingService.Embed).</param>
     /// <param name="maxChars">Maximum output length in characters.</param>
     /// <returns>Most informative sentences joined, respecting original order.</returns>
     public static string ExtractKeySentences(string text, Func<string, float[]> embedder, int maxChars = 800)
-        => ExtractKeySentencesCore(text, embedder, null, maxChars);
+    {
+        return ExtractKeySentencesCore(text, embedder, null, maxChars);
+    }
 
     /// <summary>
-    /// Batch-optimized overload: embeds all sentences in a single batch call
-    /// instead of N sequential calls. Significantly faster with ONNX runtime.
+    ///     Batch-optimized overload: embeds all sentences in a single batch call
+    ///     instead of N sequential calls. Significantly faster with ONNX runtime.
     /// </summary>
     public static string ExtractKeySentences(string text, Func<string, float[]> embedder,
         Func<string[], float[][]>? batchEmbedder, int maxChars = 800)
-        => ExtractKeySentencesCore(text, embedder, batchEmbedder, maxChars);
+    {
+        return ExtractKeySentencesCore(text, embedder, batchEmbedder, maxChars);
+    }
 
     private static string ExtractKeySentencesCore(string text, Func<string, float[]> embedder,
         Func<string[], float[][]>? batchEmbedder, int maxChars)
@@ -60,13 +63,11 @@ public static partial class TextRankExtractor
                 var embeddableIndices = new List<int>();
                 var embeddableTexts = new List<string>();
                 for (var i = 0; i < sentences.Count; i++)
-                {
                     if (sentences[i].Length >= 20)
                     {
                         embeddableIndices.Add(i);
                         embeddableTexts.Add(sentences[i]);
                     }
-                }
 
                 if (embeddableTexts.Count > 0)
                 {
@@ -79,10 +80,8 @@ public static partial class TextRankExtractor
             {
                 // Sequential fallback
                 for (var i = 0; i < sentences.Count; i++)
-                {
                     if (sentences[i].Length >= 20)
                         embeddings[i] = embedder(sentences[i]);
-                }
             }
         }
         catch
@@ -116,7 +115,7 @@ public static partial class TextRankExtractor
     }
 
     /// <summary>
-    /// Split text into sentences, stripping Markdown formatting.
+    ///     Split text into sentences, stripping Markdown formatting.
     /// </summary>
     private static List<string> SplitSentences(string text)
     {
@@ -144,7 +143,7 @@ public static partial class TextRankExtractor
     }
 
     /// <summary>
-    /// Compute TextRank scores using power iteration on the similarity graph.
+    ///     Compute TextRank scores using power iteration on the similarity graph.
     /// </summary>
     private static float[] ComputeTextRank(float[][] embeddings, int n)
     {
@@ -168,8 +167,8 @@ public static partial class TextRankExtractor
         // Compute row sums for normalization
         var rowSums = new float[n];
         for (var i = 0; i < n; i++)
-            for (var j = 0; j < n; j++)
-                rowSums[i] += graph[i, j];
+        for (var j = 0; j < n; j++)
+            rowSums[i] += graph[i, j];
 
         // Power iteration (PageRank)
         var scores = new float[n];
@@ -183,10 +182,8 @@ public static partial class TextRankExtractor
             {
                 var sum = 0f;
                 for (var j = 0; j < n; j++)
-                {
                     if (rowSums[j] > 0)
                         sum += graph[j, i] / rowSums[j] * scores[j];
-                }
                 newScores[i] = (1 - DampingFactor) / n + DampingFactor * sum;
                 maxDiff = Math.Max(maxDiff, Math.Abs(newScores[i] - scores[i]));
             }
@@ -199,10 +196,12 @@ public static partial class TextRankExtractor
     }
 
     /// <summary>
-    /// Delegates to SIMD-accelerated <see cref="VectorMath.CosineSimilarity"/>.
+    ///     Delegates to SIMD-accelerated <see cref="VectorMath.CosineSimilarity" />.
     /// </summary>
-    private static float CosineSimilarity(float[] a, float[] b) =>
-        VectorMath.CosineSimilarity(a, b);
+    private static float CosineSimilarity(float[] a, float[] b)
+    {
+        return VectorMath.CosineSimilarity(a, b);
+    }
 
     [GeneratedRegex(@"^#{1,6}\s+.*$", RegexOptions.Multiline)]
     private static partial Regex MarkdownHeading();

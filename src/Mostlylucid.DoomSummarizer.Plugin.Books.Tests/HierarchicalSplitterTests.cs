@@ -6,6 +6,11 @@ namespace Mostlylucid.DoomSummarizer.Plugin.Books.Tests;
 
 public class HierarchicalSplitterTests
 {
+    // --- Real sample data tests ---
+
+    private static readonly string SampleDataDir = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Mostlylucid.DocSummarizer", "sampledata"));
+
     private readonly HierarchicalBookSplitter _splitter = new(NullLogger<HierarchicalBookSplitter>.Instance);
 
     [Theory]
@@ -23,28 +28,28 @@ public class HierarchicalSplitterTests
     public async Task SplitAsync_NovelPattern_SplitsByChapters()
     {
         var text = """
-            Chapter 1
-            It was a dark and stormy night. The wind howled through the trees, bending them like
-            reeds under the force of the gale. Elizabeth sat by the window, watching the lightning
-            illuminate the garden in brief, brilliant flashes.
+                   Chapter 1
+                   It was a dark and stormy night. The wind howled through the trees, bending them like
+                   reeds under the force of the gale. Elizabeth sat by the window, watching the lightning
+                   illuminate the garden in brief, brilliant flashes.
 
-            Chapter 2
-            The next morning dawned bright and clear. The storm had passed, leaving behind a world
-            washed clean and glistening with dew. Elizabeth rose early and walked through the
-            gardens, enjoying the fresh air and the scent of wet earth.
+                   Chapter 2
+                   The next morning dawned bright and clear. The storm had passed, leaving behind a world
+                   washed clean and glistening with dew. Elizabeth rose early and walked through the
+                   gardens, enjoying the fresh air and the scent of wet earth.
 
-            Chapter 3
-            By noon, the household was bustling with activity. The servants prepared for the
-            arrival of the Bingleys, and Mrs. Bennet was in a state of considerable agitation
-            about the evening's dinner arrangements.
-            """;
+                   Chapter 3
+                   By noon, the household was bustling with activity. The servants prepared for the
+                   arrival of the Bingleys, and Mrs. Bennet was in a state of considerable agitation
+                   about the evening's dinner arrangements.
+                   """;
 
         var options = new SplitOptions { PatternName = "novel" };
         var result = await _splitter.SplitAsync(text, options);
 
         result.Should().NotBeNull();
         result.Children.Count.Should().BeGreaterThanOrEqualTo(3,
-            because: "3 chapters should be detected");
+            "3 chapters should be detected");
         result.Children.Should().AllSatisfy(c =>
             c.Content.Should().NotBeNullOrWhiteSpace());
     }
@@ -53,50 +58,50 @@ public class HierarchicalSplitterTests
     public async Task SplitAsync_PlayPattern_SplitsByActsAndScenes()
     {
         var text = """
-            ACT I
+                   ACT I
 
-            SCENE 1. Elsinore. A platform before the castle.
-            FRANCISCO at his post. Enter to him BERNARDO.
-            BERNARDO. Who's there?
-            FRANCISCO. Nay, answer me: stand, and unfold yourself.
-            BERNARDO. Long live the king!
+                   SCENE 1. Elsinore. A platform before the castle.
+                   FRANCISCO at his post. Enter to him BERNARDO.
+                   BERNARDO. Who's there?
+                   FRANCISCO. Nay, answer me: stand, and unfold yourself.
+                   BERNARDO. Long live the king!
 
-            SCENE 2. A room of state in the castle.
-            Enter the KING, QUEEN, HAMLET, POLONIUS, LAERTES.
-            KING. Though yet of Hamlet our dear brother's death
-            The memory be green, and that it us befitted.
+                   SCENE 2. A room of state in the castle.
+                   Enter the KING, QUEEN, HAMLET, POLONIUS, LAERTES.
+                   KING. Though yet of Hamlet our dear brother's death
+                   The memory be green, and that it us befitted.
 
-            ACT II
+                   ACT II
 
-            SCENE 1. A room in Polonius's house.
-            Enter POLONIUS and REYNALDO.
-            POLONIUS. Give him this money and these notes, Reynaldo.
-            """;
+                   SCENE 1. A room in Polonius's house.
+                   Enter POLONIUS and REYNALDO.
+                   POLONIUS. Give him this money and these notes, Reynaldo.
+                   """;
 
         var options = new SplitOptions { PatternName = "play" };
         var result = await _splitter.SplitAsync(text, options);
 
         result.Should().NotBeNull();
         result.Children.Count.Should().BeGreaterThanOrEqualTo(2,
-            because: "2 acts should be detected");
+            "2 acts should be detected");
     }
 
     [Fact]
     public async Task SplitAsync_FallsBackToHeadings_WhenNoPatternMatches()
     {
         var text = """
-            # Introduction
-            This is the introduction section.
+                   # Introduction
+                   This is the introduction section.
 
-            # Methods
-            This is the methods section with details about methodology.
+                   # Methods
+                   This is the methods section with details about methodology.
 
-            # Results
-            The results show significant improvement.
+                   # Results
+                   The results show significant improvement.
 
-            # Discussion
-            We discuss the implications of these findings.
-            """;
+                   # Discussion
+                   We discuss the implications of these findings.
+                   """;
 
         // Use a pattern name that doesn't exist — should fallback to heading-based splitting
         var options = new SplitOptions { PatternName = "nonexistent" };
@@ -104,19 +109,19 @@ public class HierarchicalSplitterTests
 
         result.Should().NotBeNull();
         result.Children.Count.Should().BeGreaterThanOrEqualTo(4,
-            because: "4 markdown headings should produce 4 sections");
+            "4 markdown headings should produce 4 sections");
     }
 
     [Fact]
     public async Task SplitAsync_LeavesHaveContent()
     {
         var text = """
-            Chapter 1
-            Some content for chapter one that is reasonably long.
+                   Chapter 1
+                   Some content for chapter one that is reasonably long.
 
-            Chapter 2
-            Some content for chapter two that is also reasonably long.
-            """;
+                   Chapter 2
+                   Some content for chapter two that is also reasonably long.
+                   """;
 
         var options = new SplitOptions { PatternName = "novel" };
         var result = await _splitter.SplitAsync(text, options);
@@ -130,15 +135,15 @@ public class HierarchicalSplitterTests
     public async Task SplitAsync_SequenceNumbersAreExtracted()
     {
         var text = """
-            Chapter I
-            First chapter content.
+                   Chapter I
+                   First chapter content.
 
-            Chapter II
-            Second chapter content.
+                   Chapter II
+                   Second chapter content.
 
-            Chapter III
-            Third chapter content.
-            """;
+                   Chapter III
+                   Third chapter content.
+                   """;
 
         var options = new SplitOptions { PatternName = "novel" };
         var result = await _splitter.SplitAsync(text, options);
@@ -152,11 +157,6 @@ public class HierarchicalSplitterTests
         }
     }
 
-    // --- Real sample data tests ---
-
-    private static readonly string SampleDataDir = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Mostlylucid.DocSummarizer", "sampledata"));
-
     [Fact]
     public async Task SplitAsync_RealGutenbergFrankenstein_ProducesChapters()
     {
@@ -169,9 +169,9 @@ public class HierarchicalSplitterTests
 
         result.Should().NotBeNull();
         result.Children.Count.Should().BeGreaterThan(5,
-            because: "Frankenstein has many chapters and should split into multiple sections");
+            "Frankenstein has many chapters and should split into multiple sections");
         result.TotalWordCount.Should().BeGreaterThan(10_000,
-            because: "Frankenstein is a substantial novel");
+            "Frankenstein is a substantial novel");
 
         // Check tree integrity
         var leaves = result.EnumerateLeaves().ToList();

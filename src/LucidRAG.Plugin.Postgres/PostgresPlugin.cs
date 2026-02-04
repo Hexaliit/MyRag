@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace LucidRAG.Plugin.Postgres;
 
 /// <summary>
-/// PostgreSQL plugin. Provides ts_rank_cd full-text search and pgVector embeddings.
+///     PostgreSQL plugin. Provides ts_rank_cd full-text search and pgVector embeddings.
 /// </summary>
 public sealed class PostgresPlugin : IPlugin
 {

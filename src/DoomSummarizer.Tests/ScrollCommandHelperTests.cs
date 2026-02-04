@@ -1,11 +1,12 @@
 using DoomSummarizer.Commands;
 using DoomSummarizer.Models;
+using Spectre.Console;
 
 namespace DoomSummarizer.Tests;
 
 /// <summary>
-/// Tests for ScrollCommand static helper methods:
-/// StripMarkdownForLlm, ApplySourceDomainFilter, ApplySourceWeights.
+///     Tests for ScrollCommand static helper methods:
+///     StripMarkdownForLlm, ApplySourceDomainFilter, ApplySourceWeights.
 /// </summary>
 public class ScrollCommandHelperTests
 {
@@ -18,7 +19,7 @@ public class ScrollCommandHelperTests
             Title = $"Item {id}",
             Url = url ?? $"https://{source}.com/article/{id}",
             RelevanceScore = relevance,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow
         };
     }
 
@@ -46,7 +47,9 @@ public class ScrollCommandHelperTests
     public void StripMarkdown_RemovesTruncatedImageSyntax()
     {
         // Truncated image: URL cut off without closing paren
-        var result = ScrollCommand.StripMarkdownForLlm("![Gemini 3 decoded](https://example.com/very-long-url-that-gets-truncated-befo");
+        var result =
+            ScrollCommand.StripMarkdownForLlm(
+                "![Gemini 3 decoded](https://example.com/very-long-url-that-gets-truncated-befo");
         result.Should().NotContain("![");
         result.Should().NotContain("](");
         result.Should().Contain("Gemini 3 decoded");
@@ -156,7 +159,7 @@ public class ScrollCommandHelperTests
 
         var result = ScrollCommand.ApplySourceDomainFilter(items, filter);
         result.Should().HaveCount(2);
-        result.Select(i => i.Id).Should().BeEquivalentTo(["1", "3"]);
+        result.Select(i => i.Id).Should().BeEquivalentTo("1", "3");
     }
 
     [Fact]
@@ -175,7 +178,7 @@ public class ScrollCommandHelperTests
 
         var result = ScrollCommand.ApplySourceDomainFilter(items, filter);
         result.Should().HaveCount(2);
-        result.Select(i => i.Id).Should().BeEquivalentTo(["1", "3"]);
+        result.Select(i => i.Id).Should().BeEquivalentTo("1", "3");
     }
 
     [Fact]
@@ -221,8 +224,8 @@ public class ScrollCommandHelperTests
     {
         var items = new List<ContentItem>
         {
-            MakeItem("1", source: "hn", relevance: 0.5),
-            MakeItem("2", source: "reddit", relevance: 0.5)
+            MakeItem("1", "hn", relevance: 0.5),
+            MakeItem("2", "reddit", relevance: 0.5)
         };
         var filter = new SourceFilterConfig
         {
@@ -244,7 +247,7 @@ public class ScrollCommandHelperTests
     {
         var items = new List<ContentItem>
         {
-            MakeItem("1", source: "search", url: "https://www.reuters.com/article/123", relevance: 0.5)
+            MakeItem("1", "search", "https://www.reuters.com/article/123", 0.5)
         };
         var filter = new SourceFilterConfig
         {
@@ -263,7 +266,7 @@ public class ScrollCommandHelperTests
     {
         var items = new List<ContentItem>
         {
-            MakeItem("1", source: "bbc", relevance: 0.9)
+            MakeItem("1", "bbc", relevance: 0.9)
         };
         var filter = new SourceFilterConfig
         {
@@ -279,7 +282,7 @@ public class ScrollCommandHelperTests
     {
         var items = new List<ContentItem>
         {
-            MakeItem("1", source: "neutral", relevance: 0.5)
+            MakeItem("1", "neutral", relevance: 0.5)
         };
         var filter = new SourceFilterConfig
         {
@@ -295,8 +298,8 @@ public class ScrollCommandHelperTests
     #region WordWrapMarkup + Markup.Escape
 
     /// <summary>
-    /// Verify that WordWrapMarkup preserves Spectre.Console escaped brackets.
-    /// Input with Markup.Escape'd brackets should produce valid Spectre markup.
+    ///     Verify that WordWrapMarkup preserves Spectre.Console escaped brackets.
+    ///     Input with Markup.Escape'd brackets should produce valid Spectre markup.
     /// </summary>
     [Theory]
     [InlineData("[cyan]Algorithms [[For Dummies]][/]", "Escaped brackets in title")]
@@ -307,10 +310,10 @@ public class ScrollCommandHelperTests
     public void WordWrapMarkup_PreservesEscapedBrackets(string input, string description)
     {
         // WordWrapMarkup should produce output that Spectre can parse without errors
-        var wrapped = ScrollCommand.WordWrapMarkup(input, maxWidth: 80);
+        var wrapped = ScrollCommand.WordWrapMarkup(input, 80);
 
         // Verify the result is parseable by Spectre's Markup class
-        var ex = Record.Exception(() => new Spectre.Console.Markup(wrapped));
+        var ex = Record.Exception(() => new Markup(wrapped));
         ex.Should().BeNull($"WordWrapMarkup should produce valid Spectre markup for: {description}");
     }
 
@@ -318,11 +321,11 @@ public class ScrollCommandHelperTests
     public void WordWrapMarkup_ForcedWrap_PreservesEscapedBrackets()
     {
         // Force wrapping by using a very narrow width
-        var title = Spectre.Console.Markup.Escape("Algorithms [For Dummies] Complete Guide");
+        var title = Markup.Escape("Algorithms [For Dummies] Complete Guide");
         var input = $"[cyan]{title}[/]";
-        var wrapped = ScrollCommand.WordWrapMarkup(input, maxWidth: 25);
+        var wrapped = ScrollCommand.WordWrapMarkup(input, 25);
 
-        var ex = Record.Exception(() => new Spectre.Console.Markup(wrapped));
+        var ex = Record.Exception(() => new Markup(wrapped));
         ex.Should().BeNull("wrapped output with forced line break should still be valid markup");
     }
 
@@ -336,15 +339,15 @@ public class ScrollCommandHelperTests
 
         var parts = new List<string>
         {
-            $"[cyan]{Spectre.Console.Markup.Escape(title)}[/]",
-            $"  [link={Spectre.Console.Markup.Escape(url)}][dim underline]{Spectre.Console.Markup.Escape(url)}[/][/]",
-            $"  [dim]file[/] [grey]|[/] [dim]0.85[/]",
-            $"  [grey]{Spectre.Console.Markup.Escape(excerpt)}[/]"
+            $"[cyan]{Markup.Escape(title)}[/]",
+            $"  [link={Markup.Escape(url)}][dim underline]{Markup.Escape(url)}[/][/]",
+            "  [dim]file[/] [grey]|[/] [dim]0.85[/]",
+            $"  [grey]{Markup.Escape(excerpt)}[/]"
         };
         var content = string.Join("\n", parts);
-        var wrapped = ScrollCommand.WordWrapMarkup(content, maxWidth: 80);
+        var wrapped = ScrollCommand.WordWrapMarkup(content, 80);
 
-        var ex = Record.Exception(() => new Spectre.Console.Markup(wrapped));
+        var ex = Record.Exception(() => new Markup(wrapped));
         ex.Should().BeNull("simulated sources panel content should produce valid markup");
     }
 

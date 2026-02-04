@@ -1,7 +1,5 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
-using FluentAssertions;
-using Xunit;
 
 namespace DoomSummarizer.Tests;
 
@@ -30,8 +28,13 @@ public class SourceRouterTests
             },
             Routing = new Dictionary<string, RoutingRule>
             {
-                ["health"] = new() { Sources = ["google_news", "bbc"], BbcCategory = "health", GoogleNewsTopic = "HEALTH" },
-                ["technology"] = new() { Sources = ["hn", "reddit", "google_news", "bbc"], BbcCategory = "technology", GoogleNewsTopic = "TECHNOLOGY" },
+                ["health"] = new()
+                    { Sources = ["google_news", "bbc"], BbcCategory = "health", GoogleNewsTopic = "HEALTH" },
+                ["technology"] = new()
+                {
+                    Sources = ["hn", "reddit", "google_news", "bbc"], BbcCategory = "technology",
+                    GoogleNewsTopic = "TECHNOLOGY"
+                },
                 ["default"] = new() { Sources = ["google_news", "bbc"] }
             },
             TopicKeywords = new Dictionary<string, List<string>>

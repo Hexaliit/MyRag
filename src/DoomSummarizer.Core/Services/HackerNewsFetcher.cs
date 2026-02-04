@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using DoomSummarizer.Models;
 
@@ -62,9 +63,7 @@ public class HackerNewsFetcher(HttpClient httpClient)
                 var stories = await Task.WhenAll(tasks);
 
                 foreach (var story in stories.Where(s => s != null && s.Score >= config.MinScore))
-                {
                     if (seen.Add(story!.Id))
-                    {
                         items.Add(new ContentItem
                         {
                             Id = $"hn_{story.Id}",
@@ -77,12 +76,10 @@ public class HackerNewsFetcher(HttpClient httpClient)
                             CommentCount = story.Descendants,
                             CreatedAt = DateTimeOffset.FromUnixTimeSeconds(story.Time)
                         });
-                    }
-                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Warning: Failed to fetch HN {section}: {ex.Message}");
+                Debug.WriteLine($"Warning: Failed to fetch HN {section}: {ex.Message}");
             }
 
             if (items.Count >= limit) break;

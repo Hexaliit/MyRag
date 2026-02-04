@@ -12,7 +12,7 @@ scope:
   atom: NativeExtraction
 
 triggers:
-  requires: []  # Can run standalone
+  requires: [ ]  # Can run standalone
   skip_when:
     - wave.skipped.NativeExtractionWave
     - route.skip.NativeExtractionWave
@@ -28,7 +28,7 @@ emits:
     - key: content.markdown
       type: string
       description: Extracted markdown content
-      confidence_range: [0.3, 0.95]
+      confidence_range: [ 0.3, 0.95 ]
 
     - key: extraction.method
       type: string
@@ -55,8 +55,8 @@ emits:
     - extraction.native.failed
 
 listens:
-  required: []
-  optional: []
+  required: [ ]
+  optional: [ ]
 
 # Escalation signals for downstream waves
 escalation:

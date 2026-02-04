@@ -29,7 +29,7 @@ public class DocSummarizerEmbeddingService : IEmbeddingService, IDisposable
             MaxEmbeddingSequenceLength = 256
         };
 
-        _onnxService = new DocSummarizerOnnx(onnxConfig, false);
+        _onnxService = new DocSummarizerOnnx(onnxConfig);
         _logger.LogInformation("DocSummarizer ONNX embedding service created (model: all-MiniLM-L6-v2, dim: 384)");
     }
 
