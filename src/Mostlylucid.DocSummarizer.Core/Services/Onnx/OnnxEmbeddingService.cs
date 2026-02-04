@@ -12,10 +12,12 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     private readonly OnnxConfig _config;
     private readonly OnnxModelDownloader _downloader;
     private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly SemaphoreSlim _inferenceLock = new(1, 1);
     private readonly int _maxSequenceLength;
     private readonly EmbeddingModelInfo _modelInfo;
     private readonly bool _verbose;
     private bool _initialized;
+    private bool _useGpu;
     private InferenceSession? _session;
     private HuggingFaceTokenizer? _tokenizer;
 
@@ -32,6 +34,7 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     {
         _session?.Dispose();
         _initLock.Dispose();
+        _inferenceLock.Dispose();
     }
 
     /// <summary>
@@ -54,9 +57,9 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             var paths = await _downloader.EnsureEmbeddingModelAsync(_modelInfo, ct);
 
             var options = CreateSessionOptions();
-            var usingGpu = _config.ExecutionProvider is not OnnxExecutionProvider.Cpu;
 
             _session = new InferenceSession(paths.ModelPath, options);
+            _useGpu = _config.ExecutionProvider is not OnnxExecutionProvider.Cpu;
 
             if (ProgressService.ShouldShowVerbose(_verbose))
                 Console.WriteLine($"[ONNX] Model loaded: {_modelInfo.Name} ({_modelInfo.EmbeddingDimension}d)");
@@ -65,22 +68,6 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             _tokenizer = File.Exists(paths.TokenizerPath)
                 ? HuggingFaceTokenizer.FromFile(paths.TokenizerPath)
                 : HuggingFaceTokenizer.FromVocabFile(paths.VocabPath);
-
-            // Warmup: validate the execution provider actually works by running a tiny inference.
-            // DirectML can successfully register but then crash (0xC0000005) on the first Run()
-            // when the GPU driver doesn't support the required DML operations (FusedMatMul, Gather).
-            // A warmup catches this as a managed exception and falls back to CPU.
-            if (usingGpu)
-            {
-                if (!TryWarmupInference())
-                {
-                    Console.WriteLine("[ONNX] GPU warmup failed, falling back to CPU-only session");
-                    _session.Dispose();
-                    var cpuOptions = CreateCpuSessionOptions();
-                    _session = new InferenceSession(paths.ModelPath, cpuOptions);
-                    Console.WriteLine("[ONNX] CPU fallback session created");
-                }
-            }
 
             _initialized = true;
         }
@@ -119,15 +106,24 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor)
         };
 
-        // Run inference
-        using var results = _session.Run(inputs);
+        // GPU sessions (DirectML/CUDA) are not thread-safe — concurrent Run calls
+        // from Parallel.ForEachAsync cause access violations. Serialize GPU inference.
+        if (_useGpu)
+            await _inferenceLock.WaitAsync(ct);
+        try
+        {
+            using var results = _session.Run(inputs);
 
-        // Get last_hidden_state output
-        var output = results.First(r => r.Name == "last_hidden_state" || r.Name == "output_0");
-        var outputTensor = output.AsTensor<float>();
+            var output = results.First(r => r.Name == "last_hidden_state" || r.Name == "output_0");
+            var outputTensor = output.AsTensor<float>();
 
-        // Mean pooling with attention mask
-        return MeanPool(outputTensor, attentionMask, _modelInfo.EmbeddingDimension);
+            return MeanPool(outputTensor, attentionMask, _modelInfo.EmbeddingDimension);
+        }
+        finally
+        {
+            if (_useGpu)
+                _inferenceLock.Release();
+        }
     }
 
     /// <summary>
@@ -164,12 +160,22 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     }
 
     /// <summary>
-    ///     True batched inference - processes multiple samples in a single forward pass
+    ///     True batched inference - processes multiple samples in a single forward pass.
+    ///     When using GPU (DirectML/CUDA), falls back to sequential single-item inference
+    ///     because DML's FusedMatMul kernel is compiled for fixed batch_size=1 and crashes
+    ///     (0xC0000005 / E_INVALIDARG) when the batch dimension changes. Each sequential
+    ///     call still runs on the GPU — this only affects how items are grouped.
     /// </summary>
     private float[][] EmbedBatchInternal(List<string> texts)
     {
         if (_session == null || _tokenizer == null)
             throw new InvalidOperationException("Model not initialized");
+
+        // DirectML/CUDA: use sequential inference (still GPU-accelerated, batch_size=1 per call).
+        // DML's graph optimizer fuses MatMul+Scale into FusedMatMul for batch_size=1 shapes.
+        // Passing batch_size>1 tensors into these fused kernels causes E_INVALIDARG / access violation.
+        if (_useGpu)
+            return EmbedSequential(texts);
 
         var batchSize = texts.Count;
 
@@ -323,15 +329,24 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
             NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor)
         };
 
-        // Run inference
-        using var results = _session.Run(inputs);
+        // GPU sessions (DirectML/CUDA) are not thread-safe — concurrent Run calls
+        // from Parallel.ForEachAsync cause access violations. Serialize GPU inference.
+        if (_useGpu)
+            _inferenceLock.Wait();
+        try
+        {
+            using var results = _session.Run(inputs);
 
-        // Get last_hidden_state output
-        var output = results.First(r => r.Name == "last_hidden_state" || r.Name == "output_0");
-        var outputTensor = output.AsTensor<float>();
+            var output = results.First(r => r.Name == "last_hidden_state" || r.Name == "output_0");
+            var outputTensor = output.AsTensor<float>();
 
-        // Mean pooling with attention mask
-        return MeanPool(outputTensor, attentionMask, _modelInfo.EmbeddingDimension);
+            return MeanPool(outputTensor, attentionMask, _modelInfo.EmbeddingDimension);
+        }
+        finally
+        {
+            if (_useGpu)
+                _inferenceLock.Release();
+        }
     }
 
     /// <summary>
@@ -463,90 +478,4 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         return options;
     }
 
-    /// <summary>
-    ///     Create CPU-only session options (used as fallback when GPU warmup fails).
-    /// </summary>
-    private SessionOptions CreateCpuSessionOptions()
-    {
-        var options = new SessionOptions
-        {
-            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
-            ExecutionMode = _config.UseParallelExecution
-                ? ExecutionMode.ORT_PARALLEL
-                : ExecutionMode.ORT_SEQUENTIAL
-        };
-
-        if (_config.InferenceThreads > 0)
-            options.IntraOpNumThreads = _config.InferenceThreads;
-        else
-            options.IntraOpNumThreads = Environment.ProcessorCount;
-
-        if (_config.UseParallelExecution)
-        {
-            var interOpThreads = _config.InterOpThreads > 0
-                ? _config.InterOpThreads
-                : Math.Max(2, Environment.ProcessorCount / 2);
-            options.InterOpNumThreads = interOpThreads;
-        }
-
-        // CPU only — no GPU providers appended
-        return options;
-    }
-
-    /// <summary>
-    ///     Run a minimal inference to validate the execution provider works.
-    ///     DirectML can register successfully but crash (0xC0000005) on first Run()
-    ///     when GPU drivers don't support required DML kernels (FusedMatMul, Gather).
-    ///     Returns true if warmup succeeds, false if it throws a managed exception.
-    ///     NOTE: If the GPU driver causes a native access violation instead of a managed
-    ///     exception, this will crash the process — but it would crash anyway on first
-    ///     real inference. The warmup at least fails fast during init instead of mid-work.
-    /// </summary>
-    private bool TryWarmupInference()
-    {
-        if (_session == null || _tokenizer == null)
-            return false;
-
-        try
-        {
-            // Minimal input: single short token sequence
-            var (inputIds, attentionMask, tokenTypeIds) = _tokenizer.Encode("warmup", 8);
-
-            var inputIdsTensor = new DenseTensor<long>(inputIds, [1, inputIds.Length]);
-            var attentionMaskTensor = new DenseTensor<long>(attentionMask, [1, attentionMask.Length]);
-            var tokenTypeIdsTensor = new DenseTensor<long>(tokenTypeIds, [1, tokenTypeIds.Length]);
-
-            var inputs = new List<NamedOnnxValue>
-            {
-                NamedOnnxValue.CreateFromTensor("input_ids", inputIdsTensor),
-                NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor),
-                NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor)
-            };
-
-            using var results = _session.Run(inputs);
-
-            // Verify output exists and has valid shape
-            var output = results.FirstOrDefault(r => r.Name is "last_hidden_state" or "output_0");
-            if (output == null)
-            {
-                Console.WriteLine("[ONNX] Warmup: no recognized output tensor");
-                return false;
-            }
-
-            var tensor = output.AsTensor<float>();
-            if (tensor.Dimensions[0] != 1)
-            {
-                Console.WriteLine("[ONNX] Warmup: unexpected output batch dimension");
-                return false;
-            }
-
-            ProgressService.WriteVerbose(_verbose, "[ONNX] GPU warmup succeeded");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[ONNX] GPU warmup failed: {ex.GetType().Name}: {ex.Message}");
-            return false;
-        }
-    }
 }

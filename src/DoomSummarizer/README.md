@@ -364,6 +364,81 @@ Resolves aggregator URLs to canonical article URLs:
 
 Results are cached to avoid repeated lookups.
 
+## v0.7.0: Score-Based Source Routing & Embedding Reliability
+
+### Self-Describing Source Routing
+
+Source selection is now driven by **YAML-declared metadata** on every source instead of hardcoded
+if/else chains. Each source in `Resources/sources.yaml` declares:
+
+- **`intent_affinity`** — per-intent scores (0–1) for `news`, `qa`, `research`, `howto`, `roundup`, etc.
+- **`capabilities`** — tags like `knowledge`, `news`, `tech_only`, `archive`, `search`, `realtime`
+
+A scoring formula replaces the old phase-based selection:
+
+```
+score = (intentAffinity × 0.6) + (categoryMatch × 0.3) + (capabilityBonus × 0.1)
+```
+
+**What this fixes:**
+- Factual QA queries ("How much can a swallow carry?") now route to web search + Wikipedia instead
+  of Google News RSS, which returned irrelevant articles
+- Research queries correctly prioritize arXiv and academic sources
+- News queries still get gnews + feeds as before — no regression
+- `tech_only` and `archive` filters are now YAML-driven capabilities instead of hardcoded HashSets
+
+```bash
+# Debug mode shows per-source scores
+doomsummarizer scroll "How much can a swallow carry?" --debug
+# [grey]  wikipedia         0.710  (affinity=0.95, caps: knowledge,reference,archive)
+# [grey]  duckduckgo        0.680  (affinity=0.90, caps: search,knowledge)
+# [grey]  google_news       0.420  (affinity=0.30, caps: search,news,realtime)
+```
+
+### Adaptive Ingestion Deduplication
+
+Two-phase deduplication reduces noise while preserving signal quality during document ingestion:
+
+1. **Pre-embedding dedup** — Cheap text signals (word Jaccard, trigram overlap, length similarity)
+   eliminate obvious duplicates *before* spending GPU compute on embeddings. Saves 20–50% of
+   embedding cost on repetitive documents.
+
+2. **Semantic dedup** — After embedding, cosine similarity catches near-duplicates that text
+   signals missed (paraphrases, reworded content). Survivors absorb duplicates as a logarithmic
+   salience boost.
+
+Chunk limits adapt by document type and size:
+
+| Document Type | Min Survivors | Max Survivors | Dedup Threshold |
+|--------------|---------------|---------------|-----------------|
+| Fiction (novel) | 30 | 120 | 0.88 |
+| Technical (large) | 40 | 150 | 0.88 |
+| Academic | 15 | 80 | 0.90 |
+
+See `docs/EmbeddingOptimization.md` for configuration and the full pipeline diagram.
+
+### ONNX DirectML GPU Stability
+
+Fixed two crash-causing issues with GPU-accelerated ONNX inference via DirectML:
+
+- **Batch dimension crash** — DML's `FusedMatMul` kernel is compiled for `batch_size=1`. Passing
+  multi-item tensors caused `0xC0000005` access violations. GPU batches now route through
+  sequential single-item inference (still GPU-accelerated, just one item per forward pass).
+
+- **Concurrent access crash** — `InferenceSession.Run` is not thread-safe under DirectML.
+  Multiple threads from `Parallel.ForEachAsync` calling `Run` simultaneously caused native crashes.
+  GPU sessions now use a `SemaphoreSlim` inference lock to serialize access.
+
+Both fixes are transparent — GPU inference still runs on the GPU, with no CPU fallback.
+
+### LFU Embedding Cache
+
+All embedding services are wrapped in a Least Frequently Used cache (8192 entries, ~12 MB). Avoids
+recomputing embeddings for repeated queries, anchor phrases, entity names, and dedup comparisons.
+Measured speedup: ~2400x on cache hits (0.02 ms vs 72 ms cold).
+
+---
+
 ## v0.6.1: Advanced Search & Retrieval
 
 ### Composite Query Decomposition
@@ -1158,9 +1233,9 @@ dotnet build src/DoomSummarizer/DoomSummarizer.csproj -p:CompleteBuild=true
 dotnet test src/DoomSummarizer.Tests/DoomSummarizer.Tests.csproj
 ```
 
-770 tests covering ranking pipeline, embeddings, templates, long-form generation, entity disambiguation, prompt
-interpretation, knowledge graph operations, personal corpus (self-disclosure detection, named corpuses, gap-filling),
-and retrieval pipeline scoring.
+862 tests covering ranking pipeline, embeddings, templates, long-form generation, entity disambiguation, prompt
+interpretation, source routing (score-based selection, intent affinity, capability filters), knowledge graph operations,
+personal corpus (self-disclosure detection, named corpuses, gap-filling), deduplication, and retrieval pipeline scoring.
 
 ## Platforms
 

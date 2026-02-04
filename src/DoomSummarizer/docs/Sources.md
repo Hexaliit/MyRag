@@ -147,13 +147,52 @@ doomsummarizer scroll -s https://techcrunch.com
 
 ## Topic routing (natural language)
 
-When you provide a prompt, DoomSummarizer tries to infer topic + intent and choose sources automatically using routing
-rules embedded in `Resources/sources.yaml`.
+When you provide a prompt, DoomSummarizer uses the sentinel LLM to extract **intent**, **categories**, and **time
+sensitivity**, then scores every source using metadata declared in `Resources/sources.yaml`.
 
-Topic categories currently include:
+### How scoring works
+
+Each source declares two metadata fields in YAML:
+
+- **`intent_affinity`** — per-intent scores (0–1): how well the source serves `news`, `qa`, `research`, `howto`,
+  `roundup`, `deep_dive`, `search_only`, `trend`
+- **`capabilities`** — tags: `search`, `knowledge`, `news`, `realtime`, `tech_only`, `archive`, `academic`, `reference`,
+  `government`, `satire`
+
+Sources are scored with:
+
+```
+score = (intentAffinity × 0.6) + (categoryMatch × 0.3) + (capabilityBonus × 0.1)
+```
+
+- **intentAffinity**: how well the source matches the detected intent (e.g., Wikipedia scores 0.95 for `qa`, 0.1 for `news`)
+- **categoryMatch**: whether the source appears in routing rules for the query's topic categories
+- **capabilityBonus**: extra points for capability+intent matches (e.g., `knowledge` + `qa` = +0.5, `archive` + `breaking` = -0.3)
+
+Sources are selected by score, search sources first (with generated search queries), then feed/RSS sources.
+
+### Hard filters
+
+Two capability-based filters prevent irrelevant sources:
+
+- **`tech_only`** sources (hn, lobsters, techcrunch, etc.) are excluded when the query has no technology/programming category
+- **`archive`** sources (wikipedia, arxiv) are excluded for `roundup` + `today`/`breaking` time sensitivity
+
+### Example: factual QA vs news
+
+| Query | Intent | Top Sources |
+|-------|--------|-------------|
+| "How much can a swallow carry?" | `qa` | search:..., wikipedia, sciencedaily |
+| "latest AI news" | `news` | gnews:..., hn, techcrunch, verge, ars |
+| "latest papers on transformer scaling" | `research` | arxiv:..., gnews:..., sciencedaily |
+| "earthquake just hit Turkey" | `roundup` | gnews:..., bbc, reuters, guardian (no arxiv/wikipedia) |
+
+### Topic categories
+
+Categories currently include:
 `technology`, `programming`, `health`, `pharma`, `science`, `environment`, `climate`, `business`, `finance`, `politics`,
 `world`, `entertainment`, `sports`, `ai`, `security`, `space`, `disaster`, `humor`, `satire`, `factcheck`, plus
 `default`.
 
-To see what it decided, run without `--quiet` (it prints detected sources/search queries), or add `--debug`.
+To see scores and selected sources, use `--debug`.
 

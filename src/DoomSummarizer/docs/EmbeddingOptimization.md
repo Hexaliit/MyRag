@@ -103,6 +103,25 @@ ONNX Runtime supports multiple execution providers for GPU-accelerated inference
 | CUDA | NVIDIA | Requires CUDA runtime installed |
 | DirectML | Windows | AMD, Intel, NVIDIA via DirectX 12 |
 
+### DirectML Constraints
+
+DirectML's graph optimizer fuses operators (e.g., `MatMul+Scale` → `FusedMatMul`) for the
+tensor shapes seen during the first inference call. This creates two constraints:
+
+1. **Batch dimension is fixed at 1.** The fused kernels are compiled for `batch_size=1`. Passing
+   multi-item tensors (batch_size > 1) causes `E_INVALIDARG` or `0xC0000005` access violations.
+   `OnnxEmbeddingService` handles this automatically — when GPU is active, batch requests are
+   routed through sequential single-item inference. Each item still runs on the GPU; only the
+   grouping changes.
+
+2. **`InferenceSession.Run` is not thread-safe.** Unlike CPU execution, DML sessions crash when
+   multiple threads call `Run` concurrently. This affects scenarios like `Parallel.ForEachAsync`
+   in article processing. `OnnxEmbeddingService` uses a `SemaphoreSlim` inference lock to
+   serialize GPU access. CPU sessions have no lock and no contention.
+
+Both constraints are handled transparently — no configuration needed. GPU inference remains
+GPU-accelerated with no CPU fallback.
+
 ### Multi-GPU Systems
 
 On systems with multiple GPUs (e.g., integrated + discrete), use `--list-gpus` to see available
@@ -157,8 +176,9 @@ after the first conversation turn.
 
 ## Batch Embedding
 
-All bulk embedding operations use `EmbedBatchAsync` — a single ONNX forward pass for N items
-instead of N sequential calls. This applies to:
+All bulk embedding operations use `EmbedBatchAsync`. On CPU, this runs a single ONNX forward pass
+for N items. On GPU (DirectML/CUDA), items are processed sequentially (one per forward pass, still
+GPU-accelerated) due to the batch dimension constraint described above. This applies to:
 
 - **Ingestion**: All document chunks embedded in one batch call
 - **Anchor computation**: Sentiment + topic anchors computed in one call at startup
