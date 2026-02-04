@@ -29,7 +29,7 @@
     </PackageReference>
 
     <!-- DuckDB for embedded vector storage -->
-    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.3" />
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4" />
 
     <!-- Qdrant for production vector storage -->
     <PackageReference Include="Qdrant.Client" Version="1.16.1" />

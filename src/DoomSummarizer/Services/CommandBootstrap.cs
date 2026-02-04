@@ -1,3 +1,4 @@
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Microsoft.Data.Sqlite;
@@ -239,7 +240,7 @@ public sealed class CommandBootstrap : IAsyncDisposable
 #endif
         if (ollamaAvailable)
         {
-            Spectre.Console.AnsiConsole.MarkupLine($"[green]LLM:[/] {llmRouter.StatusDescription}");
+            Spectre.Console.AnsiConsole.MarkupLine($"[green]LLM:[/] {FormattingHelpers.Esc(llmRouter.StatusDescription)}");
         }
         else if (hasLlamaSharp)
         {

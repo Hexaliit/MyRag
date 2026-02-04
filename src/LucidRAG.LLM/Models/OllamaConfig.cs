@@ -13,8 +13,9 @@ public record OllamaConfig
     public double Temperature { get; init; } = 0.4;
     public int TimeoutSeconds { get; init; } = 300;
 
-    /// <summary>Context window size (tokens) for the main model. Used to budget evidence content.</summary>
-    public int ContextSize { get; init; } = 8192;
+    /// <summary>Context window size (tokens) for the main model. Used to budget evidence content.
+    /// Default 16384 accommodates 10-15 evidence items with content for synthesis.</summary>
+    public int ContextSize { get; init; } = 16384;
 
     /// <summary>Context window size (tokens) for the sentinel model.</summary>
     public int SentinelContextSize { get; init; } = 32768;

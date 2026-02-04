@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Plugins;
 using DoomSummarizer.Plugins.Runtime;
@@ -329,7 +330,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
 
         AnsiConsole.MarkupLine("[grey]Detecting LLM providers...[/]");
         var llmRouter = await boot.InitializeLlmStackAsync(circuitBreaker, cancellationToken);
-        AnsiConsole.MarkupLine($"[green]LLM:[/] {llmRouter.StatusDescription}");
+        AnsiConsole.MarkupLine($"[green]LLM:[/] {FormattingHelpers.Esc(llmRouter.StatusDescription)}");
 
         using var httpClient = HttpClientFactory.CreateDefault();
 
@@ -753,7 +754,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                             .Distinct(StringComparer.OrdinalIgnoreCase)
                                             .ToList();
                                         if (settings.DebugPipeline)
-                                            AnsiConsole.MarkupLine($"[grey]Fiction entity expansion: {string.Join(", ", characterNames)}[/]");
+                                            AnsiConsole.MarkupLine($"[grey]Fiction entity expansion: {FormattingHelpers.Esc(string.Join(", ", characterNames))}[/]");
                                     }
                                 }
                                 catch { /* entity store query is best-effort */ }
@@ -1364,7 +1365,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         catch (Exception ex)
                         {
                             if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]Lucene KB search skipped: {ex.Message}[/]");
+                                AnsiConsole.MarkupLine($"[grey]Lucene KB search skipped: {FormattingHelpers.Esc(ex.Message)}[/]");
                         }
 
                         // Layer 2: Embedding search for semantic coverage (catches related content)
@@ -1378,7 +1379,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         catch (Exception ex)
                         {
                             if (settings.DebugPipeline)
-                                AnsiConsole.MarkupLine($"[grey]Embedding search skipped: {ex.Message}[/]");
+                                AnsiConsole.MarkupLine($"[grey]Embedding search skipped: {FormattingHelpers.Esc(ex.Message)}[/]");
                         }
 
                         // Layer 3: Entity profile HNSW search (when entity profiles exist)
@@ -1415,7 +1416,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             catch (Exception ex)
                             {
                                 if (settings.DebugPipeline)
-                                    AnsiConsole.MarkupLine($"[grey]Entity profile search skipped: {ex.Message}[/]");
+                                    AnsiConsole.MarkupLine($"[grey]Entity profile search skipped: {FormattingHelpers.Esc(ex.Message)}[/]");
                             }
                         }
 
@@ -1685,7 +1686,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         {
                             activityLog.Add(activity);
                             // Show last activity in progress description (strip markup for non-markup-safe display)
-                            linkTask.Description = $"[cyan]{Markup.Remove(activity)}[/]";
+                            linkTask.Description = $"[cyan]{FormattingHelpers.SafeStripMarkup(activity)}[/]";
                         });
 
                     var totalLinked = itemsToFollow.Sum(i => i.LinkedPages.Count);
@@ -2489,19 +2490,29 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     await boot.EntityStore.CleanupAsync(boot.Config.Storage.RetentionDays);
             });
 
-        // === Streaming synthesis path ===
+        // === Rendering: each step independently safe so streaming always proceeds ===
         if (streamingPrompt != null)
         {
-            // Display evidence/links FIRST (fast, already available)
+            // Streaming synthesis path: decorative panels first, then LLM tokens
             var maxContentWidth = Math.Min(Spectre.Console.AnsiConsole.Profile.Width - 6, 94);
+
+            // Evidence briefing — non-fatal (decorative)
             if ((settings.Full || settings.Briefing) && analyzedItems.Count > 0)
-                await RenderEvidenceBriefingAsync(boot, uniqueItems, analyzedItems, articleEntityMap, maxContentWidth);
+            {
+                try { await RenderEvidenceBriefingAsync(boot, uniqueItems, analyzedItems, articleEntityMap, maxContentWidth); }
+                catch (Exception ex) when (ex.Message.Contains("color or style") || ex.Message.Contains("markup"))
+                { AnsiConsole.MarkupLine($"[dim](evidence briefing skipped: {FormattingHelpers.Esc(ex.Message)})[/]"); }
+            }
 
-            RenderSourcesUsed(analyzedItems, uniqueItems, maxContentWidth);
+            // Sources panel — non-fatal (decorative, uses SafeWrite internally)
+            try { RenderSourcesUsed(analyzedItems, uniqueItems, maxContentWidth); }
+            catch (Exception ex) when (ex.Message.Contains("color or style") || ex.Message.Contains("markup"))
+            { AnsiConsole.MarkupLine($"[dim](sources panel skipped: {FormattingHelpers.Esc(ex.Message)})[/]"); }
 
-            // Stream LLM synthesis tokens as they arrive
+            // Stream LLM synthesis tokens — this is the main output
             var title = $"Doom Scroll Digest ({vibe})";
-            var tokens = ollama.SynthesizeSummaryStreamingAsync(streamingPrompt, cancellationToken);
+            var synthesisSystemPrompt = ollama.BuildSynthesisSystemPrompt(vibe, vibePrompt);
+            var tokens = ollama.SynthesizeSummaryStreamingAsync(streamingPrompt, synthesisSystemPrompt, cancellationToken);
             finalSummary = await RenderStreamingOutputAsync(tokens, title);
 
             // Save the streamed summary
@@ -2509,11 +2520,20 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         }
         else
         {
-            // === Non-streaming output (delegated to Display partial) ===
-            await RenderOutputAsync(settings, boot, vibe, finalSummary, template, isBlogTemplate,
-                templateData, uniqueItems, analyzedItems, allEntities, articleEntityMap,
-                extractEntities, ollamaAvailable, interpreted, linkCacheHits, linksSkippedByRelevance,
-                outputTemplates, httpClient, isImageSource, cancellationToken);
+            // Non-streaming output (delegated to Display partial)
+            try
+            {
+                await RenderOutputAsync(settings, boot, vibe, finalSummary, template, isBlogTemplate,
+                    templateData, uniqueItems, analyzedItems, allEntities, articleEntityMap,
+                    extractEntities, ollamaAvailable, interpreted, linkCacheHits, linksSkippedByRelevance,
+                    outputTemplates, httpClient, isImageSource, cancellationToken);
+            }
+            catch (Exception ex) when (ex.Message.Contains("color or style") || ex.Message.Contains("markup"))
+            {
+                AnsiConsole.MarkupLine($"[yellow]Rendering warning: {FormattingHelpers.Esc(ex.Message)}[/]");
+                if (!string.IsNullOrEmpty(finalSummary))
+                    Console.WriteLine(finalSummary);
+            }
         }
 
         return 0;

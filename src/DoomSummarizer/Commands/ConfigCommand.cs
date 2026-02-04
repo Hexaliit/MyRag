@@ -55,12 +55,12 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
             if (settings.Full)
             {
                 await ConfigService.InitializeFullConfigAsync();
-                AnsiConsole.MarkupLine($"[green]Created full config:[/] {ConfigService.GetConfigDir()}/config.json");
+                AnsiConsole.MarkupLine($"[green]Created full config:[/] {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json");
             }
             else
             {
                 await ConfigService.InitializeStarterConfigAsync();
-                AnsiConsole.MarkupLine($"[green]Created starter config:[/] {ConfigService.GetConfigDir()}/config.json");
+                AnsiConsole.MarkupLine($"[green]Created starter config:[/] {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json");
                 AnsiConsole.MarkupLine("[grey]Only commonly-changed settings included. Run 'config --init --full' for all settings.[/]");
                 AnsiConsole.MarkupLine("[grey]Run 'config --reference' for the complete setting reference.[/]");
             }
@@ -143,7 +143,7 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
         AnsiConsole.MarkupLine($"[green]Applied profile:[/] [bold]{resolvedName}[/]");
         if (!string.IsNullOrEmpty(desc))
             AnsiConsole.MarkupLine($"[grey]{desc}[/]");
-        AnsiConsole.MarkupLine($"[grey]Config saved to {ConfigService.GetConfigDir()}/config.json[/]");
+        AnsiConsole.MarkupLine($"[grey]Config saved to {FormattingHelpers.Esc(ConfigService.GetConfigDir())}/config.json[/]");
 
 #if !FEATURE_LLAMASHARP
         // Warn if the profile configured LLamaSharp settings but this build doesn't include it
@@ -285,7 +285,7 @@ public sealed class ConfigCommand : AsyncCommand<ConfigCommand.Settings>
 
         // Storage
         var storagePath = ConfigService.GetDbPath(config);
-        AnsiConsole.MarkupLine($"[bold]Storage:[/] {storagePath}");
+        AnsiConsole.MarkupLine($"[bold]Storage:[/] {FormattingHelpers.Esc(storagePath)}");
         AnsiConsole.MarkupLine($"[bold]Retention:[/] {config.Storage.RetentionDays} days");
 
         AnsiConsole.WriteLine();

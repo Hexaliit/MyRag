@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Services;
 #if FEATURE_LLAMASHARP
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
@@ -53,7 +54,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 ctx.Status("Initializing configuration...");
                 var config = await ConfigService.LoadAsync();
                 var dbPath = ConfigService.GetDbPath(config);
-                AnsiConsole.MarkupLine($"[green]\u2713[/] Config directory: {Path.GetDirectoryName(dbPath)}");
+                AnsiConsole.MarkupLine($"[green]\u2713[/] Config directory: {FormattingHelpers.Esc(Path.GetDirectoryName(dbPath))}");
 
                 // 2. Download ONNX models
                 ctx.Status("Setting up ONNX embedding model...");
@@ -133,14 +134,14 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 ctx.Status("Initializing database...");
                 await using var storage = new StorageService(dbPath);
                 await storage.InitializeAsync();
-                AnsiConsole.MarkupLine($"[green]\u2713[/] Database initialized: {dbPath}");
+                AnsiConsole.MarkupLine($"[green]\u2713[/] Database initialized: {FormattingHelpers.Esc(dbPath)}");
 
                 // 4. Check Ollama availability and models
                 ctx.Status("Checking Ollama availability...");
                 var ollama = new DoomSummarizer.Services.OllamaService(config.Ollama);
                 if (await ollama.IsAvailableAsync())
                 {
-                    AnsiConsole.MarkupLine($"[green]\u2713[/] Ollama available at {config.Ollama.BaseUrl}");
+                    AnsiConsole.MarkupLine($"[green]\u2713[/] Ollama available at {FormattingHelpers.Esc(config.Ollama.BaseUrl)}");
 
                     var models = await ollama.GetAvailableModelsAsync();
                     var requiredModels = new[] { config.Ollama.Model, config.Ollama.SentinelModel };
@@ -149,12 +150,12 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                         var found = models.Any(m => m.StartsWith(required.Split(':')[0], StringComparison.OrdinalIgnoreCase));
                         if (found)
                         {
-                            AnsiConsole.MarkupLine($"   [green]\u2713[/] Model [bold]{required}[/] available");
+                            AnsiConsole.MarkupLine($"   [green]\u2713[/] Model [bold]{FormattingHelpers.Esc(required)}[/] available");
                         }
                         else
                         {
-                            AnsiConsole.MarkupLine($"   [yellow]\u26a0[/] Model [bold]{required}[/] not found — pull it:");
-                            AnsiConsole.MarkupLine($"     [grey]ollama pull {required}[/]");
+                            AnsiConsole.MarkupLine($"   [yellow]\u26a0[/] Model [bold]{FormattingHelpers.Esc(required)}[/] not found — pull it:");
+                            AnsiConsole.MarkupLine($"     [grey]ollama pull {FormattingHelpers.Esc(required)}[/]");
                         }
                     }
 
@@ -163,26 +164,26 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                         var otherModels = models.Where(m => !requiredModels.Any(r =>
                             m.StartsWith(r.Split(':')[0], StringComparison.OrdinalIgnoreCase))).Take(5).ToList();
                         if (otherModels.Count > 0)
-                            AnsiConsole.MarkupLine($"   [grey]Other available: {string.Join(", ", otherModels)}[/]");
+                            AnsiConsole.MarkupLine($"   [grey]Other available: {FormattingHelpers.Esc(string.Join(", ", otherModels))}[/]");
                     }
                 }
                 else
                 {
 #if FEATURE_COMPLETE
-                    AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {config.Ollama.BaseUrl}");
+                    AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {FormattingHelpers.Esc(config.Ollama.BaseUrl)}");
                     AnsiConsole.MarkupLine("   LucidRAG uses Ollama by default. Start it:");
                     AnsiConsole.MarkupLine("   [grey]ollama serve[/]");
-                    AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.Model}[/]");
-                    AnsiConsole.MarkupLine($"   [grey]ollama pull {config.Ollama.SentinelModel}[/]");
+                    AnsiConsole.MarkupLine($"   [grey]ollama pull {FormattingHelpers.Esc(config.Ollama.Model)}[/]");
+                    AnsiConsole.MarkupLine($"   [grey]ollama pull {FormattingHelpers.Esc(config.Ollama.SentinelModel)}[/]");
 #if FEATURE_LLAMASHARP
                     AnsiConsole.MarkupLine("   [grey]Or use local GGUF models: lucidrag setup --local-llm[/]");
 #endif
 #elif FEATURE_LLAMASHARP
-                    AnsiConsole.MarkupLine($"[grey]-[/] Ollama not running at {config.Ollama.BaseUrl} (optional — LLamaSharp handles LLM locally)");
-                    AnsiConsole.MarkupLine("   [grey]To use Ollama instead: ollama serve && ollama pull {0}[/]", config.Ollama.Model);
+                    AnsiConsole.MarkupLine($"[grey]-[/] Ollama not running at {FormattingHelpers.Esc(config.Ollama.BaseUrl)} (optional — LLamaSharp handles LLM locally)");
+                    AnsiConsole.MarkupLine($"   [grey]To use Ollama instead: ollama serve && ollama pull {FormattingHelpers.Esc(config.Ollama.Model)}[/]");
 #else
-                    AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {config.Ollama.BaseUrl}");
-                    AnsiConsole.MarkupLine("   [grey]Install Ollama for LLM synthesis: ollama serve && ollama pull {0}[/]", config.Ollama.Model);
+                    AnsiConsole.MarkupLine($"[yellow]\u26a0[/] Ollama not running at {FormattingHelpers.Esc(config.Ollama.BaseUrl)}");
+                    AnsiConsole.MarkupLine($"   [grey]Install Ollama for LLM synthesis: ollama serve && ollama pull {FormattingHelpers.Esc(config.Ollama.Model)}[/]");
                     AnsiConsole.MarkupLine("   [grey]Or set ANTHROPIC_API_KEY / OPENAI_API_KEY for cloud LLM[/]");
 #endif
                 }
@@ -192,7 +193,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                 if (!Directory.Exists(templatesDir))
                 {
                     Directory.CreateDirectory(templatesDir);
-                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates directory: {templatesDir}");
+                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates directory: {FormattingHelpers.Esc(templatesDir)}");
                     AnsiConsole.MarkupLine("   [grey]Place .yaml or .liquid files here for custom output templates[/]");
                 }
                 else
@@ -200,7 +201,7 @@ public sealed class SetupCommand : AsyncCommand<SetupCommand.Settings>
                     var yamlCount = Directory.EnumerateFiles(templatesDir, "*.yaml")
                         .Concat(Directory.EnumerateFiles(templatesDir, "*.yml")).Count();
                     var liquidCount = Directory.GetFiles(templatesDir, "*.liquid").Length;
-                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates: {yamlCount} YAML + {liquidCount} Liquid in {templatesDir}");
+                    AnsiConsole.MarkupLine($"[green]\u2713[/] Templates: {yamlCount} YAML + {liquidCount} Liquid in {FormattingHelpers.Esc(templatesDir)}");
                 }
 
                 // 6. Download NER model if requested

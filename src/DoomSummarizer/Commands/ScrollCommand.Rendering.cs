@@ -85,10 +85,21 @@ public sealed partial class ScrollCommand
 
         var content = string.Join("\n", sourceParts);
         var wrapped = WordWrapMarkup(content, maxWidth);
-        AnsiConsole.Write(new Panel(wrapped)
-            .Header("[bold dim]Sources Used[/]")
-            .Border(BoxBorder.Rounded)
-            .Padding(1, 0));
+
+        try
+        {
+            AnsiConsole.Write(new Panel(wrapped)
+                .Header("[bold dim]Sources Used[/]")
+                .Border(BoxBorder.Rounded)
+                .Padding(1, 0));
+        }
+        catch (Exception ex) when (ex.Message.Contains("color or style") || ex.Message.Contains("markup"))
+        {
+            // Panel construction or rendering failed — show plain-text sources instead
+            Console.WriteLine("Sources Used:");
+            foreach (var a in analyzedItems.OrderByDescending(a => a.relevance).Take(topN))
+                Console.WriteLine($"  {a.title} ({a.url}) [{a.relevance:F2}]");
+        }
     }
 
     /// <summary>

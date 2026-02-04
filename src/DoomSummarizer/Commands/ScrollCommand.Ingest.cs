@@ -185,7 +185,7 @@ public sealed partial class ScrollCommand
             var cachedDocType = DetectDocumentType(sampleText);
 
             progressTask.Value = 100;
-            progressTask.Description = $"[green]Collection '{collectionName}' already has {existing.Count} segments (use --force to re-ingest)[/]";
+            progressTask.Description = $"[green]Collection '{FormattingHelpers.Esc(collectionName)}' already has {existing.Count} segments (use --force to re-ingest)[/]";
             return (sourceTag, existing.Count, cachedDocType);
         }
 
@@ -236,7 +236,7 @@ public sealed partial class ScrollCommand
                 continue;
             }
 
-            progressTask.Description = $"[cyan]Ingesting {Path.GetFileName(filePath)}[/]";
+            progressTask.Description = $"[cyan]Ingesting {FormattingHelpers.Esc(Path.GetFileName(filePath))}[/]";
 
             try
             {

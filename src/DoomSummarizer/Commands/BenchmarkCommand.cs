@@ -237,7 +237,7 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
                     {
                         if (benchSynthesis)
                         {
-                            task.Description = $"[yellow]{model}[/] synthesis (round {round + 1})";
+                            task.Description = $"[yellow]{Markup.Escape(model)}[/] synthesis (round {round + 1})";
                             try
                             {
                                 var result = await ollama.GenerateWithTimingAsync(
@@ -253,7 +253,7 @@ public sealed class BenchmarkCommand : AsyncCommand<BenchmarkCommand.Settings>
 
                         if (benchSentinel)
                         {
-                            task.Description = $"[yellow]{model}[/] sentinel (round {round + 1})";
+                            task.Description = $"[yellow]{Markup.Escape(model)}[/] sentinel (round {round + 1})";
                             try
                             {
                                 var result = await ollama.GenerateWithTimingAsync(

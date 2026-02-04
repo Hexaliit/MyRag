@@ -43,7 +43,7 @@
 
     <ItemGroup>
         <!-- DuckDB for streaming CSV/Excel/Parquet - no in-memory loading -->
-        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4-alpha.2"/>
+        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4" />
 
         <!-- LLM for insight generation (optional) -->
         <PackageReference Include="OllamaSharp" Version="5.4.16" />

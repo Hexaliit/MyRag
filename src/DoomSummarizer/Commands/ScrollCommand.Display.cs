@@ -1,4 +1,5 @@
 using System.Text;
+using DoomSummarizer.Helpers;
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
@@ -100,7 +101,7 @@ public sealed partial class ScrollCommand
         else if (!string.IsNullOrEmpty(settings.Output))
         {
             await File.WriteAllTextAsync(settings.Output, finalSummary, ct);
-            AnsiConsole.MarkupLine($"[green]Summary saved to:[/] {settings.Output}");
+            AnsiConsole.MarkupLine($"[green]Summary saved to:[/] {FormattingHelpers.Esc(settings.Output)}");
         }
         else
         {
@@ -111,10 +112,18 @@ public sealed partial class ScrollCommand
                 : $"[bold cyan]Doom Scroll Digest ({vibe})[/]";
             var maxContentWidth = Math.Min(AnsiConsole.Profile.Width - 6, 94);
             var wrappedMarkup = WordWrapMarkup(renderedMarkup, maxContentWidth);
-            AnsiConsole.Write(new Panel(wrappedMarkup)
-                .Header(header)
-                .Border(BoxBorder.Rounded)
-                .Padding(1, 1));
+            try
+            {
+                AnsiConsole.Write(new Panel(wrappedMarkup)
+                    .Header(header)
+                    .Border(BoxBorder.Rounded)
+                    .Padding(1, 1));
+            }
+            catch (Exception ex) when (ex.Message.Contains("color or style") || ex.Message.Contains("markup"))
+            {
+                // Markdown-to-Spectre conversion produced invalid markup — show raw summary
+                Console.WriteLine(finalSummary);
+            }
 
             // Deterministic sources section
             RenderSourcesUsed(analyzedItems, uniqueItems, maxContentWidth);
@@ -285,7 +294,7 @@ public sealed partial class ScrollCommand
         {
             await File.WriteAllTextAsync(settings.Output, json);
             if (!settings.Quiet)
-                AnsiConsole.MarkupLine($"[green]JSON saved to:[/] {settings.Output}");
+                AnsiConsole.MarkupLine($"[green]JSON saved to:[/] {FormattingHelpers.Esc(settings.Output)}");
         }
         else
         {
@@ -403,10 +412,18 @@ public sealed partial class ScrollCommand
 
         var briefingContent = string.Join("\n", briefingParts).TrimEnd('\n');
         var wrappedBriefing = WordWrapMarkup(briefingContent, maxContentWidth);
-        AnsiConsole.Write(new Panel(wrappedBriefing)
-            .Header("[bold yellow]Evidence Briefing[/]")
-            .Border(BoxBorder.Rounded)
-            .Padding(1, 0));
+        try
+        {
+            AnsiConsole.Write(new Panel(wrappedBriefing)
+                .Header("[bold yellow]Evidence Briefing[/]")
+                .Border(BoxBorder.Rounded)
+                .Padding(1, 0));
+        }
+        catch (Exception ex) when (ex.Message.Contains("color or style") || ex.Message.Contains("markup"))
+        {
+            Console.WriteLine("Evidence Briefing:");
+            Console.WriteLine(FormattingHelpers.SafeStripMarkup(briefingContent));
+        }
     }
 
     private static void RenderEntities(

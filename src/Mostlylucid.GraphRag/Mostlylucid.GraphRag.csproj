@@ -19,7 +19,7 @@
     <ItemGroup>
 
         <!-- DuckDB for compact vector + graph storage -->
-        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4-alpha.2"/>
+        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4" />
 
         <!-- ML.NET TorchSharp for NER and QA -->
         <PackageReference Include="Microsoft.ML" Version="5.0.0"/>

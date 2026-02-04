@@ -291,4 +291,62 @@ public class ScrollCommandHelperTests
     }
 
     #endregion
+
+    #region WordWrapMarkup + Markup.Escape
+
+    /// <summary>
+    /// Verify that WordWrapMarkup preserves Spectre.Console escaped brackets.
+    /// Input with Markup.Escape'd brackets should produce valid Spectre markup.
+    /// </summary>
+    [Theory]
+    [InlineData("[cyan]Algorithms [[For Dummies]][/]", "Escaped brackets in title")]
+    [InlineData("[grey]See [[For example]][/]", "Escaped brackets in excerpt")]
+    [InlineData("[cyan]Title[/]\n  [grey]text [[For]] more[/]", "Multi-line with brackets")]
+    [InlineData("[link=http://example.com][dim]http://example.com[/][/]", "Link tag")]
+    [InlineData("[cyan][[Book Title]] by Author[/]", "Leading escaped brackets")]
+    public void WordWrapMarkup_PreservesEscapedBrackets(string input, string description)
+    {
+        // WordWrapMarkup should produce output that Spectre can parse without errors
+        var wrapped = ScrollCommand.WordWrapMarkup(input, maxWidth: 80);
+
+        // Verify the result is parseable by Spectre's Markup class
+        var ex = Record.Exception(() => new Spectre.Console.Markup(wrapped));
+        ex.Should().BeNull($"WordWrapMarkup should produce valid Spectre markup for: {description}");
+    }
+
+    [Fact]
+    public void WordWrapMarkup_ForcedWrap_PreservesEscapedBrackets()
+    {
+        // Force wrapping by using a very narrow width
+        var title = Spectre.Console.Markup.Escape("Algorithms [For Dummies] Complete Guide");
+        var input = $"[cyan]{title}[/]";
+        var wrapped = ScrollCommand.WordWrapMarkup(input, maxWidth: 25);
+
+        var ex = Record.Exception(() => new Spectre.Console.Markup(wrapped));
+        ex.Should().BeNull("wrapped output with forced line break should still be valid markup");
+    }
+
+    [Fact]
+    public void WordWrapMarkup_SourcesPanel_SimulatesRealData()
+    {
+        // Simulate exactly what RenderSourcesUsed builds
+        var title = "Algorithms [For Dummies]";
+        var url = "file:///C:/docs/algorithms.pdf";
+        var excerpt = "Chapter 1: [For example, sorting algorithms include...]";
+
+        var parts = new List<string>
+        {
+            $"[cyan]{Spectre.Console.Markup.Escape(title)}[/]",
+            $"  [link={Spectre.Console.Markup.Escape(url)}][dim underline]{Spectre.Console.Markup.Escape(url)}[/][/]",
+            $"  [dim]file[/] [grey]|[/] [dim]0.85[/]",
+            $"  [grey]{Spectre.Console.Markup.Escape(excerpt)}[/]"
+        };
+        var content = string.Join("\n", parts);
+        var wrapped = ScrollCommand.WordWrapMarkup(content, maxWidth: 80);
+
+        var ex = Record.Exception(() => new Spectre.Console.Markup(wrapped));
+        ex.Should().BeNull("simulated sources panel content should produce valid markup");
+    }
+
+    #endregion
 }

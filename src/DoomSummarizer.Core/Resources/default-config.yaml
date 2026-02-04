@@ -78,7 +78,7 @@ ollama:
   embed_model: "nomic-embed-text"      # Embedding model (used when backend=ollama)
   temperature: 0.4                     # LLM temperature (0.0–1.0)
   timeout_seconds: 300                 # Request timeout in seconds
-  context_size: 8192                   # Context window (tokens) for primary model
+  context_size: 16384                  # Context window (tokens) for primary model
   sentinel_context_size: 32768         # Context window (tokens) for sentinel model
 
 # ─── Embedding ───────────────────────────────────────────────────────

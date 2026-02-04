@@ -1,7 +1,7 @@
 {
   "ollama": {
     "model": "gemma3:4b",
-    "contextSize": 4096
+    "contextSize": 8192
   },
   "llamaSharp": {
     "contextSize": 4096,

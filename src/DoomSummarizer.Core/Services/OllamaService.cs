@@ -186,14 +186,28 @@ public partial class OllamaService
     /// SynthesizeSummaryAsync but yielding tokens instead of collecting a string).
     /// </summary>
     public async IAsyncEnumerable<string> SynthesizeSummaryStreamingAsync(
-        string prompt,
+        string prompt, string? systemPrompt = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         await foreach (var token in GenerateStreamingWithModelAsync(
-            _config.Model, prompt, null, 0.6, ct))
+            _config.Model, prompt, systemPrompt, 0.6, ct))
         {
             yield return token;
         }
+    }
+
+    /// <summary>
+    /// Build the system prompt for synthesis calls. Uses the system-synthesis template
+    /// so it can be customized via ~/.doomsummarizer/prompts/system-synthesis.txt.
+    /// </summary>
+    public string BuildSynthesisSystemPrompt(string vibe, string vibePrompt)
+    {
+        return PromptTemplateService.Render("system-synthesis", new Dictionary<string, object?>
+        {
+            ["TODAY"] = DateTime.Now.ToString("MMMM d, yyyy"),
+            ["VIBE"] = vibe,
+            ["VIBE_PROMPT"] = vibePrompt
+        });
     }
 
     private async IAsyncEnumerable<string> GenerateStreamingWithModelAsync(
@@ -219,7 +233,9 @@ public partial class OllamaService
             yield break;
         }
 
-        // Direct Ollama streaming via NDJSON
+        // Direct Ollama streaming via NDJSON with connection retry.
+        // Retries only the initial HTTP connection — once streaming starts, we can't retry
+        // without corrupting the output, so only the SendAsync call is wrapped.
         var isSentinelDirect = model == _config.SentinelModel;
         var numCtx = isSentinelDirect ? _config.SentinelContextSize : _config.ContextSize;
 
@@ -239,24 +255,48 @@ public partial class OllamaService
         };
 
         var json = JsonSerializer.Serialize(request, OllamaJsonContext.Default.OllamaGenerateRequest);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/generate") { Content = content };
-        using var response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
+        // Retry the connection up to 3 times with exponential backoff
+        HttpResponseMessage? response = null;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/generate") { Content = content };
+                response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, ct);
+                response.EnsureSuccessStatusCode();
+                break; // Connected successfully
+            }
+            catch (HttpRequestException) when (attempt < 2)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), ct);
+            }
+        }
 
+        if (response == null)
+            yield break;
+
+        // Stream tokens — no retry past this point (output already started for the consumer)
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var reader = new StreamReader(stream);
 
-        while (await reader.ReadLineAsync(ct) is { } line)
+        try
         {
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            while (await reader.ReadLineAsync(ct) is { } line)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
 
-            var chunk = JsonSerializer.Deserialize(line, OllamaJsonContext.Default.OllamaGenerateResponse);
-            if (chunk?.Response != null)
-                yield return chunk.Response;
-            if (chunk?.Done == true)
-                yield break;
+                var chunk = JsonSerializer.Deserialize(line, OllamaJsonContext.Default.OllamaGenerateResponse);
+                if (chunk?.Response != null)
+                    yield return chunk.Response;
+                if (chunk?.Done == true)
+                    yield break;
+            }
+        }
+        finally
+        {
+            response.Dispose();
         }
     }
 
@@ -593,7 +633,8 @@ public partial class OllamaService
         if (returnPromptOnly)
             return prompt;
 
-        return await GenerateAsync(prompt, null, 0.6, ct);
+        var systemPrompt = BuildSynthesisSystemPrompt(vibe, vibePrompt);
+        return await GenerateAsync(prompt, systemPrompt, 0.6, ct);
     }
 
     /// <summary>

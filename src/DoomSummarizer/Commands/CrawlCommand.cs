@@ -314,7 +314,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                     if (cancellationToken.IsCancellationRequested)
                     {
                         processor.CommitLucene();
-                        storeTask.Description = $"[yellow]Cancelled — saved {savedCount}/{newItems.Count} pages to KB '{kbName}'[/]";
+                        storeTask.Description = $"[yellow]Cancelled — saved {savedCount}/{newItems.Count} pages to KB '{Markup.Escape(kbName)}'[/]";
                         break;
                     }
 
@@ -344,7 +344,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                 }
 
                 if (!cancellationToken.IsCancellationRequested)
-                    storeTask.Description = $"[green]Saved {newItems.Count} pages to KB '{kbName}'[/]";
+                    storeTask.Description = $"[green]Saved {newItems.Count} pages to KB '{Markup.Escape(kbName)}'[/]";
 
                 // Compensate: URL-cached items are already in SQLite but need to be in
                 // this collection's Lucene index. Also backfill from storage for the
@@ -362,7 +362,7 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                         processor.EnsureInLucene(storedItems.Select(s => s.ToContentItem()));
                     }
 
-                    storeTask.Description = $"[green]Saved {newItems.Count} pages + {urlCachedItems.Count} cached to KB '{kbName}'[/]";
+                    storeTask.Description = $"[green]Saved {newItems.Count} pages + {urlCachedItems.Count} cached to KB '{Markup.Escape(kbName)}'[/]";
                 }
 
                 // Stage 5: Persist entities (deferred from Stage 3 — items must exist in DB first)
