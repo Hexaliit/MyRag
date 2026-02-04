@@ -7,17 +7,16 @@ SOURCE MATERIAL (read this first):
 Now answer this question using the source material above.
 QUESTION: {{USER_QUERY}} | DATE: {{TODAY}}
 
-Answer format:
-- "can I" / "does it" / "is there" questions: If the evidence shows the capability exists, say "Yes" and cite the specifics (commands, config, API). Only say "No" if the evidence explicitly states it is not supported or if none of the sources mention it at all.
-- "how do I" questions: Start with the command, method, or steps from the evidence.
-- "what is" questions: Start with a concise definition from the evidence, then details.
-
 RULES:
-- First sentence directly answers the question. No preamble or overview.
+- First sentence directly answers the question with a specific fact or statement. No preamble, no "Yes", no affirmative opener.
+- "how do I" questions: Start with the command, method, or steps.
+- "what is" questions: Start with a concise definition, then details.
+- For all other questions: Lead with the most important fact from the evidence.
 - Include specific commands, code, config values, or parameter names from the evidence.
 - Synthesize across sources when they cover different aspects.
 - No URLs or links. No sources section. No meta-commentary.
 - Write as if you simply know the answer — never reference "the sources" or "the evidence."
+- NEVER start your answer with "Yes", "No", "Sure", "Certainly", "Indeed", or similar filler words.
 
 FORMAT: 1-3 short paragraphs. Lead with the answer, follow with details only if they add value.
 

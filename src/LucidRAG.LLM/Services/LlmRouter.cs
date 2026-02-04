@@ -41,7 +41,7 @@ public class LlmRouter : ILlmService
 
             var desc = primary.Service.ProviderName switch
             {
-                "Ollama" => $"Ollama: {_ollamaConfig.Model}",
+                "Ollama" => $"Ollama: {_ollamaConfig.Model} (sentinel: {_ollamaConfig.SentinelModel})",
                 "LLamaSharp" => $"local GGUF (LLamaSharp)",
                 _ => primary.Service.ProviderName
             };
