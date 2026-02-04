@@ -26,6 +26,12 @@ doomsummarizer scroll -s hn -s reddit:dotnet -s bbc -l 40
 doomsummarizer scroll --local -s crawl:docs "how does auth work?"
 doomsummarizer scroll --list-templates
 
+# Local file ingestion (auto-detected via smart routing)
+doomsummarizer "C:\Users\me\invoice.pdf"
+doomsummarizer ~/research/paper.docx
+doomsummarizer scroll -s ./my-articles/ -n research
+doomsummarizer scroll -s report.pdf "what are the key findings?"
+
 # Long-form articles (activates 6-phase evidence-grounded pipeline)
 doomsummarizer scroll "AI safety" -t blog-article -o ai-safety.md
 doomsummarizer scroll "history of LLMs" -t blog-timeline -o llm-history.md
@@ -261,6 +267,31 @@ doomsummarizer benchmark qwen3:4b,gemma3:4b --rounds 3
 doomsummarizer benchmark --role sentinel
 doomsummarizer benchmark qwen3:4b --pull
 ```
+
+### `plugin` — manage runtime plugins
+
+Install, enable, disable, and uninstall NuGet-based plugins at runtime.
+
+```bash
+# List known shorthands → NuGet package mappings
+doomsummarizer plugin shorthands
+
+# Install a plugin (shorthand or full NuGet package ID)
+doomsummarizer plugin install plugin-image
+doomsummarizer plugin install Mostlylucid.LucidRAG.Plugins.Image --version 1.0.0
+
+# List installed plugins with status
+doomsummarizer plugin list
+
+# Enable/disable without uninstalling
+doomsummarizer plugin disable plugin-image
+doomsummarizer plugin enable plugin-image
+
+# Remove completely
+doomsummarizer plugin uninstall plugin-image
+```
+
+Plugins are stored in `~/.doomsummarizer/plugins/` and loaded automatically on startup.
 
 ### `trends` — sentiment over time (from your stored DB)
 

@@ -1,5 +1,7 @@
 # Mostlylucid.DocSummarizer
 
+NuGet: `Mostlylucid.LucidRAG.DocSummarizer`
+
 Local-first document summarization library using BERT embeddings, RAG retrieval, and optional LLM synthesis.
 
 ## Features
@@ -16,7 +18,7 @@ Local-first document summarization library using BERT embeddings, RAG retrieval,
 ## Installation
 
 ```bash
-dotnet add package Mostlylucid.DocSummarizer
+dotnet add package Mostlylucid.LucidRAG.DocSummarizer
 ```
 
 ## Quick Start

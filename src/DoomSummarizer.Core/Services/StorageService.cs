@@ -39,10 +39,10 @@ public partial class StorageService : IAsyncDisposable
         _connection = new SqliteConnection($"Data Source={_dbPath}");
         await _connection.OpenAsync();
 
-        // Enable WAL mode for better concurrent access (reads don't block writes)
+        // Enable WAL mode for better concurrent access and set busy timeout for lock retry
         await using (var walCmd = _connection.CreateCommand())
         {
-            walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;";
+            walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;";
             await walCmd.ExecuteNonQueryAsync();
         }
 

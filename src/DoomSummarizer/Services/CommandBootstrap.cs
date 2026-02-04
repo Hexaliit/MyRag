@@ -1,5 +1,6 @@
 using DoomSummarizer.Models;
 using DoomSummarizer.Services;
+using Microsoft.Data.Sqlite;
 #if FEATURE_LLAMASHARP
 using Mostlylucid.DocSummarizer.LLamaSharp.Config;
 using Mostlylucid.DocSummarizer.LLamaSharp.Services;
@@ -55,7 +56,18 @@ public sealed class CommandBootstrap : IAsyncDisposable
         var dbPath = ConfigService.GetDbPath(config);
 
         var storage = new StorageService(dbPath);
-        await storage.InitializeAsync();
+        try
+        {
+            await storage.InitializeAsync();
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 5 /* SQLITE_BUSY */
+                                         || ex.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase))
+        {
+            Spectre.Console.AnsiConsole.MarkupLine("[red]Error: Database is locked by another instance.[/]");
+            Spectre.Console.AnsiConsole.MarkupLine($"[yellow]DoomSummarizer uses SQLite which supports single-writer access.[/]");
+            Spectre.Console.AnsiConsole.MarkupLine($"[yellow]Please close other running instances, or use LucidRAG (PostgreSQL) for multi-user access.[/]");
+            throw;
+        }
 
         var embedding = await EmbeddingFactory.CreateAsync(ct: ct);
 
@@ -135,11 +147,14 @@ public sealed class CommandBootstrap : IAsyncDisposable
 #else
         Mostlylucid.DocSummarizer.Services.ILlmService? llamaSharp = null;
 
-        // Warn if config/profile has LLamaSharp settings but this build doesn't include it
-        var ls = Config.LlamaSharp;
-        if (ls.Enabled != false && (ls.ContextSize != null || ls.GpuLayerCount != null || ls.SynthesisModel != null))
+        // Only mention LLamaSharp when no Ollama model is configured (user might need it)
+        if (string.IsNullOrEmpty(Config.Ollama.Model))
         {
-            Spectre.Console.AnsiConsole.MarkupLine("[yellow]Note:[/] Config has LLamaSharp settings but this build doesn't include it. Use [bold cyan]lucidrag[/] for local GGUF support.");
+            var ls = Config.LlamaSharp;
+            if (ls.Enabled != false && (ls.ContextSize != null || ls.GpuLayerCount != null || ls.SynthesisModel != null))
+            {
+                Spectre.Console.AnsiConsole.MarkupLine("[yellow]Note:[/] Config has LLamaSharp settings but this build doesn't include it. Use [bold cyan]lucidrag[/] for local GGUF support.");
+            }
         }
 #endif
 

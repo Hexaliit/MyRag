@@ -418,6 +418,15 @@ imagesummarizer --mcp
 
 ---
 
+## NuGet Packages
+
+This repo publishes a set of reusable NuGet packages (pipelines, storage, and integrations) that power LucidRAG and DoomSummarizer.
+
+- Package list + install guide: `docs/NUGET_PACKAGES.md`
+- Canonical docs index: `docs/DOCS-INDEX.md`
+
+---
+
 ## Development
 
 ```bash

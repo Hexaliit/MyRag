@@ -115,40 +115,34 @@ public sealed partial class ScrollCommand
         var files = new List<string>();
         var searchOption = recurse ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
+        // Build supported extension set from registered handlers (single source of truth)
+        var handlers = new Mostlylucid.DocSummarizer.Services.DocumentHandlerRegistry();
+        handlers.RegisterDefaultHandlers();
+        var supportedExtensions = new HashSet<string>(
+            handlers.GetSupportedExtensions(), StringComparer.OrdinalIgnoreCase);
+
+#if FEATURE_COMPLETE
+        // Complete build: also accept images and plugin formats
+        foreach (var imgExt in ImageExtensions)
+            supportedExtensions.Add(imgExt);
+        foreach (var pluginExt in PluginDiscovery.DiscoverAllProcessorPlugins()
+                     .SelectMany(p => p.Metadata.SupportedExtensions))
+            supportedExtensions.Add(pluginExt.StartsWith('.') ? pluginExt : $".{pluginExt}");
+#endif
+
         foreach (var source in sources)
         {
             if (File.Exists(source))
             {
-#if !FEATURE_COMPLETE
-                // Slim build: only .md and .txt files supported
                 var ext = Path.GetExtension(source);
-                if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase)
-                    && !ext.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+                if (!supportedExtensions.Contains(ext))
                     continue;
-#endif
                 files.Add(Path.GetFullPath(source));
             }
             else if (Directory.Exists(source))
             {
-#if FEATURE_COMPLETE
-                // Complete build: all document formats + images + plugins
-                var baseExtensions = new[] { ".pdf", ".docx", ".md", ".txt", ".html", ".pptx" };
-                var allBaseExtensions = baseExtensions.Concat(ImageExtensions).ToArray();
-
-                var pluginExtensions = PluginDiscovery.DiscoverAllProcessorPlugins()
-                    .SelectMany(p => p.Metadata.SupportedExtensions);
-
-                var extensions = allBaseExtensions
-                    .Union(pluginExtensions, StringComparer.OrdinalIgnoreCase)
-                    .Select(e => e.StartsWith('.') ? $"*{e}" : e)
-                    .ToArray();
-#else
-                // Slim build: only markdown and text files
-                var extensions = new[] { "*.md", "*.txt" };
-#endif
-
-                foreach (var ext in extensions)
-                    files.AddRange(Directory.EnumerateFiles(source, ext, searchOption));
+                foreach (var ext in supportedExtensions)
+                    files.AddRange(Directory.EnumerateFiles(source, $"*{ext}", searchOption));
             }
         }
 
@@ -195,7 +189,7 @@ public sealed partial class ScrollCommand
             return (sourceTag, existing.Count, cachedDocType);
         }
 
-        using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, collectionName: collectionName, ct: ct);
+        using var processor = await ItemProcessor.CreateAsync(boot.Embedding, boot.Storage, boot.EntityStore, collectionName: collectionName, ct: ct);
 
         // Set up document handlers
         var handlers = new Mostlylucid.DocSummarizer.Services.DocumentHandlerRegistry();
@@ -235,8 +229,7 @@ public sealed partial class ScrollCommand
                 continue;
             }
 
-            var ext = Path.GetExtension(filePath).ToLowerInvariant();
-            var handler = handlers.GetHandler(ext);
+            var handler = handlers.GetHandlerForFile(filePath);
             if (handler == null)
             {
                 progressTask.Increment(increment);

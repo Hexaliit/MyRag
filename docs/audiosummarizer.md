@@ -460,7 +460,7 @@ services.AddAudioSummarizer(opt =>
 dotnet add src/LucidRAG/LucidRAG.csproj reference src/AudioSummarizer.Core/AudioSummarizer.Core.csproj
 
 # Or via NuGet (when published)
-dotnet add package AudioSummarizer.Core
+dotnet add package Mostlylucid.LucidRAG.AudioSummarizer
 ```
 
 ### 2. Register Services

@@ -15,6 +15,8 @@
         <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageTags>signsummarizer;sign;language;recognition;onnx;hand;gesture</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
     </PropertyGroup>
 
     <!-- Release configuration: no PDB files -->
@@ -54,6 +56,11 @@
         <EmbeddedResource Include="Config\*.json"/>
         <!-- Wave manifest YAML files for dynamic composition -->
         <EmbeddedResource Include="waves\*.wave.yaml"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="" Condition="Exists('README.md')" />
+        <None Include="..\\src\\Mostlylucid.DocSummarizer.Core\\icon.png" Pack="true" PackagePath="" Link="icon.png" />
     </ItemGroup>
 
     <ItemGroup>

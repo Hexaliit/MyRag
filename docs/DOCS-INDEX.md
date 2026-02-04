@@ -5,6 +5,7 @@ This index links to the canonical documentation in this repo. (All paths below a
 ## Start Here
 
 - **Project overview / dev setup**: [../README.md](../README.md)
+- **NuGet packages (what to install)**: [NUGET_PACKAGES.md](NUGET_PACKAGES.md)
 - **DoomSummarizer CLI**: [../src/DoomSummarizer/README.md](../src/DoomSummarizer/README.md)
 - **LucidRAG web app**: [../src/LucidRAG/README.md](../src/LucidRAG/README.md)
 - **ImageSummarizer CLI (OCR + MCP)**: [../src/Mostlylucid.ImageSummarizer.Cli/README.md](../src/Mostlylucid.ImageSummarizer.Cli/README.md)
@@ -58,4 +59,4 @@ This repository is released under **The Unlicense**: [../LICENSE](../LICENSE)
 
 ---
 
-**Last Updated**: 2026-02-03
+**Last Updated**: 2026-02-04

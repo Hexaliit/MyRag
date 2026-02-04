@@ -1,0 +1,24 @@
+<Project>
+  <!--
+    Packaging defaults for LucidRAG NuGet projects.
+    Applies to all SDK-style projects under /src.
+  -->
+  <PropertyGroup Condition="'$(PackageId)' != '' and '$(IsPackable)' != 'false'">
+    <!-- Only set when the file exists to avoid pack failures. -->
+    <PackageReadmeFile Condition="'$(PackageReadmeFile)' == '' and Exists('$(MSBuildProjectDirectory)\\README.md')">README.md</PackageReadmeFile>
+    <PackageIcon Condition="'$(PackageIcon)' == ''">icon.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PackageId)' != '' and '$(IsPackable)' != 'false'">
+    <!-- Pack README.md when present (Update avoids duplicate items). -->
+    <None Update="README.md" Pack="true" PackagePath="" Condition="Exists('README.md')" />
+
+    <!-- Use the canonical repo icon unless the project provides its own icon.png. -->
+    <None Include="$(MSBuildThisFileDirectory)Mostlylucid.DocSummarizer.Core\\icon.png"
+          Pack="true"
+          PackagePath=""
+          Link="icon.png"
+          Visible="false"
+          Condition="!Exists('$(MSBuildProjectDirectory)\\icon.png') and Exists('$(MSBuildThisFileDirectory)Mostlylucid.DocSummarizer.Core\\icon.png')" />
+  </ItemGroup>
+</Project>

@@ -1,5 +1,7 @@
 # Mostlylucid.Storage.Core
 
+NuGet: `Mostlylucid.LucidRAG.Storage.Core`
+
 **Unified vector storage library for LucidRAG with support for InMemory, DuckDB, and Qdrant backends.**
 
 ## Overview
@@ -22,7 +24,7 @@ This library provides a single, unified interface (`IVectorStore`) for embedding
 ### Installation
 
 ```bash
-dotnet add package Mostlylucid.Storage.Core
+dotnet add package Mostlylucid.LucidRAG.Storage.Core
 ```
 
 ### Tool/MCP Mode (No Persistence)

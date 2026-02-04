@@ -4,6 +4,8 @@
 
 Deterministic image profiling with optional OCR, motion analysis, embeddings, and constrained vision captions. Part of the LucidRAG unified pipeline architecture.
 
+NuGet: `Mostlylucid.LucidRAG.ImageSummarizer`
+
 ## Key Features
 
 - **Signal-Based Architecture**: 22+ waves emit typed, confidence-scored signals
@@ -17,7 +19,7 @@ Deterministic image profiling with optional OCR, motion analysis, embeddings, an
 
 ```bash
 # NuGet package
-dotnet add package ImageSummarizer.Core
+dotnet add package Mostlylucid.LucidRAG.ImageSummarizer
 
 # Or use via LucidRAG unified CLI
 dotnet tool install -g LucidRAG.Cli

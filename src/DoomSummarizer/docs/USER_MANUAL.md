@@ -325,9 +325,139 @@ doomsummarizer scroll "tech news" --images
 # Custom source URL
 doomsummarizer scroll -s "https://news.ycombinator.com/best"
 
-# Local file ingestion
+# Local file ingestion (directory)
 doomsummarizer scroll -s ./my-articles/
+
+# Local file ingestion (single file — auto-detected via smart routing)
+doomsummarizer "C:\Users\me\invoice.pdf"
+doomsummarizer "/home/me/thesis.docx"
 ```
+
+### Local File Ingestion via scroll
+
+When you pass a local file or directory path — either as the argument or via `-s` — scroll auto-ingests the content into a named knowledge base collection before running the retrieval pipeline.
+
+**How it works:**
+
+1. **Smart routing** — Running `doomsummarizer "/path/to/file.pdf"` auto-detects the path is a file and routes to `scroll -s "/path/to/file.pdf"`
+2. **Auto-naming** — The collection name is derived from the filename or directory (e.g., `invoice.pdf` → collection `invoice-pdf`). Override with `-n/--name`.
+3. **Document processing** — Files are processed through the full pipeline: format extraction → document type detection → adaptive chunking → batch embedding → indexing → NER
+4. **Retrieval** — After ingestion, scroll runs the standard retrieval pipeline against the newly-created collection and generates an LLM summary
+5. **Persistence** — The ingested content is stored in SQLite with source tag `file:<name>`, so subsequent `ask` queries can access it
+
+**Supported formats:**
+
+| Format | Slim (`doomsummarizer`) | Complete (`lucidrag`) |
+|--------|:-:|:-:|
+| Markdown (`.md`) | Yes | Yes |
+| Plain text (`.txt`) | Yes | Yes |
+| PDF (`.pdf`) | Yes | Yes |
+| Word (`.docx`) | Yes | Yes |
+| HTML (`.html`) | Yes | Yes |
+| PowerPoint (`.pptx`) | - | Yes |
+| Images (`.jpg`, `.png`, `.gif`, `.webp`) | - | Yes |
+| Plugin formats (`.srt`, `.vtt`, etc.) | - | Yes |
+
+**Examples:**
+
+```bash
+# Ingest and summarize a single PDF
+doomsummarizer "C:\Users\scott\invoice.pdf"
+
+# Ingest a directory of research papers
+doomsummarizer -s ~/papers/ -n research
+
+# Ingest files, then ask follow-up questions
+doomsummarizer crawl ~/project-docs --ask
+
+# Query previously ingested files
+doomsummarizer ask -s file:invoice-pdf "what are the line items?"
+doomsummarizer ask -s file:research "summarize the findings"
+```
+
+**Difference between `scroll -s file` and `crawl file`:**
+
+| | `scroll -s /path` or `doomsummarizer /path` | `crawl /path` |
+|---|---|---|
+| **Primary purpose** | Ingest + immediate summary | Ingest into persistent KB |
+| **After ingestion** | Runs retrieval pipeline → LLM synthesis | Shows stats, optionally enters `--ask` loop |
+| **Best for** | Quick "what's in this file?" answers | Building a corpus for repeated Q&A |
+| **Re-run behavior** | Re-ingests (unless already cached) | Incremental (skips unchanged files) |
+
+### Extending with Plugins
+
+The `plugin` command lets you install additional format support and data sources from NuGet at runtime — no rebuild needed.
+
+```bash
+# List known plugin shorthands
+doomsummarizer plugin shorthands
+
+# Install a plugin (by shorthand or NuGet package ID)
+doomsummarizer plugin install plugin-image
+doomsummarizer plugin install Acme.CustomSource --version 2.1.0
+
+# List installed plugins
+doomsummarizer plugin list
+
+# Disable/enable without uninstalling
+doomsummarizer plugin disable plugin-image
+doomsummarizer plugin enable plugin-image
+
+# Remove completely
+doomsummarizer plugin uninstall plugin-image
+```
+
+**Available plugin shorthands:**
+
+| Shorthand | Package | Adds |
+|-----------|---------|------|
+| `plugin-image` | `Mostlylucid.LucidRAG.Plugins.Image` | Image analysis (ML vision, OCR) |
+| `plugin-audio` | `Mostlylucid.LucidRAG.Plugins.Audio` | Audio transcription & analysis |
+| `plugin-video` | `Mostlylucid.LucidRAG.Plugins.Video` | Video processing |
+| `plugin-books` | `Mostlylucid.LucidRAG.Plugins.Books` | Long-form book processing |
+| `plugin-data` | `Mostlylucid.LucidRAG.Plugins.Data` | CSV, Excel, Parquet profiling |
+| `plugins-complete` | `Mostlylucid.LucidRAG.Plugins.Complete` | All plugins in one package |
+| `source-imap` | `Mostlylucid.DoomSummarizer.Source.Imap` | Email inbox as data source |
+
+**How plugins work:**
+
+1. NuGet package is downloaded and extracted to `~/.doomsummarizer/plugins/`
+2. On startup, plugin DLLs are loaded and scanned for `ISourcePlugin`, `IProcessorPlugin`, or `ICliPlugin` implementations
+3. Source plugins add new `-s <key>` data sources
+4. Processor plugins add document format support (extensions registered automatically)
+5. CLI plugins contribute additional commands to the CLI
+
+**Writing your own plugin:**
+
+A processor plugin is a class implementing `IProcessorPlugin` in a NuGet-packaged .NET library:
+
+```csharp
+public sealed class MyPlugin : IProcessorPlugin
+{
+    public ProcessorPluginMetadata Metadata { get; } = new()
+    {
+        Name = "my-plugin",
+        DisplayName = "My Document Processor",
+        SupportedExtensions = [".xyz"],
+        DocumentTypes = ["custom"]
+    };
+
+    public bool CanProcess(string markdown, ProcessingContext context)
+        => context.FileName != null &&
+           Metadata.SupportedExtensions.Contains(
+               Path.GetExtension(context.FileName).ToLowerInvariant());
+
+    public Task<ProcessorResult> ProcessAsync(
+        string markdown, ProcessorOptions options, CancellationToken ct)
+    {
+        // Your processing logic
+        return Task.FromResult(new ProcessorResult { ... });
+    }
+    // ... remaining interface members
+}
+```
+
+Reference `DoomSummarizer.Core` (or the NuGet `Mostlylucid.LucidRAG.DoomSummarizer.Core`) for the plugin interfaces. Publish to NuGet, then install with `doomsummarizer plugin install Your.Package.Id`.
 
 ### Pipeline Stages
 

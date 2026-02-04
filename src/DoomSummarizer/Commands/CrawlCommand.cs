@@ -303,11 +303,21 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                 }
 
                 // Stage 4: Store in knowledge base + update URL cache with ETags
+                // Commits Lucene periodically so Ctrl+C doesn't lose all indexed items.
                 var storeTask = ctx.AddTask("[cyan]Saving to knowledge base[/]", maxValue: newItems.Count);
+                var savedCount = 0;
 
                 // Add topic and sentiment from embeddings
                 foreach (var item in newItems)
                 {
+                    // Check cancellation — commit what we have so far rather than losing it
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        processor.CommitLucene();
+                        storeTask.Description = $"[yellow]Cancelled — saved {savedCount}/{newItems.Count} pages to KB '{kbName}'[/]";
+                        break;
+                    }
+
                     processor.ScoreSentimentAndTopic(item);
 
                     item.Summary ??= item.Content?.Length > 300
@@ -325,10 +335,16 @@ public sealed class CrawlCommand : AsyncCommand<CrawlCommand.Settings>
                         await boot.Storage.UpdateUrlCacheAsync(item.Url, contentHash, etag, lastMod, item.Content.Length);
                     }
 
+                    savedCount++;
                     storeTask.Increment(1);
+
+                    // Periodic Lucene commit every 50 items to minimize loss on unexpected exit
+                    if (savedCount % 50 == 0)
+                        processor.CommitLucene();
                 }
 
-                storeTask.Description = $"[green]Saved {newItems.Count} pages to KB '{kbName}'[/]";
+                if (!cancellationToken.IsCancellationRequested)
+                    storeTask.Description = $"[green]Saved {newItems.Count} pages to KB '{kbName}'[/]";
 
                 // Compensate: URL-cached items are already in SQLite but need to be in
                 // this collection's Lucene index. Also backfill from storage for the

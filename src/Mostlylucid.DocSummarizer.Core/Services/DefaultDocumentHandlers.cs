@@ -243,13 +243,13 @@ public class PdfDocumentHandler : IDocumentHandler
     }
 }
 
-#if !SLIM_BUILD
 /// <summary>
-///     Default handler for DOCX files using Open XML SDK
+///     Default handler for DOCX files using Open XML SDK.
+///     Available in both slim and complete builds.
 /// </summary>
 public class DocxDocumentHandler : IDocumentHandler
 {
-    public IReadOnlyList<string> SupportedExtensions => [".docx", ".doc"];
+    public IReadOnlyList<string> SupportedExtensions => [".docx"];
     public int Priority => 0;
     public string HandlerName => "DOCX";
 
@@ -306,7 +306,6 @@ public class DocxDocumentHandler : IDocumentHandler
         });
     }
 }
-#endif
 
 /// <summary>
 ///     Extension methods to register default document handlers
@@ -321,8 +320,8 @@ public static class DefaultDocumentHandlerExtensions
         registry.Register(new TextDocumentHandler());
         registry.Register(new HtmlDocumentHandler());
         registry.Register(new PdfDocumentHandler());
-#if !SLIM_BUILD
         registry.Register(new DocxDocumentHandler());
+#if !SLIM_BUILD
         registry.Register(new PptxDocumentHandler());
 #endif
         return registry;
