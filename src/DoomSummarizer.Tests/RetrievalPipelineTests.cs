@@ -11,6 +11,7 @@ namespace DoomSummarizer.Tests;
 /// Integration tests for RetrievalPipeline.ScoreItemsAsync — the unified scoring path.
 /// Uses real ONNX embeddings and temp SQLite DB per test.
 /// </summary>
+[Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class RetrievalPipelineTests : IAsyncLifetime
 {

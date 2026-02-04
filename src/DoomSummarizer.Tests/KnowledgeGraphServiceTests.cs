@@ -8,6 +8,7 @@ namespace DoomSummarizer.Tests;
 /// <summary>
 /// Tests for KnowledgeGraphService entity ingestion, co-occurrence, and display.
 /// </summary>
+[Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class KnowledgeGraphServiceTests : IAsyncLifetime
 {

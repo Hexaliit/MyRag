@@ -15,6 +15,7 @@ public class EmbeddingTestsCollection;
 /// Tests for PersonalCorpusService: self-disclosure detection, fact indexing,
 /// entity retrieval, gap-filling, and forgetting.
 /// </summary>
+[Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class PersonalCorpusServiceTests : IAsyncLifetime
 {
@@ -275,6 +276,7 @@ public class PersonalCorpusServiceTests : IAsyncLifetime
 /// Full lifecycle integration tests: simulate a user teaching the system about
 /// themselves across multiple "turns", then verify it remembers everything.
 /// </summary>
+[Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class PersonalCorpusLifecycleTests : IAsyncLifetime
 {
@@ -494,6 +496,7 @@ public class PersonalCorpusLifecycleTests : IAsyncLifetime
 /// <summary>
 /// Tests for named personal corpus: name detection, migration, and disambiguation.
 /// </summary>
+[Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class NamedCorpusTests : IAsyncLifetime
 {
@@ -641,6 +644,7 @@ public class NamedCorpusTests : IAsyncLifetime
 /// <summary>
 /// Tests for ConversationSentinel gap-filling from personal corpus.
 /// </summary>
+[Trait("Category", "RequiresModel")]
 [Collection("EmbeddingTests")]
 public class PersonalGapFillingTests : IAsyncLifetime
 {
