@@ -50,6 +50,26 @@ async function request<T>(
   }
 }
 
+/**
+ * Test if the server is reachable by fetching the pages list.
+ */
+export async function testConnection(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const res = await fetch(`${baseUrl}/api/admin/pages`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function createPage(dto: PageCreateRequest) {
   return request<PageDetail>('/api/admin/pages', {
     method: 'POST',

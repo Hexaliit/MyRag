@@ -10,22 +10,41 @@
     <!-- Header -->
     <header class="header">
       <h1>LucidSupport Trainer</h1>
+      <div class="shortcuts-hint">
+        <kbd>Ctrl</kbd>+<kbd>E</kbd> Extract &nbsp;
+        <kbd>Ctrl</kbd>+<kbd>S</kbd> Save
+      </div>
     </header>
 
-    <!-- Server URL -->
+    <!-- Server URL with connection indicator -->
     <section class="section">
-      <label for="server-url">Server URL</label>
-      <input
-        id="server-url"
-        type="url"
-        value="http://localhost:5050"
-        placeholder="http://localhost:5050"
-      />
+      <label for="server-url">
+        Server URL
+        <span id="connection-status" class="connection-indicator" title="Checking..."></span>
+      </label>
+      <div class="input-with-action">
+        <input
+          id="server-url"
+          type="url"
+          value="http://localhost:5050"
+          placeholder="http://localhost:5050"
+        />
+        <button id="btn-test" class="btn-icon" title="Test connection">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        </button>
+      </div>
     </section>
 
     <!-- Extract button -->
     <section class="section">
       <button id="btn-extract" class="btn btn-primary">
+        <svg class="btn-icon-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
         Learn This Page
       </button>
     </section>
@@ -36,18 +55,40 @@
     <!-- Results (hidden until extraction) -->
     <div id="results" hidden>
       <!-- Page info -->
-      <section class="section">
-        <label for="page-title">Page Title</label>
-        <input id="page-title" type="text" placeholder="Page title" />
-        <label for="page-id">Page ID</label>
-        <input id="page-id" type="text" placeholder="e.g. checkout-payment" />
-        <label for="url-pattern">URL Pattern</label>
-        <input id="url-pattern" type="text" placeholder="/path/*" readonly />
+      <section class="section page-info">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="page-title">Page Title</label>
+            <input id="page-title" type="text" placeholder="Page title" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="page-id">
+              Page ID
+              <span class="label-hint">(letters, numbers, hyphens)</span>
+            </label>
+            <input id="page-id" type="text" placeholder="e.g. checkout-payment" pattern="[a-z0-9-]+" />
+            <div id="page-id-error" class="field-error" hidden>Only lowercase letters, numbers, and hyphens allowed</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="url-pattern">URL Pattern</label>
+            <input id="url-pattern" type="text" placeholder="/path/*" />
+          </div>
+        </div>
       </section>
 
       <!-- Fields -->
       <section class="section">
-        <h2>Fields <span id="field-count" class="badge">0</span></h2>
+        <div class="section-header">
+          <h2>Fields <span id="field-count" class="badge">0</span></h2>
+          <div class="section-actions">
+            <button id="btn-select-all" class="btn-link" title="Select all fields">All</button>
+            <button id="btn-select-none" class="btn-link" title="Deselect all fields">None</button>
+          </div>
+        </div>
         <div id="field-list"></div>
       </section>
 
@@ -60,6 +101,11 @@
       <!-- Save -->
       <section class="section">
         <button id="btn-save" class="btn btn-success">
+          <svg class="btn-icon-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
           Save to LucidSupport
         </button>
       </section>
