@@ -56,8 +56,8 @@
     <ItemGroup>
         <!-- ONNX Runtime for Florence-2 and CLIP -->
         <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2"/>
-        <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.23.2" Condition="('$(RuntimeIdentifier)' == 'win-x64' OR '$(RuntimeIdentifier)' == 'linux-x64') OR (('$(RuntimeIdentifier)' == '') AND ($([MSBuild]::IsOSPlatform('Windows')) OR $([MSBuild]::IsOSPlatform('Linux'))))" NoWarn="NU1605"/>
-        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0" Condition="('$(RuntimeIdentifier)' == 'win-x64') OR (('$(RuntimeIdentifier)' == '') AND $([MSBuild]::IsOSPlatform('Windows')))" NoWarn="NU1605"/>
+        <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.23.2" Condition="'$(ExcludeGpu)' != 'true' AND (('$(RuntimeIdentifier)' == 'win-x64' OR '$(RuntimeIdentifier)' == 'linux-x64') OR (('$(RuntimeIdentifier)' == '') AND ($([MSBuild]::IsOSPlatform('Windows')) OR $([MSBuild]::IsOSPlatform('Linux')))))" NoWarn="NU1605"/>
+        <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0" Condition="'$(ExcludeGpu)' != 'true' AND (('$(RuntimeIdentifier)' == 'win-x64') OR (('$(RuntimeIdentifier)' == '') AND $([MSBuild]::IsOSPlatform('Windows'))))" NoWarn="NU1605"/>
 
         <!-- Florence-2 for fast local image captioning -->
         <PackageReference Include="Florence2" Version="25.12.63049"/>

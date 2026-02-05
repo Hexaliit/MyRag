@@ -1,5 +1,61 @@
 # Changelog - DoomSummarizer.Core
 
+## 1.3.0 — Unified Media Pipeline, No-GPU Build, CUDA Detection Fix
+
+### New Features
+
+#### Unified Media Pipeline (`FEATURE_COMPLETE`)
+
+Image, audio, and video files ingested via `scroll` now go through the full analysis pipelines
+instead of lightweight filename-based descriptions:
+
+- **Images**: 22-wave ImagePipeline (Florence-2 captioning, OCR, entity detection, color analysis,
+  motion detection, scene classification) produces searchable content items
+- **Audio**: AudioPipeline with Whisper transcription, speaker diarization via ECAPA-TDNN,
+  acoustic profiling, fingerprinting, and optional Demucs source separation
+- **Video**: VideoPipeline with shot detection, scene segmentation, keyframe OCR, and transcript
+  extraction into 60-second searchable windows
+
+All pipeline signals (captions, OCR text, entities, transcripts, metadata) become `ContentItem`
+records — searchable and queryable like any document chunk.
+
+- `BuildMediaPipelineProvider()` creates a mini DI container with ImagePipeline + AudioPipeline +
+  VideoPipeline + PipelineRegistry
+- `IPipelineRegistry.FindForFile()` auto-routes by extension to the correct pipeline
+- Audio (`.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.wma`, `.aac`, `.opus`) and video (`.mp4`,
+  `.mkv`, `.avi`, `.webm`, `.mov`, `.wmv`, `.flv`, `.m4v`, `.mpeg`, `.mpg`) extensions added to
+  `ResolveLocalSources`
+
+#### No-GPU Build Variant (`-p:ExcludeGpu=true`)
+
+New `ExcludeGpu` MSBuild property produces a CPU-only `lucidrag` binary without GPU-specific
+native libraries:
+
+| Variant | Command | Size |
+|---------|---------|------|
+| `doomsummarizer` (slim) | `dotnet publish -c Release` | ~30 MB |
+| `lucidrag` (full + GPU) | `dotnet publish -c Release -p:CompleteBuild=true` | ~1.1 GB |
+| `lucidrag` (full, CPU-only) | `dotnet publish -c Release -p:CompleteBuild=true -p:ExcludeGpu=true` | ~560 MB |
+
+`ExcludeGpu=true`:
+- Swaps `OnnxRuntime.DirectML` / `OnnxRuntime.Gpu` for base `OnnxRuntime` (CPU-only)
+- Forces `LLamaSharp.Backend.Cpu` instead of `LLamaSharp.Backend.Cuda12`
+- Saves ~600 MB (318 MB `onnxruntime_providers_cuda.dll` + 275 MB `ggml-cuda.dll`)
+
+#### CUDA Toolkit Detection Fix
+
+Fixed ONNX Runtime printing ugly native error messages (`[E:onnxruntime:CSharpOnnxRuntime...]`)
+to stderr when CUDA Toolkit is not installed:
+
+- **Root cause**: `OnnxSessionFactory.TryDetectCuda()` found `nvidia-smi.exe` (GPU driver) and
+  assumed CUDA Toolkit was installed. The native `AppendExecutionProvider_CUDA()` call then failed
+  loudly when `cublasLt64_12.dll` was missing.
+- **Fix**: All three CUDA registration sites now probe for the actual Toolkit DLL using
+  `NativeLibrary.TryLoad("cublasLt64_12")` before attempting the CUDA EP. If the Toolkit is not
+  installed, CUDA is silently skipped with no native error output.
+- Applied in: `OnnxSessionFactory` (ImageSummarizer.Core), `OnnxEmbeddingService`
+  (DocSummarizer.Core), `OnnxEmbeddingService` (DataSummarizer)
+
 ## Unreleased — Score-Based Source Routing & Deduplication
 
 ### New Features

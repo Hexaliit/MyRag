@@ -14,16 +14,23 @@ generates ranked, summarized digests. It also builds persistent knowledge bases 
 
 ### Build Variants
 
-Two binaries are produced from the same codebase. Both have the same commands — the difference is the dependency chain.
+Three binaries are produced from the same codebase. All have the same commands — the difference is the dependency chain
+and GPU support.
 
-| Binary                               | Description                                                                              | Size    | Includes                                                                                                                                                                       |
-|--------------------------------------|------------------------------------------------------------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`doomsummarizer`** (slim, default) | The "it just works" version — minimal web-oriented deep research and knowledge base tool | ~76 MB  | Web crawling, KB Q&A, ONNX embeddings, local LLM (LLamaSharp), DuckDB vector search, BM25 full-text, NER, LLM routing, MCP server                                              |
-| **`lucidrag`** (complete)            | All the bells and whistles                                                               | ~112 MB | Everything above + all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription (Whisper), audio analysis, subtitle processing (SRT/VTT/ASS), email delivery |
+| Binary                               | Description                                                                              | Size     | Includes                                                                                                                                                                       |
+|--------------------------------------|------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`doomsummarizer`** (slim, default) | The "it just works" version — minimal web-oriented deep research and knowledge base tool | ~30 MB   | Web crawling, KB Q&A, ONNX embeddings, DuckDB vector search, BM25 full-text, NER, LLM routing, MCP server. Requires Ollama for LLM synthesis                                   |
+| **`lucidrag`** (complete)            | All the bells and whistles, GPU-accelerated                                              | ~1.1 GB  | Everything above + local LLM (LLamaSharp), all document formats (DOCX, HTML, PPTX), image/video/audio analysis, YouTube transcription (Whisper), subtitle processing (SRT/VTT/ASS), email delivery. CUDA + DirectML GPU support. ~600 MB of native GPU libraries |
+| **`lucidrag`** (complete, no-GPU)    | Full features, CPU-only inference                                                        | ~560 MB  | Same as above but without CUDA/DirectML GPU libraries (~600 MB smaller). Ideal for servers, CI, ARM, or systems without a supported GPU |
 
-Build slim: `dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release` (produces `doomsummarizer`)
-Build complete: `dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release -p:CompleteBuild=true` (produces
-`lucidrag`)
+```bash
+# Build slim
+dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release
+# Build complete (with GPU)
+dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release -p:CompleteBuild=true
+# Build complete (CPU-only, no GPU libraries)
+dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release -p:CompleteBuild=true -p:ExcludeGpu=true
+```
 
 The binary name tells you which variant you're running. All examples in this manual use `doomsummarizer` — substitute
 `lucidrag` if using the complete variant.
@@ -75,7 +82,7 @@ lucidrag setup --playwright --ner
 
 ### LLM Provider Defaults
 
-The two variants default to different LLM providers:
+The variants default to different LLM providers:
 
 |                    | `doomsummarizer`                                        | `lucidrag`                                                  |
 |--------------------|---------------------------------------------------------|-------------------------------------------------------------|
@@ -1022,5 +1029,6 @@ Deletes all cached segments, queries, and entities.
 | **MCP**                 | Model Context Protocol — standard for exposing tools to AI agents                                                                      |
 | **Decomposer**          | Component that breaks complex queries into sub-questions for better evidence retrieval                                                 |
 | **Circuit Breaker**     | Fault tolerance pattern that pauses API calls after consecutive failures                                                               |
-| **Slim Build**          | Default binary without YouTube/audio/subtitle processing (~163 MB)                                                                     |
-| **Complete Build**      | Full binary with all features including YouTube/Whisper/subtitles (~248 MB)                                                            |
+| **Slim Build**          | Default `doomsummarizer` binary — web research, document processing (~30 MB)                                                           |
+| **Complete Build**      | Full `lucidrag` binary with all features including image/video/audio pipelines, GPU acceleration (~1.1 GB)                             |
+| **No-GPU Build**        | Complete `lucidrag` binary without GPU libraries — CPU-only ONNX + LLamaSharp (~560 MB). Build with `-p:ExcludeGpu=true`              |

@@ -31,7 +31,9 @@
     </ItemGroup>
 
     <!-- GPU backend selection: cuda12 (default, NVIDIA), cuda11, vulkan (AMD/cross-platform), cpu -->
+    <!-- ExcludeGpu=true forces CPU backend (saves ~275 MB from ggml-cuda.dll) -->
     <PropertyGroup>
+        <LLamaBackend Condition="'$(ExcludeGpu)' == 'true'">cpu</LLamaBackend>
         <LLamaBackend Condition="'$(LLamaBackend)' == ''">cuda12</LLamaBackend>
     </PropertyGroup>
 

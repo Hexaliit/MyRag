@@ -203,52 +203,49 @@ public class OnnxSessionFactory
 
     private bool TryDetectCuda()
     {
-        // Check for NVIDIA CUDA availability
+        // ONNX Runtime CUDA EP requires the CUDA Toolkit runtime DLLs (cublasLt64_12.dll, etc.),
+        // NOT just the NVIDIA GPU driver. nvidia-smi proves driver presence only.
+        // Probe for the actual DLL that onnxruntime_providers_cuda.dll depends on.
         try
         {
-            // Look for CUDA libraries
-            var cudaPath = Environment.GetEnvironmentVariable("CUDA_PATH");
-            if (!string.IsNullOrEmpty(cudaPath))
-            {
-                _logger?.LogDebug("CUDA_PATH detected: {Path}", cudaPath);
-                return true;
-            }
-
-            // Check for nvidia-smi (works on Windows and Linux)
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                // Windows: Check common NVIDIA driver locations
-                var nvidiaSmis = new[]
+                // Probe for cublasLt64_12.dll (CUDA 12 Toolkit) — the exact dependency
+                if (NativeLibrary.TryLoad("cublasLt64_12", out var handle))
                 {
-                    @"C:\Windows\System32\nvidia-smi.exe",
-                    @"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
-                };
-                if (nvidiaSmis.Any(File.Exists))
-                {
-                    _logger?.LogDebug("NVIDIA drivers detected on Windows");
+                    NativeLibrary.Free(handle);
+                    _logger?.LogDebug("CUDA Toolkit 12 runtime detected (cublasLt64_12.dll)");
                     return true;
                 }
 
-                // Also check if cudart64 DLLs exist
-                var systemPath = Environment.GetFolderPath(Environment.SpecialFolder.System);
-                if (Directory.GetFiles(systemPath, "cudart64*.dll").Length > 0)
+                // Also accept CUDA_PATH with actual toolkit binaries
+                var cudaPath = Environment.GetEnvironmentVariable("CUDA_PATH");
+                if (!string.IsNullOrEmpty(cudaPath))
                 {
-                    _logger?.LogDebug("CUDA runtime DLLs detected");
-                    return true;
+                    var binDir = Path.Combine(cudaPath, "bin");
+                    if (Directory.Exists(binDir) &&
+                        Directory.GetFiles(binDir, "cublasLt64_1*.dll").Length > 0)
+                    {
+                        _logger?.LogDebug("CUDA Toolkit detected at {Path}", cudaPath);
+                        return true;
+                    }
                 }
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                if (File.Exists("/usr/bin/nvidia-smi"))
+                if (NativeLibrary.TryLoad("libcublasLt.so.12", out var handle))
                 {
-                    _logger?.LogDebug("NVIDIA drivers detected on Linux");
+                    NativeLibrary.Free(handle);
+                    _logger?.LogDebug("CUDA Toolkit 12 runtime detected (libcublasLt.so.12)");
                     return true;
                 }
             }
+
+            _logger?.LogDebug("CUDA Toolkit runtime not found — GPU driver alone is not sufficient");
         }
         catch (Exception ex)
         {
-            _logger?.LogDebug(ex, "Error detecting CUDA");
+            _logger?.LogDebug(ex, "Error detecting CUDA toolkit");
         }
 
         return false;

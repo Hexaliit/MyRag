@@ -12,18 +12,20 @@ A distillation of [***lucid*RAG**](https://github.com/scottgal/lucidrag) princip
 knowledge graph construction, evidence-grounded synthesis — into a console-first, local-first research assistant and
 personal knowledge base.
 
-## Two Variants
+## Three Variants
 
-This project ships as two binaries from the same codebase. Both have the same commands (`scroll`, `crawl`, `ask`,
-etc.) — the difference is what they can process.
+This project ships as three binaries from the same codebase. All have the same commands (`scroll`, `crawl`, `ask`,
+etc.) — the difference is what they can process and their GPU requirements.
 
-| Binary               | Description                                                                                                                                                                                                                                                            | Size    |
-|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| **`doomsummarizer`** | The lightweight "just works" version. Web-oriented deep research and knowledge base. Fetches, ranks, and synthesizes web sources. Ingests `.md`, `.txt`, and `.pdf` files. ONNX embeddings. Requires [Ollama](https://ollama.com) or cloud API keys for LLM synthesis. | ~50 MB  |
-| **`lucidrag`**       | The full stack. Everything in `doomsummarizer` plus local GGUF inference via LLamaSharp (no Ollama needed), all document formats (DOCX, HTML, PPTX), image analysis, YouTube transcription, audio analysis, subtitle processing, and email delivery.                   | ~120 MB |
+| Binary                      | Description                                                                                                                                                                                                                                                            | Size     |
+|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| **`doomsummarizer`**        | The lightweight "just works" version. Web-oriented deep research and knowledge base. Fetches, ranks, and synthesizes web sources. Ingests `.md`, `.txt`, and `.pdf` files. ONNX embeddings. Requires [Ollama](https://ollama.com) or cloud API keys for LLM synthesis. | ~30 MB   |
+| **`lucidrag`**              | The full stack. Everything in `doomsummarizer` plus local GGUF inference via LLamaSharp (no Ollama needed), all document formats (DOCX, HTML, PPTX), image/video/audio analysis, YouTube transcription, subtitle processing, and email delivery. GPU-accelerated (CUDA + DirectML). | ~1.1 GB  |
+| **`lucidrag`** (no-GPU)     | Same features as full `lucidrag` but CPU-only ONNX inference and LLamaSharp. No CUDA Toolkit or GPU drivers required. Ideal for servers, CI, ARM devices, or systems without a supported GPU.                                                                          | ~560 MB  |
 
 If you just want a small binary and already run Ollama, `doomsummarizer` is the one. If you want zero-config local LLM
-inference (no external server) or need the full document processing pipeline, grab `lucidrag`.
+inference (no external server) or need the full document/media processing pipeline, grab `lucidrag`. Use the **no-GPU**
+variant if you don't have an NVIDIA GPU or CUDA Toolkit installed.
 
 ### Capabilities
 
@@ -48,8 +50,10 @@ search providers are budget-controlled.
 ```bash
 # Build (slim)
 dotnet build DoomSummarizer.csproj
-# Build (complete / lucidrag)
+# Build (complete / lucidrag — includes GPU acceleration)
 dotnet build DoomSummarizer.csproj -p:CompleteBuild=true
+# Build (complete / lucidrag — CPU only, no GPU libraries)
+dotnet build DoomSummarizer.csproj -p:CompleteBuild=true -p:ExcludeGpu=true
 
 # Daily digest (auto-downloads ONNX model on first run)
 doomsummarizer scroll
@@ -760,7 +764,10 @@ To skip auto-download during setup: `lucidrag setup --skip-local-llm`.
 #### GPU Acceleration
 
 LLamaSharp uses NVIDIA CUDA 12 by default for GPU-accelerated inference. GPU is auto-detected — if your system has an
-NVIDIA GPU with drivers installed, model layers are automatically offloaded.
+NVIDIA GPU with the **CUDA Toolkit** installed, model layers are automatically offloaded.
+
+> **Note**: An NVIDIA GPU driver alone is not sufficient — the [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)
+> must be installed for CUDA acceleration. Without it, inference falls back to CPU automatically.
 
 | Backend               | Build flag               | Platforms                           |
 |-----------------------|--------------------------|-------------------------------------|
@@ -774,6 +781,13 @@ To build with a specific backend:
 ```bash
 dotnet build -p:LLamaBackend=vulkan   # AMD GPU
 dotnet build -p:LLamaBackend=cpu      # Raspberry Pi / ARM
+```
+
+To build the complete `lucidrag` binary without **any** GPU libraries (ONNX DirectML/CUDA + LLamaSharp CUDA), use
+`ExcludeGpu`. This drops ~600 MB of native GPU libraries and produces a CPU-only binary:
+
+```bash
+dotnet build -p:CompleteBuild=true -p:ExcludeGpu=true
 ```
 
 Hardware profiles also control GPU usage — `desktop` profile enables GPU offload, `laptop` forces CPU-only:
@@ -951,12 +965,16 @@ Deterministic text analysis (no ONNX model, pure algorithm):
 
 All ONNX models use Microsoft.ML.OnnxRuntime. Execution provider is configurable:
 
-| Provider          | Platform    | Notes                                             |
-|-------------------|-------------|---------------------------------------------------|
-| **CPU** (default) | All         | Always works, stable                              |
-| **CUDA**          | NVIDIA GPU  | Requires CUDA runtime installed                   |
-| **DirectML**      | Windows GPU | AMD/Intel/NVIDIA, may be unstable on some drivers |
-| **Auto**          | All         | Tries DirectML → CUDA → CPU fallback chain        |
+| Provider          | Platform    | Notes                                                                  |
+|-------------------|-------------|------------------------------------------------------------------------|
+| **CPU** (default) | All         | Always works, stable. Used automatically in no-GPU builds              |
+| **CUDA**          | NVIDIA GPU  | Requires [CUDA Toolkit 12](https://developer.nvidia.com/cuda-downloads) installed |
+| **DirectML**      | Windows GPU | AMD/Intel/NVIDIA, may be unstable on some drivers                      |
+| **Auto**          | All         | Tries DirectML → CUDA → CPU fallback chain                             |
+
+> CUDA detection probes for `cublasLt64_12.dll` (Windows) / `libcublasLt.so.12` (Linux) before
+> attempting the CUDA execution provider. If the CUDA Toolkit is not installed, the provider is
+> silently skipped without native error output.
 
 ### LucidRAG (Complete Build) — Additional Models
 

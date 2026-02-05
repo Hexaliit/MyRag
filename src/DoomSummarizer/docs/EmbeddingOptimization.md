@@ -99,9 +99,15 @@ ONNX Runtime supports multiple execution providers for GPU-accelerated inference
 | Provider | Platform | Notes |
 |----------|----------|-------|
 | **Auto** (default) | All | Tries DirectML → CUDA → CPU |
-| CPU | All | Always works, stable baseline |
-| CUDA | NVIDIA | Requires CUDA runtime installed |
+| CPU | All | Always works, stable baseline. Used in no-GPU builds (`-p:ExcludeGpu=true`) |
+| CUDA | NVIDIA | Requires [CUDA Toolkit 12](https://developer.nvidia.com/cuda-downloads) (not just GPU driver) |
 | DirectML | Windows | AMD, Intel, NVIDIA via DirectX 12 |
+
+> **CUDA detection**: The runtime probes for `cublasLt64_12.dll` (Windows) / `libcublasLt.so.12`
+> (Linux) using `NativeLibrary.TryLoad` before attempting the CUDA execution provider. If the CUDA
+> Toolkit is not installed, CUDA is silently skipped — no native error messages are printed.
+> Having an NVIDIA GPU driver (nvidia-smi) alone is **not sufficient**; the Toolkit must be
+> separately installed.
 
 ### DirectML Constraints
 

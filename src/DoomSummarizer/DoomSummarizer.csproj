@@ -35,6 +35,12 @@
 
     </PropertyGroup>
 
+    <!--
+      Three build variants:
+        1. dotnet publish ... -c Release                                          → doomsummarizer (slim, ~30 MB)
+        2. dotnet publish ... -c Release -p:CompleteBuild=true                    → lucidrag (full + GPU, ~1.1 GB)
+        3. dotnet publish ... -c Release -p:CompleteBuild=true -p:ExcludeGpu=true → lucidrag (full, CPU-only, ~560 MB)
+    -->
     <!-- Slim vs Complete build: CompleteBuild=true includes audio/video/YouTube + LLamaSharp -->
     <PropertyGroup Condition="'$(CompleteBuild)' == 'true'">
         <DefineConstants>$(DefineConstants);FEATURE_COMPLETE</DefineConstants>

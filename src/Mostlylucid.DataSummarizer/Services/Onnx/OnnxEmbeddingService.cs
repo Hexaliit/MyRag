@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Mostlylucid.DataSummarizer.Configuration;
@@ -373,14 +374,21 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         switch (_config.ExecutionProvider)
         {
             case OnnxExecutionProvider.Cuda:
-                try
+                if (IsCudaRuntimeAvailable())
                 {
-                    options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
-                    if (_verbose) Console.WriteLine($"[ONNX] Using CUDA GPU device {_config.GpuDeviceId}");
+                    try
+                    {
+                        options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
+                        if (_verbose) Console.WriteLine($"[ONNX] Using CUDA GPU device {_config.GpuDeviceId}");
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_verbose) Console.WriteLine($"[ONNX] CUDA not available: {ex.Message}, falling back to CPU");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (_verbose) Console.WriteLine($"[ONNX] CUDA not available: {ex.Message}, falling back to CPU");
+                    if (_verbose) Console.WriteLine("[ONNX] CUDA Toolkit runtime not found, falling back to CPU");
                 }
 
                 break;
@@ -411,15 +419,18 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
                 catch (Exception dmlEx)
                 {
                     if (_verbose) Console.WriteLine($"[ONNX] DirectML not available: {dmlEx.Message}");
-                    try
+                    if (IsCudaRuntimeAvailable())
                     {
-                        options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
-                        if (_verbose) Console.WriteLine($"[ONNX] Auto-selected CUDA GPU device {_config.GpuDeviceId}");
-                        gpuSelected = true;
-                    }
-                    catch (Exception cudaEx)
-                    {
-                        if (_verbose) Console.WriteLine($"[ONNX] CUDA not available: {cudaEx.Message}");
+                        try
+                        {
+                            options.AppendExecutionProvider_CUDA(_config.GpuDeviceId);
+                            if (_verbose) Console.WriteLine($"[ONNX] Auto-selected CUDA GPU device {_config.GpuDeviceId}");
+                            gpuSelected = true;
+                        }
+                        catch (Exception cudaEx)
+                        {
+                            if (_verbose) Console.WriteLine($"[ONNX] CUDA not available: {cudaEx.Message}");
+                        }
                     }
                 }
 
@@ -433,5 +444,38 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         }
 
         return options;
+    }
+
+    /// <summary>
+    ///     Probe whether CUDA Toolkit runtime DLLs are actually available.
+    ///     nvidia-smi / GPU driver alone is NOT sufficient — the toolkit must be installed.
+    /// </summary>
+    private static bool IsCudaRuntimeAvailable()
+    {
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                if (NativeLibrary.TryLoad("cublasLt64_12", out var handle))
+                {
+                    NativeLibrary.Free(handle);
+                    return true;
+                }
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (NativeLibrary.TryLoad("libcublasLt.so.12", out var handle))
+                {
+                    NativeLibrary.Free(handle);
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // Probing failed — treat as unavailable
+        }
+
+        return false;
     }
 }

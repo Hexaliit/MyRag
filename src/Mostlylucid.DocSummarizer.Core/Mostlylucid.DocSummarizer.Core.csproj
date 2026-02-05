@@ -101,11 +101,11 @@
         <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="10.0.2"/>
 
         <!-- ML/Embeddings -->
-        <!-- ONNX Runtime: DirectML on Windows (GPU auto-detect), base CPU on other platforms -->
+        <!-- ONNX Runtime: DirectML on Windows (GPU auto-detect), base CPU on other platforms or when GPU excluded -->
         <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2"
-                          Condition="!$([MSBuild]::IsOSPlatform('Windows'))"/>
+                          Condition="!$([MSBuild]::IsOSPlatform('Windows')) OR '$(ExcludeGpu)' == 'true'"/>
         <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.23.0"
-                          Condition="$([MSBuild]::IsOSPlatform('Windows'))"/>
+                          Condition="$([MSBuild]::IsOSPlatform('Windows')) AND '$(ExcludeGpu)' != 'true'"/>
         <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0"/>
         <PackageReference Include="Markdig" Version="0.44.0"/>
 
