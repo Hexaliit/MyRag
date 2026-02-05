@@ -54,6 +54,8 @@ export interface SupportPageModel {
   fields: SupportField[];
   conditions: ConditionRule[];
   topics: TopicMapping[];
+  sections?: SupportSection[];
+  workflowRules?: WorkflowRule[];
 }
 
 /** Field definition from the page model. */
@@ -76,6 +78,38 @@ export interface ConditionRule {
 export interface TopicMapping {
   question: string;
   articleId: string;
+}
+
+/** Section grouping from ## Sections in .support.md. */
+export interface SupportSection {
+  id: string;
+  label: string;
+  fields: string[];
+  order: number;
+}
+
+/** Workflow visibility rule from ## Workflow in .support.md. */
+export interface WorkflowRule {
+  when: string;
+  action: 'show' | 'hide';
+  target: string;
+  priority: number;
+}
+
+/** Workflow event dispatched on the host document. */
+export interface WorkflowEvent {
+  type: 'ls:field:show' | 'ls:field:hide' | 'ls:section:show' | 'ls:section:hide';
+  target: string;
+  rule: string;
+  pageId: string;
+}
+
+/** Escalation event dispatched when user requests human help. */
+export interface EscalationEvent {
+  type: 'ls:escalation:requested';
+  pageId: string;
+  frustrationScore: number;
+  message?: string;
 }
 
 /** Internal page state tracked by the widget. */

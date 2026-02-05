@@ -108,6 +108,16 @@ Uses input masking for card number and expiry. All fields are required.
   - pattern: "Please enter a valid postal or ZIP code"
 - help: Your ZIP or postal code. Accepted formats: US (12345 or 12345-6789), UK (SW1A 1AA), CA (K1A 0B1).
 
+## Sections
+
+### [card] Card Details
+- fields: #card-number, #expiry, #cvv
+- order: 1
+
+### [billing] Billing Address
+- fields: #billing-address, #billing-city, #billing-postal
+- order: 2
+
 ## Conditions
 
 > when: [#card-number].error

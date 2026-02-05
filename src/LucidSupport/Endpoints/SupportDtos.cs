@@ -14,6 +14,24 @@ public sealed record SupportPageModelDto
     public List<SupportFieldDto> Fields { get; init; } = [];
     public List<ConditionRuleDto> Conditions { get; init; } = [];
     public List<TopicMappingDto> Topics { get; init; } = [];
+    public List<SupportSectionDto> Sections { get; init; } = [];
+    public List<SupportWorkflowRuleDto> WorkflowRules { get; init; } = [];
+}
+
+public sealed record SupportSectionDto
+{
+    public required string Id { get; init; }
+    public required string Label { get; init; }
+    public List<string> Fields { get; init; } = [];
+    public int Order { get; init; }
+}
+
+public sealed record SupportWorkflowRuleDto
+{
+    public required string When { get; init; }
+    public required string Action { get; init; }
+    public required string Target { get; init; }
+    public int Priority { get; init; }
 }
 
 public sealed record SupportFieldDto

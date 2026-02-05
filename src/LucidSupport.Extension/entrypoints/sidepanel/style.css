@@ -1,0 +1,236 @@
+/* ── Reset & base ────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1a1a2e;
+  background: #f8f9fb;
+  padding: 12px;
+  width: 100%;
+  min-width: 300px;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+
+.header {
+  padding-bottom: 8px;
+  border-bottom: 2px solid #4361ee;
+  margin-bottom: 12px;
+}
+
+.header h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #4361ee;
+}
+
+.section {
+  margin-bottom: 12px;
+}
+
+.section h2 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+/* ── Form controls ───────────────────────────────────────────────── */
+
+label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 2px;
+  margin-top: 6px;
+}
+
+input[type='text'],
+input[type='url'],
+textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  background: #fff;
+}
+
+input:read-only {
+  background: #f0f0f0;
+  color: #666;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.15);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 40px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #4361ee;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #3a56d4;
+}
+
+.btn-success {
+  background: #2ec4b6;
+  color: #fff;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #27ab9f;
+}
+
+/* ── Status bar ──────────────────────────────────────────────────── */
+
+.status {
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.status.info {
+  background: #e8f0fe;
+  color: #1a56db;
+}
+
+.status.success {
+  background: #e6f9f0;
+  color: #0e7a4d;
+}
+
+.status.error {
+  background: #fde8e8;
+  color: #c81e1e;
+}
+
+.status.warning {
+  background: #fff8e1;
+  color: #92730a;
+}
+
+/* ── Badge ───────────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: #e8f0fe;
+  color: #4361ee;
+}
+
+.badge-required {
+  background: #fde8e8;
+  color: #c81e1e;
+}
+
+.badge-type {
+  background: #f0f0f0;
+  color: #555;
+}
+
+/* ── Field card ──────────────────────────────────────────────────── */
+
+.field-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.field-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.field-card-header .field-label {
+  font-weight: 600;
+  font-size: 13px;
+  flex: 1;
+}
+
+.field-selector {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: #888;
+  background: #f8f8f8;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.field-card label {
+  margin-top: 4px;
+}
+
+/* ── Nav item ────────────────────────────────────────────────────── */
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 12px;
+}
+
+.nav-item:last-child {
+  border-bottom: none;
+}
+
+.nav-role {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: #4361ee;
+  min-width: 50px;
+}

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="corporate">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Preview &mdash; LucidSupport Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/admin/css/admin.css">
+  <script src="/admin/js/admin.js"></script>
+  <script src="/admin/js/preview-bridge.js" defer></script>
+</head>
+<body class="bg-base-200 min-h-screen">
+
+  <!-- Navbar -->
+  <div class="navbar bg-base-100 shadow-sm">
+    <div class="flex-1 gap-2">
+      <a href="/admin/index.html" class="btn btn-ghost text-xl">LucidSupport Admin</a>
+      <span class="text-base-content/40">/</span>
+      <span>Live Preview</span>
+    </div>
+    <div class="flex-none gap-2">
+      <a href="/admin/index.html" class="btn btn-ghost btn-sm">Dashboard</a>
+    </div>
+  </div>
+
+  <div class="container mx-auto p-6" x-data="preview()">
+
+    <div x-show="loading" class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg"></span>
+    </div>
+
+    <div x-show="!loading && page" x-cloak>
+
+      <!-- Control Bar -->
+      <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body p-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-semibold text-sm" x-text="page.title"></span>
+            <div class="divider divider-horizontal mx-0"></div>
+
+            <button class="btn btn-xs btn-outline" @click="sendCommand('trigger_toast')">Trigger toast</button>
+            <button class="btn btn-xs btn-outline" @click="sendCommand('open_panel')">Open panel</button>
+            <button class="btn btn-xs btn-outline btn-warning" @click="sendCommand('simulate_struggling')">Struggling</button>
+            <button class="btn btn-xs btn-outline btn-info" @click="sendCommand('activate_guide')">Guide mode</button>
+
+            <div class="divider divider-horizontal mx-0"></div>
+
+            <span class="text-xs text-base-content/40">Frustration signals:</span>
+            <button class="btn btn-xs btn-ghost" @click="sendSignal('rage_click')">Rage click</button>
+            <button class="btn btn-xs btn-ghost" @click="sendSignal('exit_intent')">Exit intent</button>
+            <button class="btn btn-xs btn-ghost" @click="sendSignal('validation_error')">Val. error</button>
+
+            <div class="flex-1"></div>
+
+            <!-- Widget state badge -->
+            <div class="badge" :class="{
+              'badge-ghost': widgetState === 'idle',
+              'badge-info': widgetState === 'toast',
+              'badge-primary': widgetState === 'panel' || widgetState === 'showing',
+              'badge-warning': widgetState === 'struggling',
+              'badge-success': widgetState === 'active'
+            }" x-text="'State: ' + widgetState"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- iframe -->
+      <div class="mb-4">
+        <iframe :src="previewUrl" class="preview-iframe" id="preview-frame"
+          @load="onFrameLoad()"></iframe>
+      </div>
+
+      <!-- Event Log -->
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title text-sm">Event Log</h2>
+            <div class="flex gap-2">
+              <select class="select select-bordered select-xs" x-model="logFilter">
+                <option value="all">All events</option>
+                <option value="state">State changes</option>
+                <option value="api">API calls</option>
+                <option value="frustration">Frustration</option>
+                <option value="condition">Conditions</option>
+              </select>
+              <button class="btn btn-ghost btn-xs" @click="events = []">Clear</button>
+            </div>
+          </div>
+
+          <div class="max-h-64 overflow-y-auto mt-2">
+            <template x-for="(evt, i) in filteredEvents" :key="i">
+              <div class="event-log-entry flex gap-2 py-1 border-b border-base-200">
+                <span class="text-base-content/40 w-20 shrink-0" x-text="evt.time"></span>
+                <span class="badge badge-xs shrink-0" :class="{
+                  'badge-info': evt.type === 'state',
+                  'badge-primary': evt.type === 'api',
+                  'badge-warning': evt.type === 'frustration',
+                  'badge-secondary': evt.type === 'condition'
+                }" x-text="evt.type"></span>
+                <span class="flex-1" x-text="evt.detail"></span>
+              </div>
+            </template>
+            <div x-show="filteredEvents.length === 0" class="text-xs text-base-content/40 py-2">
+              No events yet. Interact with the widget in the preview iframe.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function preview() {
+      const params = new URLSearchParams(window.location.search);
+      const pageId = params.get('page');
+
+      return {
+        page: null,
+        loading: true,
+        previewUrl: '',
+        widgetState: 'idle',
+        events: [],
+        logFilter: 'all',
+
+        async init() {
+          if (!pageId) { this.loading = false; return; }
+          const res = await fetch(`/api/admin/pages/${encodeURIComponent(pageId)}`);
+          if (res.ok) {
+            this.page = await res.json();
+            // Map URL pattern to demo URL
+            const pattern = this.page.urlPattern.replace('*', '');
+            this.previewUrl = pattern.endsWith('.html') ? pattern : pattern + '.html';
+          }
+          this.loading = false;
+
+          // Listen for postMessage from iframe
+          window.addEventListener('message', (e) => {
+            if (e.data?.source !== 'lucidsupport-widget') return;
+            this.handleWidgetMessage(e.data);
+          });
+        },
+
+        onFrameLoad() {
+          this.logEvent('state', 'iframe loaded: ' + this.previewUrl);
+        },
+
+        sendCommand(cmd) {
+          const frame = document.getElementById('preview-frame');
+          if (frame?.contentWindow) {
+            frame.contentWindow.postMessage({ source: 'lucidsupport-admin', command: cmd }, '*');
+            this.logEvent('state', 'Sent command: ' + cmd);
+          }
+        },
+
+        sendSignal(signal) {
+          const frame = document.getElementById('preview-frame');
+          if (frame?.contentWindow) {
+            frame.contentWindow.postMessage({ source: 'lucidsupport-admin', signal }, '*');
+            this.logEvent('frustration', 'Sent signal: ' + signal);
+          }
+        },
+
+        handleWidgetMessage(data) {
+          if (data.event === 'state_change') {
+            this.widgetState = data.state || 'idle';
+            this.logEvent('state', `State: ${data.from} -> ${data.state}`);
+          } else if (data.event === 'api_call') {
+            this.logEvent('api', `${data.method} ${data.url}`);
+          } else if (data.event === 'frustration') {
+            this.logEvent('frustration', `Score: ${data.score?.toFixed(1)} (${data.signal})`);
+          } else if (data.event === 'condition_match') {
+            this.logEvent('condition', `Matched: ${data.condition}`);
+          } else {
+            this.logEvent('state', JSON.stringify(data));
+          }
+        },
+
+        logEvent(type, detail) {
+          const now = new Date();
+          const time = now.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+          this.events.unshift({ time, type, detail });
+          if (this.events.length > 200) this.events.pop();
+        },
+
+        get filteredEvents() {
+          if (this.logFilter === 'all') return this.events;
+          return this.events.filter(e => e.type === this.logFilter);
+        }
+      };
+    }
+  </script>
+</body>
+</html>

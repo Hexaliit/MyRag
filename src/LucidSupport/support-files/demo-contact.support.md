@@ -86,6 +86,16 @@ Fields use HTML5 validation with ARIA error messages.
 - maxLength: 100
 - help: Optional — enter your company name if this is a business order.
 
+## Sections
+
+### [personal] Personal Information
+- fields: #first-name, #last-name, #email
+- order: 1
+
+### [business] Business Information
+- fields: #phone, #company
+- order: 2
+
 ## Conditions
 
 > when: [#email].error

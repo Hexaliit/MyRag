@@ -75,6 +75,20 @@ internal static class SupportEndpoints
         {
             Question = t.Question,
             ArticleId = t.ArticleId
+        }).ToList(),
+        Sections = model.Sections.Select(s => new SupportSectionDto
+        {
+            Id = s.Id,
+            Label = s.Label,
+            Fields = s.Fields,
+            Order = s.Order
+        }).ToList(),
+        WorkflowRules = model.WorkflowRules.Select(w => new SupportWorkflowRuleDto
+        {
+            When = w.When,
+            Action = w.Action,
+            Target = w.Target,
+            Priority = w.Priority
         }).ToList()
     };
 

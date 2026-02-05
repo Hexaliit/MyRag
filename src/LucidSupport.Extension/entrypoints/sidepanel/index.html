@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LucidSupport Trainer</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="header">
+      <h1>LucidSupport Trainer</h1>
+    </header>
+
+    <!-- Server URL -->
+    <section class="section">
+      <label for="server-url">Server URL</label>
+      <input
+        id="server-url"
+        type="url"
+        value="http://localhost:5050"
+        placeholder="http://localhost:5050"
+      />
+    </section>
+
+    <!-- Extract button -->
+    <section class="section">
+      <button id="btn-extract" class="btn btn-primary">
+        Learn This Page
+      </button>
+    </section>
+
+    <!-- Status bar -->
+    <div id="status" class="status" hidden></div>
+
+    <!-- Results (hidden until extraction) -->
+    <div id="results" hidden>
+      <!-- Page info -->
+      <section class="section">
+        <label for="page-title">Page Title</label>
+        <input id="page-title" type="text" placeholder="Page title" />
+        <label for="page-id">Page ID</label>
+        <input id="page-id" type="text" placeholder="e.g. checkout-payment" />
+        <label for="url-pattern">URL Pattern</label>
+        <input id="url-pattern" type="text" placeholder="/path/*" readonly />
+      </section>
+
+      <!-- Fields -->
+      <section class="section">
+        <h2>Fields <span id="field-count" class="badge">0</span></h2>
+        <div id="field-list"></div>
+      </section>
+
+      <!-- Navigation -->
+      <section id="nav-section" class="section" hidden>
+        <h2>Navigation</h2>
+        <div id="nav-list"></div>
+      </section>
+
+      <!-- Save -->
+      <section class="section">
+        <button id="btn-save" class="btn btn-success">
+          Save to LucidSupport
+        </button>
+      </section>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

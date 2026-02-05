@@ -12,6 +12,11 @@ using Spectre.Console.Cli;
 
 namespace LucidSupport.Commands;
 
+/// <summary>
+///     Exposes the resolved support directory path to endpoints that need to write new files.
+/// </summary>
+internal sealed record SupportConfig(string SupportDir);
+
 internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -73,8 +78,10 @@ internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
         // Register services
+        builder.Services.AddSingleton(new SupportConfig(supportDir));
         builder.Services.AddSingleton(store);
         builder.Services.AddSingleton<TemplateResponseEngine>();
+        builder.Services.AddSingleton<WorkflowEvaluator>();
         builder.Services.AddCors();
 
         // Configure camelCase JSON (matches TypeScript types exactly)
@@ -100,15 +107,18 @@ internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
 
         // Map API endpoints
         app.MapSupportEndpoints();
+        app.MapAdminEndpoints();
 
         // Startup message
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule("[blue]LucidSupport Demo Server[/]").RuleStyle("grey"));
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"  [green]►[/] Listening on [link]http://localhost:{settings.Port}[/]");
-        AnsiConsole.MarkupLine($"  [green]►[/] Demo: [link]http://localhost:{settings.Port}/demo/contact.html[/]");
-        AnsiConsole.MarkupLine($"  [green]►[/] API:  [cyan]GET  /api/support/page?url=...[/]");
-        AnsiConsole.MarkupLine($"  [green]►[/] API:  [cyan]POST /api/help/contextual[/]");
+        AnsiConsole.MarkupLine($"  [green]►[/] Admin: [link]http://localhost:{settings.Port}/admin/index.html[/]");
+        AnsiConsole.MarkupLine($"  [green]►[/] Demo:  [link]http://localhost:{settings.Port}/demo/contact.html[/]");
+        AnsiConsole.MarkupLine($"  [green]►[/] API:   [cyan]GET  /api/support/page?url=...[/]");
+        AnsiConsole.MarkupLine($"  [green]►[/] API:   [cyan]POST /api/help/contextual[/]");
+        AnsiConsole.MarkupLine($"  [green]►[/] Admin: [cyan]GET  /api/admin/pages[/]");
         AnsiConsole.MarkupLine($"  [green]►[/] Loaded [yellow]{store.Count}[/] support models from [cyan]{supportDir}[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("  Press [yellow]Ctrl+C[/] to stop.");

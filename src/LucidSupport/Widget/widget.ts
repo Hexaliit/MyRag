@@ -9,6 +9,7 @@ import { createApiClient } from './api';
 import { createFieldObserver, type FieldObserver } from './observer';
 import { evaluateConditions } from './conditions';
 import { createFrustrationTracker, type FrustrationTracker } from './frustration';
+import { createWorkflowEvaluator } from './workflow';
 import {
   createUI, showToast, clearAllToasts, openPanel, closePanel,
   showResponse, showLoading, showError, showWelcome, showHighlight,
@@ -66,6 +67,7 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
   let observer: FieldObserver | null = null;
   let lastConditionTrigger: ConditionRule | null = null;
   let frustrationTracker: FrustrationTracker | null = null;
+  let workflowEvaluator: ReturnType<typeof createWorkflowEvaluator> | null = null;
 
   // Page state tracking
   const pageState: PageState = {
@@ -365,6 +367,9 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
     // Update active mode guide
     updateActiveMode(selector, fieldState);
 
+    // Re-evaluate workflow rules on field changes
+    workflowEvaluator?.evaluate();
+
     checkConditions();
   }
 
@@ -406,6 +411,17 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
       observer.start();
     }
 
+    // Initialize workflow evaluator if the model has workflow rules
+    if (pageModel?.workflowRules?.length) {
+      workflowEvaluator = createWorkflowEvaluator(
+        pageModel.workflowRules,
+        pageModel.sections ?? [],
+        pageModel.pageId
+      );
+      // Initial evaluation
+      workflowEvaluator.evaluate();
+    }
+
     // Initialize frustration tracker
     frustrationTracker = createFrustrationTracker({
       threshold: 5.0,
@@ -442,6 +458,7 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
     destroy() {
       observer?.destroy();
       frustrationTracker?.destroy();
+      workflowEvaluator?.destroy();
       stopIdleTracking();
       clearHighlights();
     },
