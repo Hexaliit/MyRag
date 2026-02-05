@@ -58,6 +58,13 @@ export interface SupportPageModel {
   workflowRules?: WorkflowRule[];
 }
 
+/** Cached response for a topic question. */
+export interface CachedTopicResponse {
+  question: string;
+  response: HelpResponse;
+  cachedAt: number;
+}
+
 /** Field definition from the page model. */
 export interface SupportField {
   selector: string;

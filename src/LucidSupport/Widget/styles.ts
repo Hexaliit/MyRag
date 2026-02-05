@@ -656,4 +656,176 @@ export const STYLES = /* css */ `
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Field Help Inline (persistent until cleared) ── */
+.ls-field-help {
+  position: fixed;
+  background: var(--ls-bg);
+  border: 1px solid var(--ls-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: var(--ls-shadow);
+  max-width: 320px;
+  z-index: 2147483645;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  pointer-events: none;
+}
+
+.ls-field-help-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.ls-field-help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ls-field-help-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ls-text);
+}
+
+.ls-field-help-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ls-text-secondary);
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.ls-field-help-close:hover {
+  background: var(--ls-bg-secondary);
+  color: var(--ls-text);
+}
+
+.ls-field-help-text {
+  font-size: 13px;
+  color: var(--ls-text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.ls-field-help-format {
+  font-size: 11px;
+  color: var(--ls-primary);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--ls-bg-secondary);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.ls-field-help-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ls-border);
+}
+
+.ls-field-help-question {
+  font-size: 12px;
+  color: var(--ls-primary);
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: none;
+  background: none;
+  border: none;
+  text-align: left;
+}
+
+.ls-field-help-question:hover {
+  text-decoration: underline;
+}
+
+/* ── Success Tick Animation (SweetAlert style) ── */
+.ls-success-tick {
+  position: fixed;
+  width: 60px;
+  height: 60px;
+  z-index: 2147483646;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0);
+}
+
+.ls-success-tick-visible {
+  animation: ls-tick-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes ls-tick-pop {
+  0% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1.2); }
+  70% { transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.ls-success-tick-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--ls-success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.4);
+}
+
+.ls-success-tick svg {
+  width: 32px;
+  height: 32px;
+  stroke: white;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.ls-success-tick-path {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: ls-tick-draw 0.4s ease-out 0.2s forwards;
+}
+
+@keyframes ls-tick-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.ls-success-tick-fade {
+  animation: ls-tick-fade 0.3s ease-out 0.8s forwards;
+}
+
+@keyframes ls-tick-fade {
+  to { opacity: 0; transform: scale(0.8); }
+}
+
+/* ── Cached Response Indicator ── */
+.ls-response-cached {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--ls-text-secondary);
+  margin-top: 8px;
+}
+
+.ls-response-cached svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
 `;

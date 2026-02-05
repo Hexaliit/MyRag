@@ -609,3 +609,213 @@ function luminance([r, g, b]: [number, number, number]): number {
   // Relative luminance (ITU-R BT.709)
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
+
+// ── Field Help Popup (Persistent Until Cleared) ──
+
+let activeFieldHelp: HTMLElement | null = null;
+let fieldHelpCloseCallback: (() => void) | null = null;
+
+export interface FieldHelpOptions {
+  label: string;
+  help: string | null;
+  pattern: string | null;
+  questions?: string[];
+  onQuestionClick?: (question: string) => void;
+  onClose?: () => void;
+}
+
+export function showFieldHelp(
+  shadowRoot: ShadowRoot,
+  selector: string,
+  options: FieldHelpOptions
+) {
+  // Remove any existing field help
+  hideFieldHelp();
+
+  const target = document.querySelector(selector);
+  if (!target) return;
+
+  const root = shadowRoot.querySelector('.ls-root');
+  if (!root) return;
+
+  const rect = target.getBoundingClientRect();
+
+  // Create field help popup
+  const popup = document.createElement('div');
+  popup.className = 'ls-field-help';
+
+  // Position below the field (or above if not enough space)
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const putAbove = spaceBelow < 180 && rect.top > 180;
+
+  if (putAbove) {
+    popup.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+  } else {
+    popup.style.top = `${rect.bottom + 8}px`;
+  }
+  popup.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - 340))}px`;
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'ls-field-help-header';
+
+  const label = document.createElement('span');
+  label.className = 'ls-field-help-label';
+  label.textContent = options.label;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'ls-field-help-close';
+  closeBtn.textContent = '\u00d7';
+  closeBtn.setAttribute('aria-label', 'Close help');
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    hideFieldHelp();
+  });
+
+  header.appendChild(label);
+  header.appendChild(closeBtn);
+  popup.appendChild(header);
+
+  // Help text
+  if (options.help) {
+    const helpText = document.createElement('div');
+    helpText.className = 'ls-field-help-text';
+    helpText.textContent = options.help;
+    popup.appendChild(helpText);
+  }
+
+  // Pattern/format hint
+  if (options.pattern) {
+    const format = document.createElement('div');
+    format.className = 'ls-field-help-format';
+    format.textContent = `Format: ${options.pattern}`;
+    popup.appendChild(format);
+  }
+
+  // Related questions
+  if (options.questions && options.questions.length > 0) {
+    const questionsDiv = document.createElement('div');
+    questionsDiv.className = 'ls-field-help-questions';
+
+    for (const q of options.questions) {
+      const qBtn = document.createElement('button');
+      qBtn.className = 'ls-field-help-question';
+      qBtn.textContent = q;
+      qBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        options.onQuestionClick?.(q);
+      });
+      questionsDiv.appendChild(qBtn);
+    }
+    popup.appendChild(questionsDiv);
+  }
+
+  root.appendChild(popup);
+  activeFieldHelp = popup;
+  fieldHelpCloseCallback = options.onClose || null;
+
+  // Animate in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => popup.classList.add('ls-field-help-visible'));
+  });
+}
+
+export function hideFieldHelp() {
+  if (activeFieldHelp) {
+    activeFieldHelp.classList.remove('ls-field-help-visible');
+    const popup = activeFieldHelp;
+    activeFieldHelp = null;
+
+    // Call close callback
+    fieldHelpCloseCallback?.();
+    fieldHelpCloseCallback = null;
+
+    // Remove after transition
+    popup.addEventListener('transitionend', () => popup.remove(), { once: true });
+    setTimeout(() => popup.remove(), 300);
+  }
+}
+
+export function isFieldHelpVisible(): boolean {
+  return activeFieldHelp !== null;
+}
+
+// ── Success Tick Animation (SweetAlert Style) ──
+
+export function showSuccessTick(
+  shadowRoot: ShadowRoot,
+  selector: string,
+  duration = 1200
+): Promise<void> {
+  return new Promise((resolve) => {
+    const target = document.querySelector(selector);
+    if (!target) {
+      resolve();
+      return;
+    }
+
+    const root = shadowRoot.querySelector('.ls-root');
+    if (!root) {
+      resolve();
+      return;
+    }
+
+    const rect = target.getBoundingClientRect();
+
+    // Create tick container
+    const tick = document.createElement('div');
+    tick.className = 'ls-success-tick';
+    tick.style.top = `${rect.top + rect.height / 2 - 30}px`;
+    tick.style.left = `${rect.left + rect.width / 2 - 30}px`;
+
+    // Circle background
+    const circle = document.createElement('div');
+    circle.className = 'ls-success-tick-circle';
+
+    // Checkmark SVG
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M5 13l4 4L19 7');
+    path.classList.add('ls-success-tick-path');
+
+    svg.appendChild(path);
+    circle.appendChild(svg);
+    tick.appendChild(circle);
+    root.appendChild(tick);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+      tick.classList.add('ls-success-tick-visible');
+
+      // Start fade after delay
+      setTimeout(() => {
+        tick.classList.add('ls-success-tick-fade');
+      }, duration - 400);
+
+      // Remove after full animation
+      setTimeout(() => {
+        tick.remove();
+        resolve();
+      }, duration);
+    });
+  });
+}
+
+// ── Cached Response Indicator ──
+
+export function showCachedIndicator(elements: UIElements) {
+  // Check if already shown
+  if (elements.responseArea.querySelector('.ls-response-cached')) return;
+
+  const indicator = document.createElement('div');
+  indicator.className = 'ls-response-cached';
+  indicator.innerHTML = `
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+    </svg>
+    <span>Instant answer</span>
+  `;
+  elements.responseArea.appendChild(indicator);
+}

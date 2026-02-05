@@ -3,7 +3,8 @@
 
 import type {
   WidgetConfig, WidgetState, WidgetEvent, PageContext,
-  HelpResponse, ConditionRule, SupportPageModel, FieldState, PageState
+  HelpResponse, ConditionRule, SupportPageModel, FieldState, PageState,
+  CachedTopicResponse
 } from './types';
 import { createApiClient } from './api';
 import { createFieldObserver, type FieldObserver } from './observer';
@@ -14,7 +15,8 @@ import {
   createUI, showToast, clearAllToasts, openPanel, closePanel,
   showResponse, showLoading, showError, showWelcome, showHighlight,
   clearHighlights, detectTheme, showStrugglingToast, showActiveGuide,
-  updateActiveGuide, type UICallbacks
+  updateActiveGuide, showFieldHelp, hideFieldHelp, isFieldHelpVisible,
+  showSuccessTick, showCachedIndicator, type UICallbacks
 } from './ui';
 
 // ── State Machine ──
@@ -88,6 +90,14 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
 
   // Condition evaluation cooldown (don't spam toasts)
   const triggeredConditions = new Set<string>();
+
+  // Topic response cache (pre-computed answers)
+  const topicCache = new Map<string, CachedTopicResponse>();
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+  // Track currently focused field
+  let focusedFieldSelector: string | null = null;
+  let fieldHelpShown = false;
 
   // API client
   const api = createApiClient(config.api);
@@ -205,14 +215,35 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
 
   // ── Question Handling ──
 
-  async function handleQuestion(text: string) {
+  async function handleQuestion(text: string, useCacheOnly = false) {
+    // Check cache first
+    const cached = topicCache.get(text);
+    if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+      // Use cached response instantly
+      renderResponse(cached.response, true);
+      transition('ask_question');
+      transition('response');
+      return;
+    }
+
+    // If cache-only mode and no cache, skip
+    if (useCacheOnly) return;
+
     transition('ask_question');
 
     const context = collectPageContext(text);
 
     try {
       const response = await api.askForHelp(context);
-      renderResponse(response);
+
+      // Cache the response for future use
+      topicCache.set(text, {
+        question: text,
+        response,
+        cachedAt: Date.now(),
+      });
+
+      renderResponse(response, false);
       transition('response');
     } catch (err) {
       showError(ui, 'Sorry, help is temporarily unavailable. Please try again.');
@@ -227,8 +258,35 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
     }
   }
 
-  function renderResponse(response: HelpResponse) {
+  // Pre-warm cache for all topics
+  async function prewarmTopicCache() {
+    if (!pageModel?.topics.length) return;
+
+    for (const topic of pageModel.topics) {
+      // Skip if already cached
+      if (topicCache.has(topic.question)) continue;
+
+      try {
+        const context = collectPageContext(topic.question);
+        const response = await api.askForHelp(context);
+        topicCache.set(topic.question, {
+          question: topic.question,
+          response,
+          cachedAt: Date.now(),
+        });
+      } catch {
+        // Silently fail pre-warming
+      }
+    }
+  }
+
+  function renderResponse(response: HelpResponse, fromCache = false) {
     showResponse(ui, response, uiCallbacks);
+
+    // Show cached indicator if from cache
+    if (fromCache) {
+      showCachedIndicator(ui);
+    }
 
     // Show highlights
     for (const hl of response.highlights) {
@@ -354,6 +412,37 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
       frustrationTracker?.recordValidationError(selector);
     }
 
+    // ── Field Help: Show on focus, hide on blur ──
+    if (fieldState.hasFocus && focusedFieldSelector !== selector) {
+      // New field focused - show help
+      focusedFieldSelector = selector;
+      showFieldHelpForSelector(selector);
+    } else if (!fieldState.hasFocus && focusedFieldSelector === selector) {
+      // Field lost focus
+      const hadValue = prev?.hasValue ?? false;
+      const nowHasValue = fieldState.hasValue;
+
+      // If field was completed (gained value), show success tick
+      if (!hadValue && nowHasValue && !fieldState.hasError) {
+        hideFieldHelp();
+        showSuccessTick(shadowRoot, selector);
+      } else {
+        // Just hide help (no tick)
+        hideFieldHelp();
+      }
+
+      focusedFieldSelector = null;
+      fieldHelpShown = false;
+    }
+
+    // ── Show success tick when field becomes valid (value + no error) ──
+    if (prev && !prev.hasValue && fieldState.hasValue && !fieldState.hasError && state !== 'active') {
+      // Only show tick if not in active guide mode (which has its own completion UI)
+      if (!fieldState.hasFocus) {
+        showSuccessTick(shadowRoot, selector);
+      }
+    }
+
     // Check if any required fields are incomplete
     if (pageModel?.fields) {
       pageState.hasIncompleteRequired = pageModel.fields
@@ -373,8 +462,45 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
     checkConditions();
   }
 
+  // Show contextual help for a focused field
+  function showFieldHelpForSelector(selector: string) {
+    if (state === 'active') return; // Don't show inline help in guided mode
+
+    const field = pageModel?.fields.find(f => f.selector === selector);
+    if (!field) return;
+
+    // Only show if field has help or pattern
+    if (!field.help && !field.pattern) return;
+
+    // Find related questions from topics
+    const relatedQuestions = pageModel?.topics
+      .filter(t => t.question.toLowerCase().includes(field.label.toLowerCase()) ||
+                   field.label.toLowerCase().includes(t.question.toLowerCase().split(' ')[0]))
+      .map(t => t.question)
+      .slice(0, 3) ?? [];
+
+    showFieldHelp(shadowRoot, selector, {
+      label: field.label,
+      help: field.help,
+      pattern: field.pattern,
+      questions: relatedQuestions,
+      onQuestionClick: (q) => {
+        hideFieldHelp();
+        handleQuestion(q);
+      },
+      onClose: () => {
+        fieldHelpShown = false;
+      },
+    });
+
+    fieldHelpShown = true;
+  }
+
   function onFieldIdle(selector: string) {
     if (state !== 'idle') return;
+
+    // Don't show toast if inline field help is already visible
+    if (fieldHelpShown && focusedFieldSelector === selector) return;
 
     const field = pageModel?.fields.find(f => f.selector === selector);
     if (field?.help) {
@@ -422,6 +548,11 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
       workflowEvaluator.evaluate();
     }
 
+    // Pre-warm topic cache in background (after a short delay)
+    if (pageModel?.topics?.length) {
+      setTimeout(() => prewarmTopicCache(), 2000);
+    }
+
     // Initialize frustration tracker
     frustrationTracker = createFrustrationTracker({
       threshold: 5.0,
@@ -461,6 +592,8 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
       workflowEvaluator?.destroy();
       stopIdleTracking();
       clearHighlights();
+      hideFieldHelp();
+      topicCache.clear();
     },
   };
 }
