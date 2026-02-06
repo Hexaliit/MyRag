@@ -4,7 +4,7 @@
 
 LucidSupport is a **page-aware support assistant** that uses Playwright to deeply learn web pages — their structure, visual design, validation behavior, and interactive patterns — and outputs human-editable `.support.md` files that become the source of truth for contextual help. Combined with DoomSummarizer's RAG pipeline for knowledge base integration, a tiny LLM (or no LLM at all) can deliver precise, context-aware help because all the hard work happens at learn-time, not query-time.
 
-### Core Principle: Smart Le];arning, Dumb Serving
+### Core Principle: Smart Learning, Dumb Serving
 
 The learner is the intelligent part. It:
 - **Sees** the page (screenshots, CSS computed styles, visual grouping)
