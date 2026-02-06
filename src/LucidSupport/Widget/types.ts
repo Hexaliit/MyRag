@@ -23,6 +23,8 @@ export interface FieldState {
   hasError: boolean;
   errorText: string | null;
   hasFocus: boolean;
+  focusCount: number;
+  dwellMs: number;
 }
 
 /** Response from the help API. */
@@ -32,6 +34,17 @@ export interface HelpResponse {
   suggestions: string[];
   topics: TopicLink[];
   source: string | null;
+  fieldGuidance: FieldGuidance[];
+}
+
+/** Pattern-based field guidance from the server. */
+export interface FieldGuidance {
+  selector: string;
+  pattern: string;
+  formatHint: string;
+  example: string | null;
+  privacyNote: string | null;
+  isProactive: boolean;
 }
 
 /** Element to highlight on the page. */

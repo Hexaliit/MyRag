@@ -1,8 +1,6 @@
 using System.Globalization;
 using System.Text;
 using LucidSupport.Models;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
 
 namespace LucidSupport.Services.Learning;
 
@@ -13,11 +11,6 @@ namespace LucidSupport.Services.Learning;
 /// </summary>
 internal static class SupportMarkdownWriter
 {
-    private static readonly ISerializer YamlSerializer = new SerializerBuilder()
-        .WithNamingConvention(UnderscoredNamingConvention.Instance)
-        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
-        .Build();
-
     /// <summary>
     ///     Serialize a <see cref="PageModel"/> to a .support.md string.
     /// </summary>

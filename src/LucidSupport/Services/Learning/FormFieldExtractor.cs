@@ -16,33 +16,9 @@ internal static class FormFieldExtractor
     ///     JavaScript injected into the page to extract field metadata.
     ///     Returns an array of raw field objects with structural attributes only.
     /// </summary>
-    private const string ExtractionScript = """
+    private static readonly string ExtractionScript = $$"""
         () => {
-            function buildSelector(el) {
-                if (el.id) return '#' + el.id;
-                if (el.name) {
-                    const tag = el.tagName.toLowerCase();
-                    const byName = document.querySelectorAll(tag + '[name="' + el.name + '"]');
-                    if (byName.length === 1) return tag + '[name="' + el.name + '"]';
-                }
-                // Fallback: build a path
-                const parts = [];
-                let current = el;
-                while (current && current !== document.body) {
-                    let sel = current.tagName.toLowerCase();
-                    if (current.id) { parts.unshift('#' + current.id); break; }
-                    const parent = current.parentElement;
-                    if (parent) {
-                        const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
-                        if (siblings.length > 1) {
-                            sel += ':nth-of-type(' + (siblings.indexOf(current) + 1) + ')';
-                        }
-                    }
-                    parts.unshift(sel);
-                    current = current.parentElement;
-                }
-                return parts.join(' > ');
-            }
+            {{DomScriptSnippets.BuildStableSelectorFunction}}
 
             function findLabel(el) {
                 // 1. Explicit <label for="">
@@ -85,7 +61,7 @@ internal static class FormFieldExtractor
                 if (computed.display === 'none' || computed.visibility === 'hidden') return;
 
                 fields.push({
-                    selector: buildSelector(el),
+                    selector: buildStableSelector(el),
                     type: type,
                     name: el.name || null,
                     label: findLabel(el),

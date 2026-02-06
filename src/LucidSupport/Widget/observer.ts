@@ -38,6 +38,11 @@ export function createFieldObserver(options: ObserverOptions) {
   let fieldIdleTimer: ReturnType<typeof setTimeout> | null = null;
   // Mutation processing flag
   let pendingProcess = false;
+  // Interaction tracking: focus count and dwell time per field
+  const focusCounts = new Map<string, number>();
+  const dwellTimes = new Map<string, number>();
+  const focusTimestamps = new Map<string, number>();
+  const ERROR_CLASS_RE = /\b(error|invalid|danger|has-error|is-invalid|field-error|ng-invalid|validation|warning|help-block)\b/i;
 
   // ── Event Delegation ──
   function onFocusIn(e: FocusEvent) {
@@ -49,6 +54,10 @@ export function createFieldObserver(options: ObserverOptions) {
     focusedSelector = selector;
     clearFieldIdleTimer();
     fieldIdleTimer = setTimeout(() => onFieldIdle(selector), fieldIdleMs);
+
+    // Track focus count and timestamp
+    focusCounts.set(selector, (focusCounts.get(selector) ?? 0) + 1);
+    focusTimestamps.set(selector, Date.now());
 
     updateFieldState(selector, target);
   }
@@ -63,6 +72,15 @@ export function createFieldObserver(options: ObserverOptions) {
     setTimeout(() => {
       if (focusedSelector === selector) focusedSelector = null;
       clearFieldIdleTimer();
+
+      // Accumulate dwell time
+      const startTs = focusTimestamps.get(selector);
+      if (startTs) {
+        const delta = Date.now() - startTs;
+        dwellTimes.set(selector, (dwellTimes.get(selector) ?? 0) + delta);
+        focusTimestamps.delete(selector);
+      }
+
       updateFieldState(selector, target);
     }, 300);
   }
@@ -137,6 +155,8 @@ export function createFieldObserver(options: ObserverOptions) {
       hasError: isFieldInError(el),
       errorText: getErrorText(el),
       hasFocus: focusedSelector === selector,
+      focusCount: focusCounts.get(selector) ?? 0,
+      dwellMs: dwellTimes.get(selector) ?? 0,
     };
 
     const prev = fieldStates.get(selector);
@@ -150,7 +170,9 @@ export function createFieldObserver(options: ObserverOptions) {
     return a.hasValue !== b.hasValue
       || a.hasError !== b.hasError
       || a.errorText !== b.errorText
-      || a.hasFocus !== b.hasFocus;
+      || a.hasFocus !== b.hasFocus
+      || a.focusCount !== b.focusCount
+      || a.dwellMs !== b.dwellMs;
   }
 
   // ── Field Analysis (Framework-Agnostic) ──
@@ -164,6 +186,15 @@ export function createFieldObserver(options: ObserverOptions) {
     return false;
   }
 
+  function elementHasErrorClass(el: Element | null): boolean {
+    return !!el && ERROR_CLASS_RE.test(el.className.toString());
+  }
+
+  function isVisibleElement(el: Element | null): boolean {
+    if (!(el instanceof HTMLElement)) return false;
+    return el.offsetParent !== null && !el.hidden;
+  }
+
   function isFieldInError(el: Element): boolean {
     // HTML5 Constraint API
     if (el instanceof HTMLInputElement && !el.validity.valid) return true;
@@ -174,15 +205,10 @@ export function createFieldObserver(options: ObserverOptions) {
     if (el.getAttribute('aria-invalid') === 'true') return true;
 
     // CSS classes (Bootstrap, Tailwind, Material, custom)
-    const cls = el.className.toString().toLowerCase();
-    if (/\b(error|invalid|danger|has-error|is-invalid|field-error|ng-invalid)\b/.test(cls)) return true;
+    if (elementHasErrorClass(el)) return true;
 
     // Parent wrapper classes (React Hook Form, Formik patterns)
-    const parent = el.parentElement;
-    if (parent) {
-      const pcls = parent.className.toString().toLowerCase();
-      if (/\b(error|invalid|has-error|field-error)\b/.test(pcls)) return true;
-    }
+    if (elementHasErrorClass(el.parentElement)) return true;
 
     return false;
   }
@@ -192,7 +218,7 @@ export function createFieldObserver(options: ObserverOptions) {
     const errId = el.getAttribute('aria-errormessage');
     if (errId) {
       const errEl = document.getElementById(errId);
-      if (errEl && isVisible(errEl)) return errEl.textContent?.trim() || null;
+      if (isVisibleElement(errEl)) return errEl!.textContent?.trim() || null;
     }
 
     // aria-describedby pointing to error element
@@ -200,7 +226,7 @@ export function createFieldObserver(options: ObserverOptions) {
     if (descBy) {
       for (const id of descBy.split(/\s+/)) {
         const ref = document.getElementById(id);
-        if (ref && isVisible(ref) && /error|invalid|help/.test(ref.className.toLowerCase())) {
+        if (isVisibleElement(ref) && elementHasErrorClass(ref)) {
           return ref.textContent?.trim() || null;
         }
       }
@@ -208,15 +234,17 @@ export function createFieldObserver(options: ObserverOptions) {
 
     // Adjacent sibling with error class
     const sib = el.nextElementSibling;
-    if (sib && isVisible(sib as HTMLElement) && /error|invalid|validation|field-error/.test(sib.className.toLowerCase())) {
+    if (isVisibleElement(sib) && elementHasErrorClass(sib)) {
       return sib.textContent?.trim() || null;
     }
 
     // Parent's child with error role
     const parent = el.parentElement;
     if (parent) {
-      const errChild = parent.querySelector('[role="alert"], .error-message, .field-error, .validation-message');
-      if (errChild && isVisible(errChild as HTMLElement)) {
+      const errChild = parent.querySelector(
+        '[role="alert"], .error-message, .field-error, .validation-message, .invalid-feedback, .text-danger',
+      );
+      if (isVisibleElement(errChild)) {
         return errChild.textContent?.trim() || null;
       }
     }
@@ -252,13 +280,6 @@ export function createFieldObserver(options: ObserverOptions) {
         // Invalid selector — skip
       }
     }
-  }
-
-  function isVisible(el: Element): boolean {
-    if (el instanceof HTMLElement) {
-      return el.offsetParent !== null && !el.hidden;
-    }
-    return true;
   }
 
   function clearFieldIdleTimer() {
@@ -331,6 +352,9 @@ export function createFieldObserver(options: ObserverOptions) {
     elementToSelector.clear();
     fieldStates.clear();
     visibleFields.clear();
+    focusCounts.clear();
+    dwellTimes.clear();
+    focusTimestamps.clear();
   }
 
   /** Get all current field states (for building PageContext). */

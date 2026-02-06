@@ -377,6 +377,11 @@ textarea {
   color: var(--color-success);
 }
 
+.badge-error {
+  background: rgba(200, 30, 30, 0.1);
+  color: var(--color-error);
+}
+
 /* ── Field card ──────────────────────────────────────────────────── */
 
 .field-card {

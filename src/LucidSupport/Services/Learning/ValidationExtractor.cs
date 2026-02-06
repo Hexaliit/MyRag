@@ -14,8 +14,10 @@ internal static class ValidationExtractor
     /// <summary>
     ///     JavaScript to trigger HTML5 constraint validation and capture error messages.
     /// </summary>
-    private const string TriggerValidationScript = """
+    private static readonly string TriggerValidationScript = $$"""
         () => {
+            {{DomScriptSnippets.BuildStableSelectorFunction}}
+            {{DomScriptSnippets.ErrorDetectionHelpers}}
             const results = [];
             const forms = document.querySelectorAll('form');
 
@@ -38,42 +40,16 @@ internal static class ValidationExtractor
                     if (validity.rangeOverflow) messages.push({ key: 'max', text: el.validationMessage });
 
                     // Check for visible error messages via aria-errormessage or aria-describedby
-                    let customError = null;
-                    const errMsgId = el.getAttribute('aria-errormessage');
-                    if (errMsgId) {
-                        const errEl = document.getElementById(errMsgId);
-                        if (errEl && errEl.textContent.trim()) {
-                            customError = errEl.textContent.trim();
-                        }
-                    }
-                    if (!customError) {
-                        const describedBy = el.getAttribute('aria-describedby');
-                        if (describedBy) {
-                            describedBy.split(/\s+/).forEach(id => {
-                                const ref = document.getElementById(id);
-                                if (ref && ref.classList.toString().match(/error|invalid|warning/i)) {
-                                    customError = ref.textContent.trim();
-                                }
-                            });
-                        }
-                    }
+                    const errorInfo = findFieldErrorMessage(el);
+                    const customError = errorInfo ? errorInfo.text : null;
 
-                    // Check sibling/adjacent error elements
-                    if (!customError) {
-                        const sibling = el.nextElementSibling;
-                        if (sibling && sibling.classList.toString().match(/error|invalid|validation/i)) {
-                            const text = sibling.textContent.trim();
-                            if (text) customError = text;
-                        }
-                    }
-
-                    const selector = el.id ? '#' + el.id : (el.name ? el.tagName.toLowerCase() + '[name="' + el.name + '"]' : null);
+                    const selector = buildStableSelector(el);
                     if (selector) {
                         results.push({
                             selector: selector,
                             messages: messages,
                             customError: customError,
-                            isInvalid: el.getAttribute('aria-invalid') === 'true' || !el.validity.valid
+                            isInvalid: isFieldInErrorState(el)
                         });
                     }
                 });

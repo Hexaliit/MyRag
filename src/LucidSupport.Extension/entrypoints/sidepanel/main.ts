@@ -53,11 +53,15 @@ function hideStatus() {
 function pageIdFromUrl(url: string): string {
   try {
     const u = new URL(url);
-    return u.pathname
-      .replace(/^\/+|\/+$/g, '')
-      .replace(/[\/\.]/g, '-')
-      .replace(/[^a-z0-9-]/gi, '')
-      .toLowerCase() || 'index';
+    const path = u.pathname.replace(/^\/+|\/+$/g, '');
+    if (!path) return 'home';
+    return path
+      .replace(/\//g, '-')
+      .replace(/_/g, '-')
+      .replace(/\./g, '-')
+      .toLowerCase()
+      .trim()
+      .replace(/^-+|-+$/g, '') || 'home';
   } catch {
     return 'unknown-page';
   }
@@ -149,6 +153,9 @@ function renderFields(fields: ExtractedField[]) {
     }
     if (field.autocomplete) {
       badges.push(`<span class="badge">${escapeHtml(field.autocomplete)}</span>`);
+    }
+    if (field.hasError) {
+      badges.push('<span class="badge badge-error">error</span>');
     }
 
     const displayLabel = field.label || field.name || field.selector;
@@ -331,19 +338,7 @@ async function handleSave() {
     // Collect edited labels and help text, filtering excluded fields
     const fields: AdminField[] = currentExtraction.fields
       .filter((_, idx) => fieldIncluded[idx])
-      .map((f, originalIdx) => {
-        // Find actual index accounting for filtering
-        let actualIdx = -1;
-        let count = 0;
-        for (let i = 0; i < currentExtraction!.fields.length; i++) {
-          if (fieldIncluded[i]) {
-            if (count === originalIdx) {
-              actualIdx = i;
-              break;
-            }
-            count++;
-          }
-        }
+      .map((f) => {
         // Use the original index to get form values
         const idx = currentExtraction!.fields.indexOf(f);
 

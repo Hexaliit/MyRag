@@ -16,8 +16,10 @@ internal static class VisualAnalyzer
     ///     JavaScript that performs deep visual analysis of every interactive element.
     ///     Extracts computed styles, bounding boxes, visual grouping, and error indicators.
     /// </summary>
-    private const string VisualExtractionScript = """
+    private static readonly string VisualExtractionScript = $$"""
         () => {
+            {{DomScriptSnippets.BuildStableSelectorFunction}}
+            {{DomScriptSnippets.ErrorDetectionHelpers}}
             // ── Color analysis helpers ──────────────────
             function parseColor(str) {
                 if (!str || str === 'transparent' || str === 'rgba(0, 0, 0, 0)') return null;
@@ -74,16 +76,14 @@ internal static class VisualAnalyzer
             }
 
             function buildSel(el) {
-                if (el.id) return '#' + el.id;
-                return el.tagName.toLowerCase();
+                return buildStableSelector(el);
             }
 
             // ── Error state detection ───────────────────
             function detectErrorState(el) {
                 const result = { isError: false, hasErrorBorder: false, hasErrorIcon: false, hasErrorMessage: false, errorMessageText: null, errorMessageSelector: null, errorMessagePosition: null };
 
-                // Check aria-invalid
-                if (el.getAttribute('aria-invalid') === 'true') result.isError = true;
+                result.isError = isFieldInErrorState(el);
 
                 // Check border color for red-ish
                 const cs = window.getComputedStyle(el);
@@ -93,62 +93,12 @@ internal static class VisualAnalyzer
                     result.hasErrorBorder = true;
                 }
 
-                // Check for CSS classes suggesting error
-                const classList = el.className.toString().toLowerCase();
-                if (classList.match(/error|invalid|danger|has-error/)) result.isError = true;
-
-                // Check parent for error classes too
-                const parent = el.parentElement;
-                if (parent) {
-                    const parentClasses = parent.className.toString().toLowerCase();
-                    if (parentClasses.match(/error|invalid|danger|has-error/)) result.isError = true;
-                }
-
-                // Check for error message elements
-                // 1. aria-errormessage
-                const errId = el.getAttribute('aria-errormessage');
-                if (errId) {
-                    const errEl = document.getElementById(errId);
-                    if (errEl && errEl.offsetParent !== null) {
-                        result.hasErrorMessage = true;
-                        result.errorMessageText = errEl.textContent.trim();
-                        result.errorMessageSelector = '#' + errId;
-                        result.errorMessagePosition = getRelativePosition(el, errEl);
-                    }
-                }
-
-                // 2. aria-describedby pointing to error element
-                if (!result.hasErrorMessage) {
-                    const descBy = el.getAttribute('aria-describedby');
-                    if (descBy) {
-                        for (const id of descBy.split(/\s+/)) {
-                            const ref = document.getElementById(id);
-                            if (ref && ref.offsetParent !== null) {
-                                const refClasses = ref.className.toString().toLowerCase();
-                                if (refClasses.match(/error|invalid|help/)) {
-                                    result.hasErrorMessage = true;
-                                    result.errorMessageText = ref.textContent.trim();
-                                    result.errorMessageSelector = '#' + id;
-                                    result.errorMessagePosition = getRelativePosition(el, ref);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 3. Adjacent sibling with error class
-                if (!result.hasErrorMessage) {
-                    const sibling = el.nextElementSibling;
-                    if (sibling && sibling.offsetParent !== null) {
-                        const sibClasses = sibling.className.toString().toLowerCase();
-                        if (sibClasses.match(/error|invalid|validation|help-block|field-error/)) {
-                            result.hasErrorMessage = true;
-                            result.errorMessageText = sibling.textContent.trim();
-                            result.errorMessageSelector = buildSel(sibling);
-                            result.errorMessagePosition = 'below';
-                        }
-                    }
+                const errorInfo = findFieldErrorMessage(el);
+                if (errorInfo) {
+                    result.hasErrorMessage = true;
+                    result.errorMessageText = errorInfo.text;
+                    result.errorMessageSelector = errorInfo.selector;
+                    result.errorMessagePosition = getRelativePosition(el, errorInfo.element);
                 }
 
                 // 4. Check for error icon (svg, img, or ::before/::after with icon font)
@@ -211,7 +161,7 @@ internal static class VisualAnalyzer
                 const rect = el.getBoundingClientRect();
                 if (rect.width < 10 || rect.height < 10) return;
 
-                const elSelector = el.id ? '#' + el.id : (el.name ? el.tagName.toLowerCase() + '[name="' + el.name + '"]' : null);
+                const elSelector = buildStableSelector(el);
                 if (!elSelector) return;
 
                 // Computed styles

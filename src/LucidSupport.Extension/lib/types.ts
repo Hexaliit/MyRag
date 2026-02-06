@@ -10,6 +10,8 @@ export interface ExtractedField {
   minLength: number | null;
   maxLength: number | null;
   autocomplete: string | null;
+  hasError: boolean;
+  errorText: string | null;
 }
 
 /** A navigation link detected on the page. */

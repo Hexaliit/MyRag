@@ -17,7 +17,7 @@ internal static class SupportEndpoints
         var group = app.MapGroup("/api");
 
         // GET /api/support/page?url=/demo/contact.html → SupportPageModelDto
-        group.MapGet("/support/page", (string url, PageModelStore store) =>
+        group.MapGet("/support/page", (string url, IPageModelStore store) =>
         {
             var model = store.FindByUrl(url);
             if (model is null)
@@ -27,14 +27,14 @@ internal static class SupportEndpoints
         });
 
         // POST /api/help/contextual → HelpResponseDto
-        group.MapPost("/help/contextual", (PageContextDto dto, PageModelStore store, TemplateResponseEngine engine) =>
+        group.MapPost("/help/contextual", async (PageContextDto dto, IPageModelStore store, IResponseEngine engine) =>
         {
             var model = store.FindByUrl(dto.Url);
             if (model is null)
                 return Results.NotFound(new { error = "Unknown page" });
 
             var context = ToPageContext(dto);
-            var response = engine.GenerateResponse(model, context);
+            var response = await engine.GenerateResponseAsync(model, context);
 
             return Results.Ok(ToHelpResponseDto(response));
         });
@@ -103,7 +103,9 @@ internal static class SupportEndpoints
                 HasValue = kv.Value.HasValue,
                 HasError = kv.Value.HasError,
                 ErrorText = kv.Value.ErrorText,
-                HasFocus = kv.Value.HasFocus
+                HasFocus = kv.Value.HasFocus,
+                FocusCount = kv.Value.FocusCount,
+                DwellMs = kv.Value.DwellMs
             }),
         ViewportWidth = dto.ViewportWidth,
         Question = dto.Question
@@ -123,6 +125,15 @@ internal static class SupportEndpoints
             Id = t.Id,
             Label = t.Label
         }).ToList(),
-        Source = response.Source
+        Source = response.Source,
+        FieldGuidance = response.FieldGuidance.Select(g => new FieldGuidanceDto
+        {
+            Selector = g.Selector,
+            Pattern = g.Pattern,
+            FormatHint = g.FormatHint,
+            Example = g.Example,
+            PrivacyNote = g.PrivacyNote,
+            IsProactive = g.IsProactive
+        }).ToList()
     };
 }

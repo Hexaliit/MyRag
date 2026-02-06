@@ -19,6 +19,9 @@ public sealed record HelpResponse
 
     /// <summary>Source identifier for attribution (e.g., "checkout-payment/#card-number").</summary>
     public string? Source { get; init; }
+
+    /// <summary>Pattern-based field guidance hints.</summary>
+    public List<FieldGuidance> FieldGuidance { get; init; } = [];
 }
 
 /// <summary>

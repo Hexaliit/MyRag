@@ -73,6 +73,8 @@ public sealed record FieldStateDto
     public bool HasError { get; init; }
     public string? ErrorText { get; init; }
     public bool HasFocus { get; init; }
+    public int FocusCount { get; init; }
+    public int DwellMs { get; init; }
 }
 
 public sealed record HelpResponseDto
@@ -82,6 +84,17 @@ public sealed record HelpResponseDto
     public List<string> Suggestions { get; init; } = [];
     public List<TopicLinkDto> Topics { get; init; } = [];
     public string? Source { get; init; }
+    public List<FieldGuidanceDto> FieldGuidance { get; init; } = [];
+}
+
+public sealed record FieldGuidanceDto
+{
+    public required string Selector { get; init; }
+    public required string Pattern { get; init; }
+    public required string FormatHint { get; init; }
+    public string? Example { get; init; }
+    public string? PrivacyNote { get; init; }
+    public bool IsProactive { get; init; }
 }
 
 public sealed record HighlightTargetDto

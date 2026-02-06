@@ -1,5 +1,8 @@
 import type { ExtractedField, NavLink, PageExtractionResult } from './types';
 
+const ERROR_CLASS_RE =
+  /\b(error|invalid|danger|has-error|is-invalid|field-error|ng-invalid|validation|warning|help-block)\b/i;
+
 /**
  * Build a CSS selector for an element.
  * Prefers #id, then tag[name="..."], then a structural path fallback.
@@ -77,6 +80,67 @@ function findLabel(el: Element): string {
   return htmlEl.name || '';
 }
 
+function isVisibleElement(el: Element | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (el.hidden) return false;
+  const computed = window.getComputedStyle(el);
+  if (computed.display === 'none' || computed.visibility === 'hidden') return false;
+  return el.offsetParent !== null;
+}
+
+function elementHasErrorClass(el: Element | null): boolean {
+  return !!el && ERROR_CLASS_RE.test(el.className.toString());
+}
+
+function findFieldErrorMessage(el: Element): string | null {
+  const errId = el.getAttribute('aria-errormessage');
+  if (errId) {
+    const errEl = document.getElementById(errId);
+    const text = errEl?.textContent?.trim();
+    if (isVisibleElement(errEl) && text) return text;
+  }
+
+  const descBy = el.getAttribute('aria-describedby');
+  if (descBy) {
+    for (const id of descBy.split(/\s+/)) {
+      const ref = document.getElementById(id);
+      const text = ref?.textContent?.trim();
+      if (isVisibleElement(ref) && elementHasErrorClass(ref) && text) return text;
+    }
+  }
+
+  const sib = el.nextElementSibling;
+  const sibText = sib?.textContent?.trim();
+  if (isVisibleElement(sib) && elementHasErrorClass(sib) && sibText) return sibText;
+
+  const parent = el.parentElement;
+  if (parent) {
+    const errChild = parent.querySelector(
+      '[role="alert"], .error-message, .field-error, .validation-message, .invalid-feedback, .text-danger',
+    );
+    const childText = errChild?.textContent?.trim();
+    if (isVisibleElement(errChild) && childText) return childText;
+  }
+
+  return null;
+}
+
+function isFieldInErrorState(el: Element): boolean {
+  if (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement
+  ) {
+    if (!el.validity.valid) return true;
+  }
+
+  if (el.getAttribute('aria-invalid') === 'true') return true;
+  if (elementHasErrorClass(el)) return true;
+  if (elementHasErrorClass(el.parentElement)) return true;
+
+  return findFieldErrorMessage(el) !== null;
+}
+
 /**
  * Extract all interactive form fields from the current page.
  * Ported from FormFieldExtractor.cs lines 78-104.
@@ -99,14 +163,15 @@ export function extractFields(): ExtractedField[] {
     )
       return;
 
-    const computed = window.getComputedStyle(el);
-    if (computed.display === 'none' || computed.visibility === 'hidden') return;
+    if (!isVisibleElement(el)) return;
 
     const autocomplete = htmlEl.autocomplete;
     const normalizedAutocomplete =
       autocomplete && autocomplete !== 'on' && autocomplete !== 'off'
         ? autocomplete
         : null;
+
+    const errorText = findFieldErrorMessage(el);
 
     fields.push({
       selector: buildSelector(el),
@@ -124,6 +189,8 @@ export function extractFields(): ExtractedField[] {
           ? htmlEl.maxLength
           : null,
       autocomplete: normalizedAutocomplete,
+      hasError: isFieldInErrorState(el),
+      errorText,
     });
   });
 
@@ -158,11 +225,7 @@ function buildNavSelector(el: Element): string | null {
   const htmlEl = el as HTMLInputElement;
   if (htmlEl.name)
     return `${el.tagName.toLowerCase()}[name="${htmlEl.name}"]`;
-  const text = (el.textContent?.trim() || '').substring(0, 30);
-  if (el.tagName === 'BUTTON' || el.tagName === 'A') {
-    return `${el.tagName.toLowerCase()}:has-text("${text}")`;
-  }
-  return null;
+  return buildSelector(el);
 }
 
 /**
@@ -177,8 +240,7 @@ export function extractNavigation(): Record<string, NavLink> {
   );
 
   candidates.forEach((el) => {
-    const computed = window.getComputedStyle(el);
-    if (computed.display === 'none' || computed.visibility === 'hidden') return;
+    if (!isVisibleElement(el)) return;
 
     const htmlEl = el as HTMLInputElement;
     const text =

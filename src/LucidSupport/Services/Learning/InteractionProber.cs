@@ -301,27 +301,15 @@ internal static class InteractionProber
                 // Check for validation state
                 var validationState = await page.EvaluateAsync<string>($$"""
                     (sel) => {
+                        {{DomScriptSnippets.BuildStableSelectorFunction}}
+                        {{DomScriptSnippets.ErrorDetectionHelpers}}
                         const el = document.querySelector(sel);
                         if (!el) return JSON.stringify({ isInvalid: false, errorMessage: null, newElements: false });
 
-                        const isInvalid = el.getAttribute('aria-invalid') === 'true' || !el.validity?.valid;
+                        const isInvalid = isFieldInErrorState(el);
                         let errorMessage = el.validationMessage || null;
-
-                        // Check for custom error messages
-                        const errId = el.getAttribute('aria-errormessage');
-                        if (errId) {
-                            const errEl = document.getElementById(errId);
-                            if (errEl && errEl.offsetParent !== null) errorMessage = errEl.textContent.trim();
-                        }
-                        if (!errorMessage) {
-                            const sib = el.nextElementSibling;
-                            if (sib && sib.offsetParent !== null) {
-                                const classes = sib.className.toString().toLowerCase();
-                                if (classes.match(/error|invalid|validation/)) {
-                                    errorMessage = sib.textContent.trim();
-                                }
-                            }
-                        }
+                        const errorInfo = findFieldErrorMessage(el);
+                        if (errorInfo && errorInfo.text) errorMessage = errorInfo.text;
 
                         return JSON.stringify({ isInvalid, errorMessage, newElements: !!errorMessage });
                     }
@@ -554,11 +542,12 @@ internal static class InteractionProber
 
     private static async Task<Dictionary<string, RawFieldState>> CaptureFieldStatesAsync(IPage page)
     {
-        var json = await page.EvaluateAsync<string>("""
+        var json = await page.EvaluateAsync<string>($$"""
             () => {
+                {{DomScriptSnippets.BuildStableSelectorFunction}}
                 const result = {};
                 document.querySelectorAll('input, select, textarea, [role="textbox"]').forEach(el => {
-                    const sel = el.id ? '#' + el.id : (el.name ? el.tagName.toLowerCase() + '[name="' + el.name + '"]' : null);
+                    const sel = buildStableSelector(el);
                     if (!sel) return;
                     const cs = window.getComputedStyle(el);
                     result[sel] = {

@@ -1,4 +1,5 @@
 using LucidSupport.Models;
+using LucidSupport.Services.Guidance;
 
 namespace LucidSupport.Services.Runtime;
 
@@ -6,10 +7,15 @@ namespace LucidSupport.Services.Runtime;
 ///     Composes HelpResponse from PageModel + PageContext without any LLM.
 ///     Uses fuzzy matching against topics, field help text, and condition rules.
 /// </summary>
-internal sealed class TemplateResponseEngine
+internal sealed class TemplateResponseEngine(ConditionEvaluator conditionEvaluator) : IResponseEngine
 {
+    private readonly ConditionEvaluator _conditionEvaluator = conditionEvaluator;
     /// <summary>Generate a contextual help response given a page model and runtime context.</summary>
-    public HelpResponse GenerateResponse(PageModel model, PageContext context)
+    public Task<HelpResponse> GenerateResponseAsync(PageModel model, PageContext context)
+        => Task.FromResult(GenerateResponse(model, context));
+
+    /// <summary>Generate a contextual help response (synchronous core logic).</summary>
+    internal HelpResponse GenerateResponse(PageModel model, PageContext context)
     {
         var text = "";
         var highlights = new List<HighlightTarget>();
@@ -56,7 +62,7 @@ internal sealed class TemplateResponseEngine
         // 4. Conditions triggered? → append condition text
         if (string.IsNullOrEmpty(text))
         {
-            var conditionMatches = ConditionEvaluator.Evaluate(model.Conditions, context);
+            var conditionMatches = _conditionEvaluator.Evaluate(model.Conditions, context);
             if (conditionMatches.Count > 0)
             {
                 var first = conditionMatches[0];
@@ -84,14 +90,56 @@ internal sealed class TemplateResponseEngine
             suggestions.Add($"Help with {field.Label}");
         }
 
+        // 6. Pattern guidance pass
+        var fieldGuidance = GenerateFieldGuidance(model, context);
+
         return new HelpResponse
         {
             Text = text,
             Highlights = highlights,
             Suggestions = suggestions,
             Topics = topics,
-            Source = source
+            Source = source,
+            FieldGuidance = fieldGuidance
         };
+    }
+
+    /// <summary>
+    ///     Generate pattern-based guidance for fields based on interaction signals.
+    ///     Shows guidance when: field has focus, user is struggling (focus count > 2 without value),
+    ///     or user has dwelled for a long time without entering a value.
+    /// </summary>
+    private static List<FieldGuidance> GenerateFieldGuidance(PageModel model, PageContext context)
+    {
+        var guidance = new List<FieldGuidance>();
+
+        foreach (var (selector, state) in context.FieldStates)
+        {
+            var field = model.Fields.FirstOrDefault(f => f.Selector == selector);
+            if (field?.Pattern is null) continue;
+
+            var patternGuidance = PatternGuidanceRegistry.Get(field.Pattern);
+            if (patternGuidance is null) continue;
+
+            // Show if: has focus, OR struggling (3+ focus visits without value), OR long dwell without value
+            var shouldShow = state.HasFocus
+                             || (state.FocusCount > 2 && !state.HasValue)
+                             || (state.DwellMs > 10_000 && !state.HasValue);
+
+            if (!shouldShow) continue;
+
+            guidance.Add(new FieldGuidance
+            {
+                Selector = selector,
+                Pattern = field.Pattern,
+                FormatHint = patternGuidance.FormatHint,
+                Example = patternGuidance.Example,
+                PrivacyNote = patternGuidance.PrivacyNote,
+                IsProactive = !state.HasError
+            });
+        }
+
+        return guidance;
     }
 
     private static PartialResponse? MatchQuestion(PageModel model, string question)

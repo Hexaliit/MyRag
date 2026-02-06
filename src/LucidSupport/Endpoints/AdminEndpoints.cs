@@ -1,4 +1,3 @@
-using LucidSupport.Commands;
 using LucidSupport.Models;
 using LucidSupport.Services.Learning;
 using LucidSupport.Services.Runtime;
@@ -18,14 +17,14 @@ internal static class AdminEndpoints
         var group = app.MapGroup("/api/admin");
 
         // GET /api/admin/pages — list all page models (summary)
-        group.MapGet("/pages", (PageModelStore store) =>
+        group.MapGet("/pages", (IPageModelStore store) =>
         {
             var summaries = store.GetAll().Select(ToSummaryDto).ToList();
             return Results.Ok(summaries);
         });
 
         // POST /api/admin/pages — create a new page model (from extension)
-        group.MapPost("/pages", (PageCreateDto dto, PageModelStore store, SupportConfig config) =>
+        group.MapPost("/pages", (PageCreateDto dto, IPageModelStore store, LucidSupportConfig config) =>
         {
             if (store.FindByPageId(dto.PageId) is not null)
                 return Results.Conflict(new { error = $"Page '{dto.PageId}' already exists" });
@@ -38,41 +37,13 @@ internal static class AdminEndpoints
                 Description = dto.Description,
                 Site = dto.Site,
                 Learned = DateTimeOffset.UtcNow,
-                Fields = dto.Fields?.Select(f => new FieldDefinition
-                {
-                    Selector = f.Selector,
-                    Label = f.Label,
-                    Type = f.Type,
-                    DisplayLabel = f.DisplayLabel,
-                    Placeholder = f.Placeholder,
-                    Pattern = f.Pattern,
-                    Required = f.Required,
-                    MinLength = f.MinLength,
-                    MaxLength = f.MaxLength,
-                    Autocomplete = f.Autocomplete,
-                    Help = f.Help
-                }).ToList() ?? [],
-                Sections = dto.Sections?.Select(s => new Section
-                {
-                    Id = s.Id,
-                    Label = s.Label,
-                    Fields = s.Fields,
-                    Order = s.Order
-                }).ToList() ?? [],
-                Conditions = dto.Conditions?.Select(c => new ConditionRule
-                {
-                    When = c.When,
-                    Suggest = c.Suggest,
-                    Highlight = c.Highlight
-                }).ToList() ?? [],
-                Topics = dto.Topics?.Select(t => new TopicMapping
-                {
-                    Question = t.Question,
-                    ArticleId = t.ArticleId
-                }).ToList() ?? []
+                Fields = dto.Fields?.Select(ToFieldDefinition).ToList() ?? [],
+                Sections = dto.Sections?.Select(ToSection).ToList() ?? [],
+                Conditions = dto.Conditions?.Select(ToConditionRule).ToList() ?? [],
+                Topics = dto.Topics?.Select(ToTopicMapping).ToList() ?? []
             };
 
-            var filePath = Path.Combine(config.SupportDir, $"{dto.PageId}.support.md");
+            var filePath = Path.Combine(config.SupportDirectory, $"{dto.PageId}.support.md");
             SupportMarkdownWriter.WriteFile(model, filePath);
             store.Add(model, filePath);
 
@@ -80,7 +51,7 @@ internal static class AdminEndpoints
         });
 
         // GET /api/admin/pages/{pageId} — full detail
-        group.MapGet("/pages/{pageId}", (string pageId, PageModelStore store) =>
+        group.MapGet("/pages/{pageId}", (string pageId, IPageModelStore store) =>
         {
             var model = store.FindByPageId(pageId);
             if (model is null)
@@ -90,7 +61,7 @@ internal static class AdminEndpoints
         });
 
         // PUT /api/admin/pages/{pageId} — update + write .support.md
-        group.MapPut("/pages/{pageId}", (string pageId, PageUpdateDto dto, PageModelStore store) =>
+        group.MapPut("/pages/{pageId}", (string pageId, PageUpdateDto dto, IPageModelStore store) =>
         {
             var existing = store.FindByPageId(pageId);
             if (existing is null)
@@ -108,7 +79,7 @@ internal static class AdminEndpoints
         });
 
         // DELETE /api/admin/pages/{pageId} — remove from store + delete file
-        group.MapDelete("/pages/{pageId}", (string pageId, PageModelStore store) =>
+        group.MapDelete("/pages/{pageId}", (string pageId, IPageModelStore store) =>
         {
             var filePath = store.GetFilePath(pageId);
             if (!store.Remove(pageId))
@@ -122,7 +93,7 @@ internal static class AdminEndpoints
 
         // POST /api/admin/pages/{pageId}/simulate — run TemplateResponseEngine
         group.MapPost("/pages/{pageId}/simulate",
-            (string pageId, SimulateRequestDto dto, PageModelStore store, TemplateResponseEngine engine) =>
+            async (string pageId, SimulateRequestDto dto, IPageModelStore store, IResponseEngine engine, ConditionEvaluator conditionEvaluator) =>
             {
                 var model = store.FindByPageId(pageId);
                 if (model is null)
@@ -145,8 +116,8 @@ internal static class AdminEndpoints
                     Question = dto.Question
                 };
 
-                var response = engine.GenerateResponse(model, context);
-                var matchedConditions = ConditionEvaluator.Evaluate(model.Conditions, context);
+                var response = await engine.GenerateResponseAsync(model, context);
+                var matchedConditions = conditionEvaluator.Evaluate(model.Conditions, context);
 
                 var debug = new List<string>();
                 foreach (var mc in matchedConditions)
@@ -180,7 +151,7 @@ internal static class AdminEndpoints
             });
 
         // GET /api/admin/pages/{pageId}/export — download .support.md
-        group.MapGet("/pages/{pageId}/export", (string pageId, PageModelStore store) =>
+        group.MapGet("/pages/{pageId}/export", (string pageId, IPageModelStore store) =>
         {
             var model = store.FindByPageId(pageId);
             if (model is null)
@@ -192,7 +163,7 @@ internal static class AdminEndpoints
 
         // POST /api/admin/pages/{pageId}/workflow/evaluate — evaluate workflow rules
         group.MapPost("/pages/{pageId}/workflow/evaluate",
-            (string pageId, WorkflowEvaluateDto dto, PageModelStore store, WorkflowEvaluator evaluator) =>
+            (string pageId, WorkflowEvaluateDto dto, IPageModelStore store, WorkflowEvaluator evaluator) =>
             {
                 var model = store.FindByPageId(pageId);
                 if (model is null)
@@ -250,56 +221,12 @@ internal static class AdminEndpoints
         Step = model.Step,
         Prev = model.Prev,
         Next = model.Next,
-        Fields = model.Fields.Select(f => new AdminFieldDto
-        {
-            Selector = f.Selector,
-            Label = f.Label,
-            Type = f.Type,
-            DisplayLabel = f.DisplayLabel,
-            Placeholder = f.Placeholder,
-            Pattern = f.Pattern,
-            Required = f.Required,
-            MinLength = f.MinLength,
-            MaxLength = f.MaxLength,
-            Autocomplete = f.Autocomplete,
-            ClientValidation = f.ClientValidation,
-            ServerValidation = f.ServerValidation,
-            Errors = f.Errors,
-            Help = f.Help
-        }).ToList(),
-        Sections = model.Sections.Select(s => new AdminSectionDto
-        {
-            Id = s.Id,
-            Label = s.Label,
-            Fields = s.Fields,
-            Order = s.Order
-        }).ToList(),
-        Conditions = model.Conditions.Select(c => new ConditionRuleDto
-        {
-            When = c.When,
-            Suggest = c.Suggest,
-            Highlight = c.Highlight
-        }).ToList(),
-        Topics = model.Topics.Select(t => new TopicMappingDto
-        {
-            Question = t.Question,
-            ArticleId = t.ArticleId
-        }).ToList(),
-        WorkflowRules = model.WorkflowRules.Select(w => new AdminWorkflowRuleDto
-        {
-            When = w.When,
-            Action = w.Action,
-            Target = w.Target,
-            Priority = w.Priority
-        }).ToList(),
-        Escalation = model.Escalation is not null
-            ? new AdminEscalationDto
-            {
-                Plugin = model.Escalation.Plugin,
-                Url = model.Escalation.Url,
-                Threshold = model.Escalation.Threshold
-            }
-            : null
+        Fields = model.Fields.Select(ToAdminFieldDto).ToList(),
+        Sections = model.Sections.Select(ToAdminSectionDto).ToList(),
+        Conditions = model.Conditions.Select(ToConditionRuleDto).ToList(),
+        Topics = model.Topics.Select(ToTopicMappingDto).ToList(),
+        WorkflowRules = model.WorkflowRules.Select(ToAdminWorkflowRuleDto).ToList(),
+        Escalation = model.Escalation is not null ? ToAdminEscalationDto(model.Escalation) : null
     };
 
     private static PageModel ApplyUpdate(PageModel existing, PageUpdateDto dto) => existing with
@@ -312,55 +239,119 @@ internal static class AdminEndpoints
         Step = dto.Step ?? existing.Step,
         Prev = dto.Prev ?? existing.Prev,
         Next = dto.Next ?? existing.Next,
-        Fields = dto.Fields?.Select(f => new FieldDefinition
-        {
-            Selector = f.Selector,
-            Label = f.Label,
-            Type = f.Type,
-            DisplayLabel = f.DisplayLabel,
-            Placeholder = f.Placeholder,
-            Pattern = f.Pattern,
-            Required = f.Required,
-            MinLength = f.MinLength,
-            MaxLength = f.MaxLength,
-            Autocomplete = f.Autocomplete,
-            ClientValidation = f.ClientValidation,
-            ServerValidation = f.ServerValidation,
-            Errors = f.Errors,
-            Help = f.Help
-        }).ToList() ?? existing.Fields,
-        Sections = dto.Sections?.Select(s => new Section
-        {
-            Id = s.Id,
-            Label = s.Label,
-            Fields = s.Fields,
-            Order = s.Order
-        }).ToList() ?? existing.Sections,
-        Conditions = dto.Conditions?.Select(c => new ConditionRule
-        {
-            When = c.When,
-            Suggest = c.Suggest,
-            Highlight = c.Highlight
-        }).ToList() ?? existing.Conditions,
-        Topics = dto.Topics?.Select(t => new TopicMapping
-        {
-            Question = t.Question,
-            ArticleId = t.ArticleId
-        }).ToList() ?? existing.Topics,
-        WorkflowRules = dto.WorkflowRules?.Select(w => new WorkflowRule
-        {
-            When = w.When,
-            Action = w.Action,
-            Target = w.Target,
-            Priority = w.Priority
-        }).ToList() ?? existing.WorkflowRules,
-        Escalation = dto.Escalation is not null
-            ? new EscalationConfig
-            {
-                Plugin = dto.Escalation.Plugin,
-                Url = dto.Escalation.Url,
-                Threshold = dto.Escalation.Threshold
-            }
-            : existing.Escalation
+        Fields = dto.Fields?.Select(ToFieldDefinition).ToList() ?? existing.Fields,
+        Sections = dto.Sections?.Select(ToSection).ToList() ?? existing.Sections,
+        Conditions = dto.Conditions?.Select(ToConditionRule).ToList() ?? existing.Conditions,
+        Topics = dto.Topics?.Select(ToTopicMapping).ToList() ?? existing.Topics,
+        WorkflowRules = dto.WorkflowRules?.Select(ToWorkflowRule).ToList() ?? existing.WorkflowRules,
+        Escalation = dto.Escalation is not null ? ToEscalationConfig(dto.Escalation) : existing.Escalation
+    };
+
+    private static FieldDefinition ToFieldDefinition(AdminFieldDto dto) => new()
+    {
+        Selector = dto.Selector,
+        Label = dto.Label,
+        Type = dto.Type,
+        DisplayLabel = dto.DisplayLabel,
+        Placeholder = dto.Placeholder,
+        Pattern = dto.Pattern,
+        Required = dto.Required,
+        MinLength = dto.MinLength,
+        MaxLength = dto.MaxLength,
+        Autocomplete = dto.Autocomplete,
+        ClientValidation = dto.ClientValidation,
+        ServerValidation = dto.ServerValidation,
+        Errors = dto.Errors,
+        Help = dto.Help
+    };
+
+    private static AdminFieldDto ToAdminFieldDto(FieldDefinition field) => new()
+    {
+        Selector = field.Selector,
+        Label = field.Label,
+        Type = field.Type,
+        DisplayLabel = field.DisplayLabel,
+        Placeholder = field.Placeholder,
+        Pattern = field.Pattern,
+        Required = field.Required,
+        MinLength = field.MinLength,
+        MaxLength = field.MaxLength,
+        Autocomplete = field.Autocomplete,
+        ClientValidation = field.ClientValidation,
+        ServerValidation = field.ServerValidation,
+        Errors = field.Errors,
+        Help = field.Help
+    };
+
+    private static Section ToSection(AdminSectionDto dto) => new()
+    {
+        Id = dto.Id,
+        Label = dto.Label,
+        Fields = dto.Fields,
+        Order = dto.Order
+    };
+
+    private static AdminSectionDto ToAdminSectionDto(Section section) => new()
+    {
+        Id = section.Id,
+        Label = section.Label,
+        Fields = section.Fields,
+        Order = section.Order
+    };
+
+    private static ConditionRule ToConditionRule(ConditionRuleDto dto) => new()
+    {
+        When = dto.When,
+        Suggest = dto.Suggest,
+        Highlight = dto.Highlight
+    };
+
+    private static ConditionRuleDto ToConditionRuleDto(ConditionRule condition) => new()
+    {
+        When = condition.When,
+        Suggest = condition.Suggest,
+        Highlight = condition.Highlight
+    };
+
+    private static TopicMapping ToTopicMapping(TopicMappingDto dto) => new()
+    {
+        Question = dto.Question,
+        ArticleId = dto.ArticleId
+    };
+
+    private static TopicMappingDto ToTopicMappingDto(TopicMapping topic) => new()
+    {
+        Question = topic.Question,
+        ArticleId = topic.ArticleId
+    };
+
+    private static WorkflowRule ToWorkflowRule(AdminWorkflowRuleDto dto) => new()
+    {
+        When = dto.When,
+        Action = dto.Action,
+        Target = dto.Target,
+        Priority = dto.Priority
+    };
+
+    private static AdminWorkflowRuleDto ToAdminWorkflowRuleDto(WorkflowRule rule) => new()
+    {
+        When = rule.When,
+        Action = rule.Action,
+        Target = rule.Target,
+        Priority = rule.Priority
+    };
+
+    private static EscalationConfig ToEscalationConfig(AdminEscalationDto dto) => new()
+    {
+        Plugin = dto.Plugin,
+        Url = dto.Url,
+        Threshold = dto.Threshold
+    };
+
+    private static AdminEscalationDto ToAdminEscalationDto(EscalationConfig config) => new()
+    {
+        Plugin = config.Plugin,
+        Url = config.Url,
+        Threshold = config.Threshold
     };
 }

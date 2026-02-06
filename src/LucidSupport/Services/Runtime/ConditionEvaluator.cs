@@ -6,10 +6,10 @@ namespace LucidSupport.Services.Runtime;
 ///     Server-side condition rule evaluator. Mirrors the widget's conditions.ts logic
 ///     so the API can proactively include condition-based help in responses.
 /// </summary>
-internal static class ConditionEvaluator
+internal sealed class ConditionEvaluator
 {
     /// <summary>Evaluate all conditions against the given page context, returning those that match.</summary>
-    public static List<ConditionRule> Evaluate(IReadOnlyList<ConditionRule> rules, PageContext context)
+    public List<ConditionRule> Evaluate(IReadOnlyList<ConditionRule> rules, PageContext context)
     {
         var matched = new List<ConditionRule>();
         foreach (var rule in rules)
@@ -21,14 +21,14 @@ internal static class ConditionEvaluator
         return matched;
     }
 
-    private static bool EvaluateRule(ConditionRule rule, PageContext context)
+    private bool EvaluateRule(ConditionRule rule, PageContext context)
     {
         // Rules support AND-combined parts
         var parts = rule.When.Split([" AND ", " and "], StringSplitOptions.TrimEntries);
         return parts.All(part => EvaluatePart(part, context));
     }
 
-    private static bool EvaluatePart(string expr, PageContext context)
+    private bool EvaluatePart(string expr, PageContext context)
     {
         // [#selector].error — field is in error state
         if (TryMatchFieldCondition(expr, out var selector, out var prop))
@@ -64,7 +64,7 @@ internal static class ConditionEvaluator
     }
 
     /// <summary>Parse "[#selector].property" format.</summary>
-    private static bool TryMatchFieldCondition(string expr, out string selector, out string property)
+    private static bool TryMatchFieldCondition(string expr, out string selector, out string property)  // can remain static - pure function
     {
         selector = "";
         property = "";

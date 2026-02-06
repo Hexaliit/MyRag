@@ -37,4 +37,10 @@ public sealed record FieldState
 
     /// <summary>Whether the field currently has focus.</summary>
     public bool HasFocus { get; init; }
+
+    /// <summary>Number of times this field has received focus.</summary>
+    public int FocusCount { get; init; }
+
+    /// <summary>Total milliseconds the user has spent focused on this field.</summary>
+    public int DwellMs { get; init; }
 }

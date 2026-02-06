@@ -6,7 +6,7 @@ namespace LucidSupport.Services.Runtime;
 ///     In-memory store of loaded PageModels, indexed by URL pattern and page_id.
 ///     Loaded at startup from .support.md files.
 /// </summary>
-internal sealed class PageModelStore
+internal sealed class PageModelStore : IPageModelStore
 {
     private readonly List<PageModel> _models = [];
     private readonly Dictionary<string, PageModel> _byPageId = new(StringComparer.OrdinalIgnoreCase);

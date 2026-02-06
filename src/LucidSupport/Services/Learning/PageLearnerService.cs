@@ -238,17 +238,11 @@ internal sealed class PageLearnerService : IAsyncDisposable
             if (string.IsNullOrEmpty(help) && probeField?.FocusEffect.HelpText is not null)
                 help = probeField.FocusEffect.HelpText;
 
-            // Find visual info for this field
-            var visual = visualAnalysis.Fields.FirstOrDefault(v => v.Selector == f.Selector);
-
-            // Build server validation from probe results
-            var serverValidation = new List<string>(f.ServerValidation);
-
             return f with
             {
                 Errors = errors,
                 Help = help,
-                ServerValidation = serverValidation
+                ServerValidation = f.ServerValidation
             };
         }).ToList();
     }

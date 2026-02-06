@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using LucidSupport.Endpoints;
+using LucidSupport.Extensions;
+using LucidSupport.Models;
 using LucidSupport.Services.Ingestion;
+using LucidSupport.Services.Knowledge;
 using LucidSupport.Services.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Json;
@@ -11,11 +14,6 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace LucidSupport.Commands;
-
-/// <summary>
-///     Exposes the resolved support directory path to endpoints that need to write new files.
-/// </summary>
-internal sealed record SupportConfig(string SupportDir);
 
 internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
 {
@@ -30,6 +28,20 @@ internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
         [Description("Directory containing .support.md files")]
         [DefaultValue("support-files")]
         public string SupportDir { get; set; } = "support-files";
+
+        [CommandOption("--ai")]
+        [Description("Enable AI-powered feedback via Ollama")]
+        [DefaultValue(false)]
+        public bool EnableAi { get; set; }
+
+        [CommandOption("--ollama-url")]
+        [Description("Ollama API base URL")]
+        [DefaultValue("http://localhost:11434")]
+        public string OllamaUrl { get; set; } = "http://localhost:11434";
+
+        [CommandOption("--manual-dir")]
+        [Description("Directory containing manual/knowledge files")]
+        public string? ManualDir { get; set; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
@@ -50,39 +62,35 @@ internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
             return 1;
         }
 
-        // Load all .support.md files
-        var store = new PageModelStore();
-        var supportFiles = Directory.GetFiles(supportDir, "*.support.md", SearchOption.AllDirectories);
-
-        foreach (var file in supportFiles)
+        // Build configuration
+        var config = new LucidSupportConfig
         {
-            try
-            {
-                var model = SupportMarkdownParser.ParseFile(file);
-                store.Add(model, file);
-                AnsiConsole.MarkupLine($"  [green]✓[/] Loaded [cyan]{Path.GetFileName(file)}[/] → {model.PageId} ({model.Fields.Count} fields)");
-            }
-            catch (Exception ex)
-            {
-                AnsiConsole.MarkupLine($"  [yellow]⚠[/] Skipped [cyan]{Path.GetFileName(file)}[/]: {ex.Message}");
-            }
-        }
-
-        if (store.Count == 0)
-        {
-            AnsiConsole.MarkupLine("[yellow]No .support.md files loaded. The API will return 404 for all pages.[/]");
-        }
+            SupportDirectory = supportDir,
+            OllamaBaseUrl = settings.OllamaUrl,
+            EnableAiFeedback = settings.EnableAi,
+            ManualDirectory = settings.ManualDir is not null ? ResolvePath(settings.ManualDir) : null
+        };
 
         // Build web application
         var builder = WebApplication.CreateBuilder();
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
-        // Register services
-        builder.Services.AddSingleton(new SupportConfig(supportDir));
-        builder.Services.AddSingleton(store);
-        builder.Services.AddSingleton<TemplateResponseEngine>();
-        builder.Services.AddSingleton<WorkflowEvaluator>();
+        // Register core services via extension methods
+        builder.Services.AddLucidSupportRuntime(config);
+        builder.Services.AddEscalationPlugins();
         builder.Services.AddCors();
+
+        // Register manual knowledge if directory specified
+        if (config.ManualDirectory is not null && Directory.Exists(config.ManualDirectory))
+        {
+            builder.Services.AddManualKnowledge(config.ManualDirectory);
+        }
+
+        // Register AI feedback if enabled
+        if (config.EnableAiFeedback)
+        {
+            builder.Services.AddAiFeedback(config);
+        }
 
         // Configure camelCase JSON (matches TypeScript types exactly)
         builder.Services.Configure<JsonOptions>(options =>
@@ -91,6 +99,18 @@ internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
         });
 
         var app = builder.Build();
+
+        // Load .support.md files into the store
+        var store = app.Services.GetRequiredService<IPageModelStore>();
+        LoadSupportFiles(store, supportDir);
+
+        // Load knowledge files if manual directory specified
+        if (config.ManualDirectory is not null && Directory.Exists(config.ManualDirectory))
+        {
+            var knowledgeStore = app.Services.GetService<ManualKnowledgeStore>();
+            if (knowledgeStore is not null)
+                LoadKnowledgeFiles(knowledgeStore, config.ManualDirectory);
+        }
 
         // CORS (allow all for demo)
         app.UseCors(policy => policy
@@ -120,12 +140,66 @@ internal sealed class ServeCommand : AsyncCommand<ServeCommand.Settings>
         AnsiConsole.MarkupLine($"  [green]►[/] API:   [cyan]POST /api/help/contextual[/]");
         AnsiConsole.MarkupLine($"  [green]►[/] Admin: [cyan]GET  /api/admin/pages[/]");
         AnsiConsole.MarkupLine($"  [green]►[/] Loaded [yellow]{store.Count}[/] support models from [cyan]{supportDir}[/]");
+
+        if (config.ManualDirectory is not null)
+            AnsiConsole.MarkupLine($"  [green]►[/] Knowledge: [cyan]{config.ManualDirectory}[/]");
+
+        if (config.EnableAiFeedback)
+            AnsiConsole.MarkupLine($"  [green]►[/] AI Feedback: [cyan]{config.OllamaBaseUrl}[/] ({config.SentinelModel})");
+
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("  Press [yellow]Ctrl+C[/] to stop.");
         AnsiConsole.WriteLine();
 
         await app.RunAsync($"http://localhost:{settings.Port}");
         return 0;
+    }
+
+    private static void LoadSupportFiles(IPageModelStore store, string supportDir)
+    {
+        var supportFiles = Directory.GetFiles(supportDir, "*.support.md", SearchOption.AllDirectories);
+
+        foreach (var file in supportFiles)
+        {
+            try
+            {
+                var model = SupportMarkdownParser.ParseFile(file);
+                store.Add(model, file);
+                AnsiConsole.MarkupLine(
+                    $"  [green]✓[/] Loaded [cyan]{Path.GetFileName(file)}[/] → {model.PageId} ({model.Fields.Count} fields)");
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine(
+                    $"  [yellow]⚠[/] Skipped [cyan]{Path.GetFileName(file)}[/]: {ex.Message}");
+            }
+        }
+
+        if (store.Count == 0)
+        {
+            AnsiConsole.MarkupLine(
+                "[yellow]No .support.md files loaded. The API will return 404 for all pages.[/]");
+        }
+    }
+
+    private static void LoadKnowledgeFiles(ManualKnowledgeStore knowledgeStore, string manualDir)
+    {
+        var knowledgeFiles = Directory.GetFiles(manualDir, "*.knowledge.json", SearchOption.AllDirectories);
+
+        foreach (var file in knowledgeFiles)
+        {
+            try
+            {
+                knowledgeStore.LoadFromFile(file);
+                AnsiConsole.MarkupLine(
+                    $"  [green]✓[/] Knowledge: [cyan]{Path.GetFileName(file)}[/]");
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine(
+                    $"  [yellow]⚠[/] Skipped knowledge [cyan]{Path.GetFileName(file)}[/]: {ex.Message}");
+            }
+        }
     }
 
     /// <summary>

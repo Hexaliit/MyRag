@@ -2,7 +2,7 @@
 // Renders FAB, toasts, panel, highlights. All DOM via template literals + direct API.
 // No innerHTML (XSS-safe). No external resources.
 
-import type { HelpResponse, ConditionRule, SupportPageModel } from './types';
+import type { HelpResponse, ConditionRule, SupportPageModel, FieldGuidance } from './types';
 import { STYLES } from './styles';
 
 // ── SVG Icons (inline, no external resources) ──
@@ -266,6 +266,62 @@ export function showResponse(elements: UIElements, response: HelpResponse, callb
     });
     elements.topicsArea.appendChild(link);
   }
+}
+
+// ── Field Guidance Rendering ──
+
+const activeGuidanceHints = new Map<string, HTMLElement>();
+
+export function showFieldGuidance(shadowRoot: ShadowRoot, guidance: FieldGuidance[]) {
+  // Clear previous hints
+  clearFieldGuidance();
+
+  for (const g of guidance) {
+    const target = document.querySelector(g.selector);
+    if (!target) continue;
+
+    const root = shadowRoot.querySelector('.ls-root');
+    if (!root) continue;
+
+    const rect = target.getBoundingClientRect();
+
+    const hint = document.createElement('div');
+    hint.className = g.isProactive ? 'ls-guidance ls-guidance-info' : 'ls-guidance ls-guidance-error';
+
+    // Position below the field
+    hint.style.position = 'fixed';
+    hint.style.top = `${rect.bottom + 4}px`;
+    hint.style.left = `${rect.left}px`;
+    hint.style.maxWidth = `${Math.max(rect.width, 280)}px`;
+    hint.style.pointerEvents = 'none';
+    hint.style.zIndex = '999998';
+
+    const text = document.createElement('span');
+    text.className = 'ls-guidance-text';
+    text.textContent = `Expected: ${g.formatHint}`;
+    if (g.example) text.textContent += ` (e.g. ${g.example})`;
+    hint.appendChild(text);
+
+    if (g.privacyNote) {
+      const privacy = document.createElement('span');
+      privacy.className = 'ls-guidance-privacy';
+      privacy.textContent = g.privacyNote;
+      hint.appendChild(privacy);
+    }
+
+    root.appendChild(hint);
+    activeGuidanceHints.set(g.selector, hint);
+
+    // Animate in
+    requestAnimationFrame(() => hint.classList.add('ls-guidance-visible'));
+  }
+}
+
+export function clearFieldGuidance() {
+  for (const [, hint] of activeGuidanceHints) {
+    hint.remove();
+  }
+  activeGuidanceHints.clear();
 }
 
 export function showLoading(elements: UIElements) {
