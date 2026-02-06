@@ -2,6 +2,7 @@ using LucidSupport.Models;
 using LucidSupport.Services.Escalation;
 using LucidSupport.Services.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Services;
 
@@ -45,14 +46,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Services.Knowledge.ManualKnowledgeStore>();
         services.AddSingleton<Services.Knowledge.ManualChunker>();
 
-        // Register ONNX embedding service for knowledge search
+        // Register ONNX embedding service for knowledge search (initialized via hosted service)
+        services.AddSingleton(new Mostlylucid.DocSummarizer.Services.Onnx.OnnxEmbeddingService(
+            new Mostlylucid.DocSummarizer.Config.OnnxConfig(), verbose: false));
         services.AddSingleton<IEmbeddingService>(sp =>
-        {
-            var onnxService = new Mostlylucid.DocSummarizer.Services.Onnx.OnnxEmbeddingService(
-                new Mostlylucid.DocSummarizer.Config.OnnxConfig(), verbose: false);
-            onnxService.InitializeAsync().GetAwaiter().GetResult();
-            return onnxService;
-        });
+            sp.GetRequiredService<Mostlylucid.DocSummarizer.Services.Onnx.OnnxEmbeddingService>());
+        services.AddHostedService<OnnxInitHostedService>();
 
         // Decorate IResponseEngine with AugmentedResponseEngine
         services.Decorate<IResponseEngine>((inner, sp) =>
@@ -71,8 +70,9 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddAiFeedback(
         this IServiceCollection services, LucidSupportConfig config)
     {
-        services.AddSingleton(new Services.AI.SupportOllamaClient(
-            config.OllamaBaseUrl, config.SentinelModel, config.SentinelMaxTokens));
+        services.AddSingleton(sp => new Services.AI.SupportOllamaClient(
+            config.OllamaBaseUrl, config.SentinelModel, config.SentinelMaxTokens,
+            sp.GetRequiredService<ILogger<Services.AI.SupportOllamaClient>>()));
         services.AddSingleton<Services.AI.IntentClassifier>();
 
         // Decorate IResponseEngine with AiResponseEngine
@@ -126,4 +126,21 @@ internal static class DecoratorExtensions
 
         return services;
     }
+}
+
+/// <summary>
+///     Initializes the ONNX embedding service on application startup without blocking DI.
+/// </summary>
+internal sealed class OnnxInitHostedService(
+    Mostlylucid.DocSummarizer.Services.Onnx.OnnxEmbeddingService onnxService,
+    ILogger<OnnxInitHostedService> logger) : IHostedService
+{
+    public async Task StartAsync(CancellationToken ct)
+    {
+        logger.LogInformation("Initializing ONNX embedding service...");
+        await onnxService.InitializeAsync(ct);
+        logger.LogInformation("ONNX embedding service ready");
+    }
+
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 }

@@ -16,7 +16,8 @@ import {
   showResponse, showLoading, showError, showWelcome, showHighlight,
   clearHighlights, detectTheme, showStrugglingToast, showActiveGuide,
   updateActiveGuide, showFieldHelp, hideFieldHelp, isFieldHelpVisible,
-  showSuccessTick, showCachedIndicator, type UICallbacks
+  showSuccessTick, showCachedIndicator, showFieldGuidance, clearFieldGuidance,
+  type UICallbacks
 } from './ui';
 
 // ── State Machine ──
@@ -150,6 +151,7 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
         closePanel(ui.panel, ui.fab);
         clearAllToasts(ui.toastContainer);
         clearHighlights();
+        clearFieldGuidance();
         completedFieldSelectors.clear();
         activeFieldIndex = -1;
         break;
@@ -291,6 +293,11 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
     // Show highlights
     for (const hl of response.highlights) {
       showHighlight(shadowRoot, hl.selector, hl.style);
+    }
+
+    // Show field guidance hints
+    if (response.fieldGuidance?.length) {
+      showFieldGuidance(shadowRoot, response.fieldGuidance);
     }
   }
 
@@ -592,6 +599,7 @@ export function initWidget(shadowRoot: ShadowRoot, config: WidgetConfig) {
       workflowEvaluator?.destroy();
       stopIdleTracking();
       clearHighlights();
+      clearFieldGuidance();
       hideFieldHelp();
       topicCache.clear();
     },

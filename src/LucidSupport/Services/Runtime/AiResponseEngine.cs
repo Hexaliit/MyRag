@@ -66,7 +66,7 @@ internal sealed class AiResponseEngine(
                 return baseResponse with
                 {
                     Text = polished,
-                    Source = (baseResponse.Source ?? "") + "+ai"
+                    Source = baseResponse.Source is not null ? $"{baseResponse.Source}+ai" : "ai"
                 };
             }
         }

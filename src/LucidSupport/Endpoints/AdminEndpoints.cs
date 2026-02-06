@@ -110,7 +110,9 @@ internal static class AdminEndpoints
                             HasValue = kv.Value.HasValue,
                             HasError = kv.Value.HasError,
                             ErrorText = kv.Value.ErrorText,
-                            HasFocus = kv.Value.HasFocus
+                            HasFocus = kv.Value.HasFocus,
+                            FocusCount = kv.Value.FocusCount,
+                            DwellMs = kv.Value.DwellMs
                         }),
                     ViewportWidth = null,
                     Question = dto.Question
@@ -141,6 +143,15 @@ internal static class AdminEndpoints
                         {
                             Id = t.Id,
                             Label = t.Label
+                        }).ToList(),
+                        FieldGuidance = response.FieldGuidance.Select(g => new FieldGuidanceDto
+                        {
+                            Selector = g.Selector,
+                            Pattern = g.Pattern,
+                            FormatHint = g.FormatHint,
+                            Example = g.Example,
+                            PrivacyNote = g.PrivacyNote,
+                            IsProactive = g.IsProactive
                         }).ToList(),
                         Source = response.Source
                     },

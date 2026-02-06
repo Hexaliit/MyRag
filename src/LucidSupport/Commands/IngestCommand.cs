@@ -53,7 +53,7 @@ internal sealed class IngestCommand : AsyncCommand<IngestCommand.Settings>
 
         // Initialize ONNX embedding service
         var onnxConfig = new OnnxConfig();
-        var embeddingService = new OnnxEmbeddingService(onnxConfig, verbose: false);
+        using var embeddingService = new OnnxEmbeddingService(onnxConfig, verbose: false);
         await embeddingService.InitializeAsync(ct);
 
         var chunker = new ManualChunker();

@@ -80,18 +80,19 @@ public sealed class ManualChunker
                 // Yield current buffer
                 yield return string.Join("\n\n", buffer);
 
-                // Keep last paragraph as overlap
-                var lastPara = buffer[^1];
+                // Keep last paragraph(s) as overlap up to overlap budget
+                var overlapBuffer = new List<string>();
+                var overlapLen = 0;
+                for (var i = buffer.Count - 1; i >= 0; i--)
+                {
+                    if (overlapLen + buffer[i].Length > overlap) break;
+                    overlapBuffer.Insert(0, buffer[i]);
+                    overlapLen += buffer[i].Length;
+                }
+
                 buffer.Clear();
-                if (lastPara.Length <= overlap)
-                {
-                    buffer.Add(lastPara);
-                    bufferLen = lastPara.Length;
-                }
-                else
-                {
-                    bufferLen = 0;
-                }
+                buffer.AddRange(overlapBuffer);
+                bufferLen = overlapLen;
             }
 
             buffer.Add(para.Trim());

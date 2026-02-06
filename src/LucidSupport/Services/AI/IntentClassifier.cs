@@ -40,8 +40,9 @@ public sealed class IntentClassifier(SupportOllamaClient ollamaClient)
         if (TroubleshootKeywords.Any(k => q.Contains(k)))
             return SupportIntent.Troubleshoot;
 
-        // Field-specific help (mentions a field type or input)
-        if (q.Contains("field") || q.Contains("enter") || q.Contains("type") || q.Contains("fill")
+        // Field-specific help (mentions a field or input action)
+        if (q.Contains("field") || q.Contains("enter my") || q.Contains("enter the")
+            || q.Contains("type in") || q.Contains("fill in") || q.Contains("fill out")
             || q.Contains("input") || q.Contains("format"))
             return SupportIntent.FieldHelp;
 

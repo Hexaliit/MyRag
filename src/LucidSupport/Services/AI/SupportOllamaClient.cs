@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 
 namespace LucidSupport.Services.AI;
 
@@ -12,11 +13,13 @@ public sealed class SupportOllamaClient : IDisposable
     private readonly HttpClient _httpClient;
     private readonly string _model;
     private readonly int _maxTokens;
+    private readonly ILogger<SupportOllamaClient>? _logger;
 
-    public SupportOllamaClient(string baseUrl, string model, int maxTokens)
+    public SupportOllamaClient(string baseUrl, string model, int maxTokens, ILogger<SupportOllamaClient>? logger = null)
     {
         _model = model;
         _maxTokens = maxTokens;
+        _logger = logger;
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(baseUrl),
@@ -47,8 +50,14 @@ public sealed class SupportOllamaClient : IDisposable
             var result = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(ct);
             return result?.Response?.Trim();
         }
-        catch
+        catch (HttpRequestException ex)
         {
+            _logger?.LogDebug(ex, "Ollama request failed");
+            return null;
+        }
+        catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
+        {
+            _logger?.LogDebug(ex, "Ollama request timed out");
             return null;
         }
     }
@@ -61,7 +70,11 @@ public sealed class SupportOllamaClient : IDisposable
             var response = await _httpClient.GetAsync("/api/tags", ct);
             return response.IsSuccessStatusCode;
         }
-        catch
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException)
         {
             return false;
         }

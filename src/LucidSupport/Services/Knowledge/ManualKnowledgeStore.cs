@@ -1,5 +1,5 @@
 using System.Text.Json;
-using DoomSummarizer.Services;
+using CosineSim = DoomSummarizer.Services.VectorMath;
 
 namespace LucidSupport.Services.Knowledge;
 
@@ -35,7 +35,7 @@ public sealed class ManualKnowledgeStore
             if (_chunks.Count == 0) return [];
 
             return _chunks
-                .Select(c => (Chunk: c, Score: (float)VectorMath.CosineSimilarity(queryEmbedding, c.Embedding)))
+                .Select(c => (Chunk: c, Score: (float)CosineSim.CosineSimilarity(queryEmbedding, c.Embedding)))
                 .Where(x => x.Score >= minSimilarity)
                 .OrderByDescending(x => x.Score)
                 .Take(topK)
