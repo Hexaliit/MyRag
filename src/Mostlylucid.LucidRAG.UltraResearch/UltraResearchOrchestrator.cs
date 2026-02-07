@@ -38,30 +38,36 @@ public class UltraResearchOrchestrator
         IDocumentIngester ingester,
         CancellationToken ct = default)
     {
-        using var scope = _services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
+        config.Validate();
 
-        // Create or find collection
-        var collectionName = config.CollectionName
-            ?? $"ultraresearch-{Slugify(config.Topic)}-{DateTimeOffset.UtcNow:yyyyMMdd}";
-
-        var collection = await db.Collections.FirstOrDefaultAsync(c => c.Name == collectionName, ct);
-        if (collection == null)
+        Guid collectionId;
+        using (var scope = _services.CreateScope())
         {
-            collection = new CollectionEntity
+            var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
+
+            var collectionName = config.CollectionName ?? GenerateCollectionName(config.Topic);
+
+            var collection = await db.Collections.FirstOrDefaultAsync(c => c.Name == collectionName, ct);
+            if (collection == null)
             {
-                Id = Guid.NewGuid(),
-                Name = collectionName,
-                Description = $"UltraResearch corpus: {config.Topic}"
-            };
-            db.Collections.Add(collection);
-            await db.SaveChangesAsync(ct);
+                collection = new CollectionEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Name = collectionName,
+                    Description = $"UltraResearch corpus: {config.Topic}"
+                };
+                db.Collections.Add(collection);
+                await db.SaveChangesAsync(ct);
+            }
+
+            collectionId = collection.Id;
         }
 
         var state = new UltraResearchState
         {
-            CollectionId = collection.Id,
-            Topic = config.Topic
+            CollectionId = collectionId,
+            Topic = config.Topic,
+            Config = config
         };
 
         // Seed frontier
@@ -104,11 +110,20 @@ public class UltraResearchOrchestrator
         var session = new ActiveSession(state, cts, progressChannel);
         _activeSessions[state.SessionId] = session;
 
-        // Run the loop in background
-        _ = Task.Run(() => RunLoopAsync(config, state, ingester, session, cts.Token), cts.Token);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RunLoopAsync(config, state, ingester, session, cts.Token);
+            }
+            finally
+            {
+                CleanupSession(state.SessionId);
+            }
+        }, cts.Token);
 
         _logger.LogInformation("UltraResearch session {SessionId} started for '{Topic}' in collection {CollectionId}",
-            state.SessionId, config.Topic, collection.Id);
+            state.SessionId, config.Topic, collectionId);
 
         return state.SessionId;
     }
@@ -121,26 +136,32 @@ public class UltraResearchOrchestrator
         IDocumentIngester ingester,
         CancellationToken ct = default)
     {
-        using var scope = _services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
-
-        var collection = await db.Collections.FindAsync([collectionId], ct);
-        if (collection?.Settings == null) return null;
-
         UltraResearchState? state;
-        try
+        using (var scope = _services.CreateScope())
         {
-            state = JsonSerializer.Deserialize<UltraResearchState>(collection.Settings);
-        }
-        catch
-        {
-            _logger.LogWarning("Failed to deserialize UltraResearch state for collection {CollectionId}", collectionId);
-            return null;
+            var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
+            var collection = await db.Collections.FindAsync([collectionId], ct);
+            if (collection?.Settings == null) return null;
+
+            try
+            {
+                state = JsonSerializer.Deserialize<UltraResearchState>(collection.Settings);
+            }
+            catch
+            {
+                _logger.LogWarning("Failed to deserialize UltraResearch state for collection {CollectionId}", collectionId);
+                return null;
+            }
+
+            if (state == null || state.Status != UltraResearchStatus.Running) return null;
         }
 
-        if (state == null || state.Status != UltraResearchStatus.Running) return null;
+        // Restore case-insensitive comparers lost during JSON round-trip
+        state.RestoreComparers();
 
-        var config = new UltraResearchConfig { Topic = state.Topic };
+        // Restore config from persisted state, or fall back to defaults with topic
+        var config = state.Config ?? new UltraResearchConfig { Topic = state.Topic };
+
         var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var progressChannel = Channel.CreateBounded<UltraResearchProgress>(
             new BoundedChannelOptions(100) { FullMode = BoundedChannelFullMode.DropOldest });
@@ -148,7 +169,17 @@ public class UltraResearchOrchestrator
         var session = new ActiveSession(state, cts, progressChannel);
         _activeSessions[state.SessionId] = session;
 
-        _ = Task.Run(() => RunLoopAsync(config, state, ingester, session, cts.Token), cts.Token);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RunLoopAsync(config, state, ingester, session, cts.Token);
+            }
+            finally
+            {
+                CleanupSession(state.SessionId);
+            }
+        }, cts.Token);
 
         _logger.LogInformation("Resumed UltraResearch session {SessionId} at iteration {Iteration}",
             state.SessionId, state.Iteration);
@@ -166,10 +197,16 @@ public class UltraResearchOrchestrator
         }
     }
 
-    /// <summary>Get current state of a session.</summary>
-    public UltraResearchState? GetStatus(Guid sessionId)
+    /// <summary>Get a thread-safe snapshot of the current session state.</summary>
+    public UltraResearchStateSnapshot? GetStatus(Guid sessionId)
     {
-        return _activeSessions.TryGetValue(sessionId, out var session) ? session.State : null;
+        if (!_activeSessions.TryGetValue(sessionId, out var session)) return null;
+        var s = session.State;
+        return new UltraResearchStateSnapshot(
+            s.SessionId, s.CollectionId, s.Status, s.Topic,
+            s.Iteration, s.PapersFetched, s.PapersIngested, s.PapersFailed,
+            s.Frontier.Count, s.SeenIds.Count, s.Checkpoints.Count,
+            s.StartedAt, s.CompletedAt, s.StopReason);
     }
 
     /// <summary>Stream progress updates from a running session.</summary>
@@ -202,7 +239,7 @@ public class UltraResearchOrchestrator
             var consecutiveLowInfo = 0;
 
             // Phase 1: Initial search
-            await EmitProgress(session, ResearchStage.Searching,
+            EmitProgress(session, ResearchStage.Searching,
                 $"Searching for '{config.Topic}'...", state);
 
             var initialCandidates = await fetcher.SearchAsync(config.Topic, config, state.SeenIds, ct);
@@ -277,7 +314,7 @@ public class UltraResearchOrchestrator
                 }
 
                 // 2b. FETCH + INGEST
-                await EmitProgress(session, ResearchStage.Fetching,
+                EmitProgress(session, ResearchStage.Fetching,
                     $"Fetching batch of {batch.Count} papers...", state);
 
                 foreach (var candidate in batch)
@@ -321,8 +358,9 @@ public class UltraResearchOrchestrator
                     // Ingest into pipeline
                     if (!config.DryRun)
                     {
-                        await EmitProgress(session, ResearchStage.Ingesting,
-                            $"Ingesting: {fetched.Title[..Math.Min(60, fetched.Title.Length)]}...", state);
+                        var titleSnippet = fetched.Title.Length > 60 ? fetched.Title[..60] : fetched.Title;
+                        EmitProgress(session, ResearchStage.Ingesting,
+                            $"Ingesting: {titleSnippet}...", state);
 
                         var ingestResult = await ingester.IngestAsync(fetched.FilePath, state.CollectionId, ct);
                         if (ingestResult.Success)
@@ -346,7 +384,7 @@ public class UltraResearchOrchestrator
                 // 2c. ANALYZE
                 if (!config.DryRun)
                 {
-                    await EmitProgress(session, ResearchStage.Analyzing,
+                    EmitProgress(session, ResearchStage.Analyzing,
                         "Analyzing citation graph...", state);
                     await frontier.RefreshFrontierAsync(state, state.CollectionId, ct);
                 }
@@ -354,7 +392,7 @@ public class UltraResearchOrchestrator
                 // 2d. SENTINEL
                 if (papersSinceLastSentinel >= config.SentinelInterval)
                 {
-                    await EmitProgress(session, ResearchStage.Sentinel,
+                    EmitProgress(session, ResearchStage.Sentinel,
                         "Running sentinel evaluation...", state);
 
                     var checkpoint = await sentinel.EvaluateAsync(state, state.CollectionId, ct);
@@ -391,9 +429,9 @@ public class UltraResearchOrchestrator
                 }
 
                 // 2e. PERSIST
-                await PersistStateAsync(db, state, ct);
+                PersistState(db, state);
 
-                await EmitProgress(session, ResearchStage.Searching,
+                EmitProgress(session, ResearchStage.Searching,
                     $"Iteration {state.Iteration} complete. Frontier: {state.Frontier.Count} candidates", state);
             }
 
@@ -402,9 +440,9 @@ public class UltraResearchOrchestrator
             state.CompletedAt = DateTimeOffset.UtcNow;
             state.StopReason ??= "Completed normally";
 
-            await PersistStateAsync(db, state, ct);
+            PersistState(db, state);
 
-            await EmitProgress(session, ResearchStage.Finalizing,
+            EmitProgress(session, ResearchStage.Finalizing,
                 $"Session complete: {state.PapersIngested} papers ingested. {state.StopReason}", state);
 
             _logger.LogInformation(
@@ -431,11 +469,11 @@ public class UltraResearchOrchestrator
         }
     }
 
-    private static async Task PersistStateAsync(RagDocumentsDbContext db, UltraResearchState state, CancellationToken ct)
+    private void PersistState(RagDocumentsDbContext db, UltraResearchState state)
     {
         try
         {
-            var collection = await db.Collections.FindAsync([state.CollectionId], ct);
+            var collection = db.Collections.Find(state.CollectionId);
             if (collection != null)
             {
                 collection.Settings = JsonSerializer.Serialize(state, new JsonSerializerOptions
@@ -443,16 +481,24 @@ public class UltraResearchOrchestrator
                     WriteIndented = false
                 });
                 collection.UpdatedAt = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync(ct);
+                db.SaveChanges();
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Non-fatal: state persistence failure shouldn't stop the loop
+            _logger.LogWarning(ex, "Failed to persist state for collection {CollectionId}", state.CollectionId);
         }
     }
 
-    private static async Task EmitProgress(ActiveSession session, ResearchStage stage, string message, UltraResearchState state)
+    private void CleanupSession(Guid sessionId)
+    {
+        if (_activeSessions.TryRemove(sessionId, out var session))
+        {
+            session.Cts.Dispose();
+        }
+    }
+
+    private static void EmitProgress(ActiveSession session, ResearchStage stage, string message, UltraResearchState state)
     {
         var progress = new UltraResearchProgress(
             stage, message, state.Iteration,
@@ -460,7 +506,8 @@ public class UltraResearchOrchestrator
             state.Frontier.Count,
             state.Checkpoints.LastOrDefault()?.NewInfoRatio);
 
-        await session.ProgressChannel.Writer.WriteAsync(progress).ConfigureAwait(false);
+        // TryWrite: non-blocking, won't throw on completed channel. DropOldest handles backpressure.
+        session.ProgressChannel.Writer.TryWrite(progress);
     }
 
     private static List<string> GenerateTopicVariations(string topic, UltraResearchState state)
@@ -468,26 +515,27 @@ public class UltraResearchOrchestrator
         var variations = new List<string>();
         var words = topic.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        // Add "survey" and "review" variations
         variations.Add($"{topic} survey");
         variations.Add($"{topic} review");
 
-        // Partial topic (first half)
         if (words.Length >= 4)
             variations.Add(string.Join(" ", words.Take(words.Length / 2)));
 
         return variations.Where(v => !state.SearchQueriesUsed.Contains(v)).Take(3).ToList();
     }
 
-    private static string Slugify(string text)
+    /// <summary>Generate a standardized collection name from a research topic.</summary>
+    public static string GenerateCollectionName(string topic)
     {
-        var slug = text.ToLowerInvariant()
+        var slug = topic.ToLowerInvariant()
             .Replace(" ", "-")
             .Replace("\"", "")
             .Replace("'", "");
 
         if (slug.Length > 40) slug = slug[..40];
-        return slug.TrimEnd('-');
+        slug = slug.TrimEnd('-');
+
+        return $"ultraresearch-{slug}-{DateTimeOffset.UtcNow:yyyyMMdd}";
     }
 
     internal record ActiveSession(
@@ -495,3 +543,23 @@ public class UltraResearchOrchestrator
         CancellationTokenSource Cts,
         Channel<UltraResearchProgress> ProgressChannel);
 }
+
+/// <summary>
+///     Thread-safe snapshot of session state exposed via <see cref="UltraResearchOrchestrator.GetStatus"/>.
+///     Captures counters at a point in time without exposing mutable collections.
+/// </summary>
+public record UltraResearchStateSnapshot(
+    Guid SessionId,
+    Guid CollectionId,
+    UltraResearchStatus Status,
+    string Topic,
+    int Iteration,
+    int PapersFetched,
+    int PapersIngested,
+    int PapersFailed,
+    int FrontierSize,
+    int SeenIdsCount,
+    int CheckpointCount,
+    DateTimeOffset StartedAt,
+    DateTimeOffset? CompletedAt,
+    string? StopReason);

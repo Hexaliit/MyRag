@@ -114,7 +114,8 @@ public class ResearchSentinelEvaluator
 
             if (result != null)
             {
-                checkpoint.NewInfoRatio = result.NewInfoRatio > 0 ? result.NewInfoRatio : checkpoint.NewInfoRatio;
+                // Keep structurally computed NewInfoRatio for convergence detection —
+                // LLM may hallucinate this value. LLM provides gap analysis + queries only.
                 checkpoint.IdentifiedGaps = result.IdentifiedGaps ?? [];
                 checkpoint.SuggestedQueries = result.SuggestedQueries ?? [];
                 checkpoint.ShouldContinue = result.ShouldContinue;

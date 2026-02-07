@@ -147,7 +147,7 @@ public class ResearchPaperFetcher
             }
 
             // Save as .md with YAML frontmatter
-            var filePath = SaveAsMarkdown(dataDir, candidate, title, authors, year, doi, arxivId, sourceUrl, content);
+            var filePath = await SaveAsMarkdownAsync(dataDir, candidate, title, authors, year, doi, arxivId, sourceUrl, content);
 
             // Extract citation IDs from content for frontier expansion
             var citationIds = AcademicPatterns.ExtractCitationIds(content, arxivId);
@@ -203,7 +203,7 @@ public class ResearchPaperFetcher
         return results;
     }
 
-    private string SaveAsMarkdown(
+    private async Task<string> SaveAsMarkdownAsync(
         string dataDir, FetchCandidate candidate,
         string title, List<string> authors, int? year,
         string? doi, string? arxivId, string? sourceUrl, string content)
@@ -234,7 +234,7 @@ public class ResearchPaperFetcher
         sb.AppendLine();
         sb.AppendLine(content);
 
-        File.WriteAllText(filePath, sb.ToString());
+        await File.WriteAllTextAsync(filePath, sb.ToString());
         _logger.LogDebug("Saved paper to {Path}", filePath);
         return filePath;
     }
@@ -293,9 +293,12 @@ public class ResearchPaperFetcher
 
     public static string NormalizeSeenKey(string type, string id)
     {
-        return type == "arxiv"
-            ? $"arxiv:{AcademicPatterns.StripArxivVersion(id)}"
-            : $"doi:{AcademicPatterns.NormalizeDoi(id)}";
+        if (type == "arxiv")
+            return $"arxiv:{AcademicPatterns.StripArxivVersion(id)}";
+
+        var normalized = AcademicPatterns.NormalizeDoi(id);
+        // NormalizeDoi can return empty string for malformed DOIs — use raw id as fallback
+        return $"doi:{(string.IsNullOrEmpty(normalized) ? id : normalized)}";
     }
 
     private static string SanitizeFilename(string id)

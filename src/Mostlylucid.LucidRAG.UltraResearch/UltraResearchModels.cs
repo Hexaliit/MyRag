@@ -1,9 +1,11 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace LucidRAG.UltraResearch;
 
 /// <summary>
 ///     Configuration for an UltraResearch session.
+///     Persisted alongside state so resume inherits original settings.
 /// </summary>
 public class UltraResearchConfig
 {
@@ -48,6 +50,18 @@ public class UltraResearchConfig
 
     /// <summary>Dry-run mode: search + discover without ingesting.</summary>
     public bool DryRun { get; set; }
+
+    /// <summary>Validate configuration, throwing if invalid.</summary>
+    public void Validate()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(Topic);
+        if (MaxPapers <= 0) throw new ArgumentOutOfRangeException(nameof(MaxPapers), "Must be > 0");
+        if (BatchSize <= 0) throw new ArgumentOutOfRangeException(nameof(BatchSize), "Must be > 0");
+        if (MaxIterations <= 0) throw new ArgumentOutOfRangeException(nameof(MaxIterations), "Must be > 0");
+        if (MaxDuration <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(MaxDuration), "Must be > 0");
+        if (SentinelInterval <= 0) throw new ArgumentOutOfRangeException(nameof(SentinelInterval), "Must be > 0");
+        if (ConvergenceThreshold is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(ConvergenceThreshold), "Must be 0-1");
+    }
 }
 
 /// <summary>
@@ -65,6 +79,8 @@ public enum UltraResearchStatus
 
 /// <summary>
 ///     Full state of an UltraResearch session. Serialized to CollectionEntity.Settings for crash recovery.
+///     Note: SeenIds and SearchQueriesUsed use case-insensitive comparison at runtime.
+///     After JSON round-trip, <see cref="RestoreComparers"/> must be called to rebuild comparers.
 /// </summary>
 public class UltraResearchState
 {
@@ -90,9 +106,24 @@ public class UltraResearchState
     /// <summary>Sentinel checkpoint history.</summary>
     public List<SentinelCheckpoint> Checkpoints { get; set; } = [];
 
+    /// <summary>Original config persisted for resume. Null for sessions created before this field existed.</summary>
+    public UltraResearchConfig? Config { get; set; }
+
     public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedAt { get; set; }
     public string? StopReason { get; set; }
+
+    /// <summary>
+    ///     Rebuild case-insensitive comparers after JSON deserialization.
+    ///     System.Text.Json does not preserve HashSet comparers on round-trip.
+    /// </summary>
+    public void RestoreComparers()
+    {
+        if (SeenIds.Comparer != StringComparer.OrdinalIgnoreCase)
+            SeenIds = new HashSet<string>(SeenIds, StringComparer.OrdinalIgnoreCase);
+        if (SearchQueriesUsed.Comparer != StringComparer.OrdinalIgnoreCase)
+            SearchQueriesUsed = new HashSet<string>(SearchQueriesUsed, StringComparer.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>
@@ -145,7 +176,7 @@ public class SentinelCheckpoint
     public int TotalEntities { get; set; }
     public int OrphanCitations { get; set; }
 
-    /// <summary>Fraction of new entities in this batch vs total.</summary>
+    /// <summary>Fraction of new entities in this batch vs total (structurally computed).</summary>
     public double NewInfoRatio { get; set; }
 
     /// <summary>Conceptual gaps identified by the sentinel.</summary>

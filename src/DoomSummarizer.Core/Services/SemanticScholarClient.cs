@@ -29,10 +29,6 @@ public class SemanticScholarClient
     {
         _httpClient = httpClient;
         _logger = logger;
-
-        if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
-            _httpClient.DefaultRequestHeaders.Add("User-Agent",
-                "LucidRAG/1.0 (https://github.com/scottgal/lucidrag)");
     }
 
     /// <summary>

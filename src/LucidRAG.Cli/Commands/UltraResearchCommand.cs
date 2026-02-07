@@ -141,17 +141,26 @@ public static class UltraResearchCommand
             var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
 
             // Create adapters for services the orchestrator needs
-            using var httpClient = new HttpClient
+            // Separate HttpClients to avoid header contamination (S2 uses x-api-key)
+            var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+
+            using var generalHttpClient = new HttpClient
             {
                 Timeout = TimeSpan.FromSeconds(60)
             };
-            httpClient.DefaultRequestHeaders.Add("User-Agent",
+            generalHttpClient.DefaultRequestHeaders.Add("User-Agent",
                 "LucidRAG/1.0 (https://github.com/scottgal/lucidrag)");
 
-            var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-            var arxivFetcher = new ArxivFetcher(httpClient);
-            var citationResolver = new CitationResolver(httpClient, loggerFactory.CreateLogger<CitationResolver>());
-            var s2Client = new SemanticScholarClient(httpClient, loggerFactory.CreateLogger<SemanticScholarClient>());
+            using var s2HttpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(60)
+            };
+            s2HttpClient.DefaultRequestHeaders.Add("User-Agent",
+                "LucidRAG/1.0 (https://github.com/scottgal/lucidrag)");
+
+            var arxivFetcher = new ArxivFetcher(generalHttpClient);
+            var citationResolver = new CitationResolver(generalHttpClient, loggerFactory.CreateLogger<CitationResolver>());
+            var s2Client = new SemanticScholarClient(s2HttpClient, loggerFactory.CreateLogger<SemanticScholarClient>());
 
             // Check for S2 API key
             var s2Key = Environment.GetEnvironmentVariable("SEMANTIC_SCHOLAR_API_KEY");
@@ -162,7 +171,7 @@ public static class UltraResearchCommand
             }
 
             var fetcher = new ResearchPaperFetcher(
-                arxivFetcher, citationResolver, s2Client, httpClient,
+                arxivFetcher, citationResolver, s2Client, generalHttpClient,
                 loggerFactory.CreateLogger<ResearchPaperFetcher>());
 
             var graphQueries = new CitationGraphQueries(db, loggerFactory.CreateLogger<CitationGraphQueries>());
@@ -205,11 +214,11 @@ public static class UltraResearchCommand
         RagDocumentsDbContext db,
         CancellationToken ct)
     {
-        var state = new UltraResearchState { Topic = config.Topic };
+        var state = new UltraResearchState { Topic = config.Topic, Config = config };
 
-        // Create collection
+        // Create collection (use shared slug logic)
         var collectionName = config.CollectionName
-            ?? $"ultraresearch-{config.Topic.ToLowerInvariant().Replace(" ", "-")[..Math.Min(30, config.Topic.Length)]}-{DateTimeOffset.UtcNow:yyyyMMdd}";
+            ?? UltraResearchOrchestrator.GenerateCollectionName(config.Topic);
 
         var collection = db.Collections.FirstOrDefault(c => c.Name == collectionName);
         if (collection == null)
