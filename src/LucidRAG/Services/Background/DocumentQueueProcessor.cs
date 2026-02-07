@@ -627,6 +627,7 @@ public class DocumentQueueProcessor(
             // Get segments with TEXT for entity extraction and evidence storage
             // Vector store only contains embeddings (no text for privacy), so we extract directly from file
             List<Segment> segments;
+            string? rawFileContent = null; // Kept for domain enrichment (segments from Qdrant cache have empty text)
             var stableDocId = result?.Trace?.DocumentId ?? document.VectorStoreDocId;
             try
             {
@@ -643,8 +644,8 @@ public class DocumentQueueProcessor(
                 {
                     // Document pipeline - extract segments with text directly from file
                     // Vector store doesn't store text (for privacy), so we extract fresh
-                    var fileContent = await File.ReadAllTextAsync(job.FilePath, ct);
-                    var extractionResult = await summarizer.ExtractSegmentsAsync(fileContent, stableDocId, ct);
+                    rawFileContent = await File.ReadAllTextAsync(job.FilePath, ct);
+                    var extractionResult = await summarizer.ExtractSegmentsAsync(rawFileContent, stableDocId, ct);
                     segments = extractionResult.AllSegments;
                     logger.LogDebug("Extracted {SegmentCount} segments with text from file for {DocId}",
                         segments.Count, stableDocId);
@@ -660,21 +661,33 @@ public class DocumentQueueProcessor(
 
             // Domain enrichment for document segments (not media - those were enriched earlier)
             // Populates DomainDetected, DomainEntities etc. on segments before entity extraction
-            if (segments.Count > 0 && mediaSegments == null)
+            if (segments.Count > 0 && mediaSegments == null && !string.IsNullOrEmpty(rawFileContent))
             {
                 try
                 {
                     var domainEnrichment = scope.ServiceProvider.GetService<DomainEnrichmentService>();
                     if (domainEnrichment != null)
                     {
-                        var enrichmentChunks = segments.Select((s, i) => new ContentChunk
+                        // Build ContentChunks from raw file content, NOT from segments.
+                        // Segments loaded from Qdrant cache have empty Text (privacy: no text in vector store).
+                        // Split file content into ~2000-char chunks for domain classification and entity extraction.
+                        var enrichmentChunks = new List<ContentChunk>();
+                        const int chunkSize = 2000;
+                        for (var ci = 0; ci < rawFileContent.Length; ci += chunkSize)
                         {
-                            Id = s.Id,
-                            Text = s.Text,
-                            ContentType = Mostlylucid.Summarizer.Core.Pipeline.ContentType.DocumentText,
-                            SourcePath = job.FilePath,
-                            Index = i
-                        }).ToList();
+                            var len = Math.Min(chunkSize, rawFileContent.Length - ci);
+                            enrichmentChunks.Add(new ContentChunk
+                            {
+                                Id = $"domain_chunk_{ci / chunkSize}",
+                                Text = rawFileContent.Substring(ci, len),
+                                ContentType = Mostlylucid.Summarizer.Core.Pipeline.ContentType.DocumentText,
+                                SourcePath = job.FilePath,
+                                Index = ci / chunkSize
+                            });
+                        }
+
+                        logger.LogDebug("Domain enrichment: created {ChunkCount} chunks ({TotalChars} chars) from raw file content",
+                            enrichmentChunks.Count, rawFileContent.Length);
 
                         var enrichmentResult = await domainEnrichment.EnrichChunksAsync(enrichmentChunks, ct: ct);
 
@@ -695,7 +708,10 @@ public class DocumentQueueProcessor(
 
                             // Entity texts are document-wide domain signals (not per-segment positional),
                             // so assign all distinct entities to every segment for retrieval matching.
+                            // Exclude "dialogue" entities — they're full quoted speech and too verbose
+                            // for Qdrant payload matching. Keep characters, locations, time periods, etc.
                             var allEntityTexts = enrichmentResult.Entities
+                                .Where(e => e.EntityType != "dialogue")
                                 .Select(e => e.Text).Distinct().ToList();
 
                             foreach (var segment in segments)

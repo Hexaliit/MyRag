@@ -619,8 +619,6 @@ public class QdrantVectorStore : IVectorStore
 
             // Create segment with hash-based ID and empty text
             // Text will be hydrated from evidence repository by the caller
-            Console.WriteLine(
-                $"[DEBUG QDRANT] PayloadToSegment: segmentHash from payload={segmentHash}, docHash={docHash}, index={index}");
 
             // Domain enrichment metadata (backward compatible: missing = no domain)
             var domainDetected = payload.TryGetValue("domainDetected", out var ddVal) ? ddVal.StringValue : null;
@@ -644,8 +642,6 @@ public class QdrantVectorStore : IVectorStore
                     ? null
                     : domainEntitiesStr.Split('|', StringSplitOptions.RemoveEmptyEntries).ToList()
             };
-
-            Console.WriteLine($"[DEBUG QDRANT] Created segment Id={segment.Id}, ContentHash={segment.ContentHash}");
 
             return segment;
         }
