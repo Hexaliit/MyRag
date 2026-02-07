@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
 
@@ -13,11 +12,8 @@ namespace DoomSummarizer.Services;
 ///     Great for scientific/research queries with substantive content.
 ///     https://info.arxiv.org/help/api/basics.html
 /// </summary>
-public partial class ArxivFetcher(HttpClient httpClient)
+public class ArxivFetcher(HttpClient httpClient)
 {
-    private const string BaseUrl = "http://export.arxiv.org/api/query";
-    private static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
-    private static readonly XNamespace ArxivNs = "http://arxiv.org/schemas/atom";
 
     /// <summary>
     ///     arXiv category mappings for common topics.
@@ -57,7 +53,7 @@ public partial class ArxivFetcher(HttpClient httpClient)
             // Sort by lastUpdatedDate to get recent papers — our RRF ranking
             // handles relevance via BM25 + embedding similarity
             var url =
-                $"{BaseUrl}?search_query={searchQuery}&max_results={maxResults}&sortBy=lastUpdatedDate&sortOrder=descending";
+                $"{AcademicPatterns.ArxivApiBaseUrl}?search_query={searchQuery}&max_results={maxResults}&sortBy=lastUpdatedDate&sortOrder=descending";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
@@ -68,38 +64,38 @@ public partial class ArxivFetcher(HttpClient httpClient)
             var xml = await response.Content.ReadAsStringAsync();
             var doc = XDocument.Parse(xml);
 
-            foreach (var entry in doc.Descendants(Atom + "entry").Take(maxResults))
+            foreach (var entry in doc.Descendants(AcademicPatterns.AtomNamespace +"entry").Take(maxResults))
             {
-                var title = entry.Element(Atom + "title")?.Value?.Trim();
-                var summary = entry.Element(Atom + "summary")?.Value?.Trim();
-                var published = entry.Element(Atom + "published")?.Value;
-                var updated = entry.Element(Atom + "updated")?.Value;
-                var id = entry.Element(Atom + "id")?.Value; // arXiv URL like http://arxiv.org/abs/2401.12345v1
+                var title = entry.Element(AcademicPatterns.AtomNamespace +"title")?.Value?.Trim();
+                var summary = entry.Element(AcademicPatterns.AtomNamespace +"summary")?.Value?.Trim();
+                var published = entry.Element(AcademicPatterns.AtomNamespace +"published")?.Value;
+                var updated = entry.Element(AcademicPatterns.AtomNamespace +"updated")?.Value;
+                var id = entry.Element(AcademicPatterns.AtomNamespace +"id")?.Value; // arXiv URL like http://arxiv.org/abs/2401.12345v1
 
                 // Get authors
-                var authors = entry.Elements(Atom + "author")
-                    .Select(a => a.Element(Atom + "name")?.Value)
+                var authors = entry.Elements(AcademicPatterns.AtomNamespace +"author")
+                    .Select(a => a.Element(AcademicPatterns.AtomNamespace +"name")?.Value)
                     .Where(n => !string.IsNullOrEmpty(n))
                     .ToList();
 
                 // Get primary category
-                var primaryCategory = entry.Element(ArxivNs + "primary_category")?.Attribute("term")?.Value;
+                var primaryCategory = entry.Element(AcademicPatterns.ArxivXmlNamespace +"primary_category")?.Attribute("term")?.Value;
 
                 // Get PDF link
-                var pdfLink = entry.Elements(Atom + "link")
+                var pdfLink = entry.Elements(AcademicPatterns.AtomNamespace +"link")
                     .FirstOrDefault(l => l.Attribute("title")?.Value == "pdf")
                     ?.Attribute("href")?.Value;
 
                 // Get abstract page link
-                var absLink = entry.Elements(Atom + "link")
+                var absLink = entry.Elements(AcademicPatterns.AtomNamespace +"link")
                     .FirstOrDefault(l => l.Attribute("type")?.Value == "text/html")
                     ?.Attribute("href")?.Value ?? id;
 
                 if (string.IsNullOrEmpty(title)) continue;
 
                 // Clean up whitespace in title and summary (arXiv adds line breaks)
-                title = CleanWhitespace(title);
-                summary = summary != null ? CleanWhitespace(summary) : "";
+                title = AcademicPatterns.CleanWhitespace(title);
+                summary = summary != null ? AcademicPatterns.CleanWhitespace(summary) : "";
 
                 // Build rich content: abstract + metadata
                 var content = summary;
@@ -108,7 +104,7 @@ public partial class ArxivFetcher(HttpClient httpClient)
                               $"Category: {primaryCategory ?? "unknown"}\n\n" +
                               content;
 
-                var arxivId = id != null ? ExtractArxivId(id) : "";
+                var arxivId = id != null ? ExtractArxivIdFromEntry(id) : "";
 
                 items.Add(new ContentItem
                 {
@@ -143,7 +139,7 @@ public partial class ArxivFetcher(HttpClient httpClient)
         try
         {
             var url =
-                $"{BaseUrl}?search_query=cat:{category}&max_results={maxResults}&sortBy=submittedDate&sortOrder=descending";
+                $"{AcademicPatterns.ArxivApiBaseUrl}?search_query=cat:{category}&max_results={maxResults}&sortBy=submittedDate&sortOrder=descending";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("User-Agent", "DoomSummarizer/1.0 (https://github.com/scottgal/lucidrag)");
@@ -154,28 +150,28 @@ public partial class ArxivFetcher(HttpClient httpClient)
             var xml = await response.Content.ReadAsStringAsync();
             var doc = XDocument.Parse(xml);
 
-            foreach (var entry in doc.Descendants(Atom + "entry").Take(maxResults))
+            foreach (var entry in doc.Descendants(AcademicPatterns.AtomNamespace +"entry").Take(maxResults))
             {
-                var title = entry.Element(Atom + "title")?.Value?.Trim();
-                var summary = entry.Element(Atom + "summary")?.Value?.Trim();
-                var published = entry.Element(Atom + "published")?.Value;
-                var id = entry.Element(Atom + "id")?.Value;
+                var title = entry.Element(AcademicPatterns.AtomNamespace +"title")?.Value?.Trim();
+                var summary = entry.Element(AcademicPatterns.AtomNamespace +"summary")?.Value?.Trim();
+                var published = entry.Element(AcademicPatterns.AtomNamespace +"published")?.Value;
+                var id = entry.Element(AcademicPatterns.AtomNamespace +"id")?.Value;
 
-                var authors = entry.Elements(Atom + "author")
-                    .Select(a => a.Element(Atom + "name")?.Value)
+                var authors = entry.Elements(AcademicPatterns.AtomNamespace +"author")
+                    .Select(a => a.Element(AcademicPatterns.AtomNamespace +"name")?.Value)
                     .Where(n => !string.IsNullOrEmpty(n))
                     .ToList();
 
-                var absLink = entry.Elements(Atom + "link")
+                var absLink = entry.Elements(AcademicPatterns.AtomNamespace +"link")
                     .FirstOrDefault(l => l.Attribute("type")?.Value == "text/html")
                     ?.Attribute("href")?.Value ?? id;
 
                 if (string.IsNullOrEmpty(title)) continue;
 
-                title = CleanWhitespace(title);
-                summary = summary != null ? CleanWhitespace(summary) : "";
+                title = AcademicPatterns.CleanWhitespace(title);
+                summary = summary != null ? AcademicPatterns.CleanWhitespace(summary) : "";
 
-                var arxivId = id != null ? ExtractArxivId(id) : "";
+                var arxivId = id != null ? ExtractArxivIdFromEntry(id) : "";
 
                 items.Add(new ContentItem
                 {
@@ -201,20 +197,15 @@ public partial class ArxivFetcher(HttpClient httpClient)
         return items;
     }
 
-    private static string ExtractArxivId(string url)
+    /// <summary>
+    ///     Extract arXiv ID from an entry's id element URL.
+    ///     Tries regex first, falls back to last path segment for old-format IDs.
+    /// </summary>
+    private static string ExtractArxivIdFromEntry(string url)
     {
-        // http://arxiv.org/abs/2401.12345v1 → 2401.12345v1
-        var idx = url.LastIndexOf('/');
-        return idx >= 0 ? url[(idx + 1)..] : url;
+        return AcademicPatterns.ExtractArxivIdFromUrl(url)
+               ?? (url.LastIndexOf('/') is var idx && idx >= 0 ? url[(idx + 1)..] : url);
     }
-
-    private static string CleanWhitespace(string text)
-    {
-        return WhitespaceRegex().Replace(text, " ").Trim();
-    }
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
 
     private static DateTimeOffset TryParseDate(string? dateStr)
     {

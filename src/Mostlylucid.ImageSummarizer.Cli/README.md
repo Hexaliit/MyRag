@@ -1030,7 +1030,7 @@ Key settings:
 
     "Ollama": {
       "BaseUrl": "http://localhost:11434",
-      "Model": "llama3.2:3b",
+      "Model": "qwen2.5:3b",
       "Temperature": 0.3
     }
   }

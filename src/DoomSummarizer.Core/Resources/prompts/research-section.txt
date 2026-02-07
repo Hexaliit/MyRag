@@ -1,0 +1,60 @@
+Write section "{{HEADING}}" for a research synthesis about "{{QUERY}}".
+{{FOCUS}}
+
+STAY FOCUSED: This section is ONLY about "{{HEADING}}" in the context of "{{QUERY}}".
+Before writing each sentence, verify it directly relates to both the section topic AND the research topic.
+
+{{RUNNING_SUMMARY}}
+
+{{ENTITY_GUIDANCE}}
+
+{{DRIFT_GUIDANCE}}
+
+{{EXCLUDE_TOPICS}}
+
+{{EVIDENCE_DENSITY}}
+
+Tone: {{VIBE_PROMPT}}
+{{TIMELINE_EXTRA}}
+
+{% if CITATION_CONTEXT and CITATION_CONTEXT != "" %}
+CITATION NETWORK (use to trace intellectual lineage):
+{{CITATION_CONTEXT}}
+{% endif %}
+
+{% if SHARED_REFERENCES and SHARED_REFERENCES != "" %}
+SHARED REFERENCES (papers citing the same works — indicates related subproblems):
+{{SHARED_REFERENCES}}
+{% endif %}
+
+{% if METHODOLOGY_TERMS and METHODOLOGY_TERMS != "" %}
+METHODOLOGY TERMS (algorithms, datasets, frameworks found across papers):
+{{METHODOLOGY_TERMS}}
+{% endif %}
+
+KEY FACTS (use ONLY if directly relevant to "{{HEADING}}"):
+{{PROPOSITIONS}}
+
+EVIDENCE CONTEXT (filter for relevance before using):
+{{EVIDENCE}}
+
+CRITICAL: Start directly with content — do NOT include any heading/title.
+
+Rules:
+- Write {{WORD_RANGE}} words of flowing prose
+- Start with a topic sentence that directly addresses "{{HEADING}}"
+- Reference papers by author and year when citation metadata is available
+- When tracing idea lineage, make the chain explicit (e.g., "Building on X, Y extended...")
+- Highlight co-citation patterns: if multiple evidence items cite the same foundational work, call it out
+- ONLY use evidence that directly relates to "{{HEADING}}" — skip tangential mentions
+- Every claim MUST come from evidence — no outside knowledge
+- No URLs, links, or markdown headings (##)
+- Be specific and concrete — no filler or padding
+- Build on context above — avoid repeating what was already covered
+- Maintain entity continuity from guidance
+
+FILTER OUT (never include):
+- Author biographical information (job titles, career history)
+- Website/source meta-content ("About Me", promotional text)
+- Self-referential statements about the author's qualifications
+- Generic claims without specific technical details

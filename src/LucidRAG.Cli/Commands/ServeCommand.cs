@@ -113,7 +113,6 @@ public static class ServeCommand
 
             // API documentation
             app.MapOpenApi();
-            app.MapScalarApiReference();
 
             // Health check
             app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))

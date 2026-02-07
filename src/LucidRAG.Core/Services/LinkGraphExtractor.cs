@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using DoomSummarizer.Services;
 
 namespace LucidRAG.Services;
 
@@ -6,21 +6,8 @@ namespace LucidRAG.Services;
 ///     Extracts URLs, DOIs, and arXiv IDs from any document text for graph edge creation.
 ///     Every document gets link extraction — this is core behavior, not domain-specific.
 /// </summary>
-public static partial class LinkGraphExtractor
+public static class LinkGraphExtractor
 {
-    // URL pattern (http/https)
-    [GeneratedRegex(@"https?://[^\s<>""')\]]+", RegexOptions.IgnoreCase)]
-    private static partial Regex UrlRegex();
-
-    // DOI pattern: 10.xxxx/yyyy (with optional doi: prefix or doi.org URL)
-    [GeneratedRegex(@"(?:https?://doi\.org/|doi:\s*)?10\.\d{4,}/[^\s<>""')\]]+", RegexOptions.IgnoreCase)]
-    private static partial Regex DoiRegex();
-
-    // arXiv ID pattern: arXiv:2301.12345 or arxiv.org/abs/2301.12345
-    [GeneratedRegex(@"(?:arXiv:\s*|https?://arxiv\.org/(?:abs|pdf)/)(\d{4}\.\d{4,5}(?:v\d+)?)",
-        RegexOptions.IgnoreCase)]
-    private static partial Regex ArxivRegex();
-
     // Domains to skip (not useful as graph edges)
     private static readonly HashSet<string> SkipDomains = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -36,10 +23,10 @@ public static partial class LinkGraphExtractor
         var results = new Dictionary<string, ExtractedLink>(StringComparer.OrdinalIgnoreCase);
 
         // Extract DOIs first (more specific than URLs)
-        foreach (Match match in DoiRegex().Matches(text))
+        foreach (System.Text.RegularExpressions.Match match in AcademicPatterns.DoiRegex().Matches(text))
         {
             var raw = match.Value;
-            var doi = NormalizeDoi(raw);
+            var doi = AcademicPatterns.NormalizeDoi(raw);
             if (string.IsNullOrEmpty(doi)) continue;
 
             var key = $"doi:{doi}";
@@ -51,7 +38,7 @@ public static partial class LinkGraphExtractor
         }
 
         // Extract arXiv IDs
-        foreach (Match match in ArxivRegex().Matches(text))
+        foreach (System.Text.RegularExpressions.Match match in AcademicPatterns.ArxivCombinedRegex().Matches(text))
         {
             var arxivId = match.Groups[1].Value;
             var key = $"arxiv:{arxivId}";
@@ -63,7 +50,7 @@ public static partial class LinkGraphExtractor
         }
 
         // Extract URLs (skip those already captured as DOI/arXiv)
-        foreach (Match match in UrlRegex().Matches(text))
+        foreach (System.Text.RegularExpressions.Match match in AcademicPatterns.UrlRegex().Matches(text))
         {
             var url = CleanUrl(match.Value);
             if (string.IsNullOrEmpty(url)) continue;
@@ -83,25 +70,6 @@ public static partial class LinkGraphExtractor
         }
 
         return results.Values.ToList();
-    }
-
-    private static string NormalizeDoi(string raw)
-    {
-        // Strip doi: prefix and doi.org URL
-        var doi = raw;
-        if (doi.StartsWith("doi:", StringComparison.OrdinalIgnoreCase))
-            doi = doi[4..].TrimStart();
-        if (doi.StartsWith("https://doi.org/", StringComparison.OrdinalIgnoreCase))
-            doi = doi[16..];
-        if (doi.StartsWith("http://doi.org/", StringComparison.OrdinalIgnoreCase))
-            doi = doi[15..];
-
-        // Must start with 10.
-        if (!doi.StartsWith("10.")) return "";
-
-        // Strip trailing punctuation
-        doi = doi.TrimEnd('.', ',', ';', ')', ']');
-        return doi;
     }
 
     private static string CleanUrl(string url)

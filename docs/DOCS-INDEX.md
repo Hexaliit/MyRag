@@ -12,11 +12,20 @@ This index links to the canonical documentation in this repo. (All paths below a
 - **ImageSummarizer command reference**: [../src/Mostlylucid.ImageSummarizer.Cli/COMMAND-REFERENCE.md](../src/Mostlylucid.ImageSummarizer.Cli/COMMAND-REFERENCE.md)
 - **Claude / agent notes**: [../CLAUDE.md](../CLAUDE.md)
 
+## UltraResearch (Autonomous Research Corpus Builder)
+
+- **Full documentation**: [ULTRARESEARCH.md](ULTRARESEARCH.md)
+- **Package README**: [../src/Mostlylucid.LucidRAG.UltraResearch/README.md](../src/Mostlylucid.LucidRAG.UltraResearch/README.md)
+- **Semantic Scholar API client**: [../src/DoomSummarizer.Core/Services/SemanticScholarClient.cs](../src/DoomSummarizer.Core/Services/SemanticScholarClient.cs)
+- **Sentinel prompt template**: [../src/DoomSummarizer.Core/Resources/prompts/ultraresearch-sentinel.txt](../src/DoomSummarizer.Core/Resources/prompts/ultraresearch-sentinel.txt)
+- **CLI command**: [../src/LucidRAG.Cli/Commands/UltraResearchCommand.cs](../src/LucidRAG.Cli/Commands/UltraResearchCommand.cs)
+
 ## LucidRAG (Web App / RAG Platform)
 
 - **Conversational RAG notes**: [CONVERSATIONAL_RAG.md](CONVERSATIONAL_RAG.md)
 - **Adding ingestion sources**: [ADDING_SOURCES.md](ADDING_SOURCES.md)
 - **Unified LLM providers**: [UNIFIED_LLM_PROVIDERS.md](UNIFIED_LLM_PROVIDERS.md)
+- **Domain specialist plugins (code)**: [../src/DomainClassifier.Financial/](../src/DomainClassifier.Financial/), [../src/DomainClassifier.Technical/](../src/DomainClassifier.Technical/), [../src/DomainClassifier.Narrative/](../src/DomainClassifier.Narrative/)
 - **Prompt template variables**: [PROMPT_TEMPLATE_VARIABLES.md](PROMPT_TEMPLATE_VARIABLES.md)
 - **Deduplication strategy**: [DEDUPLICATION_STRATEGY.md](DEDUPLICATION_STRATEGY.md)
 - **Recent improvements**: [RECENT-IMPROVEMENTS.md](RECENT-IMPROVEMENTS.md)
@@ -25,6 +34,8 @@ This index links to the canonical documentation in this repo. (All paths below a
 
 - **CLI docs**: [../src/DoomSummarizer/docs/CLI.md](../src/DoomSummarizer/docs/CLI.md)
 - **Config**: [../src/DoomSummarizer/docs/Config.md](../src/DoomSummarizer/docs/Config.md)
+- **Config reference**: [../src/DoomSummarizer/docs/ConfigReference.md](../src/DoomSummarizer/docs/ConfigReference.md)
+- **Cloud LLM routing/models**: [../src/DoomSummarizer/docs/CloudLLM.md](../src/DoomSummarizer/docs/CloudLLM.md)
 - **Sources**: [../src/DoomSummarizer/docs/Sources.md](../src/DoomSummarizer/docs/Sources.md)
 - **MCP server**: [../src/DoomSummarizer/docs/MCP.md](../src/DoomSummarizer/docs/MCP.md)
 
@@ -59,4 +70,4 @@ This repository is released under **The Unlicense**: [../LICENSE](../LICENSE)
 
 ---
 
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-07

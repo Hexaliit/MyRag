@@ -4,7 +4,7 @@
 
 **The Open-Source Agentic RAG Platform**
 
-*Multi-document intelligence with GraphRAG entity extraction, 22-wave image analysis, and enterprise multi-tenancy*
+*Multimodal retrieval + synthesis with domain specialists, model routing, GraphRAG, and local-first deployment*
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/License-The_Unlicense-green.svg)](LICENSE)
@@ -31,6 +31,8 @@
 construction, evidence-grounded synthesis — compressed into a standalone single-binary CLI. It fetches, ranks, and
 synthesizes news and research with a built-in local knowledge base, NER entity extraction, and long-form article
 generation. No API keys required for default sources.
+If you've used NotebookLM: this is that workflow, but open, local-first, and composable.
+_Aside: we're not trying to be NotebookLM; DoomSummarizer is intentionally a different system built around local control, open components, and composable workflows._
 
 ```bash
 # Daily digest from default sources
@@ -48,8 +50,8 @@ doomsummarizer scroll "history of LLMs" -t blog-article -o llm-history.md
 ```
 
 **Key features**: hybrid BM25 + semantic ranking, ONNX embeddings (offline), HTTP ETag/Last-Modified cache-aware web
-crawling, NER entity extraction with knowledge graph, budget-controlled cloud LLM support (Anthropic/OpenAI), 15+ output
-templates, email delivery.
+crawling, NER entity extraction with knowledge graph, dual-model local defaults (`gemma3:4b` + `qwen3:0.6b`), optional
+budget-controlled cloud LLM fallback (Anthropic/OpenAI), 15+ output templates, email delivery.
 
 > *
 *[Full documentation, all CLI options, and examples →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)
@@ -74,6 +76,19 @@ Most RAG systems are basic document-to-vector pipelines. ***lucid***RAG is diffe
 | Video            | Not supported    | Scene detection, transcript extraction           |
 | Deployment       | Cloud-dependent  | **Zero API keys** - runs fully local             |
 | Multi-tenancy    | Not supported    | Schema-per-tenant with automatic provisioning    |
+
+---
+
+## What's New
+
+- **Domain specialists in the ingestion pipeline**: financial, technical/academic, and narrative plugins now classify
+  content and enrich chunks with domain-specific entities/signals.
+- **Model specialists by task tier**: named provider routing for `triage`, `general`, `synthesis`, and `vision`, with
+  local-first defaults and cloud fallback.
+- **Expanded multimodal stack**: unified registry now routes documents, images, data, video, and audio through
+  dedicated pipelines.
+- **Operational hardening**: resilient LLM backends (retry/circuit breaker), LFU caching, per-tenant cache layers,
+  and OpenTelemetry-ready instrumentation.
 
 ---
 
@@ -131,7 +146,9 @@ LucidRAG Platform
               ├── DocumentPipeline  →  PDF, DOCX, Markdown, HTML, TXT
               ├── ImagePipeline     →  PNG, JPG, GIF, WebP (22-wave analysis)
               ├── DataPipeline      →  CSV, Excel, Parquet, JSON (DuckDB)
-              └── VideoPipeline     →  MP4, MKV, MOV (scene detection)
+              ├── VideoPipeline     →  MP4, MKV, MOV (scene detection)
+              ├── AudioPipeline     →  MP3, WAV, FLAC, M4A (transcription + fingerprinting)
+              └── Domain Specialists → financial, technical, narrative enrichment
 ```
 
 ### DocumentPipeline (`Mostlylucid.DocSummarizer.Core`)
@@ -206,6 +223,32 @@ User: "Compare the authentication approaches in the 2023 and 2024 security audit
 - Clarification requests for ambiguous queries
 - 15-minute query plan caching
 
+### Domain Specialists (Content Intelligence)
+
+During ingestion, LucidRAG runs plugin-based domain enrichment over chunked content:
+
+| Specialist | Focus | Example Signals |
+|------------|-------|-----------------|
+| `financial` | Earnings/markets/filings | `financial.tickers_mentioned`, `financial.sentiment`, document subtype |
+| `technical` | Papers/docs/methodology | citation counts, bibliography/DOI presence, methodology terms |
+| `narrative` | Fiction/literary text | character graph, dialogue density, genre/perspective, narrative subtype |
+
+These specialists are auto-registered and selected by confidence threshold, or forced via explicit domain hints when
+you already know the corpus type.
+
+### Model Specialists (LLM Routing)
+
+LucidRAG also routes LLM calls by task tier using named providers:
+
+| Tier | Default Provider | Primary Model | Typical Use |
+|------|------------------|---------------|-------------|
+| `triage` | `fast-local` | `tinyllama` | query classification, decomposition, routing |
+| `general` | `general` | `claude-sonnet` (fallback `gpt-4o-mini`) | standard RAG answers/summaries |
+| `synthesis` | `smart` | `claude-opus` (fallback `gpt-4o`) | complex synthesis, multi-hop reasoning |
+| `vision` | `vision` | `minicpm-v:8b` (fallback `gpt-4o`) | image captioning and vision tasks |
+
+For DoomSummarizer defaults, synthesis uses `gemma3:4b` and sentinel/triage uses `qwen3:0.6b`.
+
 ### GraphRAG Knowledge Graph
 
 Entity extraction with community detection for connected knowledge:
@@ -268,7 +311,7 @@ Enterprise-ready tenant isolation:
 │  ├── collections         │  ├── collections         │
 │  ├── documents           │  ├── documents           │
 │  ├── entities            │  ├── entities            │
-│  └── qdrant: acme_vecs   │  └── qdrant: globex_vecs │
+│  └── tenant-local indexes│  └── tenant-local indexes│
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -341,7 +384,7 @@ Enterprise-ready tenant isolation:
 {
   "DocSummarizer": {
     "LlmBackend": "Anthropic",
-    "Anthropic": { "Model": "claude-sonnet-4-20250514" }
+    "Anthropic": { "Model": "claude-3-5-sonnet-latest" }
   }
 }
 ```
@@ -376,6 +419,19 @@ providers:
 - Named prompt library with provider-specific overrides
 
 See [docs/UNIFIED_LLM_PROVIDERS.md](docs/UNIFIED_LLM_PROVIDERS.md) for complete documentation.
+
+### DoomSummarizer Model Roles (Default)
+
+```json
+{
+  "ollama": {
+    "model": "gemma3:4b",
+    "sentinelModel": "qwen3:0.6b"
+  }
+}
+```
+
+Use cloud providers only when enabled; local Ollama remains primary by default.
 
 ---
 
@@ -482,7 +538,7 @@ dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj -c Release --filter "Catego
 
 **Optional Services:**
 
-- **Ollama** - Local LLM inference (recommended: qwen2.5:3b)
+- **Ollama** - Local LLM inference (DoomSummarizer defaults: `gemma3:4b` + `qwen3:0.6b`)
 - **Qdrant** - Production vector storage
 - **Docling** - Enhanced PDF/DOCX parsing
 
@@ -502,14 +558,20 @@ src/
 ├── ImageSummarizer.Core/              # Image analysis (22 waves)
 ├── DataSummarizer.Core/               # Structured data profiling
 ├── VideoSummarizer.Core/              # Video processing
+├── AudioSummarizer.Core/              # Audio analysis + transcription
+├── DomainClassifier.Core/             # Plugin registry + enrichment orchestration
+├── DomainClassifier.Financial/        # Financial specialist plugin
+├── DomainClassifier.Technical/        # Technical/academic specialist plugin
+├── DomainClassifier.Narrative/        # Narrative specialist plugin
 │
 ├── Mostlylucid.DocSummarizer.Anthropic/  # Claude integration
 ├── Mostlylucid.DocSummarizer.OpenAI/     # OpenAI integration
+├── LucidRAG.LLM/                         # Unified LLM providers + prompt library
 │
 ├── Mostlylucid.GraphRag/              # Entity extraction & graphs
 ├── Mostlylucid.RAG/                   # Vector store abstraction
 │
-└── Mostlylucid.ImageSummarizer.Cli/   # Standalone OCR tool + MCP
+└── DoomSummarizer/                     # Console-first local research assistant
 ```
 
 ---

@@ -397,7 +397,7 @@ All `DOOM_*` environment variables are resolved by `ApiKeyService` at startup:
 ```json
 {
   "ollama": {
-    "model": "llama3.2:3b"
+    "model": "gemma3:4b"
   }
 }
 ```

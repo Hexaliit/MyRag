@@ -57,6 +57,20 @@ public class TemplateDefinition
     [YamlMember(Alias = "base_template")]
     public string? BaseTemplate { get; set; }
 
+    /// <summary>
+    ///     Name of the system prompt template to use (e.g., "research-synthesis").
+    ///     If null, the default "system-synthesis" prompt is used.
+    /// </summary>
+    [YamlMember(Alias = "system_prompt")]
+    public string? SystemPrompt { get; set; }
+
+    /// <summary>
+    ///     Name of the section prompt template to use (e.g., "research-section").
+    ///     If null, the default "blog-section" prompt is used.
+    /// </summary>
+    [YamlMember(Alias = "section_prompt_template")]
+    public string? SectionPromptTemplate { get; set; }
+
     /// <summary>Whether sections are fixed (skip sentinel outline generation).</summary>
     public bool HasFixedSections => Sections.Count > 0;
 }

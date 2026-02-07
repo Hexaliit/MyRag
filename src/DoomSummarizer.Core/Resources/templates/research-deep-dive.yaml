@@ -1,0 +1,38 @@
+name: research-deep-dive
+description: "Research synthesis with citation graph analysis — traces ideas across papers, identifies methodology patterns, and maps the intellectual landscape"
+base_template: blog-article
+system_prompt: research-synthesis
+section_prompt_template: research-section
+
+introduction:
+  prompt: "Set the research landscape: what question drives this body of work, why it matters now, and how the papers interrelate. If citation metadata is available, reference the intellectual lineage."
+  target_words: 200
+
+sections:
+  - heading: "Intellectual Lineage & Citation Network"
+    prompt: "Map how these papers cite and build on each other. Identify foundational works, trace how ideas evolved through citations, and highlight co-citation patterns (papers frequently cited together). Use any resolved citation metadata (titles, authors, years) to reconstruct the intellectual lineage."
+    target_words: 350
+    evidence_strategy: oldest
+
+  - heading: "Core Methodology & Technical Approach"
+    prompt: "Compare and contrast the methodologies across papers. Identify shared techniques (architectures, optimization methods, training procedures), novel contributions, and where approaches diverge. Reference specific algorithms, datasets, and frameworks mentioned in the evidence."
+    target_words: 400
+    evidence_strategy: highest_relevance
+
+  - heading: "Key Results & Comparative Analysis"
+    prompt: "Synthesize the main findings across papers. Compare benchmark results, identify consistent trends, and note where results conflict. Be specific with numbers, metrics, and dataset names. Highlight which approaches outperform others and under what conditions."
+    target_words: 400
+    evidence_strategy: highest_relevance
+
+  - heading: "Shared References & Cross-Paper Patterns"
+    prompt: "Analyze what references appear across multiple papers — these shared citations reveal the field's intellectual foundations. Identify common datasets, baseline models, and theoretical frameworks that recur. Note any methodology terms or statistical approaches used consistently."
+    target_words: 300
+    evidence_strategy: newest
+
+  - heading: "Open Questions & Research Frontiers"
+    prompt: "Based on the gaps, limitations, and future work sections across papers, identify the unresolved questions. Where do the citation chains end? What problems remain unsolved? What new directions do the most recent papers suggest?"
+    target_words: 300
+
+conclusion:
+  prompt: "Synthesize the overall trajectory of this research area. What has the citation network revealed about the field's direction? What should a researcher entering this space read first?"
+  target_words: 120

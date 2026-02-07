@@ -1,6 +1,6 @@
 using System.CommandLine;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using DoomSummarizer.Services;
 using LucidRAG.Cli.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
@@ -13,7 +13,7 @@ namespace LucidRAG.Cli.Commands;
 ///     Follow academic paper citations. Fetches a paper, extracts DOIs/arXiv IDs,
 ///     resolves them via CrossRef/arXiv APIs, and optionally imports cited papers.
 /// </summary>
-public static partial class FollowPapersCommand
+public static class FollowPapersCommand
 {
     private static readonly Argument<string> SourceArg = new("source")
         { Description = "arXiv URL, DOI, or local PDF/text file path" };
@@ -32,29 +32,6 @@ public static partial class FollowPapersCommand
 
     private static readonly Option<bool> VerboseOpt = new("--verbose", "-v")
         { Description = "Verbose output", DefaultValueFactory = _ => false };
-
-    // arXiv URL pattern: https://arxiv.org/abs/2301.12345
-    [GeneratedRegex(@"arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5}(?:v\d+)?)", RegexOptions.IgnoreCase)]
-    private static partial Regex ArxivUrlRegex();
-
-    // DOI pattern: 10.xxxx/yyyy
-    [GeneratedRegex(@"^10\.\d{4,}/\S+$")]
-    private static partial Regex DoiRegex();
-
-    // arXiv ID pattern: 2301.12345
-    [GeneratedRegex(@"^\d{4}\.\d{4,5}(?:v\d+)?$")]
-    private static partial Regex ArxivIdRegex();
-
-    // Extract DOIs from text
-    [GeneratedRegex(@"(?:https?://doi\.org/|doi:\s*)?10\.\d{4,}/[^\s<>""')\]]+", RegexOptions.IgnoreCase)]
-    private static partial Regex DoiInTextRegex();
-
-    // Extract arXiv IDs from text
-    [GeneratedRegex(@"arXiv:\s*(\d{4}\.\d{4,5}(?:v\d+)?)", RegexOptions.IgnoreCase)]
-    private static partial Regex ArxivInTextRegex();
-
-    // Atom namespace for arXiv API
-    private static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
 
     public static Command Create()
     {
@@ -171,7 +148,7 @@ public static partial class FollowPapersCommand
                 if (currentDepth < depth && totalFetched < maxPapers)
                 {
                     var textToScan = (paperInfo.Abstract ?? "") + "\n" + (paperInfo.FullText ?? "");
-                    var citations = ExtractCitationIds(textToScan);
+                    var citations = AcademicPatterns.ExtractCitationIds(textToScan);
                     var newCitations = citations.Where(c => seen.Add(c.id)).ToList();
 
                     if (newCitations.Count > 0)
@@ -208,12 +185,12 @@ public static partial class FollowPapersCommand
     private static (string? id, string type) ClassifySource(string source)
     {
         // arXiv URL
-        var arxivUrlMatch = ArxivUrlRegex().Match(source);
+        var arxivUrlMatch = AcademicPatterns.ArxivUrlRegex().Match(source);
         if (arxivUrlMatch.Success)
             return (arxivUrlMatch.Groups[1].Value, "arxiv");
 
         // DOI
-        if (DoiRegex().IsMatch(source))
+        if (AcademicPatterns.DoiBareIdRegex().IsMatch(source))
             return (source, "doi");
 
         // DOI URL
@@ -221,7 +198,7 @@ public static partial class FollowPapersCommand
             return (source[16..], "doi");
 
         // Bare arXiv ID
-        if (ArxivIdRegex().IsMatch(source))
+        if (AcademicPatterns.ArxivBareIdRegex().IsMatch(source))
             return (source, "arxiv");
 
         // Local file
@@ -229,44 +206,6 @@ public static partial class FollowPapersCommand
             return (source, "file");
 
         return (null, "unknown");
-    }
-
-    private static List<(string id, string type)> ExtractCitationIds(string text)
-    {
-        var results = new List<(string id, string type)>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // Extract DOIs
-        foreach (Match match in DoiInTextRegex().Matches(text))
-        {
-            var doi = NormalizeDoi(match.Value);
-            if (!string.IsNullOrEmpty(doi) && seen.Add($"doi:{doi}"))
-                results.Add((doi, "doi"));
-        }
-
-        // Extract arXiv IDs
-        foreach (Match match in ArxivInTextRegex().Matches(text))
-        {
-            var arxivId = match.Groups[1].Value;
-            if (seen.Add($"arxiv:{arxivId}"))
-                results.Add((arxivId, "arxiv"));
-        }
-
-        return results;
-    }
-
-    private static string NormalizeDoi(string raw)
-    {
-        var doi = raw;
-        if (doi.StartsWith("doi:", StringComparison.OrdinalIgnoreCase))
-            doi = doi[4..].TrimStart();
-        if (doi.StartsWith("https://doi.org/", StringComparison.OrdinalIgnoreCase))
-            doi = doi[16..];
-        if (doi.StartsWith("http://doi.org/", StringComparison.OrdinalIgnoreCase))
-            doi = doi[15..];
-        if (!doi.StartsWith("10.")) return "";
-        doi = doi.TrimEnd('.', ',', ';', ')', ']');
-        return doi;
     }
 
     private static async Task<PaperInfo?> ResolvePaperAsync(
@@ -286,32 +225,70 @@ public static partial class FollowPapersCommand
     {
         try
         {
-            var cleanId = arxivId.Contains('v') ? arxivId[..arxivId.IndexOf('v')] : arxivId;
-            var url = $"http://export.arxiv.org/api/query?id_list={cleanId}";
+            var cleanId = AcademicPatterns.StripArxivVersion(arxivId);
+            var url = $"{AcademicPatterns.ArxivApiBaseUrl}?id_list={cleanId}";
 
             var response = await client.GetAsync(url, ct);
             response.EnsureSuccessStatusCode();
 
             var xml = await response.Content.ReadAsStringAsync(ct);
             var doc = XDocument.Parse(xml);
-            var entry = doc.Descendants(Atom + "entry").FirstOrDefault();
+            var entry = doc.Descendants(AcademicPatterns.AtomNamespace + "entry").FirstOrDefault();
             if (entry == null) return null;
 
-            var title = entry.Element(Atom + "title")?.Value?.Trim() ?? "";
-            var summary = entry.Element(Atom + "summary")?.Value?.Trim() ?? "";
-            var authors = entry.Elements(Atom + "author")
-                .Select(a => a.Element(Atom + "name")?.Value ?? "")
+            var title = entry.Element(AcademicPatterns.AtomNamespace + "title")?.Value?.Trim() ?? "";
+            var summary = entry.Element(AcademicPatterns.AtomNamespace + "summary")?.Value?.Trim() ?? "";
+            var authors = entry.Elements(AcademicPatterns.AtomNamespace + "author")
+                .Select(a => a.Element(AcademicPatterns.AtomNamespace + "name")?.Value ?? "")
                 .Where(n => !string.IsNullOrEmpty(n))
                 .ToList();
 
-            var published = entry.Element(Atom + "published")?.Value;
+            var published = entry.Element(AcademicPatterns.AtomNamespace + "published")?.Value;
             int? year = DateTimeOffset.TryParse(published, out var pd) ? pd.Year : null;
 
-            var pdfLink = entry.Elements(Atom + "link")
+            var pdfLink = entry.Elements(AcademicPatterns.AtomNamespace + "link")
                 .FirstOrDefault(l => l.Attribute("title")?.Value == "pdf")
                 ?.Attribute("href")?.Value;
 
-            return new PaperInfo(title, authors, year, null, arxivId, summary, null, pdfLink);
+            // Fetch the ar5iv HTML rendering of the full paper — it contains links to all referenced
+            // papers (arxiv.org/abs/XXXX links) that the Atom API abstract alone doesn't include.
+            // ar5iv.labs.arxiv.org renders LaTeX papers as accessible HTML with hyperlinked references.
+            string? fullPageText = null;
+            try
+            {
+                var htmlUrl = $"{AcademicPatterns.Ar5ivBaseUrl}{cleanId}";
+                var htmlResponse = await client.GetAsync(htmlUrl, ct);
+                if (htmlResponse.IsSuccessStatusCode)
+                {
+                    fullPageText = await htmlResponse.Content.ReadAsStringAsync(ct);
+                    if (verbose)
+                        AnsiConsole.MarkupLine(
+                            $"  [dim]Fetched ar5iv HTML ({fullPageText.Length:N0} chars) for full-text citation extraction[/]");
+                }
+                else
+                {
+                    // Fallback to basic arXiv abstract page
+                    htmlUrl = $"https://arxiv.org/abs/{cleanId}";
+                    htmlResponse = await client.GetAsync(htmlUrl, ct);
+                    if (htmlResponse.IsSuccessStatusCode)
+                    {
+                        fullPageText = await htmlResponse.Content.ReadAsStringAsync(ct);
+                        if (verbose)
+                            AnsiConsole.MarkupLine(
+                                $"  [dim]Fetched arXiv abstract page ({fullPageText.Length:N0} chars)[/]");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (verbose)
+                    AnsiConsole.MarkupLine($"  [dim]Could not fetch HTML page: {Markup.Escape(ex.Message)}[/]");
+            }
+
+            // Combine abstract + HTML page text for citation extraction
+            var combinedText = summary + "\n" + (fullPageText ?? "");
+
+            return new PaperInfo(title, authors, year, null, arxivId, summary, combinedText, pdfLink);
         }
         catch (Exception ex)
         {
@@ -325,7 +302,7 @@ public static partial class FollowPapersCommand
     {
         try
         {
-            var url = $"https://api.crossref.org/works/{Uri.EscapeDataString(doi)}";
+            var url = $"{AcademicPatterns.CrossRefApiBaseUrl}{Uri.EscapeDataString(doi)}";
             var response = await client.GetAsync(url, ct);
             if (!response.IsSuccessStatusCode) return null;
 
@@ -352,7 +329,31 @@ public static partial class FollowPapersCommand
 
             var abstractText = work.TryGetProperty("abstract", out var abs) ? abs.GetString() : null;
 
-            return new PaperInfo(title, authors, year, doi, null, abstractText, null, null);
+            // CrossRef includes a "reference" array with DOIs of cited papers
+            // Build text containing all referenced DOIs for citation extraction
+            var referenceDois = new List<string>();
+            if (work.TryGetProperty("reference", out var refs))
+            {
+                foreach (var refEntry in refs.EnumerateArray())
+                {
+                    if (refEntry.TryGetProperty("DOI", out var refDoi))
+                    {
+                        var doiVal = refDoi.GetString();
+                        if (!string.IsNullOrEmpty(doiVal))
+                            referenceDois.Add(doiVal);
+                    }
+                }
+            }
+
+            // Combine abstract + reference DOIs for citation extraction
+            var fullText = (abstractText ?? "") + "\n" +
+                           string.Join("\n", referenceDois.Select(d => $"10.{d.Split("10.").LastOrDefault()}"));
+
+            if (verbose && referenceDois.Count > 0)
+                AnsiConsole.MarkupLine(
+                    $"  [dim]CrossRef returned {referenceDois.Count} reference DOI(s)[/]");
+
+            return new PaperInfo(title, authors, year, doi, null, abstractText, fullText, null);
         }
         catch (Exception ex)
         {

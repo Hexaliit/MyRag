@@ -55,6 +55,7 @@
         <InternalsVisibleTo Include="doomsummarizer"/>
         <InternalsVisibleTo Include="lucidrag"/>
         <InternalsVisibleTo Include="DoomWriter"/>
+        <InternalsVisibleTo Include="Mostlylucid.LucidRAG.UltraResearch.Tests"/>
     </ItemGroup>
 
     <!-- Core dependencies (Lucene and SQLite now come transitively via backend packages) -->

@@ -1,0 +1,31 @@
+v0.1.0 - Initial release
+
+Core Components:
+- UltraResearchOrchestrator: Main agentic loop with session lifecycle management,
+  state persistence to CollectionEntity.Settings, convergence detection, and
+  Channel<T>-based progress streaming.
+- ResearchPaperFetcher: Multi-source paper acquisition (arXiv full text via ar5iv,
+  CrossRef metadata via CitationResolver, Semantic Scholar enrichment). Saves as
+  Markdown files with YAML frontmatter. Extracts citation IDs for frontier expansion.
+- ResearchFrontierManager: Priority queue with weighted composite scoring —
+  citation count (0.40), entity overlap (0.25), sentinel boost (0.20), recency (0.15).
+  Index-driven gap signals from orphan citations and foundational references.
+- ResearchSentinelEvaluator: LLM checkpoint evaluating corpus "shape" (entity clusters,
+  citation topology, temporal distribution). Graceful degradation to structural-only
+  mode when no LLM is available.
+- SemanticScholarClient: Full Semantic Scholar Academic Graph API client with rate
+  limiting, caching, and optional API key authentication. Provides reverse citations
+  (who cites paper X?) not available from arXiv alone.
+- IDocumentIngester: Abstraction for CLI/web portability. CLI adapter bridges to
+  CliDocumentProcessor.
+
+Features:
+- Autonomous convergence detection (declining new info, frontier exhaustion, budget)
+- State persistence and crash recovery via CollectionEntity.Settings JSON
+- Seed papers (arXiv IDs, DOIs, URLs)
+- arXiv category filtering
+- Dry-run mode for discovery without ingestion
+- CLI command with Spectre.Console live table display
+
+Test Coverage:
+- 25 unit tests covering models, serialization, ID normalization, S2 response parsing

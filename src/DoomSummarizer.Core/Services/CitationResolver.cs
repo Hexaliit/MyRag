@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DoomSummarizer.Models;
 using Microsoft.Extensions.Logging;
@@ -17,12 +16,8 @@ public interface ICitationResolver
     Task<CitationMetadata?> ResolveArxivAsync(string arxivId, CancellationToken ct = default);
 }
 
-public partial class CitationResolver : ICitationResolver
+public class CitationResolver : ICitationResolver
 {
-    private const string CrossRefBaseUrl = "https://api.crossref.org/works/";
-    private const string ArxivBaseUrl = "http://export.arxiv.org/api/query";
-    private static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
-
     private readonly ConcurrentDictionary<string, CitationMetadata?> _cache = new();
     private readonly HttpClient _httpClient;
     private readonly ILogger<CitationResolver> _logger;
@@ -30,9 +25,6 @@ public partial class CitationResolver : ICitationResolver
     // Rate limiting: last request time per API
     private readonly SemaphoreSlim _rateLimiter = new(1, 1);
     private DateTimeOffset _lastRequest = DateTimeOffset.MinValue;
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
 
     public CitationResolver(HttpClient httpClient, ILogger<CitationResolver> logger)
     {
@@ -55,7 +47,7 @@ public partial class CitationResolver : ICitationResolver
 
         try
         {
-            var url = $"{CrossRefBaseUrl}{Uri.EscapeDataString(doi)}";
+            var url = $"{AcademicPatterns.CrossRefApiBaseUrl}{Uri.EscapeDataString(doi)}";
             var response = await _httpClient.GetAsync(url, ct);
 
             if (!response.IsSuccessStatusCode)
@@ -108,19 +100,15 @@ public partial class CitationResolver : ICitationResolver
 
         try
         {
-            // Strip version suffix for API query
-            var cleanId = arxivId.Contains('v')
-                ? arxivId[..arxivId.IndexOf('v')]
-                : arxivId;
-
-            var url = $"{ArxivBaseUrl}?id_list={cleanId}";
+            var cleanId = AcademicPatterns.StripArxivVersion(arxivId);
+            var url = $"{AcademicPatterns.ArxivApiBaseUrl}?id_list={cleanId}";
             var response = await _httpClient.GetAsync(url, ct);
             response.EnsureSuccessStatusCode();
 
             var xml = await response.Content.ReadAsStringAsync(ct);
             var doc = XDocument.Parse(xml);
 
-            var entry = doc.Descendants(Atom + "entry").FirstOrDefault();
+            var entry = doc.Descendants(AcademicPatterns.AtomNamespace + "entry").FirstOrDefault();
             if (entry == null)
             {
                 _logger.LogDebug("arXiv returned no entry for {ArxivId}", arxivId);
@@ -128,26 +116,26 @@ public partial class CitationResolver : ICitationResolver
                 return null;
             }
 
-            var title = CleanWhitespace(entry.Element(Atom + "title")?.Value?.Trim() ?? "");
-            var summary = CleanWhitespace(entry.Element(Atom + "summary")?.Value?.Trim() ?? "");
+            var title = AcademicPatterns.CleanWhitespace(entry.Element(AcademicPatterns.AtomNamespace + "title")?.Value?.Trim() ?? "");
+            var summary = AcademicPatterns.CleanWhitespace(entry.Element(AcademicPatterns.AtomNamespace + "summary")?.Value?.Trim() ?? "");
 
-            var authors = entry.Elements(Atom + "author")
-                .Select(a => a.Element(Atom + "name")?.Value)
+            var authors = entry.Elements(AcademicPatterns.AtomNamespace + "author")
+                .Select(a => a.Element(AcademicPatterns.AtomNamespace + "name")?.Value)
                 .Where(n => !string.IsNullOrEmpty(n))
                 .Cast<string>()
                 .ToList();
 
-            var published = entry.Element(Atom + "published")?.Value;
+            var published = entry.Element(AcademicPatterns.AtomNamespace + "published")?.Value;
             int? year = null;
             if (DateTimeOffset.TryParse(published, out var pubDate))
                 year = pubDate.Year;
 
-            var pdfLink = entry.Elements(Atom + "link")
+            var pdfLink = entry.Elements(AcademicPatterns.AtomNamespace + "link")
                 .FirstOrDefault(l => l.Attribute("title")?.Value == "pdf")
                 ?.Attribute("href")?.Value;
 
             // Extract DOI if present in entry
-            var doiElement = entry.Elements(Atom + "link")
+            var doiElement = entry.Elements(AcademicPatterns.AtomNamespace + "link")
                 .FirstOrDefault(l => l.Attribute("title")?.Value == "doi");
             var doi = doiElement?.Attribute("href")?.Value;
 
@@ -254,8 +242,4 @@ public partial class CitationResolver : ICitationResolver
         return null;
     }
 
-    private static string CleanWhitespace(string text)
-    {
-        return WhitespaceRegex().Replace(text, " ").Trim();
-    }
 }

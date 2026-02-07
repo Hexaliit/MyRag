@@ -212,10 +212,13 @@ public partial class OllamaService
     /// <summary>
     ///     Build the system prompt for synthesis calls. Uses the system-synthesis template
     ///     so it can be customized via ~/.doomsummarizer/prompts/system-synthesis.txt.
+    ///     When a template definition specifies a custom system_prompt, that template is used instead.
     /// </summary>
-    public string BuildSynthesisSystemPrompt(string vibe, string vibePrompt)
+    public string BuildSynthesisSystemPrompt(string vibe, string vibePrompt,
+        TemplateDefinition? templateDef = null)
     {
-        return PromptTemplateService.Render("system-synthesis", new Dictionary<string, object?>
+        var promptTemplate = templateDef?.SystemPrompt ?? "system-synthesis";
+        return PromptTemplateService.Render(promptTemplate, new Dictionary<string, object?>
         {
             ["TODAY"] = DateTime.Now.ToString("MMMM d, yyyy"),
             ["VIBE"] = vibe,
@@ -1001,7 +1004,42 @@ public partial class OllamaService
                   """
                 : "";
 
-            var sectionPrompt = PromptTemplateService.Render("blog-section", new Dictionary<string, object?>
+            // Use template-specified section prompt template, or default to blog-section
+            var sectionPromptTemplate = templateDef?.SectionPromptTemplate ?? "blog-section";
+
+            // Build citation context from ContentItem.Metadata (populated by ResearchPlugin)
+            var citationContext = "";
+            var sharedReferences = "";
+            var methodologyTerms = "";
+            if (contentItems != null && sectionPromptTemplate != "blog-section")
+            {
+                var allCitations = contentItems
+                    .Where(c => c.Metadata?.ContainsKey("resolved_citations") == true)
+                    .Select(c => $"[{c.Title}]: {c.Metadata!["resolved_citations"]}")
+                    .ToList();
+                if (allCitations.Count > 0)
+                    citationContext = string.Join("\n", allCitations);
+
+                var allDois = contentItems
+                    .Where(c => c.Metadata?.ContainsKey("cited_dois") == true)
+                    .SelectMany(c => c.Metadata!["cited_dois"].Split(';'))
+                    .GroupBy(d => d)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => $"{g.Key} (cited by {g.Count()} papers)")
+                    .ToList();
+                if (allDois.Count > 0)
+                    sharedReferences = string.Join("\n", allDois);
+
+                var allMethodology = contentItems
+                    .Where(c => c.Metadata?.ContainsKey("methodology_terms") == true)
+                    .SelectMany(c => c.Metadata!["methodology_terms"].Split(';'))
+                    .Distinct()
+                    .ToList();
+                if (allMethodology.Count > 0)
+                    methodologyTerms = string.Join(", ", allMethodology);
+            }
+
+            var sectionPrompt = PromptTemplateService.Render(sectionPromptTemplate, new Dictionary<string, object?>
             {
                 ["HEADING"] = section.Heading,
                 ["QUERY"] = query,
@@ -1010,7 +1048,18 @@ public partial class OllamaService
                 ["VIBE_PROMPT"] = vibePrompt,
                 ["TIMELINE_EXTRA"] = timelineSectionExtra,
                 ["EVIDENCE"] = sectionEvidence.ToString(),
-                ["WORD_RANGE"] = wordRange
+                ["WORD_RANGE"] = wordRange,
+                // Research-specific context (ignored by blog-section template)
+                ["CITATION_CONTEXT"] = citationContext,
+                ["SHARED_REFERENCES"] = sharedReferences,
+                ["METHODOLOGY_TERMS"] = methodologyTerms,
+                // Standard longform fields (empty defaults for non-longform templates)
+                ["RUNNING_SUMMARY"] = "",
+                ["ENTITY_GUIDANCE"] = "",
+                ["DRIFT_GUIDANCE"] = "",
+                ["EXCLUDE_TOPICS"] = "",
+                ["EVIDENCE_DENSITY"] = "",
+                ["PROPOSITIONS"] = ""
             });
 
             var sectionContent = await GenerateAsync(sectionPrompt, null, 0.5, ct);

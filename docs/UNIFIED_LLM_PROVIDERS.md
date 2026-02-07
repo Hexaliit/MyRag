@@ -126,11 +126,25 @@ backends:
 
 # Model registry - define models once, reference by name
 models:
+  claude-opus:
+    backend: anthropic
+    model: claude-3-5-opus-latest
+    context_window: 200000
+    max_tokens: 8192
+    temperature: 0.3
+
   claude-sonnet:
     backend: anthropic
     model: claude-3-5-sonnet-latest
     context_window: 200000
     max_tokens: 8192
+    temperature: 0.3
+
+  claude-haiku:
+    backend: anthropic
+    model: claude-3-5-haiku-latest
+    context_window: 200000
+    max_tokens: 4096
     temperature: 0.3
 
   gpt-4o:
@@ -141,6 +155,27 @@ models:
     temperature: 0.3
     capabilities:
       - vision
+
+  gpt-4o-mini:
+    backend: openai
+    model: gpt-4o-mini
+    context_window: 128000
+    max_tokens: 4096
+    temperature: 0.3
+
+  qwen:
+    backend: ollama-local
+    model: qwen2.5:3b
+    context_window: 8192
+    max_tokens: 4096
+    temperature: 0.3
+
+  llama3:
+    backend: ollama-local
+    model: llama3.2:3b
+    context_window: 8192
+    max_tokens: 4096
+    temperature: 0.3
 
   tinyllama:
     backend: ollama-local
@@ -163,6 +198,11 @@ providers:
     model: tinyllama
     description: "Fast local model for triage and classification"
 
+  local:
+    model: qwen
+    fallback: llama3
+    description: "Local model for general tasks"
+
   general:
     model: claude-sonnet
     fallback: gpt-4o-mini
@@ -177,6 +217,11 @@ providers:
     model: minicpm-v
     fallback: gpt-4o
     description: "Vision-capable model for image analysis"
+
+  budget-cloud:
+    model: claude-haiku
+    fallback: gpt-4o-mini
+    description: "Cost-effective cloud inference"
 
 # Default provider assignments by task tier
 defaults:

@@ -92,6 +92,22 @@ dotnet add package Mostlylucid.LucidRAG.AudioSummarizer
 
 Project docs: `docs/audiosummarizer.md`
 
+### Domain specialists
+
+#### `Mostlylucid.LucidRAG.DomainClassifier.Core`
+
+Plugin registry and enrichment contracts for domain-aware ingestion.
+
+```bash
+dotnet add package Mostlylucid.LucidRAG.DomainClassifier.Core
+```
+
+Built-in specialist plugin projects in this repo:
+
+- `src/DomainClassifier.Financial`
+- `src/DomainClassifier.Technical`
+- `src/DomainClassifier.Narrative`
+
 ## DoomSummarizer ecosystem
 
 ### Core + complete bundle
@@ -118,4 +134,3 @@ If you need named multi-provider configs (fallbacks / retries / resilience), see
 
 - `docs/UNIFIED_LLM_PROVIDERS.md`
 - `Mostlylucid.LucidRAG.LLM`
-
