@@ -25,18 +25,36 @@ public class TextDocumentHandler : IDocumentHandler
     {
         var content = await File.ReadAllTextAsync(filePath, options.CancellationToken);
         var title = Path.GetFileNameWithoutExtension(filePath);
+        Dictionary<string, object>? metadata = null;
 
-        // For markdown, extract first header as title
+        // For markdown, extract first header as title and parse YAML frontmatter
         if (Path.GetExtension(filePath).Equals(".md", StringComparison.OrdinalIgnoreCase))
         {
-            var lines = content.Split('\n');
-            foreach (var line in lines)
+            // Parse YAML frontmatter if present
+            var frontmatter = ExtractYamlFrontMatter(content);
+            if (frontmatter.Count > 0)
             {
-                var trimmed = line.Trim();
-                if (trimmed.StartsWith("# "))
+                metadata = new Dictionary<string, object>();
+                foreach (var (key, value) in frontmatter)
+                    metadata[$"fm_{key}"] = value;
+
+                // Use frontmatter title if available
+                if (frontmatter.TryGetValue("title", out var fmTitle) && !string.IsNullOrEmpty(fmTitle))
+                    title = fmTitle;
+            }
+
+            // Fall back to first markdown header for title
+            if (metadata == null || !metadata.ContainsKey("fm_title"))
+            {
+                var lines = content.Split('\n');
+                foreach (var line in lines)
                 {
-                    title = trimmed[2..].Trim();
-                    break;
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("# "))
+                    {
+                        title = trimmed[2..].Trim();
+                        break;
+                    }
                 }
             }
         }
@@ -47,8 +65,45 @@ public class TextDocumentHandler : IDocumentHandler
             Title = title,
             ContentType = Path.GetExtension(filePath).Equals(".md", StringComparison.OrdinalIgnoreCase)
                 ? "markdown"
-                : "text"
+                : "text",
+            Metadata = metadata
         };
+    }
+
+    /// <summary>
+    ///     Extract key-value pairs from YAML frontmatter (between --- delimiters).
+    /// </summary>
+    internal static Dictionary<string, string> ExtractYamlFrontMatter(string content)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!content.StartsWith("---"))
+            return result;
+
+        var endIdx = content.IndexOf("\n---", 3, StringComparison.Ordinal);
+        if (endIdx < 0)
+            return result;
+
+        var yamlBlock = content[3..endIdx];
+        var lines = yamlBlock.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var line in lines)
+        {
+            var colonIdx = line.IndexOf(':');
+            if (colonIdx <= 0) continue;
+
+            var key = line[..colonIdx].Trim().ToLowerInvariant();
+            var value = line[(colonIdx + 1)..].Trim();
+
+            // Strip surrounding quotes
+            if (value.Length >= 2 &&
+                ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\'')))
+                value = value[1..^1];
+
+            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(value))
+                result[key] = value;
+        }
+
+        return result;
     }
 }
 

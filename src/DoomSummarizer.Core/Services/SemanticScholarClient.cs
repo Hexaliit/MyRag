@@ -14,7 +14,7 @@ namespace DoomSummarizer.Services;
 public class SemanticScholarClient
 {
     private const string BaseUrl = "https://api.semanticscholar.org/graph/v1";
-    private const string PaperFields = "paperId,title,authors,year,abstract,citationCount,influentialCitationCount,fieldsOfStudy,tldr,externalIds";
+    private const string PaperFields = "paperId,title,authors,year,abstract,citationCount,influentialCitationCount,fieldsOfStudy,tldr,externalIds,venue,publicationVenue";
     private const string CitationFields = "paperId,title,authors,year,abstract,citationCount,influentialCitationCount,fieldsOfStudy,externalIds,isInfluential";
 
     private readonly HttpClient _httpClient;
@@ -277,6 +277,12 @@ public class S2Paper
     [JsonPropertyName("externalIds")]
     public S2ExternalIds? ExternalIds { get; set; }
 
+    [JsonPropertyName("venue")]
+    public string? Venue { get; set; }
+
+    [JsonPropertyName("publicationVenue")]
+    public S2PublicationVenue? PublicationVenue { get; set; }
+
     /// <summary>Extract arXiv ID from external IDs if present.</summary>
     public string? ArxivId => ExternalIds?.ArXiv;
 
@@ -312,6 +318,18 @@ public class S2ExternalIds
 
     [JsonPropertyName("CorpusId")]
     public long? CorpusId { get; set; }
+}
+
+public class S2PublicationVenue
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("issn")]
+    public string? Issn { get; set; }
 }
 
 public record S2Citation(S2Paper Paper, bool IsInfluential);

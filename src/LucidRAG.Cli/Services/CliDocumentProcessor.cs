@@ -114,6 +114,10 @@ public class CliDocumentProcessor(
             document.Status = DocumentStatus.Completed;
             document.SegmentCount = segmentCount;
             document.ProcessedAt = DateTimeOffset.UtcNow;
+
+            // Propagate YAML frontmatter metadata (venue quality, etc.)
+            PropagateFileMetadata(document, savedPath);
+
             await db.SaveChangesAsync(ct);
 
             return new IndexResult(true, "Indexed successfully", documentId, segmentCount);
@@ -168,6 +172,73 @@ public class CliDocumentProcessor(
             ".html" => "text/html",
             _ => "application/octet-stream"
         };
+    }
+
+    /// <summary>
+    ///     Read YAML frontmatter from a markdown file and propagate selected metadata
+    ///     to DocumentEntity.Metadata as JSON. Used for venue quality scoring in RRF.
+    /// </summary>
+    private static void PropagateFileMetadata(DocumentEntity document, string filePath)
+    {
+        try
+        {
+            if (!Path.GetExtension(filePath).Equals(".md", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var content = File.ReadAllText(filePath);
+            if (!content.StartsWith("---"))
+                return;
+
+            var endIdx = content.IndexOf("\n---", 3, StringComparison.Ordinal);
+            if (endIdx < 0)
+                return;
+
+            var yamlBlock = content[3..endIdx];
+            var frontmatter = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var line in yamlBlock.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var colonIdx = line.IndexOf(':');
+                if (colonIdx <= 0) continue;
+
+                var key = line[..colonIdx].Trim().ToLowerInvariant();
+                var value = line[(colonIdx + 1)..].Trim();
+
+                if (value.Length >= 2 &&
+                    ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\'')))
+                    value = value[1..^1];
+
+                if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(value))
+                    frontmatter[key] = value;
+            }
+
+            if (frontmatter.Count == 0)
+                return;
+
+            var metadataDict = new Dictionary<string, object>();
+
+            if (frontmatter.TryGetValue("venue_quality", out var vq) && double.TryParse(vq, out var venueQuality))
+                metadataDict["venue_quality"] = venueQuality;
+
+            if (frontmatter.TryGetValue("citation_count", out var cc) && int.TryParse(cc, out var citationCount))
+                metadataDict["citation_count"] = citationCount;
+
+            if (frontmatter.TryGetValue("influential_citations", out var ic) && int.TryParse(ic, out var influential))
+                metadataDict["influential_citations"] = influential;
+
+            if (frontmatter.TryGetValue("venue", out var venue) && !string.IsNullOrEmpty(venue))
+                metadataDict["venue"] = venue;
+
+            if (frontmatter.TryGetValue("year", out var yr) && int.TryParse(yr, out var year))
+                metadataDict["year"] = year;
+
+            if (metadataDict.Count > 0)
+                document.Metadata = System.Text.Json.JsonSerializer.Serialize(metadataDict);
+        }
+        catch
+        {
+            // Metadata propagation failure shouldn't affect document processing
+        }
     }
 }
 

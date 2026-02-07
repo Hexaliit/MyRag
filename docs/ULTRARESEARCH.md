@@ -2,7 +2,7 @@
 
 > **Package**: `Mostlylucid.LucidRAG.UltraResearch`
 > **Project**: [`src/Mostlylucid.LucidRAG.UltraResearch/`](../src/Mostlylucid.LucidRAG.UltraResearch/)
-> **Tests**: [`src/Mostlylucid.LucidRAG.UltraResearch.Tests/`](../src/Mostlylucid.LucidRAG.UltraResearch.Tests/) (25 tests)
+> **Tests**: [`src/Mostlylucid.LucidRAG.UltraResearch.Tests/`](../src/Mostlylucid.LucidRAG.UltraResearch.Tests/) (39 tests)
 
 UltraResearch is a long-running autonomous agent that builds a fully-indexed research corpus. It continuously discovers, fetches, and indexes academic papers using citation graph topology, entity clusters, and LLM sentinel checkpoints to decide what to fetch next. The output is a live LucidRAG collection that users can chat with.
 
@@ -20,6 +20,7 @@ UltraResearch is a long-running autonomous agent that builds a fully-indexed res
   - [IDocumentIngester](#idocumentingester)
 - [CLI Command](#cli-command)
 - [Programmatic API](#programmatic-api)
+- [Venue Quality Scoring](#venue-quality-scoring)
 - [Priority Scoring](#priority-scoring)
 - [Convergence Detection](#convergence-detection)
 - [Sentinel Evaluation](#sentinel-evaluation)
@@ -93,6 +94,7 @@ src/Mostlylucid.LucidRAG.UltraResearch/
 ├── ResearchPaperFetcher.cs                       # Multi-source paper fetch + save as .md
 ├── ResearchFrontierManager.cs                    # Priority queue + index-driven steering
 ├── ResearchSentinelEvaluator.cs                  # LLM checkpoint with structural fallback
+├── VenueQualityScorer.cs                         # Venue quality scoring + tier dictionary
 ├── IDocumentIngester.cs                          # Abstraction for CLI/web ingestion
 ├── Extensions/
 │   └── ServiceCollectionExtensions.cs            # DI registration + UltraResearchOptions
@@ -104,7 +106,8 @@ src/Mostlylucid.LucidRAG.UltraResearch.Tests/
 ├── GlobalUsings.cs
 ├── UltraResearchModelsTests.cs                   # 7 tests: defaults, serialization, enums
 ├── ResearchPaperFetcherTests.cs                  # 8 tests: normalization, S2 ID formatting
-└── SemanticScholarResponseTests.cs               # 5 tests: JSON deserialization of S2 models
+├── SemanticScholarResponseTests.cs               # 5 tests: JSON deserialization of S2 models
+└── VenueQualityScorerTests.cs                    # 13 tests: scoring, tier matching, deserialization
 
 src/DoomSummarizer.Core/Services/
 └── SemanticScholarClient.cs                      # Semantic Scholar API client (shared)
@@ -201,7 +204,7 @@ Multi-source paper acquisition. Wraps `ArxivFetcher`, `ICitationResolver`, and `
 | Method | Description |
 |--------|-------------|
 | `SearchAsync(query, config, seenIds)` | Search arXiv (per category) + Semantic Scholar, return new candidates |
-| `FetchAndPrepareAsync(candidate, dataDir)` | Fetch full text/metadata, save as .md with YAML frontmatter, extract citation IDs |
+| `FetchAndPrepareAsync(candidate, dataDir)` | Fetch full text/metadata, compute venue quality via S2 enrichment, save as .md with YAML frontmatter, extract citation IDs |
 | `GetReverseCitationsAsync(candidate, seenIds)` | Get reverse citations from Semantic Scholar |
 
 **Content strategy**:
@@ -368,6 +371,79 @@ foreach (var collection in collections)
 }
 ```
 
+## Venue Quality Scoring
+
+**File**: [`VenueQualityScorer.cs`](../src/Mostlylucid.LucidRAG.UltraResearch/VenueQualityScorer.cs)
+
+Papers from reputable journals and conferences should rank higher during retrieval than unpublished preprints, all else being equal. The `VenueQualityScorer` computes a composite venue quality score (0-1) that flows through the entire pipeline:
+
+```
+Fetch (S2 API) → Compute Score → YAML Frontmatter → Ingestion → DocumentEntity.Metadata → RRF Signal
+```
+
+### Data Sources
+
+| Source | Field | Status |
+|--------|-------|--------|
+| Semantic Scholar | `publicationVenue` (name, type, ISSN) | Requested via API |
+| Semantic Scholar | `influentialCitationCount` | Already fetched |
+| Semantic Scholar | `citationCount` | Already fetched |
+| CrossRef | `container-title` → `CitationMetadata.Venue` | Used as fallback |
+
+### Composite Formula
+
+```
+venueQuality = 0.35 * citationSignal
+             + 0.25 * influentialCitationSignal
+             + 0.25 * venueTypeSignal
+             + 0.15 * publicationSignal
+```
+
+- **citationSignal**: `Min(1.0, Log(1 + citations) / Log(1 + 1000))` — log-scaled, caps at ~1000
+- **influentialCitationSignal**: `Min(1.0, Log(1 + influential) / Log(1 + 100))` — log-scaled for influential citations
+- **venueTypeSignal**: `journal = 0.7, conference = 0.6, unknown = 0.4` (from S2 `publicationVenue.type`)
+- **publicationSignal**: `1.0` if published (has DOI + venue), `0.6` if DOI only, `0.3` if preprint-only
+
+### Venue Tier Dictionary
+
+A built-in dictionary of ~30 well-known venues overrides the generic `venueTypeSignal` when matched:
+
+| Tier | Score | Examples |
+|------|-------|----------|
+| Top-tier journals | 1.0 | Nature, Science |
+| High-impact journals | 0.90-0.95 | Cell, Lancet, NEJM, PNAS |
+| Top CS conferences | 0.85-0.90 | NeurIPS, ICML, ICLR, CVPR, ACL |
+| Strong conferences | 0.80 | NAACL, IJCAI, ECCV, SIGIR, WWW |
+| Good journals | 0.65-0.85 | JMLR, Nature Comms, Scientific Reports, PLOS ONE |
+| Preprint servers | 0.30 | arXiv, bioRxiv, medRxiv, SSRN |
+
+Matching is fuzzy: case-insensitive, with common prefixes stripped ("Proceedings of the", "International Conference on", etc.).
+
+### RRF Integration
+
+The venue quality score is stored in `DocumentEntity.Metadata` as JSON and used as a 6th signal in `AgenticSearchService.ApplyBm25RrfAsync()`:
+
+| Signal | Hybrid Weight | Keyword Weight |
+|--------|--------------|----------------|
+| Dense embedding | 1.0 | 0.3 |
+| BM25 sparse | 1.0 | 1.5 |
+| Salience | 0.3 | 0.2 |
+| Freshness | 0.2 | 0.1 |
+| Domain relevance | 1.5 | 0.5 |
+| **Venue quality** | **0.8** | **0.3** |
+
+The venue weight is higher in hybrid mode because academic paper quality is a strong signal when multiple segments are semantically similar.
+
+### Score Examples
+
+| Paper Type | Citations | Influential | Venue | Score |
+|-----------|-----------|-------------|-------|-------|
+| Nature (journal, 500 cit, 50 inf) | 500 | 50 | Nature | ~0.95 |
+| NeurIPS (conference, 100 cit, 20 inf) | 100 | 20 | NeurIPS | ~0.82 |
+| Good journal paper (50 cit, 10 inf) | 50 | 10 | JMLR | ~0.65 |
+| arXiv preprint (5 cit, 0 inf) | 5 | 0 | arXiv | ~0.25 |
+| Unknown paper (no S2 data) | 0 | 0 | — | ~0.15 |
+
 ## Priority Scoring
 
 The frontier manager assigns a weighted composite score (0.0 to 1.0) to each candidate:
@@ -502,6 +578,10 @@ year: 2017
 doi: "10.48550/arXiv.1706.03762"
 arxiv_id: "1706.03762"
 source_url: "https://arxiv.org/abs/1706.03762"
+venue: "NeurIPS"
+venue_quality: 0.95
+citation_count: 95000
+influential_citations: 12000
 fetched_at: "2026-02-07T14:30:00.0000000+00:00"
 ---
 
@@ -509,6 +589,8 @@ fetched_at: "2026-02-07T14:30:00.0000000+00:00"
 
 [Full text content or abstract]
 ```
+
+The `venue_quality` score is computed by `VenueQualityScorer` and propagated through to `DocumentEntity.Metadata` during ingestion, where it serves as a 6th RRF signal during retrieval (see [Venue Quality Scoring](#venue-quality-scoring)).
 
 ### Content Resolution Strategy
 
@@ -614,7 +696,11 @@ public record FetchedPaper(
     string? Doi,
     string? ArxivId,
     string? SourceUrl,
-    List<(string type, string id)> CitationIds);
+    List<(string type, string id)> CitationIds,
+    string? VenueName = null,
+    double VenueQuality = 0.0,
+    int CitationCount = 0,
+    int InfluentialCitations = 0);
 ```
 
 ## Configuration Reference
@@ -667,7 +753,8 @@ Helper methods: `SemanticScholarClient.ArxivToS2Id(arxivId)`, `SemanticScholarCl
 
 | Model | Fields |
 |-------|--------|
-| `S2Paper` | paperId, title, authors, year, abstract, citationCount, influentialCitationCount, fieldsOfStudy, tldr, externalIds |
+| `S2Paper` | paperId, title, authors, year, abstract, citationCount, influentialCitationCount, fieldsOfStudy, tldr, externalIds, venue, publicationVenue |
+| `S2PublicationVenue` | name, type ("Journal"/"Conference"), issn |
 | `S2Author` | authorId, name |
 | `S2Tldr` | model, text |
 | `S2ExternalIds` | ArXiv, DOI, CorpusId |
@@ -675,7 +762,7 @@ Helper methods: `SemanticScholarClient.ArxivToS2Id(arxivId)`, `SemanticScholarCl
 
 ## Testing
 
-25 tests across 3 test files:
+39 tests across 4 test files:
 
 ### UltraResearchModelsTests (7 tests)
 
@@ -704,6 +791,23 @@ Helper methods: `SemanticScholarClient.ArxivToS2Id(arxivId)`, `SemanticScholarCl
 - `S2SearchResponse` deserializes (total count + data array)
 - `S2CitationResponse` deserializes (citing papers + influence flags)
 - `S2ReferenceResponse` deserializes (cited papers + DOI extraction)
+
+### VenueQualityScorerTests (13 tests)
+
+- Nature paper (journal, 500 citations, 50 influential) scores >= 0.85
+- NeurIPS paper (conference, 100 citations, 20 influential) scores >= 0.70
+- arXiv preprint (no venue, 5 citations) scores 0.10-0.40
+- Unknown paper (no S2 data) scores very low (<= 0.20)
+- CrossRef venue used as fallback when S2 has none
+- Journal venue type signal higher than conference
+- Unknown venue type gets default 0.4
+- Direct tier matching (Nature = 1.0)
+- Case-insensitive tier matching (neurips = 0.90)
+- Prefix stripping ("Proceedings of the NeurIPS" matches)
+- No-match returns null
+- Venue name normalization strips common prefixes
+- S2Paper deserializes new venue/publicationVenue fields
+- Extreme values stay in [0, 1] range
 
 ### Running Tests
 

@@ -830,23 +830,27 @@ ANSWER:";
             }
         }
 
-        // Score all candidates with BM25 scores, freshness, and domain relevance
+        // Score all candidates with BM25 scores, freshness, domain relevance, and venue quality
         var scoredCandidates = candidates.Select(c =>
         {
             // Get BM25 score from lookup (either PostgreSQL FTS or C# BM25)
             var bm25Score = bm25ScoreLookup.GetValueOrDefault(c.Segment.Id, 0.0);
 
-            // Get document creation date for freshness scoring
+            // Get document creation date for freshness scoring + venue quality
             var createdAt = DateTimeOffset.MinValue;
+            var venueQuality = 0.0;
             var segmentDocId = ExtractDocIdFromSegmentId(c.Segment.Id);
             if (segmentDocId != null && documentLookup?.TryGetValue(segmentDocId, out var doc) == true)
+            {
                 createdAt = doc.CreatedAt;
+                venueQuality = ExtractVenueQuality(doc.Metadata);
+            }
 
             // Domain relevance score
             var domainScore = ComputeDomainRelevance(c.Segment, query, expandedQuery.ExpandedQueryText);
 
             return (c.Segment, c.DenseScore, Bm25Score: bm25Score, Salience: c.Segment.SalienceScore,
-                CreatedAt: createdAt, DomainScore: domainScore);
+                CreatedAt: createdAt, DomainScore: domainScore, VenueQuality: venueQuality);
         }).ToList();
 
         // Rank by each signal
@@ -855,13 +859,14 @@ ANSWER:";
         var bySalience = scoredCandidates.OrderByDescending(x => x.Salience).ToList();
         var byFreshness = scoredCandidates.OrderByDescending(x => x.CreatedAt).ToList(); // Most recent first
         var byDomain = scoredCandidates.OrderByDescending(x => x.DomainScore).ToList();
+        var byVenueQuality = scoredCandidates.OrderByDescending(x => x.VenueQuality).ToList();
 
         // Compute RRF scores
         var rrfScores = new Dictionary<string, double>();
         var segmentLookup = candidates.ToDictionary(c => c.Segment.Id, c => c.Segment);
 
         // Weights based on search mode
-        double denseWeight, bm25Weight, salienceWeight, freshnessWeight, domainWeight;
+        double denseWeight, bm25Weight, salienceWeight, freshnessWeight, domainWeight, venueWeight;
         if (mode == SearchMode.Keyword)
         {
             // Keyword mode: heavily favor BM25
@@ -870,6 +875,7 @@ ANSWER:";
             salienceWeight = 0.2;
             freshnessWeight = 0.1;
             domainWeight = 0.5;
+            venueWeight = 0.3; // Moderate: venue quality is a tiebreaker
         }
         else // Hybrid (default)
         {
@@ -879,6 +885,7 @@ ANSWER:";
             salienceWeight = 0.3;
             freshnessWeight = 0.2;
             domainWeight = 1.5; // High weight: domain signal is very valuable when present
+            venueWeight = 0.8; // Academic quality matters more in hybrid mode
         }
 
         // Dense ranking contribution
@@ -914,6 +921,13 @@ ANSWER:";
         {
             var id = byDomain[i].Segment.Id;
             rrfScores[id] = rrfScores.GetValueOrDefault(id) + domainWeight * (1.0 / (rrfK + i + 1));
+        }
+
+        // Venue quality ranking contribution (academic paper quality signal)
+        for (var i = 0; i < byVenueQuality.Count; i++)
+        {
+            var id = byVenueQuality[i].Segment.Id;
+            rrfScores[id] = rrfScores.GetValueOrDefault(id) + venueWeight * (1.0 / (rrfK + i + 1));
         }
 
         // Return top-K by RRF score
@@ -1024,6 +1038,29 @@ ANSWER:";
             // Return everything after the first underscore (the docHash part)
             return vectorStoreDocId[(underscoreIndex + 1)..];
         return null;
+    }
+
+    /// <summary>
+    ///     Extract venue quality score from DocumentEntity.Metadata JSON.
+    ///     Returns 0.0 if no venue quality data is available.
+    /// </summary>
+    private static double ExtractVenueQuality(string? metadataJson)
+    {
+        if (string.IsNullOrEmpty(metadataJson))
+            return 0.0;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(metadataJson);
+            if (doc.RootElement.TryGetProperty("venue_quality", out var vq))
+                return vq.GetDouble();
+        }
+        catch
+        {
+            // Malformed JSON — treat as no venue data
+        }
+
+        return 0.0;
     }
 
     /// <summary>

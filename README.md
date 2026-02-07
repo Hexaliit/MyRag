@@ -131,7 +131,7 @@ Uses SQLite + InMemory vectors. **Note:** Embeddings are not persisted between r
 
 ## Core Components
 
-***lucid***RAG is built from specialized processing engines, each designed for a specific content type:
+*lucid*RAG is built from specialized processing engines, each designed for a specific content type:
 
 ```
 LucidRAG Platform
@@ -225,7 +225,7 @@ User: "Compare the authentication approaches in the 2023 and 2024 security audit
 
 ### Domain Specialists (Content Intelligence)
 
-During ingestion, LucidRAG runs plugin-based domain enrichment over chunked content:
+During ingestion, *lucid*RAG runs plugin-based domain enrichment over chunked content:
 
 | Specialist | Focus | Example Signals |
 |------------|-------|-----------------|
@@ -238,7 +238,7 @@ you already know the corpus type.
 
 ### Model Specialists (LLM Routing)
 
-LucidRAG also routes LLM calls by task tier using named providers:
+*lucid*RAG also routes LLM calls by task tier using named providers:
 
 | Tier | Default Provider | Primary Model | Typical Use |
 |------|------------------|---------------|-------------|
@@ -454,7 +454,7 @@ doomsummarizer scroll "Rust vs Go" -t deep-dive -o comparison.md  # Long-form ar
 **[Full documentation →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)** | *
 *[Download →](https://github.com/scottgal/lucidrag/releases)**
 
-### LucidRAG CLI
+### *lucid*RAG CLI
 
 ```bash
 # Process files (auto-routes by extension)
@@ -496,11 +496,12 @@ imagesummarizer --mcp
 
 ## NuGet Packages
 
-This repo publishes a set of reusable NuGet packages (pipelines, storage, and integrations) that power LucidRAG and
+This repo publishes a set of reusable NuGet packages (pipelines, storage, and integrations) that power *lucid*RAG and
 DoomSummarizer.
 
 - Package list + install guide: `docs/NUGET_PACKAGES.md`
 - Canonical docs index: `docs/DOCS-INDEX.md`
+- *lucid*RAG retrieval deep dive: `docs/LUCIDRAG_RETRIEVAL_SYSTEM.md`
 
 ---
 

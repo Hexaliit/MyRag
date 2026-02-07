@@ -1,4 +1,4 @@
-# LucidRAG Documentation Index
+# *lucid*RAG Documentation Index
 
 This index links to the canonical documentation in this repo. (All paths below are relative to `docs/`.)
 
@@ -7,7 +7,7 @@ This index links to the canonical documentation in this repo. (All paths below a
 - **Project overview / dev setup**: [../README.md](../README.md)
 - **NuGet packages (what to install)**: [NUGET_PACKAGES.md](NUGET_PACKAGES.md)
 - **DoomSummarizer CLI**: [../src/DoomSummarizer/README.md](../src/DoomSummarizer/README.md)
-- **LucidRAG web app**: [../src/LucidRAG/README.md](../src/LucidRAG/README.md)
+- *lucid*RAG web app: [../src/LucidRAG/README.md](../src/LucidRAG/README.md)
 - **ImageSummarizer CLI (OCR + MCP)**: [../src/Mostlylucid.ImageSummarizer.Cli/README.md](../src/Mostlylucid.ImageSummarizer.Cli/README.md)
 - **ImageSummarizer command reference**: [../src/Mostlylucid.ImageSummarizer.Cli/COMMAND-REFERENCE.md](../src/Mostlylucid.ImageSummarizer.Cli/COMMAND-REFERENCE.md)
 - **Claude / agent notes**: [../CLAUDE.md](../CLAUDE.md)
@@ -20,8 +20,9 @@ This index links to the canonical documentation in this repo. (All paths below a
 - **Sentinel prompt template**: [../src/DoomSummarizer.Core/Resources/prompts/ultraresearch-sentinel.txt](../src/DoomSummarizer.Core/Resources/prompts/ultraresearch-sentinel.txt)
 - **CLI command**: [../src/LucidRAG.Cli/Commands/UltraResearchCommand.cs](../src/LucidRAG.Cli/Commands/UltraResearchCommand.cs)
 
-## LucidRAG (Web App / RAG Platform)
+## *lucid*RAG (Web App / RAG Platform)
 
+- **Retrieval system deep dive**: [LUCIDRAG_RETRIEVAL_SYSTEM.md](LUCIDRAG_RETRIEVAL_SYSTEM.md)
 - **Conversational RAG notes**: [CONVERSATIONAL_RAG.md](CONVERSATIONAL_RAG.md)
 - **Adding ingestion sources**: [ADDING_SOURCES.md](ADDING_SOURCES.md)
 - **Unified LLM providers**: [UNIFIED_LLM_PROVIDERS.md](UNIFIED_LLM_PROVIDERS.md)

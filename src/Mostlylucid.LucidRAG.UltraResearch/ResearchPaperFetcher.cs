@@ -100,6 +100,7 @@ public class ResearchPaperFetcher
             string? doi = null;
             string? arxivId = null;
             string? sourceUrl = null;
+            DoomSummarizer.Models.CitationMetadata? crossRefMetadata = null;
 
             if (candidate.Type == "arxiv")
             {
@@ -114,6 +115,7 @@ public class ResearchPaperFetcher
                     authors = metadata.Authors;
                     year = metadata.Year;
                     doi = metadata.Doi;
+                    crossRefMetadata = metadata;
                 }
 
                 // Try to get full text from ar5iv
@@ -137,6 +139,7 @@ public class ResearchPaperFetcher
                     year = metadata.Year;
                     arxivId = metadata.ArxivId;
                     content = metadata.Abstract;
+                    crossRefMetadata = metadata;
                 }
             }
 
@@ -146,8 +149,34 @@ public class ResearchPaperFetcher
                 return null;
             }
 
-            // Save as .md with YAML frontmatter
-            var filePath = await SaveAsMarkdownAsync(dataDir, candidate, title, authors, year, doi, arxivId, sourceUrl, content);
+            // Resolve Semantic Scholar paper data for venue quality scoring
+            S2Paper? s2Paper = null;
+            try
+            {
+                var s2Id = !string.IsNullOrEmpty(arxivId)
+                    ? SemanticScholarClient.ArxivToS2Id(arxivId)
+                    : !string.IsNullOrEmpty(doi)
+                        ? SemanticScholarClient.DoiToS2Id(doi)
+                        : null;
+
+                if (s2Id != null)
+                    s2Paper = await _semanticScholar.GetPaperAsync(s2Id, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "S2 lookup failed for {Type}:{Id}, continuing without venue data",
+                    candidate.Type, candidate.Id);
+            }
+
+            // Compute venue quality score
+            var venueName = s2Paper?.PublicationVenue?.Name ?? s2Paper?.Venue ?? crossRefMetadata?.Venue;
+            var venueQuality = VenueQualityScorer.ComputeVenueQuality(s2Paper, crossRefMetadata);
+            var citationCount = s2Paper?.CitationCount ?? 0;
+            var influentialCitations = s2Paper?.InfluentialCitationCount ?? 0;
+
+            // Save as .md with YAML frontmatter (including venue data)
+            var filePath = await SaveAsMarkdownAsync(dataDir, candidate, title, authors, year, doi, arxivId,
+                sourceUrl, content, venueName, venueQuality, citationCount, influentialCitations);
 
             // Extract citation IDs from content for frontier expansion
             var citationIds = AcademicPatterns.ExtractCitationIds(content, arxivId);
@@ -160,7 +189,11 @@ public class ResearchPaperFetcher
                 Doi: doi,
                 ArxivId: arxivId,
                 SourceUrl: sourceUrl,
-                CitationIds: citationIds);
+                CitationIds: citationIds,
+                VenueName: venueName,
+                VenueQuality: venueQuality,
+                CitationCount: citationCount,
+                InfluentialCitations: influentialCitations);
         }
         catch (Exception ex)
         {
@@ -206,7 +239,9 @@ public class ResearchPaperFetcher
     private async Task<string> SaveAsMarkdownAsync(
         string dataDir, FetchCandidate candidate,
         string title, List<string> authors, int? year,
-        string? doi, string? arxivId, string? sourceUrl, string content)
+        string? doi, string? arxivId, string? sourceUrl, string content,
+        string? venueName = null, double venueQuality = 0.0,
+        int citationCount = 0, int influentialCitations = 0)
     {
         var dir = Path.Combine(dataDir, "ultraresearch");
         Directory.CreateDirectory(dir);
@@ -227,6 +262,14 @@ public class ResearchPaperFetcher
             sb.AppendLine($"arxiv_id: \"{arxivId}\"");
         if (!string.IsNullOrEmpty(sourceUrl))
             sb.AppendLine($"source_url: \"{sourceUrl}\"");
+        if (!string.IsNullOrEmpty(venueName))
+            sb.AppendLine($"venue: \"{EscapeYaml(venueName)}\"");
+        if (venueQuality > 0)
+            sb.AppendLine($"venue_quality: {venueQuality:F2}");
+        if (citationCount > 0)
+            sb.AppendLine($"citation_count: {citationCount}");
+        if (influentialCitations > 0)
+            sb.AppendLine($"influential_citations: {influentialCitations}");
         sb.AppendLine($"fetched_at: \"{DateTimeOffset.UtcNow:O}\"");
         sb.AppendLine("---");
         sb.AppendLine();
@@ -235,7 +278,7 @@ public class ResearchPaperFetcher
         sb.AppendLine(content);
 
         await File.WriteAllTextAsync(filePath, sb.ToString());
-        _logger.LogDebug("Saved paper to {Path}", filePath);
+        _logger.LogDebug("Saved paper to {Path} (venue_quality={VenueQuality:F2})", filePath, venueQuality);
         return filePath;
     }
 
@@ -323,4 +366,8 @@ public record FetchedPaper(
     string? Doi,
     string? ArxivId,
     string? SourceUrl,
-    List<(string type, string id)> CitationIds);
+    List<(string type, string id)> CitationIds,
+    string? VenueName = null,
+    double VenueQuality = 0.0,
+    int CitationCount = 0,
+    int InfluentialCitations = 0);
