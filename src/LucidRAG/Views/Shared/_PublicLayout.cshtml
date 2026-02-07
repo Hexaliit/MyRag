@@ -1,7 +1,7 @@
 @using Microsoft.AspNetCore.Antiforgery
 @inject IAntiforgery Antiforgery
 @{
-    var tenantName = ViewData["TenantName"] as string ?? "LucidRAG";
+    var tenantName = ViewData["TenantName"] as string ?? "lucidRAG";
     var tenantLogo = ViewData["TenantLogo"] as string;
     var tokens = Antiforgery.GetAndStoreTokens(Context);
 }
@@ -16,7 +16,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Raleway:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
 
     <!-- Tailwind CSS + DaisyUI (Vite bundled) -->
     <link href="/dist/css/styles.css" rel="stylesheet" type="text/css"/>
@@ -40,6 +40,9 @@
 
         body {
             font-family: 'Inter', sans-serif;
+        }
+        .font-brand {
+            font-family: 'Raleway', sans-serif;
         }
     </style>
 </head>

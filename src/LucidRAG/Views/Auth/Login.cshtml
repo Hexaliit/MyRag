@@ -7,7 +7,7 @@
 <div class="min-h-[80vh] flex items-center justify-center">
     <div class="card w-full max-w-md bg-base-100 shadow-xl">
         <div class="card-body">
-            <h2 class="card-title text-2xl font-bold justify-center mb-4">Login to LucidRAG</h2>
+            <h2 class="card-title text-2xl font-bold justify-center mb-4 font-brand">Login to <span class="italic text-base-content/60">lucid</span><span class="text-base-content">RAG</span></h2>
 
             <form method="post" asp-action="Login" asp-route-returnUrl="@ViewData["ReturnUrl"]">
                 @Html.AntiForgeryToken()

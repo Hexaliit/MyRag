@@ -59,8 +59,7 @@ public class DevAutoLoginMiddleware
             path.EndsWith(".js") ||
             path.EndsWith(".css") ||
             path.EndsWith(".map") ||
-            path.EndsWith(".ico") ||
-            path == "/") // Skip root - public page
+            path.EndsWith(".ico"))
         {
             await _next(context);
             return;
