@@ -49,11 +49,6 @@ public static partial class NarrativeKeywordClassifier
             return new DomainClassification("narrative", "Narrative Domain", 0.0);
 
         var textLower = text.ToLowerInvariant();
-        var words = textLower.Split(
-            [' ', '\t', '\n', '\r', ',', '.', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}'],
-            StringSplitOptions.RemoveEmptyEntries);
-
-        var totalWords = Math.Max(words.Length, 1);
         var strongHits = 0;
         var moderateHits = 0;
 
@@ -66,11 +61,10 @@ public static partial class NarrativeKeywordClassifier
             if (textLower.Contains(term.ToLowerInvariant()))
                 moderateHits++;
 
-        // Weighted score: strong terms count 3x
-        var weightedScore = (strongHits * 3.0 + moderateHits) / totalWords;
-
-        // Normalize to 0-1 range
-        var confidence = Math.Min(1.0, weightedScore * 10.0);
+        // Term-count scoring: independent of text length
+        // 15 weighted term-hits = full confidence (e.g. 3 strong + 6 moderate)
+        var weightedScore = strongHits * 3.0 + moderateHits;
+        var confidence = Math.Min(1.0, weightedScore / 15.0);
 
         // Structural signals: dialogue density
         var dialogueDensity = ComputeDialogueDensity(text);
@@ -95,42 +89,74 @@ public static partial class NarrativeKeywordClassifier
     }
 
     /// <summary>
-    ///     Compute the ratio of lines containing quoted dialogue to total lines.
+    ///     Compute dialogue density as the ratio of text blocks containing quoted speech.
+    ///     Handles both ASCII quotes (") and Unicode curly quotes (\u201C \u201D).
+    ///     Uses paragraph-based detection for wrapped text, falls back to line-based for short text.
     /// </summary>
     public static double ComputeDialogueDensity(string text)
     {
+        if (string.IsNullOrWhiteSpace(text)) return 0;
+
+        // Try paragraph-based first (blank-line separated) for wrapped text
+        var paragraphs = text.Split(["\r\n\r\n", "\n\n"], StringSplitOptions.RemoveEmptyEntries)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToArray();
+
+        // If we have real paragraphs (>1), use paragraph-based density
+        if (paragraphs.Length > 1)
+        {
+            var dialogueParagraphs = 0;
+            foreach (var para in paragraphs)
+            {
+                if (ContainsQuotedDialogue(para))
+                    dialogueParagraphs++;
+            }
+
+            return (double)dialogueParagraphs / paragraphs.Length;
+        }
+
+        // Fall back to line-based for text without paragraph breaks
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length == 0) return 0;
 
         var dialogueLines = 0;
         foreach (var line in lines)
         {
-            // Double quotes
-            if (line.Contains('"') && line.IndexOf('"') != line.LastIndexOf('"'))
-            {
+            if (ContainsQuotedDialogue(line))
                 dialogueLines++;
-                continue;
-            }
-
-            // Single quotes (British style, require substantial content to avoid contractions)
-            var firstSingle = line.IndexOf('\u2018'); // '
-            var lastSingle = line.LastIndexOf('\u2019'); // '
-            if (firstSingle >= 0 && lastSingle > firstSingle + 10)
-            {
-                dialogueLines++;
-                continue;
-            }
-
-            // ASCII single quotes with substantial content
-            if (line.Contains('\''))
-            {
-                var first = line.IndexOf('\'');
-                var last = line.LastIndexOf('\'');
-                if (last > first + 10)
-                    dialogueLines++;
-            }
         }
 
         return (double)dialogueLines / lines.Length;
+    }
+
+    /// <summary>
+    ///     Check if text contains quoted dialogue (ASCII or Unicode quotes).
+    /// </summary>
+    internal static bool ContainsQuotedDialogue(string text)
+    {
+        // ASCII double quotes: two " on same text block
+        if (text.Contains('"') && text.IndexOf('"') != text.LastIndexOf('"'))
+            return true;
+
+        // Unicode curly double quotes: \u201C...\u201D
+        if (text.Contains('\u201C') && text.Contains('\u201D'))
+            return true;
+
+        // Unicode single quotes (British style, min 10 chars between)
+        var firstSingle = text.IndexOf('\u2018');
+        var lastSingle = text.LastIndexOf('\u2019');
+        if (firstSingle >= 0 && lastSingle > firstSingle + 10)
+            return true;
+
+        // ASCII single quotes with substantial content
+        if (text.Contains('\''))
+        {
+            var first = text.IndexOf('\'');
+            var last = text.LastIndexOf('\'');
+            if (last > first + 10)
+                return true;
+        }
+
+        return false;
     }
 }

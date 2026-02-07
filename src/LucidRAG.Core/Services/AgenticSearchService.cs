@@ -10,6 +10,7 @@ using LucidRAG.Lenses;
 using LucidRAG.Services.Lenses;
 using LucidRAG.Services.Sentinel;
 using Microsoft.Extensions.Options;
+using DomainClassifier.Core.Interfaces;
 using Mostlylucid.DocSummarizer;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
@@ -31,6 +32,7 @@ public class AgenticSearchService(
     IBm25SearchService? bm25Search, // Optional - only when a BM25 plugin is registered
     ILensRegistry lensRegistry,
     ILensRenderService lensRender,
+    IDomainPluginRegistry? domainPluginRegistry,
     IOptions<PromptsConfig> promptsConfig,
     IOptions<DocSummarizerConfig> docSummarizerConfig,
     IOptions<RagDocumentsConfig> ragDocumentsConfig,
@@ -925,8 +927,9 @@ ANSWER:";
     /// <summary>
     ///     Compute domain relevance score for a segment against a query.
     ///     Considers entity matching, domain type relevance, and base domain confidence.
+    ///     Query relevance terms are provided by each IDomainPlugin, not hardcoded.
     /// </summary>
-    private static double ComputeDomainRelevance(Segment segment, string query, string expandedQuery)
+    private double ComputeDomainRelevance(Segment segment, string query, string expandedQuery)
     {
         if (string.IsNullOrEmpty(segment.DomainDetected))
             return 0.0;
@@ -957,24 +960,14 @@ ANSWER:";
             }
         }
 
-        // Domain type relevance: query contains domain-related terms
-        var domainTerms = segment.DomainDetected.ToLowerInvariant() switch
+        // Domain type relevance: terms provided by the plugin, not hardcoded
+        var plugin = domainPluginRegistry?.GetById(segment.DomainDetected);
+        if (plugin != null)
         {
-            "narrative" => new[]
-            {
-                "character", "story", "plot", "dialogue", "narrator", "protagonist",
-                "setting", "chapter", "genre", "who is", "what happens", "describe"
-            },
-            "financial" => new[]
-            {
-                "stock", "revenue", "market", "earnings", "price", "investment",
-                "profit", "dividend", "growth", "trading"
-            },
-            _ => Array.Empty<string>()
-        };
-
-        if (domainTerms.Any(term => queryLower.Contains(term)))
-            score += 0.3;
+            var domainTerms = plugin.QueryRelevanceTerms;
+            if (domainTerms.Any(term => queryLower.Contains(term.ToLowerInvariant())))
+                score += 0.3;
+        }
 
         // Base domain confidence boost (small)
         score += 0.1 * segment.DomainConfidence;

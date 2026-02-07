@@ -346,7 +346,7 @@ app.UseSerilogRequestLogging();
 
 // API documentation always available
 app.MapOpenApi();
-app.MapScalarApiReference();
+// app.MapScalarApiReference(); // TODO: restore when Scalar.AspNetCore package is added
 
 // Static files
 app.UseStaticFiles();

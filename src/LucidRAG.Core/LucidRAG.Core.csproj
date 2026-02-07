@@ -55,6 +55,7 @@
         <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj"/>
         <ProjectReference Include="..\Mostlylucid.RAG\Mostlylucid.RAG.csproj"/>
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
     </ItemGroup>
 
 </Project>

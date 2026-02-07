@@ -32,7 +32,7 @@ public interface IDomainPluginRegistry
     /// </summary>
     Task<DomainEnrichmentResult> EnrichAsync(
         IReadOnlyList<ContentChunk> chunks,
-        double classificationThreshold = 0.6,
+        double classificationThreshold = 0.3,
         string? domainHint = null,
         CancellationToken ct = default);
 }

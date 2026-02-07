@@ -72,7 +72,7 @@ public class DomainPluginRegistry : IDomainPluginRegistry
 
     public async Task<DomainEnrichmentResult> EnrichAsync(
         IReadOnlyList<ContentChunk> chunks,
-        double classificationThreshold = 0.6,
+        double classificationThreshold = 0.3,
         string? domainHint = null,
         CancellationToken ct = default)
     {
@@ -109,15 +109,34 @@ public class DomainPluginRegistry : IDomainPluginRegistry
                 domainHint);
         }
 
-        // Sample chunks for classification
-        var sampleSize = Math.Min(5, chunks.Count);
-        var sampleTexts = chunks
-            .Take(sampleSize)
-            .Select(c => c.Text);
-        var combinedSample = string.Join("\n\n", sampleTexts);
+        // Combine chunk text for classification, targeting ~8000 chars for reliable keyword matching.
+        // Individual segments may be very short (single sentences), so we need enough
+        // combined text for classifiers to find patterns.
+        // Skip the first 10% of chunks to avoid boilerplate (e.g. Gutenberg headers).
+        var skipCount = chunks.Count > 20 ? chunks.Count / 10 : 0;
+        var combinedSample = new System.Text.StringBuilder(8000);
+        var step = Math.Max(1, (chunks.Count - skipCount) / Math.Min(50, chunks.Count));
+        for (var i = skipCount; i < chunks.Count && combinedSample.Length < 8000; i += step)
+        {
+            combinedSample.Append(chunks[i].Text);
+            combinedSample.Append('\n');
+        }
+        // If we still have room, fill from the middle of the document
+        if (combinedSample.Length < 4000)
+        {
+            var mid = chunks.Count / 2;
+            for (var i = mid; i < chunks.Count && combinedSample.Length < 8000; i++)
+            {
+                combinedSample.Append(chunks[i].Text);
+                combinedSample.Append('\n');
+            }
+        }
 
         // Classify against all plugins
-        var classifications = await ClassifyAsync(combinedSample, ct);
+        var sampleText = combinedSample.ToString();
+        _logger.LogDebug("Classification sample: {Length} chars, first 200: {Sample}",
+            sampleText.Length, sampleText.Length > 200 ? sampleText[..200] : sampleText);
+        var classifications = await ClassifyAsync(sampleText, ct);
 
         if (classifications.Count == 0)
             return DomainEnrichmentResult.Empty;

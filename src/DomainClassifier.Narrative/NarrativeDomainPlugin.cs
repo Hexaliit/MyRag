@@ -29,6 +29,12 @@ public partial class NarrativeDomainPlugin : IDomainPlugin
         "time_period", "atmosphere"
     ];
 
+    public IReadOnlyList<string> QueryRelevanceTerms =>
+    [
+        "character", "story", "plot", "dialogue", "narrator", "protagonist",
+        "setting", "chapter", "genre", "who is", "what happens", "describe"
+    ];
+
     public Task<DomainClassification> ClassifyAsync(
         string text,
         CancellationToken ct = default)

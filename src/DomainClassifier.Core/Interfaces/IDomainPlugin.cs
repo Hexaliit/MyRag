@@ -26,6 +26,13 @@ public interface IDomainPlugin
     IReadOnlyList<string> EntityTypes { get; }
 
     /// <summary>
+    ///     Query terms that indicate a user query is relevant to this domain.
+    ///     Used by retrieval to boost domain-matched segments.
+    ///     Override per-language or per-domain to avoid hardcoding.
+    /// </summary>
+    IReadOnlyList<string> QueryRelevanceTerms => [];
+
+    /// <summary>
     ///     How confident this plugin is that the content belongs to its domain.
     ///     Called on a sample of chunks to decide whether to run full extraction.
     ///     Returns 0.0 (not my domain) to 1.0 (definitely my domain).

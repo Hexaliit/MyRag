@@ -678,25 +678,31 @@ public class DocumentQueueProcessor(
 
                         var enrichmentResult = await domainEnrichment.EnrichChunksAsync(enrichmentChunks, ct: ct);
 
+                        // Only apply domain metadata if enrichment actually ran (has entities/signals),
+                        // not just classification-only results that fell below threshold
+                        var topClassification = enrichmentResult.Classifications
+                            .OrderByDescending(c => c.Confidence).FirstOrDefault();
+
                         if (enrichmentResult != DomainEnrichmentResult.Empty &&
-                            enrichmentResult.Classifications.Count > 0)
+                            topClassification is { Confidence: > 0 } &&
+                            enrichmentResult.Entities.Count > 0)
                         {
-                            var topClassification = enrichmentResult.Classifications
-                                .OrderByDescending(c => c.Confidence).First();
 
                             var signalsJson = enrichmentResult.Signals.Count > 0
                                 ? System.Text.Json.JsonSerializer.Serialize(
                                     enrichmentResult.Signals.ToDictionary(s => s.Key, s => s.Value))
                                 : null;
 
+                            // Entity texts are document-wide domain signals (not per-segment positional),
+                            // so assign all distinct entities to every segment for retrieval matching.
+                            var allEntityTexts = enrichmentResult.Entities
+                                .Select(e => e.Text).Distinct().ToList();
+
                             foreach (var segment in segments)
                             {
                                 segment.DomainDetected = topClassification.DomainId;
                                 segment.DomainConfidence = topClassification.Confidence;
-                                segment.DomainEntities = enrichmentResult.Entities
-                                    .Where(e => e.StartOffset >= segment.StartChar &&
-                                                e.EndOffset <= segment.EndChar)
-                                    .Select(e => e.Text).Distinct().ToList();
+                                segment.DomainEntities = allEntityTexts;
                                 segment.DomainSignalsJson = signalsJson;
                             }
 
@@ -704,10 +710,7 @@ public class DocumentQueueProcessor(
                             var domainVectorStore = scope.ServiceProvider.GetService<IVectorStore>();
                             if (domainVectorStore != null)
                             {
-                                var domainCollectionName = document.CollectionId.HasValue
-                                    ? $"collection_{document.CollectionId.Value}"
-                                    : "default";
-                                await domainVectorStore.UpdateDomainMetadataAsync(domainCollectionName, segments, ct);
+                                await domainVectorStore.UpdateDomainMetadataAsync("ragdocs", segments, ct);
                             }
 
                             logger.LogInformation(

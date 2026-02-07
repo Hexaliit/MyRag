@@ -18,7 +18,7 @@ public class DomainClassifierConfig
     ///     Minimum confidence threshold for domain classification.
     ///     Plugins returning below this are ignored.
     /// </summary>
-    public double ClassificationThreshold { get; set; } = 0.6;
+    public double ClassificationThreshold { get; set; } = 0.3;
 
     /// <summary>
     ///     Number of chunks to sample for domain classification.

@@ -33,6 +33,12 @@ public class FinancialDomainPlugin : IDomainPlugin
         "instrument", "percentage"
     ];
 
+    public IReadOnlyList<string> QueryRelevanceTerms =>
+    [
+        "stock", "revenue", "market", "earnings", "price", "investment",
+        "profit", "dividend", "growth", "trading"
+    ];
+
     public Task<DomainClassification> ClassifyAsync(
         string text,
         CancellationToken ct = default)

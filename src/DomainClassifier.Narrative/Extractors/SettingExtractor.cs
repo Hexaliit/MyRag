@@ -20,6 +20,14 @@ public static partial class SettingExtractor
         RegexOptions.Compiled | RegexOptions.IgnoreCase)]
     private static partial Regex TimePeriodRegex();
 
+    // Locations that are too broad to be meaningful narrative settings,
+    // or commonly appear in boilerplate/legal text (e.g. Project Gutenberg disclaimers)
+    private static readonly HashSet<string> LocationFalsePositives = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "United States", "United Kingdom", "European Union",
+        "North America", "South America", "Project Gutenberg"
+    };
+
     // Atmosphere/time-of-day words
     private static readonly HashSet<string> AtmosphereTerms = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -37,7 +45,7 @@ public static partial class SettingExtractor
         foreach (Match match in LocationVerbRegex().Matches(text))
         {
             var location = match.Groups[1].Value.Trim();
-            if (location.Length >= 2)
+            if (location.Length >= 2 && !LocationFalsePositives.Contains(location))
             {
                 entities.Add(new DomainEntity(
                     Text: location,
