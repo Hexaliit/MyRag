@@ -25,6 +25,8 @@
         <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
         <ProjectReference Include="..\DomainClassifier.Financial\DomainClassifier.Financial.csproj"/>
         <ProjectReference Include="..\DomainClassifier.Narrative\DomainClassifier.Narrative.csproj"/>
+        <ProjectReference Include="..\DomainClassifier.Technical\DomainClassifier.Technical.csproj"/>
+        <ProjectReference Include="..\LucidRAG.Core\LucidRAG.Core.csproj"/>
     </ItemGroup>
 
 </Project>

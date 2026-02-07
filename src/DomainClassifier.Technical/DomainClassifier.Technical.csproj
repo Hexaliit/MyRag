@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+
+        <RootNamespace>DomainClassifier.Technical</RootNamespace>
+        <AssemblyName>DomainClassifier.Technical</AssemblyName>
+
+        <!-- Package metadata -->
+        <PackageId>Mostlylucid.LucidRAG.DomainClassifier.Technical</PackageId>
+        <Description>Technical/academic domain plugin for LucidRAG - citation extraction, bibliography parsing, methodology detection</Description>
+        <Authors>Scott Galloway</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageTags>academic;citation;bibliography;domain-classifier;technical;research;arxiv;doi</PackageTags>
+    </PropertyGroup>
+
+    <!-- Project references -->
+    <ItemGroup>
+        <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
+    </ItemGroup>
+
+</Project>

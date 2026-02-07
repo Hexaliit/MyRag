@@ -766,6 +766,29 @@ public class DocumentQueueProcessor(
                         job.DocumentId);
                 }
 
+                // Extract links from document content → graph edges (URLs, DOIs, arXiv IDs)
+                // This runs for ALL documents, not domain-specific
+                if (!string.IsNullOrEmpty(rawFileContent))
+                {
+                    try
+                    {
+                        var links = LinkGraphExtractor.Extract(rawFileContent);
+                        if (links.Count > 0)
+                        {
+                            var linkCount = await entityGraph.StoreLinkEntitiesAsync(job.DocumentId, links, ct);
+                            logger.LogInformation(
+                                "Stored {LinkCount} link entities (URLs/DOIs/arXiv) for document {DocumentId}",
+                                linkCount, job.DocumentId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex,
+                            "Link graph extraction failed for document {DocumentId}, continuing",
+                            job.DocumentId);
+                    }
+                }
+
                 // Store as unified RetrievalEntity and evidence - independent of entity extraction
                 try
                 {

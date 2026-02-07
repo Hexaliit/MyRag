@@ -89,6 +89,7 @@
         <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
         <ProjectReference Include="..\DomainClassifier.Financial\DomainClassifier.Financial.csproj"/>
         <ProjectReference Include="..\DomainClassifier.Narrative\DomainClassifier.Narrative.csproj"/>
+        <ProjectReference Include="..\DomainClassifier.Technical\DomainClassifier.Technical.csproj"/>
     </ItemGroup>
 
     <!-- Ensure static files and config are published -->

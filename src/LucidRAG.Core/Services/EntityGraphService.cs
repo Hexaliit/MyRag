@@ -37,6 +37,15 @@ public interface IEntityGraphService
     /// </summary>
     Task<IReadOnlyList<EntityInfo>> GetRelatedEntitiesAsync(string query, int limit = 10,
         CancellationToken ct = default);
+
+    /// <summary>
+    ///     Store extracted links (URLs, DOIs, arXiv IDs) as graph entities with "links_to" relationships.
+    ///     When two documents link to the same URL/DOI, they share a graph entity → implicit relationship.
+    /// </summary>
+    Task<int> StoreLinkEntitiesAsync(
+        Guid documentId,
+        IReadOnlyList<ExtractedLink> links,
+        CancellationToken ct = default);
 }
 
 public record EntityExtractionResult(
@@ -355,5 +364,111 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         }
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<int> StoreLinkEntitiesAsync(
+        Guid documentId,
+        IReadOnlyList<ExtractedLink> links,
+        CancellationToken ct = default)
+    {
+        var stored = 0;
+
+        foreach (var link in links)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var entityType = link.Type switch
+            {
+                LinkType.Doi => "doi_reference",
+                LinkType.ArxivId => "arxiv_reference",
+                _ => "external_link"
+            };
+
+            var canonicalName = link.Type switch
+            {
+                LinkType.Doi => $"doi:{link.Value}",
+                LinkType.ArxivId => $"arxiv:{link.Value}",
+                _ => link.Value
+            };
+
+            // Upsert entity — if another document already links to this URL/DOI, reuse the entity
+            var existing = await _db.Entities
+                .FirstOrDefaultAsync(e => e.CanonicalName.ToLower() == canonicalName.ToLower(), ct);
+
+            Guid entityId;
+            if (existing != null)
+            {
+                entityId = existing.Id;
+            }
+            else
+            {
+                var entity = new ExtractedEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CanonicalName = canonicalName,
+                    EntityType = entityType,
+                    Description = link.Context.Length > 200 ? link.Context[..200] : link.Context,
+                    Aliases = []
+                };
+                _db.Entities.Add(entity);
+                entityId = entity.Id;
+            }
+
+            // Create document-entity link
+            var existingLink = await _db.DocumentEntityLinks
+                .FirstOrDefaultAsync(l => l.DocumentId == documentId && l.EntityId == entityId, ct);
+
+            if (existingLink == null)
+            {
+                _db.DocumentEntityLinks.Add(new DocumentEntityLink
+                {
+                    DocumentId = documentId,
+                    EntityId = entityId,
+                    MentionCount = 1,
+                    SegmentIds = []
+                });
+            }
+            else
+            {
+                existingLink.MentionCount++;
+            }
+
+            // Create "links_to" relationship from a virtual document entity to the link entity
+            // This makes the link visible in the knowledge graph
+            var docEntityName = $"doc:{documentId}";
+            var docEntity = await _db.Entities
+                .FirstOrDefaultAsync(e => e.CanonicalName == docEntityName, ct);
+
+            if (docEntity != null)
+            {
+                var existingRel = await _db.EntityRelationships
+                    .FirstOrDefaultAsync(r =>
+                        r.SourceEntityId == docEntity.Id && r.TargetEntityId == entityId &&
+                        r.RelationshipType == "links_to", ct);
+
+                if (existingRel == null)
+                {
+                    _db.EntityRelationships.Add(new EntityRelationship
+                    {
+                        Id = Guid.NewGuid(),
+                        SourceEntityId = docEntity.Id,
+                        TargetEntityId = entityId,
+                        RelationshipType = "links_to",
+                        Strength = 0.8f,
+                        SourceDocuments = [documentId]
+                    });
+                }
+            }
+
+            stored++;
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Stored {LinkCount} link entities for document {DocumentId}",
+            stored, documentId);
+
+        return stored;
     }
 }

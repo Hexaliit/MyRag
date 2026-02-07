@@ -114,6 +114,7 @@ internal static class Program
         rootCommand.Subcommands.Add(CliCommands.CollectionsCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.ConfigCommand.Create());
         rootCommand.Subcommands.Add(CliCommands.CheckCommand.Create());
+        rootCommand.Subcommands.Add(CliCommands.FollowPapersCommand.Create());
 
         return rootCommand;
     }

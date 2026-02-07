@@ -35,6 +35,7 @@ using Serilog;
 using DomainClassifier.Core.Extensions;
 using DomainClassifier.Financial.Extensions;
 using DomainClassifier.Narrative.Extensions;
+using DomainClassifier.Technical.Extensions;
 using VideoSummarizer.Core.Extensions;
 
 // Parse command line arguments for standalone mode
@@ -159,6 +160,7 @@ builder.Services.AddDataSummarizer(opt =>
 // Domain classifier plugins (optional - enrich pipeline output with domain-specific intelligence)
 builder.Services.AddDomainFinancial();
 builder.Services.AddDomainNarrative();
+builder.Services.AddDomainTechnical();
 // builder.Services.AddDomainLegal();      // Future
 // builder.Services.AddDomainMedical();    // Future
 
