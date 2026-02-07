@@ -7,6 +7,7 @@ using LucidRAG.Entities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace LucidRAG.Services.Sentinel;
 
@@ -900,15 +901,7 @@ JSON only, no explanation: /no_think";
     /// </summary>
     private HashSet<string> ExtractKeywords(string text)
     {
-        var stopwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-            "to", "of", "in", "for", "on", "with", "at", "by", "from", "as",
-            "what", "how", "why", "when", "where", "who", "which",
-            "this", "that", "these", "those", "it", "its",
-            "can", "you", "me", "tell", "about", "explain", "describe", "and", "or", "but"
-        };
+        var stopwords = StopwordLists.Stopwords;
 
         return Regex.Matches(text, @"\b[a-zA-Z]{3,}\b")
             .Select(m => m.Value.ToLowerInvariant())

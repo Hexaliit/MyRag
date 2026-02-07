@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace DoomSummarizer.Services;
 
@@ -314,13 +315,7 @@ public sealed partial class ConversationSentinel
 
         // Fallback: take the first noun phrase (up to 5 words, skip leading non-topic words)
         var words = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var skipWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "what", "which", "who", "where", "when", "why", "how",
-            "is", "are", "was", "were", "does", "do", "did", "can", "could", "will", "would",
-            "the", "a", "an", "about", "more", "tell", "me", "some", "any",
-            "regarding", "concerning", "in", "on", "of", "for", "to"
-        };
+        var skipWords = StopwordLists.Stopwords;
         var meaningful = words.SkipWhile(w => skipWords.Contains(w)).ToArray();
         if (meaningful.Length > 0)
             return string.Join(" ", meaningful.Take(5)).TrimEnd('?', '.', '!');
@@ -383,13 +378,7 @@ public sealed partial class ConversationSentinel
             return string.Join(" ", properNouns);
 
         // Fallback: first 5 meaningful words from the answer
-        var skipWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "the", "a", "an", "this", "that", "these", "those",
-            "is", "are", "was", "were", "has", "have", "had",
-            "of", "in", "on", "at", "to", "for", "with", "by", "from"
-        };
-        var meaningful = words.Where(w => !skipWords.Contains(w)).Take(5).ToArray();
+        var meaningful = words.Where(w => !StopwordLists.Stopwords.Contains(w)).Take(5).ToArray();
         return meaningful.Length > 0
             ? string.Join(" ", meaningful)
             : "the previous topic";

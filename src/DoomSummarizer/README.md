@@ -103,7 +103,7 @@ doomsummarizer scroll -s search:rust -s factcheck       # Search + fact-check
 doomsummarizer scroll --json --no-llm                   # Fast JSON, no LLM
 doomsummarizer scroll --local "query"                   # Stored KB only
 doomsummarizer scroll -t newsletter -o report.html      # Template + file
-doomsummarizer scroll --entities --graph                # NER + knowledge graph
+doomsummarizer scroll --graph                           # Knowledge graph (entities always on)
 doomsummarizer scroll -v "excited about space"          # Custom vibe text
 doomsummarizer scroll --list-templates                  # List all templates
 
@@ -125,7 +125,7 @@ doomsummarizer scroll "React vs Svelte" -t pros-cons -o comparison.md
 | `--quiet`         | `-q`  | Minimal output                                           |
 | `--no-llm`        |       | Skip LLM - still runs embeddings, BM25, ranking          |
 | `--json`          |       | JSON output for automation                               |
-| `--entities`      |       | NER entity extraction                                    |
+| `--no-entities`   |       | Disable NER entity extraction (enabled by default)       |
 | `--graph`         |       | Knowledge graph build + display                          |
 | `--no-links`      |       | Skip one-hop link following                              |
 | `--debug`         |       | Pipeline diagnostics: RRF scores, salience               |
@@ -168,7 +168,7 @@ crawls are incremental by default - uses HTTP ETags and content hashing to skip 
 # Web crawl
 doomsummarizer crawl https://docs.example.com
 doomsummarizer crawl https://wiki.local -n wiki -d 5 -m 500
-doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
+doomsummarizer crawl https://blog.example.com -g "/blog/*"
 doomsummarizer crawl https://docs.example.com --force  # Bypass cache
 
 # YouTube video (lucidrag only - extracts captions, chapters, metadata)
@@ -198,7 +198,7 @@ Browse contents: `doomsummarizer show wiki`
 | `--force`         | `-f`  | Re-process all pages/files, ignore cache                      |
 | `--delay MS`      |       | Request delay in ms (default: 1000)                           |
 | `--concurrency N` |       | Concurrent requests (default: 3)                              |
-| `--entities`      |       | NER entity extraction + knowledge graph                       |
+| `--no-entities`   |       | Disable NER entity extraction (enabled by default)            |
 | `--ask`           |       | Interactive Q&A mode (local: after ingest; URL: during crawl) |
 | `--recurse`       | `-r`  | Recurse subdirectories for local paths (default: top-level)   |
 | `--quiet`         | `-q`  | Minimal output                                                |
@@ -338,8 +338,8 @@ extracts entities. See [Models & ML Pipeline](#models--ml-pipeline) for full det
 
 ```bash
 # Entities guide source selection and cached content lookup
-doomsummarizer scroll "OpenAI Sam Altman regulation" --entities
-# NER detects: OpenAI (ORG), Sam Altman (PER)
+doomsummarizer scroll "OpenAI Sam Altman regulation"
+# NER detects: OpenAI (ORG), Sam Altman (PER) — entities extracted by default
 # Cached items about these entities injected into results
 ```
 
@@ -495,9 +495,9 @@ doomsummarizer scroll "langauge models transformer" --debug
 # [grey]Lucene: 15 keyword matches (fuzzy: langauge~, boosted: transformer^2)[/]
 ```
 
-### Entity Profile HNSW (Preview)
+### Entity Profile HNSW
 
-For knowledge bases with `--entities`, documents get **entity profile embeddings** for semantic graph retrieval:
+Documents automatically get **entity profile embeddings** for semantic graph retrieval (enabled by default, disable with `--no-entities`):
 
 ```
 Document → NER entities → Entity embeddings → TF×IDF×confidence weighting → L2-normalized profile
@@ -506,12 +506,12 @@ Document → NER entities → Entity embeddings → TF×IDF×confidence weightin
 Query-time: Find related documents via HNSW similarity on entity profiles (O(log N) retrieval).
 
 ```bash
-# Build with entity profiles
-doomsummarizer crawl https://docs.example.com --entities
-
-# Entity-enhanced retrieval
+# Entity-enhanced retrieval (entities extracted by default)
 doomsummarizer scroll "OpenAI regulation" --debug
 # [green]Entity profile HNSW: +3 related (0.85, 0.72 similarity)[/]
+
+# Disable entity extraction if not needed
+doomsummarizer scroll "quick news" --no-entities
 ```
 
 ### Reliability Improvements
@@ -678,12 +678,12 @@ Query → PromptInterpreter (+ composite query decomposition) → SourceRouter (
 | Query Similarity | 0.8    | 2     | Max embedding cosine similarity (across all subqueries for composite queries)                 |
 | Vibe Alignment   | 0.4    | 2     | Embedding cosine to vibe                                                                      |
 | Quality          | 0.2    | 1+2   | Embedding-based clickbait vs substantive content scoring                                      |
-| Entity Profile   | 0.3    | 2     | HNSW similarity on entity profiles (when `--entities` enabled)                                |
+| Entity Profile   | 0.3    | 2     | HNSW similarity on entity profiles (enabled by default)                                       |
 
 ### `--no-llm` Mode
 
 Without Ollama or an LLM provider, the full signal pipeline still runs: ONNX embeddings, BM25, sentiment, topic
-inference, RRF ranking, NER (with `--entities`). All signals stored to SQLite. Use `--nollm` to skip synthesis entirely.
+inference, RRF ranking, NER. All signals stored to SQLite. Use `--nollm` to skip synthesis entirely.
 
 ## LLM Providers
 

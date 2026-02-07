@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services.Onnx;
+using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
@@ -1129,88 +1130,12 @@ public class PipelinedBertRagSummarizer : IDisposable
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .ToList();
 
-        var honorifics = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Mr.", "Mr", "Mrs.", "Mrs", "Miss", "Ms.", "Ms", "Dr.", "Dr",
-            "Captain", "Inspector", "Professor", "Sir", "Lady", "Lord", "Colonel", "Major"
-        };
-
-        var placeStop = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Street", "St", "Wharf", "Yard", "Road", "Lane", "Court", "Avenue", "Place", "Square"
-        };
-
-        var dayStop = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
-        };
-
-        var monthStop = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-        };
-
-        // Stopwords: pronouns, determiners, sentence adverbs, conjunctions, prepositions
-        var stopwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            // Pronouns
-            "I", "Me", "My", "Mine", "Myself",
-            "You", "Your", "Yours", "Yourself", "Yourselves",
-            "He", "Him", "His", "Himself",
-            "She", "Her", "Hers", "Herself",
-            "It", "Its", "Itself",
-            "We", "Us", "Our", "Ours", "Ourselves",
-            "They", "Them", "Their", "Theirs", "Themselves",
-            "Who", "Whom", "Whose", "Which", "What", "That", "This", "These", "Those",
-            "One", "Ones", "Someone", "Anyone", "Everyone", "No one", "Nobody",
-
-            // Determiners and articles
-            "The", "A", "An", "Some", "Any", "No", "Every", "Each", "Either", "Neither",
-            "All", "Both", "Half", "Several", "Many", "Much", "Few", "Little", "Other", "Another",
-
-            // Sentence adverbs and conjunctions (often start sentences)
-            "However", "Therefore", "Moreover", "Furthermore", "Nevertheless", "Nonetheless",
-            "Meanwhile", "Otherwise", "Instead", "Indeed", "Thus", "Hence", "Accordingly",
-            "Yet", "Still", "Also", "Too", "Even", "Just", "Only", "Perhaps", "Maybe",
-            "Although", "Though", "While", "When", "Where", "Because", "Since", "Unless",
-            "But", "And", "Or", "Nor", "So", "For", "After", "Before", "Until", "During",
-
-            // Common non-name capitalized words
-            "Chapter", "Part", "Book", "Section", "Volume", "Page", "Note", "Notes",
-            "Introduction", "Conclusion", "Summary", "Appendix", "Index", "Contents",
-            "Here", "There", "Now", "Then", "Today", "Tomorrow", "Yesterday",
-            "Yes", "No", "Well", "Oh", "Ah", "Alas",
-
-            // Misc place/time words
-            "Baker", "Street", "Wharf", "East", "West", "North", "South",
-            "Morning", "Afternoon", "Evening", "Night", "Day", "Week", "Month", "Year",
-
-            // Project Gutenberg boilerplate (common in public domain texts)
-            "Project", "Gutenberg", "Foundation", "Archive", "Literary", "License", "Ebook",
-            "Copyright", "Trademark", "Donations", "Volunteers", "How", "Why", "Whether",
-            "Let", "Could", "Would", "Should", "Must", "Shall", "Will", "May", "Might",
-
-            // Generic words that look like names but aren't
-            "Island", "River", "Lake", "Mountain", "Valley", "Forest", "Garden", "Park",
-            "Castle", "Palace", "House", "Hall", "Tower", "Bridge", "Gate", "Door"
-        };
-
-        // Code/technical keywords that should not be treated as character names
-        var codeStop = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            // Assembly/low-level
-            "MOV", "MOVX", "CALL", "RET", "JMP", "JNZ", "JZ", "PUSH", "POP", "ADD", "SUB", "MUL", "DIV",
-            // VB/Basic
-            "Dim", "Sub", "Function", "End", "If", "Then", "Else", "For", "Next", "Do", "Loop", "While",
-            // C-style
-            "Int", "Void", "Char", "Float", "Double", "Bool", "String", "Null", "True", "False",
-            // Common programming
-            "API", "HTTP", "JSON", "XML", "HTML", "CSS", "URL", "URI", "SQL", "REST", "GET", "POST", "PUT", "DELETE",
-            "CPU", "GPU", "RAM", "ROM", "BIOS", "FPGA", "ASIC", "VHDL", "HDL", "RTL",
-            // General technical acronyms
-            "ID", "IO", "UI", "UX", "OS", "VM", "SDK", "IDE", "CLI", "GUI"
-        };
+        var honorifics = StopwordLists.Honorifics;
+        var placeStop = StopwordLists.PlaceIndicators;
+        var dayStop = StopwordLists.DayNames;
+        var monthStop = StopwordLists.MonthNames;
+        var stopwords = StopwordLists.Stopwords;
+        var codeStop = StopwordLists.CodeKeywords;
 
         var candidates = new List<string>();
         var i = 0;

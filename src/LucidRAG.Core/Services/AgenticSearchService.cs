@@ -15,6 +15,7 @@ using Mostlylucid.DocSummarizer;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
+using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace LucidRAG.Services;
 
@@ -1057,21 +1058,7 @@ ANSWER:";
     /// </summary>
     private static HashSet<string> ExtractSignificantKeywords(string query)
     {
-        // Common English stopwords to filter out
-        var stopwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-            "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
-            "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
-            "through", "during", "before", "after", "above", "below", "between",
-            "under", "again", "further", "then", "once", "here", "there", "when",
-            "where", "why", "how", "all", "each", "few", "more", "most", "other",
-            "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
-            "too", "very", "just", "also", "now", "and", "but", "or", "if", "because",
-            "until", "while", "what", "which", "who", "whom", "this", "that", "these",
-            "those", "am", "it", "its", "about", "tell", "me", "explain", "describe"
-        };
+        var stopwords = StopwordLists.Stopwords;
 
         var keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 

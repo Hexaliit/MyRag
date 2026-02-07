@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using DoomSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services.Utilities;
 
 namespace DoomSummarizer.Services;
 
@@ -665,16 +666,18 @@ public static class SentinelSourceMapper
         };
     }
 
-    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    ///     Query command words that should be stripped when extracting topic terms.
+    ///     These are verbs/nouns specific to DoomSummarizer's query interface.
+    /// </summary>
+    private static readonly HashSet<string> QueryCommandWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "might", "must", "shall", "can", "need", "dare",
-        "about", "for", "with", "what", "how", "why", "when", "where", "who",
-        "show", "me", "tell", "give", "get", "find", "search", "scroll",
-        "summarize", "summary", "news", "latest", "recent", "today", "now", "on",
-        "new", "any", "some", "all", "current", "happening", "update", "updates"
+        "show", "give", "get", "find", "search", "scroll",
+        "summarize", "summary", "news", "latest", "recent", "happening", "update", "updates"
     };
+
+    private static bool IsStopOrCommandWord(string word) =>
+        StopwordLists.IsStopword(word) || QueryCommandWords.Contains(word);
 
     internal static string ExtractTopicTerms(string? query)
     {
@@ -687,7 +690,7 @@ public static class SentinelSourceMapper
 
         var excludeSet = new HashSet<string>(exclude, StringComparer.OrdinalIgnoreCase);
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(w => !StopWords.Contains(w) && !excludeSet.Contains(w) && w.Length > 1)
+            .Where(w => !IsStopOrCommandWord(w) && !excludeSet.Contains(w) && w.Length > 1)
             .ToList();
         return words.Count > 0 ? string.Join(" ", words) : "";
     }
