@@ -1,5 +1,7 @@
 # Mostlylucid.LucidRAG.UltraResearch
 
+> **COMING IN V2.0** — This module is under active development and will be available in lucidRAG v2.0.
+
 NuGet: `Mostlylucid.LucidRAG.UltraResearch`
 
 Autonomous research corpus builder for [LucidRAG](https://github.com/scottgal/lucidrag). A long-running agentic loop that discovers, fetches, and indexes academic papers using citation graph topology, entity clusters, and LLM sentinel checkpoints to steer exploration.

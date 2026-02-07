@@ -76,6 +76,8 @@ builder.Services.Configure<RagDocumentsConfig>(
     builder.Configuration.GetSection(RagDocumentsConfig.SectionName));
 builder.Services.Configure<PromptsConfig>(
     builder.Configuration.GetSection(PromptsConfig.SectionName));
+builder.Services.Configure<RrfWeightsConfig>(
+    builder.Configuration.GetSection(RrfWeightsConfig.SectionName));
 
 var ragConfig = builder.Configuration
     .GetSection(RagDocumentsConfig.SectionName)

@@ -36,12 +36,14 @@ public class AgenticSearchService(
     IOptions<PromptsConfig> promptsConfig,
     IOptions<DocSummarizerConfig> docSummarizerConfig,
     IOptions<RagDocumentsConfig> ragDocumentsConfig,
+    IOptions<RrfWeightsConfig> rrfWeightsConfig,
     ILogger<AgenticSearchService> logger) : IAgenticSearchService
 {
     private readonly IBm25SearchService? _bm25Search = bm25Search;
     private readonly DocSummarizerConfig _docSummarizerConfig = docSummarizerConfig.Value;
     private readonly PromptsConfig _prompts = promptsConfig.Value;
     private readonly RagDocumentsConfig _ragConfig = ragDocumentsConfig.Value;
+    private readonly RrfWeightsConfig _rrfWeights = rrfWeightsConfig.Value;
 
     public async Task<SearchResult> SearchAsync(SearchRequest request, CancellationToken ct = default)
     {
@@ -778,7 +780,7 @@ ANSWER:";
     {
         if (candidates.Count == 0) return [];
 
-        const int rrfK = 60; // RRF smoothing constant
+        var rrfK = _rrfWeights.RrfK;
 
         // Expand query terms using ML-based synonym detection
         // "golden" → ["golden", "yellow", "gold", "amber"]
@@ -865,28 +867,14 @@ ANSWER:";
         var rrfScores = new Dictionary<string, double>();
         var segmentLookup = candidates.ToDictionary(c => c.Segment.Id, c => c.Segment);
 
-        // Weights based on search mode
-        double denseWeight, bm25Weight, salienceWeight, freshnessWeight, domainWeight, venueWeight;
-        if (mode == SearchMode.Keyword)
-        {
-            // Keyword mode: heavily favor BM25
-            denseWeight = 0.3;
-            bm25Weight = 1.5;
-            salienceWeight = 0.2;
-            freshnessWeight = 0.1;
-            domainWeight = 0.5;
-            venueWeight = 0.3; // Moderate: venue quality is a tiebreaker
-        }
-        else // Hybrid (default)
-        {
-            // Balanced weights with domain signal as a strong signal
-            denseWeight = 1.0;
-            bm25Weight = 1.0;
-            salienceWeight = 0.3;
-            freshnessWeight = 0.2;
-            domainWeight = 1.5; // High weight: domain signal is very valuable when present
-            venueWeight = 0.8; // Academic quality matters more in hybrid mode
-        }
+        // Weights based on search mode (configurable via RrfWeights section)
+        var weights = mode == SearchMode.Keyword ? _rrfWeights.Keyword : _rrfWeights.Hybrid;
+        var denseWeight = weights.Dense;
+        var bm25Weight = weights.Bm25;
+        var salienceWeight = weights.Salience;
+        var freshnessWeight = weights.Freshness;
+        var domainWeight = weights.Domain;
+        var venueWeight = weights.Venue;
 
         // Dense ranking contribution
         for (var i = 0; i < byDense.Count; i++)
