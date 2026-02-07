@@ -116,6 +116,17 @@ public interface IVectorStore : IAsyncDisposable, IDisposable
         IEnumerable<string> validContentHashes,
         CancellationToken ct = default);
 
+    // === Domain Metadata Updates ===
+
+    /// <summary>
+    ///     Update domain metadata on existing indexed segments.
+    ///     Uses payload-only update (no embedding re-upload needed).
+    /// </summary>
+    Task UpdateDomainMetadataAsync(
+        string collectionName,
+        IEnumerable<Segment> segments,
+        CancellationToken ct = default);
+
     // === Summary Caching ===
 
     /// <summary>

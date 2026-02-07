@@ -32,6 +32,9 @@ using Mostlylucid.DocSummarizer.OpenAI.Extensions;
 using Mostlylucid.DocSummarizer.Search;
 using Mostlylucid.Summarizer.Core.Extensions;
 using Serilog;
+using DomainClassifier.Core.Extensions;
+using DomainClassifier.Financial.Extensions;
+using DomainClassifier.Narrative.Extensions;
 using VideoSummarizer.Core.Extensions;
 
 // Parse command line arguments for standalone mode
@@ -153,8 +156,17 @@ builder.Services.AddDataSummarizer(opt =>
     opt.EnableCorrelation = false; // Expensive, disabled by default
 });
 
+// Domain classifier plugins (optional - enrich pipeline output with domain-specific intelligence)
+builder.Services.AddDomainFinancial();
+builder.Services.AddDomainNarrative();
+// builder.Services.AddDomainLegal();      // Future
+// builder.Services.AddDomainMedical();    // Future
+
 // Pipeline registry for unified content processing (routes .gif, .png, etc. to ImagePipeline)
 builder.Services.AddPipelineRegistry();
+
+// Domain classifier registry (auto-discovers all registered domain plugins)
+builder.Services.AddDomainClassifierRegistry();
 
 // LLM Backend selection based on configuration
 var llmBackend = builder.Configuration.GetValue<string>("DocSummarizer:LlmBackend") ?? "Ollama";

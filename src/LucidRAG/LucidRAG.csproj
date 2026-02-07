@@ -86,6 +86,9 @@
         <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj"/>
         <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj"/>
         <ProjectReference Include="..\VideoSummarizer.Core\VideoSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
+        <ProjectReference Include="..\DomainClassifier.Financial\DomainClassifier.Financial.csproj"/>
+        <ProjectReference Include="..\DomainClassifier.Narrative\DomainClassifier.Narrative.csproj"/>
     </ItemGroup>
 
     <!-- Ensure static files and config are published -->

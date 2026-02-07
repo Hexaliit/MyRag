@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+
+        <RootNamespace>DomainClassifier.Financial</RootNamespace>
+        <AssemblyName>DomainClassifier.Financial</AssemblyName>
+
+        <!-- Package metadata -->
+        <PackageId>Mostlylucid.LucidRAG.DomainClassifier.Financial</PackageId>
+        <Description>Financial domain plugin for LucidRAG - ticker, currency, sentiment extraction using FinancialBERT</Description>
+        <Authors>Scott Galloway</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageTags>financial;finbert;domain-classifier;ner;sentiment;ticker;enrichment</PackageTags>
+    </PropertyGroup>
+
+    <!-- Project references -->
+    <ItemGroup>
+        <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
+    </ItemGroup>
+
+</Project>

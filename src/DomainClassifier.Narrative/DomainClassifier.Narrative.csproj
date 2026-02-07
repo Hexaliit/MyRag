@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+
+        <RootNamespace>DomainClassifier.Narrative</RootNamespace>
+        <AssemblyName>DomainClassifier.Narrative</AssemblyName>
+
+        <!-- Package metadata -->
+        <PackageId>Mostlylucid.LucidRAG.DomainClassifier.Narrative</PackageId>
+        <Description>Narrative domain plugin for LucidRAG - character, dialogue, setting, genre extraction from fiction and literary content</Description>
+        <Authors>Scott Galloway</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageTags>narrative;fiction;domain-classifier;character;dialogue;genre;literary;enrichment</PackageTags>
+    </PropertyGroup>
+
+    <!-- Project references -->
+    <ItemGroup>
+        <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
+    </ItemGroup>
+
+</Project>

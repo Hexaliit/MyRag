@@ -48,7 +48,9 @@ public record SearchRequest(
     int TopK = 10,
     string? SystemPrompt = null,
     ExecutionMode? Mode = null,
-    SearchMode SearchMode = SearchMode.Hybrid);
+    SearchMode SearchMode = SearchMode.Hybrid,
+    string? DomainFilter = null,
+    string[]? EntityFilter = null);
 
 public record SearchResult(
     List<SearchResultItem> Results,
@@ -68,7 +70,9 @@ public record SearchResultItem(
     string SegmentId,
     string Text,
     double Score,
-    string? SectionTitle = null);
+    string? SectionTitle = null,
+    string? DomainDetected = null,
+    List<string>? DomainEntities = null);
 
 public record ChatRequest(
     string Query,
@@ -157,6 +161,7 @@ public record SourceCitation(
     double Bm25Score = 0.0,
     double SalienceScore = 0.0,
     double FreshnessScore = 0.0,
+    double DomainScore = 0.0,
     // Matching information
     List<string>? MatchedSalientTerms = null,
     List<string>? MatchedEntities = null,

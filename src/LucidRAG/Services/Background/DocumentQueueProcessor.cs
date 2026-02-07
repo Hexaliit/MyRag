@@ -1,4 +1,7 @@
 using System.Text;
+using DomainClassifier.Core.Interfaces;
+using DomainClassifier.Core.Models;
+using DomainClassifier.Core.Services;
 using LucidRAG.Core.Services;
 using LucidRAG.Data;
 using LucidRAG.Entities;
@@ -578,6 +581,37 @@ public class DocumentQueueProcessor(
                 logger.LogWarning(ex, "Table extraction failed for document {DocumentId}, continuing", job.DocumentId);
             }
 
+            // Domain enrichment - optional post-processing step (no-op if no plugins registered)
+            try
+            {
+                var domainEnrichment = scope.ServiceProvider.GetService<DomainEnrichmentService>();
+                if (domainEnrichment != null && mediaSegments != null)
+                {
+                    progressChannel.Writer.TryWrite(
+                        ProgressUpdates.Stage("Domain", "Running domain classification..."));
+
+                    // Build ContentChunks from segments for domain enrichment
+                    var enrichmentChunks = mediaSegments.Select((s, i) => new ContentChunk
+                    {
+                        Id = s.Id,
+                        Text = s.Text,
+                        ContentType = Mostlylucid.Summarizer.Core.Pipeline.ContentType.DocumentText,
+                        SourcePath = job.FilePath,
+                        Index = i
+                    }).ToList();
+
+                    await domainEnrichment.EnrichAndMergeAsync(enrichmentChunks, ct: ct);
+
+                    logger.LogDebug("Domain enrichment completed for document {DocumentId}", job.DocumentId);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Domain enrichment failure shouldn't fail the whole document processing
+                logger.LogWarning(ex, "Domain enrichment failed for document {DocumentId}, continuing",
+                    job.DocumentId);
+            }
+
             // Update progress
             document.ProcessingProgress = 80;
             await db.SaveChangesAsync(ct);
@@ -622,6 +656,73 @@ public class DocumentQueueProcessor(
                     "Failed to extract segments for document {DocumentId}, continuing without evidence storage",
                     job.DocumentId);
                 segments = new List<Segment>();
+            }
+
+            // Domain enrichment for document segments (not media - those were enriched earlier)
+            // Populates DomainDetected, DomainEntities etc. on segments before entity extraction
+            if (segments.Count > 0 && mediaSegments == null)
+            {
+                try
+                {
+                    var domainEnrichment = scope.ServiceProvider.GetService<DomainEnrichmentService>();
+                    if (domainEnrichment != null)
+                    {
+                        var enrichmentChunks = segments.Select((s, i) => new ContentChunk
+                        {
+                            Id = s.Id,
+                            Text = s.Text,
+                            ContentType = Mostlylucid.Summarizer.Core.Pipeline.ContentType.DocumentText,
+                            SourcePath = job.FilePath,
+                            Index = i
+                        }).ToList();
+
+                        var enrichmentResult = await domainEnrichment.EnrichChunksAsync(enrichmentChunks, ct: ct);
+
+                        if (enrichmentResult != DomainEnrichmentResult.Empty &&
+                            enrichmentResult.Classifications.Count > 0)
+                        {
+                            var topClassification = enrichmentResult.Classifications
+                                .OrderByDescending(c => c.Confidence).First();
+
+                            var signalsJson = enrichmentResult.Signals.Count > 0
+                                ? System.Text.Json.JsonSerializer.Serialize(
+                                    enrichmentResult.Signals.ToDictionary(s => s.Key, s => s.Value))
+                                : null;
+
+                            foreach (var segment in segments)
+                            {
+                                segment.DomainDetected = topClassification.DomainId;
+                                segment.DomainConfidence = topClassification.Confidence;
+                                segment.DomainEntities = enrichmentResult.Entities
+                                    .Where(e => e.StartOffset >= segment.StartChar &&
+                                                e.EndOffset <= segment.EndChar)
+                                    .Select(e => e.Text).Distinct().ToList();
+                                segment.DomainSignalsJson = signalsJson;
+                            }
+
+                            // Update Qdrant payload with domain metadata (no re-embedding needed)
+                            var domainVectorStore = scope.ServiceProvider.GetService<IVectorStore>();
+                            if (domainVectorStore != null)
+                            {
+                                var domainCollectionName = document.CollectionId.HasValue
+                                    ? $"collection_{document.CollectionId.Value}"
+                                    : "default";
+                                await domainVectorStore.UpdateDomainMetadataAsync(domainCollectionName, segments, ct);
+                            }
+
+                            logger.LogInformation(
+                                "Domain enrichment for doc segments: {Domain} ({Confidence:P1}), {EntityCount} entities",
+                                topClassification.DomainId, topClassification.Confidence,
+                                enrichmentResult.Entities.Count);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "Domain enrichment for doc segments failed for {DocumentId}, continuing",
+                        job.DocumentId);
+                }
             }
 
             // Entity extraction - optional, failures don't block document completion

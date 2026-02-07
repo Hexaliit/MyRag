@@ -191,8 +191,21 @@ public class AgenticSearchService(
                 "Post-ranking deduplication: {Before} → {After} segments (removed {Removed} cross-doc duplicates)",
                 beforeDedup, dedupedResults.Count, beforeDedup - dedupedResults.Count);
 
-        // Take final TopK after deduplication
-        var mergedResults = dedupedResults
+        // Apply domain/entity filters if specified
+        var filteredResults = dedupedResults.AsEnumerable();
+
+        if (!string.IsNullOrEmpty(request.DomainFilter))
+            filteredResults = filteredResults.Where(x =>
+                string.Equals(x.Segment.DomainDetected, request.DomainFilter, StringComparison.OrdinalIgnoreCase));
+
+        if (request.EntityFilter is { Length: > 0 })
+            filteredResults = filteredResults.Where(x =>
+                x.Segment.DomainEntities?.Any(de =>
+                    request.EntityFilter.Any(ef =>
+                        de.Contains(ef, StringComparison.OrdinalIgnoreCase))) == true);
+
+        // Take final TopK after deduplication and filtering
+        var mergedResults = filteredResults
             .Take(request.TopK)
             .Select(x => CreateSearchResultItem(x.Segment, x.Score, documentLookup))
             .ToList();
@@ -416,7 +429,9 @@ public class AgenticSearchService(
                 r.DocumentName,
                 r.SegmentId,
                 r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text,
-                r.SectionTitle))
+                r.SectionTitle,
+                MatchedEntities: r.DomainEntities,
+                DocumentType: r.DomainDetected))
             .ToList();
 
         // Build thinking/transparency output
@@ -556,7 +571,8 @@ public class AgenticSearchService(
             .ToList();
         var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
         var sources = dedupedResults.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName,
-            r.SegmentId, r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text, r.SectionTitle)).ToList();
+            r.SegmentId, r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text, r.SectionTitle,
+            MatchedEntities: r.DomainEntities, DocumentType: r.DomainDetected)).ToList();
 
         var thinking = BuildThinkingOutput(request.Query, searchResult);
         yield return new ChatStreamChunk("sources", Sources: sources, ConversationId: conversationId,
@@ -812,7 +828,7 @@ ANSWER:";
             }
         }
 
-        // Score all candidates with BM25 scores and get document freshness
+        // Score all candidates with BM25 scores, freshness, and domain relevance
         var scoredCandidates = candidates.Select(c =>
         {
             // Get BM25 score from lookup (either PostgreSQL FTS or C# BM25)
@@ -824,8 +840,11 @@ ANSWER:";
             if (segmentDocId != null && documentLookup?.TryGetValue(segmentDocId, out var doc) == true)
                 createdAt = doc.CreatedAt;
 
+            // Domain relevance score
+            var domainScore = ComputeDomainRelevance(c.Segment, query, expandedQuery.ExpandedQueryText);
+
             return (c.Segment, c.DenseScore, Bm25Score: bm25Score, Salience: c.Segment.SalienceScore,
-                CreatedAt: createdAt);
+                CreatedAt: createdAt, DomainScore: domainScore);
         }).ToList();
 
         // Rank by each signal
@@ -833,13 +852,14 @@ ANSWER:";
         var byBm25 = scoredCandidates.OrderByDescending(x => x.Bm25Score).ToList();
         var bySalience = scoredCandidates.OrderByDescending(x => x.Salience).ToList();
         var byFreshness = scoredCandidates.OrderByDescending(x => x.CreatedAt).ToList(); // Most recent first
+        var byDomain = scoredCandidates.OrderByDescending(x => x.DomainScore).ToList();
 
         // Compute RRF scores
         var rrfScores = new Dictionary<string, double>();
         var segmentLookup = candidates.ToDictionary(c => c.Segment.Id, c => c.Segment);
 
         // Weights based on search mode
-        double denseWeight, bm25Weight, salienceWeight, freshnessWeight;
+        double denseWeight, bm25Weight, salienceWeight, freshnessWeight, domainWeight;
         if (mode == SearchMode.Keyword)
         {
             // Keyword mode: heavily favor BM25
@@ -847,14 +867,16 @@ ANSWER:";
             bm25Weight = 1.5;
             salienceWeight = 0.2;
             freshnessWeight = 0.1;
+            domainWeight = 0.5;
         }
         else // Hybrid (default)
         {
-            // Balanced weights with slight freshness bonus
+            // Balanced weights with domain signal as a strong signal
             denseWeight = 1.0;
             bm25Weight = 1.0;
             salienceWeight = 0.3;
             freshnessWeight = 0.2;
+            domainWeight = 1.5; // High weight: domain signal is very valuable when present
         }
 
         // Dense ranking contribution
@@ -885,12 +907,79 @@ ANSWER:";
             rrfScores[id] = rrfScores.GetValueOrDefault(id) + freshnessWeight * (1.0 / (rrfK + i + 1));
         }
 
+        // Domain relevance ranking contribution (strong boost for domain-matched content)
+        for (var i = 0; i < byDomain.Count; i++)
+        {
+            var id = byDomain[i].Segment.Id;
+            rrfScores[id] = rrfScores.GetValueOrDefault(id) + domainWeight * (1.0 / (rrfK + i + 1));
+        }
+
         // Return top-K by RRF score
         return rrfScores
             .OrderByDescending(kv => kv.Value)
             .Take(topK)
             .Select(kv => (segmentLookup[kv.Key], kv.Value))
             .ToList();
+    }
+
+    /// <summary>
+    ///     Compute domain relevance score for a segment against a query.
+    ///     Considers entity matching, domain type relevance, and base domain confidence.
+    /// </summary>
+    private static double ComputeDomainRelevance(Segment segment, string query, string expandedQuery)
+    {
+        if (string.IsNullOrEmpty(segment.DomainDetected))
+            return 0.0;
+
+        var score = 0.0;
+        var queryLower = query.ToLowerInvariant();
+        var expandedLower = expandedQuery.ToLowerInvariant();
+
+        // Entity matching: query contains entity text from segment's DomainEntities
+        if (segment.DomainEntities is { Count: > 0 })
+        {
+            foreach (var entity in segment.DomainEntities)
+            {
+                var entityLower = entity.ToLowerInvariant();
+                if (queryLower.Contains(entityLower) || expandedLower.Contains(entityLower))
+                {
+                    score += 0.4; // Exact entity match
+                    break; // One match is enough for the boost
+                }
+
+                // Partial word match (entity words appear in query)
+                var entityWords = entityLower.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (entityWords.Any(w => w.Length > 2 && queryLower.Contains(w)))
+                {
+                    score += 0.2; // Partial match
+                    break;
+                }
+            }
+        }
+
+        // Domain type relevance: query contains domain-related terms
+        var domainTerms = segment.DomainDetected.ToLowerInvariant() switch
+        {
+            "narrative" => new[]
+            {
+                "character", "story", "plot", "dialogue", "narrator", "protagonist",
+                "setting", "chapter", "genre", "who is", "what happens", "describe"
+            },
+            "financial" => new[]
+            {
+                "stock", "revenue", "market", "earnings", "price", "investment",
+                "profit", "dividend", "growth", "trading"
+            },
+            _ => Array.Empty<string>()
+        };
+
+        if (domainTerms.Any(term => queryLower.Contains(term)))
+            score += 0.3;
+
+        // Base domain confidence boost (small)
+        score += 0.1 * segment.DomainConfidence;
+
+        return Math.Min(1.0, score);
     }
 
     /// <summary>
@@ -910,7 +999,9 @@ ANSWER:";
             segment.Id,
             segment.Text,
             score,
-            segment.SectionTitle);
+            segment.SectionTitle,
+            segment.DomainDetected,
+            segment.DomainEntities);
     }
 
     /// <summary>

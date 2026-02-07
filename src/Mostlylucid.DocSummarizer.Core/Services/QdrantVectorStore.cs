@@ -144,7 +144,11 @@ public class QdrantVectorStore : IVectorStore
                 ["positionWeight"] = s.PositionWeight,
                 ["startChar"] = s.StartChar,
                 ["endChar"] = s.EndChar,
-                ["chunkIndex"] = s.ChunkIndex
+                ["chunkIndex"] = s.ChunkIndex,
+                // Domain enrichment metadata (empty = no domain detected, backward compatible)
+                ["domainDetected"] = s.DomainDetected ?? "",
+                ["domainConfidence"] = s.DomainConfidence,
+                ["domainEntities"] = s.DomainEntities != null ? string.Join("|", s.DomainEntities) : ""
             }
         }).ToList();
 
@@ -163,6 +167,61 @@ public class QdrantVectorStore : IVectorStore
         if (_verbose)
             VerboseHelper.Log(
                 $"[dim]Upserted {segmentList.Count} segments to Qdrant collection '{VerboseHelper.Escape(collectionName)}'[/]");
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateDomainMetadataAsync(
+        string collectionName,
+        IEnumerable<Segment> segments,
+        CancellationToken ct = default)
+    {
+        var segmentList = segments
+            .Where(s => !string.IsNullOrEmpty(s.DomainDetected))
+            .ToList();
+
+        if (segmentList.Count == 0) return;
+
+        const int batchSize = 100;
+        for (var i = 0; i < segmentList.Count; i += batchSize)
+        {
+            var batch = segmentList.Skip(i).Take(batchSize).ToList();
+
+            // Update each point individually (domain metadata may vary per segment)
+            foreach (var s in batch)
+            {
+                var segmentHash = s.ContentHash ?? GenerateHashFromText(s.Text);
+
+                var singlePointPayload = new Dictionary<string, Value>
+                {
+                    ["domainDetected"] = s.DomainDetected ?? "",
+                    ["domainConfidence"] = s.DomainConfidence,
+                    ["domainEntities"] = s.DomainEntities != null ? string.Join("|", s.DomainEntities) : ""
+                };
+
+                // Filter by segmentHash to find the right point
+                var filter = new Filter
+                {
+                    Must =
+                    {
+                        new Condition
+                        {
+                            Field = new FieldCondition
+                            {
+                                Key = "segmentHash",
+                                Match = new Match { Keyword = segmentHash }
+                            }
+                        }
+                    }
+                };
+
+                await _client.SetPayloadAsync(collectionName, singlePointPayload, filter,
+                    cancellationToken: ct);
+            }
+        }
+
+        if (_verbose)
+            VerboseHelper.Log(
+                $"[dim]Updated domain metadata on {segmentList.Count} segments in '{VerboseHelper.Escape(collectionName)}'[/]");
     }
 
     public async Task<List<Segment>> SearchAsync(
@@ -563,6 +622,11 @@ public class QdrantVectorStore : IVectorStore
             Console.WriteLine(
                 $"[DEBUG QDRANT] PayloadToSegment: segmentHash from payload={segmentHash}, docHash={docHash}, index={index}");
 
+            // Domain enrichment metadata (backward compatible: missing = no domain)
+            var domainDetected = payload.TryGetValue("domainDetected", out var ddVal) ? ddVal.StringValue : null;
+            var domainConfidence = payload.TryGetValue("domainConfidence", out var dcVal) ? dcVal.DoubleValue : 0;
+            var domainEntitiesStr = payload.TryGetValue("domainEntities", out var deVal) ? deVal.StringValue : null;
+
             var segment = new Segment(docHash, "", type, index, startChar, endChar)
             {
                 ContentHash = segmentHash,
@@ -572,7 +636,13 @@ public class QdrantVectorStore : IVectorStore
                 PositionWeight = payload.TryGetValue("positionWeight", out var pwVal) ? pwVal.DoubleValue : 1.0,
                 ChunkIndex = payload.TryGetValue("chunkIndex", out var ciVal) ? (int)ciVal.IntegerValue : 0,
                 QuerySimilarity = score,
-                Embedding = embedding
+                Embedding = embedding,
+                // Domain metadata
+                DomainDetected = string.IsNullOrEmpty(domainDetected) ? null : domainDetected,
+                DomainConfidence = domainConfidence,
+                DomainEntities = string.IsNullOrEmpty(domainEntitiesStr)
+                    ? null
+                    : domainEntitiesStr.Split('|', StringSplitOptions.RemoveEmptyEntries).ToList()
             };
 
             Console.WriteLine($"[DEBUG QDRANT] Created segment Id={segment.Id}, ContentHash={segment.ContentHash}");

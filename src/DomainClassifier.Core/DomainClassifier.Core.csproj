@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+
+        <RootNamespace>DomainClassifier.Core</RootNamespace>
+        <AssemblyName>DomainClassifier.Core</AssemblyName>
+
+        <!-- Package metadata -->
+        <PackageId>Mostlylucid.LucidRAG.DomainClassifier.Core</PackageId>
+        <Description>Domain classification plugin infrastructure for content enrichment (financial, legal, medical, scientific)</Description>
+        <Authors>Scott Galloway</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
+        <PackageTags>domain-classifier;onnx;ner;financial;legal;medical;scientific;enrichment</PackageTags>
+    </PropertyGroup>
+
+    <!-- Common packages -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2"/>
+    </ItemGroup>
+
+    <!-- Project references -->
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
+    </ItemGroup>
+
+</Project>

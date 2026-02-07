@@ -207,6 +207,33 @@ public class InMemoryVectorStore : IVectorStore
         return Task.CompletedTask;
     }
 
+    public Task UpdateDomainMetadataAsync(
+        string collectionName,
+        IEnumerable<Segment> segments,
+        CancellationToken ct = default)
+    {
+        if (!_collections.TryGetValue(collectionName, out var stored))
+            return Task.CompletedTask;
+
+        var updates = segments
+            .Where(s => !string.IsNullOrEmpty(s.DomainDetected))
+            .ToDictionary(s => s.ContentHash ?? s.Id, s => s);
+
+        foreach (var existing in stored)
+        {
+            var key = existing.ContentHash ?? existing.Id;
+            if (updates.TryGetValue(key, out var updated))
+            {
+                existing.DomainDetected = updated.DomainDetected;
+                existing.DomainConfidence = updated.DomainConfidence;
+                existing.DomainEntities = updated.DomainEntities;
+                existing.DomainSignalsJson = updated.DomainSignalsJson;
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
     // === Summary Caching ===
 
     public Task<DocumentSummary?> GetCachedSummaryAsync(string collectionName, string evidenceHash,

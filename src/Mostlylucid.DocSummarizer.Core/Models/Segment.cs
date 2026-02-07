@@ -92,6 +92,28 @@ public class Segment
     /// </summary>
     public int ChunkIndex { get; set; }
 
+    // === Domain enrichment metadata (populated during indexing) ===
+
+    /// <summary>
+    ///     Detected domain (e.g., "financial", "narrative"), or null if no domain detected.
+    /// </summary>
+    public string? DomainDetected { get; set; }
+
+    /// <summary>
+    ///     Confidence of domain classification (0.0-1.0).
+    /// </summary>
+    public double DomainConfidence { get; set; }
+
+    /// <summary>
+    ///     Domain-specific entities found in this segment (e.g., character names, tickers).
+    /// </summary>
+    public List<string>? DomainEntities { get; set; }
+
+    /// <summary>
+    ///     JSON-serialized domain signals for this segment.
+    /// </summary>
+    public string? DomainSignalsJson { get; set; }
+
     // === Computed during extraction ===
 
     /// <summary>
