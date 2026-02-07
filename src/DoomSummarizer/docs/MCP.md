@@ -53,37 +53,37 @@ All tools return JSON.
 
 ### Search
 
-- `search_kb` — Full relevance pipeline: **Lucene pre-filter (LLM-generated query) → BM25F + global IDF → embeddings →
+- `search_kb` - Full relevance pipeline: **Lucene pre-filter (LLM-generated query) → BM25F + global IDF → embeddings →
   PRF refinement → RRF**; returns ranked item IDs + metadata.
-- `keyword_search` — Fast keyword-only Lucene search (no embeddings).
-- `semantic_search` — Pure embedding similarity search (cosine).
+- `keyword_search` - Fast keyword-only Lucene search (no embeddings).
+- `semantic_search` - Pure embedding similarity search (cosine).
 
 ### Content
 
-- `get_item_content` — Full content + metadata for an item ID.
-- `extract_keywords` — Deterministic keyword extraction from arbitrary text.
-- `compare_items` — Compare two items (cosine similarity + keyword overlap).
+- `get_item_content` - Full content + metadata for an item ID.
+- `extract_keywords` - Deterministic keyword extraction from arbitrary text.
+- `compare_items` - Compare two items (cosine similarity + keyword overlap).
 
 ### Ingestion
 
-- `ingest_url` — Fetch a URL, extract readable content, embed, profile, and index into the KB.
+- `ingest_url` - Fetch a URL, extract readable content, embed, profile, and index into the KB.
 
 ### Collections
 
-- `list_collections` — List collections (sources) and basic stats.
-- `get_collection_items` — Paginated browse of a collection.
+- `list_collections` - List collections (sources) and basic stats.
+- `get_collection_items` - Paginated browse of a collection.
 
 ### Entities / Graph
 
-- `list_entities` — List top entities (filterable by type/recency).
-- `get_entity_details` — Entity details + relationships + mentions.
-- `get_entity_network` — Multi-hop neighborhood expansion around seed entities.
-- `find_related_by_entities` — Find documents related via shared entities.
+- `list_entities` - List top entities (filterable by type/recency).
+- `get_entity_details` - Entity details + relationships + mentions.
+- `get_entity_network` - Multi-hop neighborhood expansion around seed entities.
+- `find_related_by_entities` - Find documents related via shared entities.
 
 ### Analytics
 
-- `get_kb_stats` — KB overview stats and index status.
-- `get_trends` — Topic distribution and sentiment trends over time.
+- `get_kb_stats` - KB overview stats and index status.
+- `get_trends` - Topic distribution and sentiment trends over time.
 
 ## Example workflows
 

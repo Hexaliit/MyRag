@@ -11,7 +11,7 @@ This is a "local-first RAG-ish" console app with two ingestion paths:
 
 1. **Ingest** documents (PDF, DOCX, Markdown, HTML, TXT, PPTX) via handler registry + processor plugins
 2. **Detect** document type (Fiction, NonFiction, Academic, Technical) via heuristic scoring
-3. **Chunk** content adaptively — books use 5000-char chunks for narrative continuity; technical docs use 2000-char
+3. **Chunk** content adaptively - books use 5000-char chunks for narrative continuity; technical docs use 2000-char
    chunks. PDFs chunked by page markers, text by headings/paragraphs.
 
 Both paths then converge:
@@ -56,10 +56,10 @@ When an LLM call is needed, DoomSummarizer routes requests through `LlmRouter`:
 
 Before ranking, queries are analyzed and optionally decomposed:
 
-1. **Sentinel Analysis** — LLM classifies intent, extracts keywords, detects temporal requirements
-2. **NER Extraction** — ONNX-based entity recognition (PER, ORG, LOC, MISC)
-3. **Composite Detection** — Multi-part questions ("X and Y?") decomposed into subqueries
-4. **Temporal Parsing** — Microsoft.Recognizers.Text confirms date/time expressions
+1. **Sentinel Analysis** - LLM classifies intent, extracts keywords, detects temporal requirements
+2. **NER Extraction** - ONNX-based entity recognition (PER, ORG, LOC, MISC)
+3. **Composite Detection** - Multi-part questions ("X and Y?") decomposed into subqueries
+4. **Temporal Parsing** - Microsoft.Recognizers.Text confirms date/time expressions
 
 For composite queries, each subquery gets its own embedding vector. Items are scored using **max similarity** across all
 subqueries (not averaged), ensuring articles matching ANY part of the question rank highly.
@@ -103,27 +103,27 @@ Use `doomsummarizer scroll --debug` to see the scoring stages and discards on yo
 ## Synthesis pipeline (`SynthesizeSummaryAsync`)
 
 Both `scroll` and `ask` use the same synthesis engine (`OllamaService.SynthesizeSummaryAsync`). This is the unified
-answer generation path — `ask` mode no longer has a separate, degraded generation method.
+answer generation path - `ask` mode no longer has a separate, degraded generation method.
 
 Key design:
 
-1. **Smart evidence budgeting** — each evidence item gets a character budget proportional to its relevance. Short items
+1. **Smart evidence budgeting** - each evidence item gets a character budget proportional to its relevance. Short items
    that don't use their full budget donate surplus to longer items.
-2. **TextRank compression** — long evidence items are compressed using PageRank-style sentence centrality extraction.
+2. **TextRank compression** - long evidence items are compressed using PageRank-style sentence centrality extraction.
    Sentences are embedded (batch ONNX call), a similarity graph is built, and the most central sentences are selected.
    This is deterministic (no LLM needed).
-3. **Semantic re-ranking** — evidence items are re-ranked by cosine similarity to the query using batch embedding.
+3. **Semantic re-ranking** - evidence items are re-ranked by cosine similarity to the query using batch embedding.
    Re-ranking embeddings use a single batch ONNX call, not sequential per-item calls.
-4. **Full content** — the LLM sees full content snippets (not truncated summaries), compressed only when they exceed the
+4. **Full content** - the LLM sees full content snippets (not truncated summaries), compressed only when they exceed the
    per-item budget.
-5. **Clean prompt** — evidence headers contain only sequential numbering and title. No metadata (topic, relevance
+5. **Clean prompt** - evidence headers contain only sequential numbering and title. No metadata (topic, relevance
    scores) is leaked to the LLM.
 
 ## Performance optimizations
 
 ### Batch ONNX embedding
 
-All embedding operations use `EmbedBatchAsync` where possible — a single ONNX forward pass for N items instead of N
+All embedding operations use `EmbedBatchAsync` where possible - a single ONNX forward pass for N items instead of N
 sequential calls. This applies to:
 
 - Ingestion: all document chunks embedded in one batch call

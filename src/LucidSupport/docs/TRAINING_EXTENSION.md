@@ -1,6 +1,6 @@
 # LucidSupport Training Extension
 
-A Chrome extension that lets you "train" LucidSupport by extracting form field metadata from any web page — including authenticated pages that Playwright can't access.
+A Chrome extension that lets you "train" LucidSupport by extracting form field metadata from any web page - including authenticated pages that Playwright can't access.
 
 ## Overview
 

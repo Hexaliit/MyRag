@@ -101,7 +101,7 @@ doomsummarizer crawl C:\Blog\posts --ask   # Ingest + interactive Q&A
 
 **Document type detection**: The ingestion pipeline classifies documents as Fiction, NonFiction, Academic, Technical, or
 Unknown using heuristic scoring (chapter markers, dialogue patterns, abstract/keywords sections, code blocks, ISBN
-markers). This affects chunk sizing — books use 5000-char chunks for narrative continuity while technical documents use
+markers). This affects chunk sizing - books use 5000-char chunks for narrative continuity while technical documents use
 2000-char chunks.
 
 **Batch processing**: Local ingestion is optimized with batch ONNX embedding (single forward pass for all chunks) and
@@ -149,7 +149,7 @@ How it behaves:
 - Computes an embedding for your question
 - Runs three-layer retrieval in parallel: Lucene FTS + embedding HNSW + entity profiles (via `Task.WhenAll`)
 - Re-ranks evidence using batch cosine similarity against your query
-- Synthesizes an answer using `SynthesizeSummaryAsync` — the same pipeline as `scroll`:
+- Synthesizes an answer using `SynthesizeSummaryAsync` - the same pipeline as `scroll`:
     - Smart evidence budgeting (short items donate surplus to long ones)
     - TextRank key-sentence extraction for compressing long evidence
     - Full content snippets (not truncated summaries)
@@ -250,10 +250,10 @@ Each document is automatically profiled with structurally-weighted keywords:
 
 | Zone             | Weight | Why                                            |
 |------------------|--------|------------------------------------------------|
-| Title            | 4.0x   | Author's chosen label — strongest topic signal |
+| Title            | 4.0x   | Author's chosen label - strongest topic signal |
 | Headings (H1-H6) | 3.0x   | Section topics summarize document themes       |
 | Intro paragraphs | 2.0x   | Opening sets context and thesis                |
-| Body text        | 1.0x   | Baseline — lots of supporting detail           |
+| Body text        | 1.0x   | Baseline - lots of supporting detail           |
 
 Keywords are stored in the `items.keywords` column and indexed in Lucene for fast pre-filtering.
 
@@ -306,10 +306,10 @@ doomsummarizer scroll "ai regulation" --entities --graph
 
 **Graph components:**
 
-1. **Entity nodes** — Unique entities with embeddings
-2. **Co-occurrence edges** — Entities that appear together in articles
-3. **Item embeddings** — HNSW-indexed for fast similarity search
-4. **PageRank scores** — Authority ranking within the corpus
+1. **Entity nodes** - Unique entities with embeddings
+2. **Co-occurrence edges** - Entities that appear together in articles
+3. **Item embeddings** - HNSW-indexed for fast similarity search
+4. **PageRank scores** - Authority ranking within the corpus
 
 **Graph-enhanced queries:**
 
@@ -353,9 +353,9 @@ doomsummarizer scroll "LLM news since last week" --debug
 
 **Temporal detection uses:**
 
-1. **Sentinel LLM extraction** — The classification LLM parses natural language dates
-2. **Microsoft.Recognizers.Text** — Deterministic confirmation of date/time expressions
-3. **Year extraction heuristic** — Detects years in article titles (e.g., "Study from 2020")
+1. **Sentinel LLM extraction** - The classification LLM parses natural language dates
+2. **Microsoft.Recognizers.Text** - Deterministic confirmation of date/time expressions
+3. **Year extraction heuristic** - Detects years in article titles (e.g., "Study from 2020")
 
 **Temporal signals in SentinelIntent:**
 

@@ -4,7 +4,7 @@
 `gemma3:4b` + `qwen3:0.6b`). Cloud LLMs are only used when explicitly enabled in config with a valid API key.
 
 Cloud LLM providers can deliver improved results for complex queries. They offer larger context windows, stronger
-reasoning, and higher-quality synthesis. When enabled, they serve as **fallback** providers — Ollama remains the primary
+reasoning, and higher-quality synthesis. When enabled, they serve as **fallback** providers - Ollama remains the primary
 LLM.
 
 ## Quick Setup
@@ -60,7 +60,7 @@ Format: `DOOM_*_MODELS="main_model|sentinel_model"`
 **For Sentinel role (classification):**
 
 - Smaller, faster models work well here
-- The sentinel classifies query intent and generates Lucene queries — it doesn't need frontier-level reasoning
+- The sentinel classifies query intent and generates Lucene queries - it doesn't need frontier-level reasoning
 - Prioritize speed and cost over raw capability
 - "Mini" or "Haiku" tier models are ideal
 
@@ -154,9 +154,9 @@ The `searchEngineId` field stores model configuration as `main_model|sentinel_mo
 
 DoomSummarizer routes LLM calls with intelligent fallback:
 
-1. **Ollama (primary)** — Local, free, no API costs
-2. **Anthropic** — If configured and budget allows
-3. **OpenAI** — If configured and budget allows
+1. **Ollama (primary)** - Local, free, no API costs
+2. **Anthropic** - If configured and budget allows
+3. **OpenAI** - If configured and budget allows
 
 If Ollama fails or is unavailable, cloud providers are tried in order. Budget limits are checked before each cloud API
 call.
@@ -237,7 +237,7 @@ doomsummarizer config --show
 
 ## Troubleshooting
 
-### "anthropic: budget exceeded — trying next"
+### "anthropic: budget exceeded - trying next"
 
 Budget limits reached. Either:
 
@@ -263,11 +263,11 @@ Cloud providers have network latency. For faster iteration:
 
 Cloud LLMs provide:
 
-1. **Larger context windows** (128K-200K+ tokens) — can reason over more evidence
-2. **Better instruction following** — more accurate query classification
-3. **Higher quality synthesis** — better summaries, more coherent articles
-4. **Temporal understanding** — "since last week", "recent", "breaking" parsed naturally
-5. **Entity awareness** — better at identifying people, organizations, topics
+1. **Larger context windows** (128K-200K+ tokens) - can reason over more evidence
+2. **Better instruction following** - more accurate query classification
+3. **Higher quality synthesis** - better summaries, more coherent articles
+4. **Temporal understanding** - "since last week", "recent", "breaking" parsed naturally
+5. **Entity awareness** - better at identifying people, organizations, topics
 
 Combined with DoomSummarizer's local ONNX embeddings, BM25 ranking, and knowledge graph:
 

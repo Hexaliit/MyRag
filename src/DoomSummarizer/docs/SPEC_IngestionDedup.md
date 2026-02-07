@@ -43,7 +43,7 @@ Input: N embedded chunks from one document
 Output: M surviving chunks (M <= N), each with salience boost from absorbed duplicates
 
 Algorithm:
-1. Sort chunks by salience score (descending) — high-salience chunks are canonical
+1. Sort chunks by salience score (descending) - high-salience chunks are canonical
 2. For each chunk (highest salience first):
    a. If already absorbed by another chunk → skip
    b. Compute cosine similarity against all remaining unprocessed chunks
@@ -117,19 +117,19 @@ Each surviving chunk carries:
 
 ### Remove
 
-- `IsEmbedded` field on `ContentItem` — all chunks will be embedded
-- `PartialEmbedding` config flag — replaced by dedup config
-- High/low salience split in `IngestLocalFilesAsync` — embed all, dedup after
-- `GetUnembeddedItemsBySourceAsync` in `StorageService.Items.cs` — no deferred embedding
-- On-demand embedding in `ExpandDocumentAsync` — all chunks already embedded
+- `IsEmbedded` field on `ContentItem` - all chunks will be embedded
+- `PartialEmbedding` config flag - replaced by dedup config
+- High/low salience split in `IngestLocalFilesAsync` - embed all, dedup after
+- `GetUnembeddedItemsBySourceAsync` in `StorageService.Items.cs` - no deferred embedding
+- On-demand embedding in `ExpandDocumentAsync` - all chunks already embedded
 
 ### Keep
 
-- `SalienceScore` on `ContentItem` — still used for tiebreaking and boost tracking
-- `EstimateChunkSalience` — still scores chunks for dedup tiebreaking
-- `salience_score` column in SQLite — stores final boosted score
-- `ExpansionConfig` — document concentration detection still works (all chunks are embedded)
-- `TryExpandConcentratedDocumentAsync` — expansion is now instant (no embedding needed)
+- `SalienceScore` on `ContentItem` - still used for tiebreaking and boost tracking
+- `EstimateChunkSalience` - still scores chunks for dedup tiebreaking
+- `salience_score` column in SQLite - stores final boosted score
+- `ExpansionConfig` - document concentration detection still works (all chunks are embedded)
+- `TryExpandConcentratedDocumentAsync` - expansion is now instant (no embedding needed)
 
 ### Add/Modify
 
@@ -144,7 +144,7 @@ Each surviving chunk carries:
 | `ContentItem.cs` | Remove `IsEmbedded`, keep `SalienceScore` |
 | `StorageService.cs` | Remove `is_embedded` column migration (or keep for backward compat, just unused) |
 | `StorageService.Items.cs` | Remove `GetUnembeddedItemsBySourceAsync` |
-| `RetrievalPipeline.cs` | Simplify `ExpandDocumentAsync` — no on-demand embedding (all already embedded) |
+| `RetrievalPipeline.cs` | Simplify `ExpandDocumentAsync` - no on-demand embedding (all already embedded) |
 | `DuckDbVectorStore.cs` | Remove null-embedding guard (all items will have embeddings) |
 
 ### `DoomConfig.cs` Updated Config
@@ -191,7 +191,7 @@ internal static List<ContentItem> DeduplicateChunks(
     int maxSurvivors)
 {
     if (items.Count <= minSurvivors)
-        return items; // Already under minimum — keep all
+        return items; // Already under minimum - keep all
 
     // Sort by salience (highest first = canonical chunks)
     var sorted = items
@@ -246,7 +246,7 @@ internal static List<ContentItem> DeduplicateChunks(
 }
 ```
 
-**Complexity**: O(N^2) pairwise comparisons where N = chunks per document. For a 500-page novel with ~200 chunks, this is 40,000 comparisons — negligible compared to the embedding cost. For Shakespeare's Complete Works (~1000 chunks), it's 1M comparisons (~50ms total for cosine similarity on 384-dim vectors).
+**Complexity**: O(N^2) pairwise comparisons where N = chunks per document. For a 500-page novel with ~200 chunks, this is 40,000 comparisons - negligible compared to the embedding cost. For Shakespeare's Complete Works (~1000 chunks), it's 1M comparisons (~50ms total for cosine similarity on 384-dim vectors).
 
 ## Modified Ingestion Flow
 
@@ -290,20 +290,20 @@ Update progress messages to show dedup stats:
 
 ### Unit Tests
 
-1. `DeduplicateChunks_RemovesNearDuplicates` — two chunks with sim >= 0.90 → one survives
-2. `DeduplicateChunks_RespectsMinSurvivors` — don't reduce below minimum
-3. `DeduplicateChunks_RespectsMaxSurvivors` — cap at maximum
-4. `DeduplicateChunks_BoostsSalience` — survivor gets logarithmic boost
-5. `DeduplicateChunks_KeepsHighSalience` — highest-salience chunk is the survivor
-6. `GetAdaptiveLimits_FictionNovel` — returns (30, 120, 0.88) for 100-chunk novel
-7. `GetAdaptiveLimits_TechnicalSmall` — returns (15, 80, 0.92) for 50-chunk tech doc
+1. `DeduplicateChunks_RemovesNearDuplicates` - two chunks with sim >= 0.90 → one survives
+2. `DeduplicateChunks_RespectsMinSurvivors` - don't reduce below minimum
+3. `DeduplicateChunks_RespectsMaxSurvivors` - cap at maximum
+4. `DeduplicateChunks_BoostsSalience` - survivor gets logarithmic boost
+5. `DeduplicateChunks_KeepsHighSalience` - highest-salience chunk is the survivor
+6. `GetAdaptiveLimits_FictionNovel` - returns (30, 120, 0.88) for 100-chunk novel
+7. `GetAdaptiveLimits_TechnicalSmall` - returns (15, 80, 0.92) for 50-chunk tech doc
 
 ### Integration Test
 
 1. Ingest `prideandprejudice_janeausten_6x9_spaced.pdf` from sample data
 2. Verify chunk count is reduced (expect 40-60% reduction for fiction)
-3. Query "Who is Mr. Darcy?" — verify relevant chunks are returned
-4. Query "What is Pride and Prejudice about?" — verify summary-level chunks survive dedup
+3. Query "Who is Mr. Darcy?" - verify relevant chunks are returned
+4. Query "What is Pride and Prejudice about?" - verify summary-level chunks survive dedup
 
 ## Relationship to Existing Dedup Infrastructure
 
@@ -319,7 +319,7 @@ The config structure (`IngestionConfig`) mirrors `IngestionDeduplicationConfig` 
 
 ## Backward Compatibility
 
-- The `is_embedded` SQLite column remains (migration is idempotent) but is unused — all items are embedded
+- The `is_embedded` SQLite column remains (migration is idempotent) but is unused - all items are embedded
 - The `PartialEmbedding` config key is ignored (dedup replaces it)
 - Existing indexed collections are unaffected (dedup only runs at ingestion time)
 - `--force` re-ingestion applies dedup to the full document

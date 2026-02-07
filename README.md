@@ -18,7 +18,7 @@
 
 ---
 
-## DoomSummarizer — Console-First Research Assistant
+## DoomSummarizer - Console-First Research Assistant
 
 <div align="center">
 
@@ -27,8 +27,8 @@
 
 </div>
 
-**DoomSummarizer** is a distillation of ***lucid***RAG principles — hybrid search, entity extraction, knowledge graph
-construction, evidence-grounded synthesis — compressed into a standalone single-binary CLI. It fetches, ranks, and
+**DoomSummarizer** is a distillation of ***lucid***RAG principles - hybrid search, entity extraction, knowledge graph
+construction, evidence-grounded synthesis - compressed into a standalone single-binary CLI. It fetches, ranks, and
 synthesizes news and research with a built-in local knowledge base, NER entity extraction, and long-form article
 generation. No API keys required for default sources.
 If you've used NotebookLM: this is that workflow, but open, local-first, and composable.
@@ -442,7 +442,7 @@ Use cloud providers only when enabled; local Ollama remains primary by default.
 [![DoomSummarizer Releases](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Download&logo=github)](https://github.com/scottgal/lucidrag/releases)
 
 A distillation of ***lucid***RAG into a single-binary CLI. Console-first research assistant and personal knowledge
-base — fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings, no API keys required.
+base - fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings, no API keys required.
 
 ```bash
 doomsummarizer scroll "AI security news" -v snarky     # Digest with tone

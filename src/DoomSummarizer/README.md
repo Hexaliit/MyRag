@@ -1,6 +1,6 @@
 # DoomSummarizer / LucidRAG CLI
 
-> **⚠️ PREVIEW / ALPHA** — This project is in active development. APIs, commands, and features may change without notice
+> **⚠️ PREVIEW / ALPHA** - This project is in active development. APIs, commands, and features may change without notice
 > until v1.0. Use at your own risk and expect rough edges.
 
 [![GitHub release](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Release&logo=github)](https://github.com/scottgal/lucidrag/releases)
@@ -8,14 +8,14 @@
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/scottgal/lucidrag/releases)
 
-A distillation of [***lucid*RAG**](https://github.com/scottgal/lucidrag) principles — hybrid search, entity extraction,
-knowledge graph construction, evidence-grounded synthesis — into a console-first, local-first research assistant and
+A distillation of [***lucid*RAG**](https://github.com/scottgal/lucidrag) principles - hybrid search, entity extraction,
+knowledge graph construction, evidence-grounded synthesis - into a console-first, local-first research assistant and
 personal knowledge base.
 
 ## Three Variants
 
 This project ships as three binaries from the same codebase. All have the same commands (`scroll`, `crawl`, `ask`,
-etc.) — the difference is what they can process and their GPU requirements.
+etc.) - the difference is what they can process and their GPU requirements.
 
 | Binary                      | Description                                                                                                                                                                                                                                                            | Size     |
 |-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
@@ -29,15 +29,15 @@ variant if you don't have an NVIDIA GPU or CUDA Toolkit installed.
 
 ### Capabilities
 
-- **Scroll** — Fetch + rank news/search results into a digest, article, or newsletter
-- **Ask** — Interactive Q&A over your stored knowledge base
-- **Crawl** — Index any website, YouTube video, or local files/directories for semantic search
-- **Page** — Summarize a single URL
-- **Show** — Browse knowledge base collections
-- **Long-form** — Generate evidence-grounded multi-section articles with validation
-- **Video** — Shot detection, scene segmentation, and transcription for video files (`lucidrag` only)
-- **Audio** — Speech-to-text transcription and speaker diarization (`lucidrag` only)
-- **MCP Server** — Expose KB, search, and entity graph to AI agents via Model Context Protocol
+- **Scroll** - Fetch + rank news/search results into a digest, article, or newsletter
+- **Ask** - Interactive Q&A over your stored knowledge base
+- **Crawl** - Index any website, YouTube video, or local files/directories for semantic search
+- **Page** - Summarize a single URL
+- **Show** - Browse knowledge base collections
+- **Long-form** - Generate evidence-grounded multi-section articles with validation
+- **Video** - Shot detection, scene segmentation, and transcription for video files (`lucidrag` only)
+- **Audio** - Speech-to-text transcription and speaker diarization (`lucidrag` only)
+- **MCP Server** - Expose KB, search, and entity graph to AI agents via Model Context Protocol
 
 Works fully offline after initial model downloads. No API keys required for default sources. Optional cloud LLM and
 search providers are budget-controlled.
@@ -50,9 +50,9 @@ search providers are budget-controlled.
 ```bash
 # Build (slim)
 dotnet build DoomSummarizer.csproj
-# Build (complete / lucidrag — includes GPU acceleration)
+# Build (complete / lucidrag - includes GPU acceleration)
 dotnet build DoomSummarizer.csproj -p:CompleteBuild=true
-# Build (complete / lucidrag — CPU only, no GPU libraries)
+# Build (complete / lucidrag - CPU only, no GPU libraries)
 dotnet build DoomSummarizer.csproj -p:CompleteBuild=true -p:ExcludeGpu=true
 
 # Daily digest (auto-downloads ONNX model on first run)
@@ -79,21 +79,21 @@ doomsummarizer crawl C:\docs\project-specs --ask
 doomsummarizer crawl /home/user/research --recurse --ask
 ```
 
-> All examples use `doomsummarizer` — substitute `lucidrag` if you're running the complete variant. The commands and
+> All examples use `doomsummarizer` - substitute `lucidrag` if you're running the complete variant. The commands and
 > flags are identical.
 
 ### Requirements
 
 - **.NET 10** SDK (for building from source)
-- **Ollama** (recommended): `ollama serve` + pull models — see `doomsummarizer setup` / `lucidrag setup`
+- **Ollama** (recommended): `ollama serve` + pull models - see `doomsummarizer setup` / `lucidrag setup`
 - **First run**: downloads ONNX embedding model ([all-MiniLM-L6-v2](https://huggingface.co/Xenova/all-MiniLM-L6-v2),
   384-dim, ~23 MB quantized) to `~/.doomsummarizer/models/`
-- **No API keys required** — default sources are free RSS/HTML. Optional search APIs (Brave, Serper, Tavily, NewsAPI)
+- **No API keys required** - default sources are free RSS/HTML. Optional search APIs (Brave, Serper, Tavily, NewsAPI)
   and cloud LLMs (Anthropic, OpenAI) are disabled by default
 
 ## Commands
 
-### `scroll` — Aggregate and summarize
+### `scroll` - Aggregate and summarize
 
 ```bash
 doomsummarizer scroll                              # Default sources, neutral vibe
@@ -117,13 +117,13 @@ doomsummarizer scroll "React vs Svelte" -t pros-cons -o comparison.md
 | Option            | Short | Description                                              |
 |-------------------|-------|----------------------------------------------------------|
 | `--vibe TEXT`     | `-v`  | Tone: doom, hopeful, snarky, neutral, or any custom text |
-| `--source NAME`   | `-s`  | Add source (repeatable) — see Sources below              |
-| `--template NAME` | `-t`  | Output template — see Templates below                    |
+| `--source NAME`   | `-s`  | Add source (repeatable) - see Sources below              |
+| `--template NAME` | `-t`  | Output template - see Templates below                    |
 | `--output FILE`   | `-o`  | Export to file (.md, .html, .json, .txt)                 |
 | `--limit N`       | `-l`  | Max items to fetch (default: 30)                         |
 | `--force`         | `-f`  | Ignore cache, fetch fresh                                |
 | `--quiet`         | `-q`  | Minimal output                                           |
-| `--no-llm`        |       | Skip LLM — still runs embeddings, BM25, ranking          |
+| `--no-llm`        |       | Skip LLM - still runs embeddings, BM25, ranking          |
 | `--json`          |       | JSON output for automation                               |
 | `--entities`      |       | NER entity extraction                                    |
 | `--graph`         |       | Knowledge graph build + display                          |
@@ -131,12 +131,12 @@ doomsummarizer scroll "React vs Svelte" -t pros-cons -o comparison.md
 | `--debug`         |       | Pipeline diagnostics: RRF scores, salience               |
 | `--raw`           |       | Show raw fetched content                                 |
 | `--images`        |       | Inline thumbnails                                        |
-| `--local`         |       | Query stored KB only — no fetching                       |
+| `--local`         |       | Query stored KB only - no fetching                       |
 | `--locale CODE`   |       | Locale for date/number parsing (default: en-us)          |
 | `--email`         |       | Send digest via email                                    |
 | `--email-to ADDR` |       | Override email recipient(s)                              |
 
-### `ask` — Interactive Q&A
+### `ask` - Interactive Q&A
 
 Chat-style interface over stored evidence. Uses the same synthesis pipeline as `scroll` (smart evidence budgeting,
 TextRank compression, semantic re-ranking). Multi-turn with conversation context.
@@ -159,10 +159,10 @@ Inside the loop: `sources`, `history`, `clear`, `quit`.
 | `--once`        |       | Answer once, no interactive loop                           |
 | `--quiet`       | `-q`  | Hide evidence, show answer only                            |
 
-### `crawl` — Build a knowledge base
+### `crawl` - Build a knowledge base
 
 Accepts a URL (web crawl), YouTube video URL (`lucidrag` only), or local file/directory path (document ingestion). Web
-crawls are incremental by default — uses HTTP ETags and content hashing to skip unchanged pages.
+crawls are incremental by default - uses HTTP ETags and content hashing to skip unchanged pages.
 
 ```bash
 # Web crawl
@@ -171,7 +171,7 @@ doomsummarizer crawl https://wiki.local -n wiki -d 5 -m 500
 doomsummarizer crawl https://blog.example.com -g "/blog/*" --entities
 doomsummarizer crawl https://docs.example.com --force  # Bypass cache
 
-# YouTube video (lucidrag only — extracts captions, chapters, metadata)
+# YouTube video (lucidrag only - extracts captions, chapters, metadata)
 lucidrag crawl https://www.youtube.com/watch?v=dQw4w9WgXcQ -n talks
 lucidrag crawl https://youtu.be/dQw4w9WgXcQ --ask      # Ingest + Q&A over transcript
 lucidrag ask -s crawl:talks "what did they say about X?"
@@ -203,7 +203,7 @@ Browse contents: `doomsummarizer show wiki`
 | `--recurse`       | `-r`  | Recurse subdirectories for local paths (default: top-level)   |
 | `--quiet`         | `-q`  | Minimal output                                                |
 
-### `show` — Browse knowledge base
+### `show` - Browse knowledge base
 
 ```bash
 doomsummarizer show                    # List all collections with stats
@@ -217,7 +217,7 @@ doomsummarizer show docs --full        # With content preview
 | `--limit N` | `-l`  | Max items (default: 50)            |
 | `--full`    |       | Show content preview               |
 
-### `page` — Summarize a single URL
+### `page` - Summarize a single URL
 
 ```bash
 doomsummarizer page https://example.com/article
@@ -234,7 +234,7 @@ doomsummarizer page https://example.com/article --no-llm --raw
 | `--raw`           |       | Show raw extracted content                                     |
 | `--no-llm`        |       | Skip LLM, show signals only                                    |
 
-### `benchmark` — Compare Ollama models
+### `benchmark` - Compare Ollama models
 
 ```bash
 doomsummarizer benchmark                              # Auto-detect available
@@ -255,7 +255,7 @@ doomsummarizer config --init         # Create config file
 doomsummarizer sources               # List all sources + API status
 ```
 
-### `video` — Video analysis (`lucidrag` only)
+### `video` - Video analysis (`lucidrag` only)
 
 Shot detection, scene segmentation, and speech transcription for video files. Uses FFmpeg + OpenCV for visual analysis
 and Whisper for audio transcription. Available in the `lucidrag` (complete) build only.
@@ -268,7 +268,7 @@ lucidrag video scenes episode.mkv       # Segment into semantic scenes
 
 Supported formats: `.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`, `.wmv`
 
-### `audio` — Audio transcription (`lucidrag` only)
+### `audio` - Audio transcription (`lucidrag` only)
 
 Speech-to-text via Whisper (GGML) and speaker diarization via ECAPA-TDNN. Models download automatically on first use.
 Available in the `lucidrag` (complete) build only.
@@ -281,7 +281,7 @@ lucidrag audio speakers meeting.wav                # Identify speakers
 
 Supported formats: `.mp3`, `.wav`, `.flac`, `.ogg`, `.m4a`, `.opus`
 
-Subtitle files (`.srt`, `.vtt`, `.ass`, `.ssa`) are also supported as ingestion sources — crawl them into a knowledge
+Subtitle files (`.srt`, `.vtt`, `.ass`, `.ssa`) are also supported as ingestion sources - crawl them into a knowledge
 base for Q&A:
 
 ```bash
@@ -375,8 +375,8 @@ Results are cached to avoid repeated lookups.
 Source selection is now driven by **YAML-declared metadata** on every source instead of hardcoded
 if/else chains. Each source in `Resources/sources.yaml` declares:
 
-- **`intent_affinity`** — per-intent scores (0–1) for `news`, `qa`, `research`, `howto`, `roundup`, etc.
-- **`capabilities`** — tags like `knowledge`, `news`, `tech_only`, `archive`, `search`, `realtime`
+- **`intent_affinity`** - per-intent scores (0–1) for `news`, `qa`, `research`, `howto`, `roundup`, etc.
+- **`capabilities`** - tags like `knowledge`, `news`, `tech_only`, `archive`, `search`, `realtime`
 
 A scoring formula replaces the old phase-based selection:
 
@@ -388,7 +388,7 @@ score = (intentAffinity × 0.6) + (categoryMatch × 0.3) + (capabilityBonus × 0
 - Factual QA queries ("How much can a swallow carry?") now route to web search + Wikipedia instead
   of Google News RSS, which returned irrelevant articles
 - Research queries correctly prioritize arXiv and academic sources
-- News queries still get gnews + feeds as before — no regression
+- News queries still get gnews + feeds as before - no regression
 - `tech_only` and `archive` filters are now YAML-driven capabilities instead of hardcoded HashSets
 
 ```bash
@@ -403,11 +403,11 @@ doomsummarizer scroll "How much can a swallow carry?" --debug
 
 Two-phase deduplication reduces noise while preserving signal quality during document ingestion:
 
-1. **Pre-embedding dedup** — Cheap text signals (word Jaccard, trigram overlap, length similarity)
+1. **Pre-embedding dedup** - Cheap text signals (word Jaccard, trigram overlap, length similarity)
    eliminate obvious duplicates *before* spending GPU compute on embeddings. Saves 20–50% of
    embedding cost on repetitive documents.
 
-2. **Semantic dedup** — After embedding, cosine similarity catches near-duplicates that text
+2. **Semantic dedup** - After embedding, cosine similarity catches near-duplicates that text
    signals missed (paraphrases, reworded content). Survivors absorb duplicates as a logarithmic
    salience boost.
 
@@ -425,15 +425,15 @@ See `docs/EmbeddingOptimization.md` for configuration and the full pipeline diag
 
 Fixed two crash-causing issues with GPU-accelerated ONNX inference via DirectML:
 
-- **Batch dimension crash** — DML's `FusedMatMul` kernel is compiled for `batch_size=1`. Passing
+- **Batch dimension crash** - DML's `FusedMatMul` kernel is compiled for `batch_size=1`. Passing
   multi-item tensors caused `0xC0000005` access violations. GPU batches now route through
   sequential single-item inference (still GPU-accelerated, just one item per forward pass).
 
-- **Concurrent access crash** — `InferenceSession.Run` is not thread-safe under DirectML.
+- **Concurrent access crash** - `InferenceSession.Run` is not thread-safe under DirectML.
   Multiple threads from `Parallel.ForEachAsync` calling `Run` simultaneously caused native crashes.
   GPU sessions now use a `SemaphoreSlim` inference lock to serialize access.
 
-Both fixes are transparent — GPU inference still runs on the GPU, with no CPU fallback.
+Both fixes are transparent - GPU inference still runs on the GPU, with no CPU fallback.
 
 ### LFU Embedding Cache
 
@@ -460,10 +460,10 @@ doomsummarizer scroll "What's new in AI safety and what are the latest regulatio
 
 **How it works:**
 
-1. **Sentinel Detection** — The sentinel LLM identifies composite queries and extracts subqueries
-2. **Multi-Query Embedding** — Each subquery gets its own embedding vector
-3. **Max Similarity Scoring** — Items are scored against the BEST matching subquery (not averaged)
-4. **Structured Responses** — LLM explicitly addresses each sub-question in the output
+1. **Sentinel Detection** - The sentinel LLM identifies composite queries and extracts subqueries
+2. **Multi-Query Embedding** - Each subquery gets its own embedding vector
+3. **Max Similarity Scoring** - Items are scored against the BEST matching subquery (not averaged)
+4. **Structured Responses** - LLM explicitly addresses each sub-question in the output
 
 Debug mode shows decomposition:
 
@@ -516,9 +516,9 @@ doomsummarizer scroll "OpenAI regulation" --debug
 
 ### Reliability Improvements
 
-- **SQLite Thread Safety** — Semaphore-protected database operations prevent concurrent access issues
-- **Improved Error Handling** — Better circuit breaker state management for flaky APIs
-- **Budget Service Stability** — Fixed race conditions in usage tracking
+- **SQLite Thread Safety** - Semaphore-protected database operations prevent concurrent access issues
+- **Improved Error Handling** - Better circuit breaker state management for flaky APIs
+- **Budget Service Stability** - Fixed race conditions in usage tracking
 
 ## Long-Form Article Generation
 
@@ -529,7 +529,7 @@ evidence-grounded pipeline instead of the standard digest synthesis.
 # Generate an 8-section deep-dive on AI safety
 doomsummarizer scroll "AI safety landscape 2026" -t deep-dive -o safety.md
 
-# Timeline article — sections ordered chronologically
+# Timeline article - sections ordered chronologically
 doomsummarizer scroll "history of large language models" -t blog-timeline -o llm-history.md
 
 # Problem/solution structure
@@ -542,12 +542,12 @@ doomsummarizer scroll "Kubernetes vs serverless" -t pros-cons -o k8s-vs-serverle
 ### Pipeline Phases
 
 ```
-Phase 1  Evidence Preparation     Deterministic — segment extraction, ONNX embeddings, salience
-Phase 2  Document Planning        Sentinel LLM — JSON outline with theme keywords per section
-Phase 3  Evidence Assignment      Deterministic — embedding similarity, no LLM
-Phase 4  Section Generation       Main LLM — sequential, with running context + entity tracking
-Phase 5  Output Validation        Deterministic — URL/entity/fact grounding checks
-Phase 6  Assembly                 Deterministic — stitch + template render
+Phase 1  Evidence Preparation     Deterministic - segment extraction, ONNX embeddings, salience
+Phase 2  Document Planning        Sentinel LLM - JSON outline with theme keywords per section
+Phase 3  Evidence Assignment      Deterministic - embedding similarity, no LLM
+Phase 4  Section Generation       Main LLM - sequential, with running context + entity tracking
+Phase 5  Output Validation        Deterministic - URL/entity/fact grounding checks
+Phase 6  Assembly                 Deterministic - stitch + template render
 ```
 
 **Key properties:**
@@ -695,7 +695,7 @@ The LLM provider chain depends on which binary you're running:
 | **`lucidrag`** (complete)   | Ollama (if running) → LLamaSharp (local GGUF) → Cloud (if API keys set) |
 
 **Ollama is the recommended LLM provider** for both variants. It keeps models warm in memory across calls, giving fast
-inference with GPU auto-detection. `lucidrag` additionally includes LLamaSharp as a zero-config fallback — if Ollama
+inference with GPU auto-detection. `lucidrag` additionally includes LLamaSharp as a zero-config fallback - if Ollama
 isn't running, it loads GGUF models in-process (no external server needed).
 
 On startup you'll see which provider was selected:
@@ -719,7 +719,7 @@ LLM: Ollama: gemma3:4b                              # doomsummarizer
 | Video analysis (shot detection, scenes)          | `lucidrag`                | FFmpeg + OpenCV video pipeline                        |
 | Full document processing (DOCX, PPTX, subtitles) | `lucidrag`                | Only complete build has all format support            |
 
-### Ollama — Local Server (recommended for both builds)
+### Ollama - Local Server (recommended for both builds)
 
 Requires [Ollama](https://ollama.com) running locally. Best performance: models stay warm in memory, GPU auto-detected.
 
@@ -740,7 +740,7 @@ Use `benchmark` to find optimal models for your hardware:
 doomsummarizer benchmark "qwen3:4b,gemma3:4b" --pull
 ```
 
-### LLamaSharp — Local GGUF (`lucidrag` only)
+### LLamaSharp - Local GGUF (`lucidrag` only)
 
 Zero-config local inference when Ollama isn't available. **Included in `lucidrag` (complete) only.** Models are
 downloaded automatically on first run to `~/.doomsummarizer/models/llm/`.
@@ -750,7 +750,7 @@ downloaded automatically on first run to `~/.doomsummarizer/models/llm/`.
 | **Sentinel** (triage) | Qwen 2.5 0.5B (Q4_K_M)   | ~397 MB |
 | **Synthesis** (main)  | Phi-4 Mini 3.8B (Q4_K_M) | ~2.4 GB |
 
-No external server needed — runs in-process. First call loads the model (~5-15s), subsequent calls reuse it.
+No external server needed - runs in-process. First call loads the model (~5-15s), subsequent calls reuse it.
 
 If you apply a hardware profile that configures LLamaSharp (like `desktop`) while running `doomsummarizer`, you'll see a
 warning:
@@ -763,10 +763,10 @@ To skip auto-download during setup: `lucidrag setup --skip-local-llm`.
 
 #### GPU Acceleration
 
-LLamaSharp uses NVIDIA CUDA 12 by default for GPU-accelerated inference. GPU is auto-detected — if your system has an
+LLamaSharp uses NVIDIA CUDA 12 by default for GPU-accelerated inference. GPU is auto-detected - if your system has an
 NVIDIA GPU with the **CUDA Toolkit** installed, model layers are automatically offloaded.
 
-> **Note**: An NVIDIA GPU driver alone is not sufficient — the [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)
+> **Note**: An NVIDIA GPU driver alone is not sufficient - the [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)
 > must be installed for CUDA acceleration. Without it, inference falls back to CPU automatically.
 
 | Backend               | Build flag               | Platforms                           |
@@ -790,7 +790,7 @@ To build the complete `lucidrag` binary without **any** GPU libraries (ONNX Dire
 dotnet build -p:CompleteBuild=true -p:ExcludeGpu=true
 ```
 
-Hardware profiles also control GPU usage — `desktop` profile enables GPU offload, `laptop` forces CPU-only:
+Hardware profiles also control GPU usage - `desktop` profile enables GPU offload, `laptop` forces CPU-only:
 
 ```bash
 lucidrag config --profile desktop   # GPU enabled (GpuLayerCount=-1)
@@ -798,7 +798,7 @@ lucidrag config --profile laptop    # CPU only (GpuLayerCount=0)
 lucidrag config --profile dynamic   # Auto-detect hardware
 ```
 
-### Cloud LLMs (Optional — Disabled by Default)
+### Cloud LLMs (Optional - Disabled by Default)
 
 Cloud providers are **disabled by default** in both builds. To enable, set an API key **and** set `"enabled": true` in
 config or user secrets.
@@ -854,7 +854,7 @@ doomsummarizer config --profile server  # disables LLamaSharp, Ollama-primary
 ollama serve && ollama pull qwen3:8b    # larger model, more context
 ```
 
-Slim binary is fine — Ollama manages inference. Add cloud API keys as fallback.
+Slim binary is fine - Ollama manages inference. Add cloud API keys as fallback.
 
 **Enterprise / maximum quality**
 
@@ -872,7 +872,7 @@ lucidrag config --profile dynamic       # probes RAM, GPU, Ollama, picks best pr
 
 ## Models & ML Pipeline
 
-DoomSummarizer runs a full ML inference stack locally — no cloud APIs needed for embeddings, NER, or ranking. All ONNX
+DoomSummarizer runs a full ML inference stack locally - no cloud APIs needed for embeddings, NER, or ranking. All ONNX
 models are quantized (int8) by default for fast CPU inference with minimal accuracy loss.
 
 ### Embedding Models (ONNX)
@@ -906,10 +906,10 @@ Configure in `config.json`:
 - Deduplication (cosine threshold 0.90 ingestion, 0.90 retrieval)
 - Personal corpus gap-filling (semantic match on personal facts)
 
-### Named Entity Recognition (NER) — ONNX
+### Named Entity Recognition (NER) - ONNX
 
 BERT-based NER extracts structured entities from text for the knowledge graph, entity profiles, and gap-filling.
-Optional — downloaded on demand via `doomsummarizer setup --ner`.
+Optional - downloaded on demand via `doomsummarizer setup --ner`.
 
 | Component                | Details                                                                                                |
 |--------------------------|--------------------------------------------------------------------------------------------------------|
@@ -948,7 +948,7 @@ Not an ML model, but a core ranking component. Per-collection indexes stored at
 | **Stemming** | Porter stemmer ("running" matches "run")                             |
 | **Fuzzy**    | Levenshtein distance (~1-2 edits)                                    |
 | **Phrase**   | Proximity boosting ("machine learning"^3)                            |
-| **Indexing** | Incremental — new items indexed at search time                       |
+| **Indexing** | Incremental - new items indexed at search time                       |
 
 ### TextRank & Document Profiling
 
@@ -976,7 +976,7 @@ All ONNX models use Microsoft.ML.OnnxRuntime. Execution provider is configurable
 > attempting the CUDA execution provider. If the CUDA Toolkit is not installed, the provider is
 > silently skipped without native error output.
 
-### LucidRAG (Complete Build) — Additional Models
+### LucidRAG (Complete Build) - Additional Models
 
 The `lucidrag` binary includes additional ML models and processing capabilities for video, audio, and YouTube content:
 
@@ -1033,7 +1033,7 @@ ML models are downloaded on first use and stored in `~/.doomsummarizer/models/`.
 
 ## Configuration
 
-Config file: `~/.doomsummarizer/config.json` — Local override: `doomsummarizer.json` in working directory.
+Config file: `~/.doomsummarizer/config.json` - Local override: `doomsummarizer.json` in working directory.
 
 ```json
 {
@@ -1095,7 +1095,7 @@ export DOOM_BRAVE_SEARCH=BSA...
     "fromAddress": "digest@example.com",
     "fromName": "DoomSummarizer",
     "toAddresses": "team@example.com",
-    "subjectTemplate": "Doom Scroll Digest — {{DATE}}",
+    "subjectTemplate": "Doom Scroll Digest - {{DATE}}",
     "template": "newsletter"
   }
 }
@@ -1130,22 +1130,22 @@ syntax (`{% if %}`, `{% for %}`). Built-in defaults are embedded in the binary.
 
 ## Storage
 
-- **SQLite** (`~/.doomsummarizer/doom.db`) — Articles, embeddings, query logs, trends, usage
-- **DuckDB** (`~/.doomsummarizer/vectors.duckdb`) — HNSW vector index (with `--graph`)
+- **SQLite** (`~/.doomsummarizer/doom.db`) - Articles, embeddings, query logs, trends, usage
+- **DuckDB** (`~/.doomsummarizer/vectors.duckdb`) - HNSW vector index (with `--graph`)
 - **Retention:** 30 days (configurable)
 
 ## Documentation
 
-- `docs/CLI.md` — All commands, options, and examples
-- `docs/Sources.md` — Source syntax (`-s`) and API integrations
-- `docs/KnowledgeBase.md` — Storage, crawling, `ask`, entities, graph
-- `docs/Templates.md` — Built-in + custom templates (Liquid + YAML)
-- `docs/Config.md` — Config file, env vars, API keys, budgets
-- `docs/Automation.md` — JSON/file output and scheduling
-- `docs/Architecture.md` — Pipeline and storage architecture
-- `docs/FunctionalSpec.AdaptiveRetrieval.md` — Cache-vs-live retrieval, gap-filling subqueries (DeepRAG-inspired)
-- `docs/MCP.md` — MCP server setup, tools reference, agent workflows
-- `docs/Troubleshooting.md` — Common issues
+- `docs/CLI.md` - All commands, options, and examples
+- `docs/Sources.md` - Source syntax (`-s`) and API integrations
+- `docs/KnowledgeBase.md` - Storage, crawling, `ask`, entities, graph
+- `docs/Templates.md` - Built-in + custom templates (Liquid + YAML)
+- `docs/Config.md` - Config file, env vars, API keys, budgets
+- `docs/Automation.md` - JSON/file output and scheduling
+- `docs/Architecture.md` - Pipeline and storage architecture
+- `docs/FunctionalSpec.AdaptiveRetrieval.md` - Cache-vs-live retrieval, gap-filling subqueries (DeepRAG-inspired)
+- `docs/MCP.md` - MCP server setup, tools reference, agent workflows
+- `docs/Troubleshooting.md` - Common issues
 
 ## MCP Server (AI Agent Integration)
 
@@ -1178,7 +1178,7 @@ This launches a stdio-based MCP server. The server uses the same SQLite database
 }
 ```
 
-**Claude Desktop** (`claude_desktop_config.json`) — use whichever binary you have:
+**Claude Desktop** (`claude_desktop_config.json`) - use whichever binary you have:
 
 ```json
 {
@@ -1206,7 +1206,7 @@ This launches a stdio-based MCP server. The server uses the same SQLite database
 | **get_collection_items**     | Browse items in a collection with pagination                                                 |
 | **list_entities**            | Top entities from the knowledge graph (filterable by type/recency)                           |
 | **get_entity_details**       | Entity relationships and mentioning articles                                                 |
-| **get_entity_network**       | Subgraph exploration — seed entities + neighbors + co-occurring articles                     |
+| **get_entity_network**       | Subgraph exploration - seed entities + neighbors + co-occurring articles                     |
 | **find_related_by_entities** | Discover documents sharing entities with given items                                         |
 | **get_kb_stats**             | KB overview: collections, entities, FTS5 index, embedding model info                         |
 | **get_trends**               | Topic distribution and sentiment analysis over time                                          |

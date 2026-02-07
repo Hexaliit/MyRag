@@ -51,7 +51,7 @@ downloaded automatically on first use to `~/.doomsummarizer/models/embeddings/`.
 | paraphrase-MiniLM-L3-v2 | `paraphrase` | 128 | ~17 MB | ~65 MB | Smallest, fastest |
 
 All models use BERT-style tokenization with `[CLS]`, `[SEP]`, `[PAD]` special tokens. The
-quantized (INT8) variants are used by default — roughly 3-4x smaller with ~1-2% quality loss.
+quantized (INT8) variants are used by default - roughly 3-4x smaller with ~1-2% quality loss.
 
 ### Choosing a Model
 
@@ -88,7 +88,7 @@ embedding:
 }
 ```
 
-The model name is resolved flexibly — `EmbeddingFactory.ParseModel()` accepts the full HuggingFace
+The model name is resolved flexibly - `EmbeddingFactory.ParseModel()` accepts the full HuggingFace
 name (`all-MiniLM-L6-v2`), the enum name (`AllMiniLmL6V2`), or short aliases (`minilm`, `bge`, etc.).
 Unrecognized names fall back to the default model.
 
@@ -105,7 +105,7 @@ ONNX Runtime supports multiple execution providers for GPU-accelerated inference
 
 > **CUDA detection**: The runtime probes for `cublasLt64_12.dll` (Windows) / `libcublasLt.so.12`
 > (Linux) using `NativeLibrary.TryLoad` before attempting the CUDA execution provider. If the CUDA
-> Toolkit is not installed, CUDA is silently skipped — no native error messages are printed.
+> Toolkit is not installed, CUDA is silently skipped - no native error messages are printed.
 > Having an NVIDIA GPU driver (nvidia-smi) alone is **not sufficient**; the Toolkit must be
 > separately installed.
 
@@ -116,7 +116,7 @@ tensor shapes seen during the first inference call. This creates two constraints
 
 1. **Batch dimension is fixed at 1.** The fused kernels are compiled for `batch_size=1`. Passing
    multi-item tensors (batch_size > 1) causes `E_INVALIDARG` or `0xC0000005` access violations.
-   `OnnxEmbeddingService` handles this automatically — when GPU is active, batch requests are
+   `OnnxEmbeddingService` handles this automatically - when GPU is active, batch requests are
    routed through sequential single-item inference. Each item still runs on the GPU; only the
    grouping changes.
 
@@ -125,7 +125,7 @@ tensor shapes seen during the first inference call. This creates two constraints
    in article processing. `OnnxEmbeddingService` uses a `SemaphoreSlim` inference lock to
    serialize GPU access. CPU sessions have no lock and no contention.
 
-Both constraints are handled transparently — no configuration needed. GPU inference remains
+Both constraints are handled transparently - no configuration needed. GPU inference remains
 GPU-accelerated with no CPU fallback.
 
 ### Multi-GPU Systems
@@ -220,7 +220,7 @@ Each pair of chunks is scored using four fast signals:
 | **Length similarity** | 0.10 | `1.0 - |len_a - len_b| / max(len_a, len_b)` |
 | **Heading overlap** | 0.10 | Shared heading/title text between chunks |
 
-Pairs scoring above the threshold (default 0.80) are pre-disposed — the lower-salience chunk is
+Pairs scoring above the threshold (default 0.80) are pre-disposed - the lower-salience chunk is
 discarded before embedding. This is O(N) per chunk (fingerprint comparison), compared to O(N×model)
 for embedding.
 
@@ -247,7 +247,7 @@ to catch semantic near-duplicates that the cheap text filter missed (paraphrases
 ### Algorithm
 
 ```
-1. Sort chunks by salience score (highest first — these become canonical)
+1. Sort chunks by salience score (highest first - these become canonical)
 2. For each chunk (highest salience first):
    a. Skip if already absorbed by a higher-salience chunk
    b. Compute cosine similarity against all remaining chunks
@@ -292,7 +292,7 @@ When a chunk absorbs N near-duplicates, its salience score is boosted:
 boost = 0.15 × log₂(1 + N)
 ```
 
-This rewards chunks that represent commonly-repeated content — they're more likely to be central
+This rewards chunks that represent commonly-repeated content - they're more likely to be central
 themes. The logarithmic decay prevents any single chunk from dominating.
 
 ## Document Concentration Detection
@@ -365,7 +365,7 @@ Progress output shows dedup stats:
 Integration-level benchmarks are included in the test suite:
 
 ```bash
-# Compare all models (quantized + FP32) — single/batch latency, dimensions
+# Compare all models (quantized + FP32) - single/batch latency, dimensions
 dotnet test src/DoomSummarizer.Tests -c Release --filter "FullyQualifiedName~EmbeddingModelBenchmarks.CompareAllModels"
 
 # Default model batch throughput at various batch sizes

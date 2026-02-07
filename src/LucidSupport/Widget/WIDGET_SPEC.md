@@ -1,4 +1,4 @@
-# LucidSupport Widget SDK — Technical Specification
+# LucidSupport Widget SDK - Technical Specification
 
 ## 1. Design Constraints
 
@@ -33,7 +33,7 @@ The loader is tiny. It does exactly four things:
 
 1. **Reads `data-*` attributes** from its own `<script>` tag (using `document.currentScript`)
 2. **Creates the host element**: `<lucid-support>` appended to `document.body`
-3. **Attaches Shadow DOM**: `attachShadow({ mode: 'closed' })` — closed mode prevents host page JS from reaching inside
+3. **Attaches Shadow DOM**: `attachShadow({ mode: 'closed' })` - closed mode prevents host page JS from reaching inside
 4. **Waits for idle, then lazy-loads Phase 2**: `requestIdleCallback(() => import('./widget.js'))`
 
 If `requestIdleCallback` isn't available (Safari), falls back to `setTimeout(fn, 1)` after `load` event.
@@ -45,13 +45,13 @@ Loaded via dynamic `import()` only after the page is idle. Contains:
 - Field observer
 - Toast/panel UI
 - API client
-- CSS (as a JS string constant, injected into shadow root via `<style>` element — CSP-safe because it's not inline on a host element)
+- CSS (as a JS string constant, injected into shadow root via `<style>` element - CSP-safe because it's not inline on a host element)
 
 ### Why Not an Iframe?
 
 Iframes create a separate browsing context. The widget needs to:
-- Observe field states on the host page (MutationObserver — can't cross iframe boundary)
-- Highlight host page elements (inject CSS classes — can't from iframe)
+- Observe field states on the host page (MutationObserver - can't cross iframe boundary)
+- Highlight host page elements (inject CSS classes - can't from iframe)
 - Read field `aria-*` attributes (same-origin only from host page)
 
 Shadow DOM gives isolation without losing host page access.
@@ -64,7 +64,7 @@ Shadow DOM gives isolation without losing host page access.
 
 ```
 <lucid-support>                        ← host element (on the page)
-  #shadow-root (closed)                ← shadow boundary — nothing crosses this
+  #shadow-root (closed)                ← shadow boundary - nothing crosses this
     <style>                            ← widget CSS lives here (injected from JS constant)
       .ls-fab { ... }
       .ls-toast { ... }
@@ -102,7 +102,7 @@ style.textContent = STYLES;
 shadowRoot.appendChild(style);
 ```
 
-This is CSP-safe — `style.textContent` is not inline styles (`style="..."` on elements) and doesn't require `unsafe-inline`. Only `<style>` elements created via DOM API and text content assignment.
+This is CSP-safe - `style.textContent` is not inline styles (`style="..."` on elements) and doesn't require `unsafe-inline`. Only `<style>` elements created via DOM API and text content assignment.
 
 ### Theme Detection
 
@@ -120,7 +120,7 @@ The widget ships two theme variants (CSS custom properties), toggled by `data-th
 
 ---
 
-## 4. Field Observation — Zero-Cost Passive Monitoring
+## 4. Field Observation - Zero-Cost Passive Monitoring
 
 The widget needs to know field states without adding per-field event listeners or polling. Three complementary techniques:
 
@@ -133,7 +133,7 @@ document.addEventListener('focusin', onFieldFocus, { passive: true, capture: fal
 document.addEventListener('focusout', onFieldBlur, { passive: true, capture: false });
 ```
 
-**Why `focusin`/`focusout` not `focus`/`blur`?** — `focus`/`blur` don't bubble. `focusin`/`focusout` do. One listener catches all fields.
+**Why `focusin`/`focusout` not `focus`/`blur`?** - `focus`/`blur` don't bubble. `focusin`/`focusout` do. One listener catches all fields.
 
 **What we do on focus:**
 1. Check if `event.target` matches a known selector from the `.support.md` page model
@@ -142,17 +142,17 @@ document.addEventListener('focusout', onFieldBlur, { passive: true, capture: fal
 
 **What we do on blur:**
 1. After a 300ms debounce (allow validation to fire), read the field's state:
-   - `el.validity.valid` (HTML5 constraint API — no value access)
+   - `el.validity.valid` (HTML5 constraint API - no value access)
    - `el.getAttribute('aria-invalid')`
    - `el.classList` (check for error classes)
    - Adjacent error elements (checked via selector from `.support.md`)
 2. Compare with previous state. If changed → evaluate conditions.
 
-**Why passive listeners?** — `{ passive: true }` tells the browser this listener will never call `preventDefault()`, so it can optimize scrolling and input handling. Zero impact on input latency.
+**Why passive listeners?** - `{ passive: true }` tells the browser this listener will never call `preventDefault()`, so it can optimize scrolling and input handling. Zero impact on input latency.
 
 ### 4b. MutationObserver (DOM Change Detection)
 
-This is the key to framework-agnostic validation detection. React, Vue, Angular — they all eventually mutate the DOM.
+This is the key to framework-agnostic validation detection. React, Vue, Angular - they all eventually mutate the DOM.
 
 ```typescript
 const observer = new MutationObserver(onMutations);
@@ -177,7 +177,7 @@ observer.observe(document.body, {
 
 ```typescript
 function onMutations(mutations: MutationRecord[]) {
-  // Batch — don't process one mutation at a time
+  // Batch - don't process one mutation at a time
   // Schedule processing on next idle callback
   if (!pendingProcess) {
     pendingProcess = true;
@@ -314,7 +314,7 @@ function collectPageContext(question?: string): PageContext {
 
     visibleFieldIds.push(selector);
 
-    // Privacy-safe state collection — NEVER reads .value
+    // Privacy-safe state collection - NEVER reads .value
     const input = el as HTMLInputElement;
     fieldStates[selector] = {
       hasValue: input.value?.length > 0,     // boolean only, not the value itself
@@ -400,7 +400,7 @@ This approach detects validation errors from:
 
 ## 7. Highlighting Host Page Elements
 
-When the API returns `highlights: [{ selector: "#card-number", style: "error" }]`, the widget needs to visually mark elements on the host page — outside the shadow DOM.
+When the API returns `highlights: [{ selector: "#card-number", style: "error" }]`, the widget needs to visually mark elements on the host page - outside the shadow DOM.
 
 ### Technique: Overlay Positioning
 
@@ -655,28 +655,28 @@ interface ConditionRule {
 }
 
 function evaluateCondition(rule: ConditionRule, state: PageState): boolean {
-  // Simple expression parser — not a full language
+  // Simple expression parser - not a full language
   const parts = rule.when.split(/\s+AND\s+/i);
   return parts.every(part => evaluatePart(part.trim(), state));
 }
 
 function evaluatePart(expr: string, state: PageState): boolean {
-  // [#selector].error — field is in error state
+  // [#selector].error - field is in error state
   const fieldError = expr.match(/^\[([^\]]+)\]\.error$/);
   if (fieldError) return state.fieldStates[fieldError[1]]?.hasError ?? false;
 
-  // [#selector].changed — field value changed since last check
+  // [#selector].changed - field value changed since last check
   const fieldChanged = expr.match(/^\[([^\]]+)\]\.changed$/);
   if (fieldChanged) return state.changedFields.has(fieldChanged[1]);
 
-  // page.idle > 30s — user hasn't interacted for N seconds
+  // page.idle > 30s - user hasn't interacted for N seconds
   const idle = expr.match(/^page\.idle\s*>\s*(\d+)s$/);
   if (idle) return state.idleSeconds >= parseInt(idle[1]);
 
-  // form.incomplete — at least one required field is empty
+  // form.incomplete - at least one required field is empty
   if (expr === 'form.incomplete') return state.hasIncompleteRequired;
 
-  // user.attempts > N — number of form submit attempts
+  // user.attempts > N - number of form submit attempts
   const attempts = expr.match(/^user\.attempts\s*>\s*(\d+)$/);
   if (attempts) return state.submitAttempts > parseInt(attempts[1]);
 
@@ -684,7 +684,7 @@ function evaluatePart(expr: string, state: PageState): boolean {
 }
 ```
 
-This runs entirely client-side — no API call needed to check conditions. Only when a condition triggers does the widget optionally call the API for richer context.
+This runs entirely client-side - no API call needed to check conditions. Only when a condition triggers does the widget optionally call the API for richer context.
 
 ---
 

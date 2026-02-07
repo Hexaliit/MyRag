@@ -5,15 +5,15 @@
 Current synthesis produces flat markdown regardless of query type. For history/timeline
 queries, it lacks chronological structure. For topic roundups, it lacks editorial curation.
 Low-signal sources (LinkedIn, Dev.to, Medium) are weighted equally with primary sources,
-and Key Findings lack evidence structure (Year — Artifact — Contribution).
+and Key Findings lack evidence structure (Year - Artifact - Contribution).
 
 ## Solution: Query-Aware Multi-Section Synthesis
 
 Three new template modes that select different synthesis strategies based on query type:
 
-1. **blog-article** — Long-form structured article with sections, intro, conclusion
-2. **blog-timeline** — Timeline variant: Year → Milestone → Why it mattered
-3. **blog-newsletter** — Curated weekly roundup with editorial voice
+1. **blog-article** - Long-form structured article with sections, intro, conclusion
+2. **blog-timeline** - Timeline variant: Year → Milestone → Why it mattered
+3. **blog-newsletter** - Curated weekly roundup with editorial voice
 
 Plus: **QueryTypeDetector** that auto-selects the right synthesis prompt structure.
 
@@ -29,11 +29,11 @@ QueryType DetectQueryType(string query)
 
 Returns enum:
 
-- `Timeline` — query contains: history, evolution, timeline, origin, how did X develop, chronology
-- `Comparison` — query contains: vs, versus, compare, difference between, which is better
-- `Explainer` — query contains: how does X work, what is, explain, why does
-- `Roundup` — query contains: this week, latest, recent, news, interesting, roundup
-- `General` — default fallback
+- `Timeline` - query contains: history, evolution, timeline, origin, how did X develop, chronology
+- `Comparison` - query contains: vs, versus, compare, difference between, which is better
+- `Explainer` - query contains: how does X work, what is, explain, why does
+- `Roundup` - query contains: this week, latest, recent, news, interesting, roundup
+- `General` - default fallback
 
 This drives:
 
@@ -116,7 +116,7 @@ And each section's generation prompt adds:
 
 ```
 Structure this section as a timeline. For each milestone:
-- Year — What happened — Why it mattered — Source
+- Year - What happened - Why it mattered - Source
 Use concrete names, dates, and artifact names (paper titles, model names).
 ```
 
@@ -280,7 +280,7 @@ public string? SignOff { get; init; }
 **blog-newsletter:**
 
 ```liquid
-# The Doom Scroll — {{ date | date: "%B %d, %Y" }}
+# The Doom Scroll - {{ date | date: "%B %d, %Y" }}
 
 *{{ introduction }}*
 
@@ -297,7 +297,7 @@ public string? SignOff { get; init; }
 
 ### Quick Hits
 {% for hit in quick_hits %}
-- **[{{ hit.title }}]({{ hit.url }})** — {{ hit.one_liner }}
+- **[{{ hit.title }}]({{ hit.url }})** - {{ hit.one_liner }}
 {% endfor %}
 
 ---
@@ -360,12 +360,12 @@ Also apply source quality scoring before synthesis when query type is Timeline o
 
 ## 8. Verification
 
-1. `dotnet build` — zero errors
-2. `dotnet test` — all existing tests pass
+1. `dotnet build` - zero errors
+2. `dotnet test` - all existing tests pass
 3. Manual: `dotnet run -- scroll "history of transformers in NLP" --template blog-article --vibe upbeat`
     - Should produce multi-section article with timeline structure (auto-detected)
 4. Manual: `dotnet run -- scroll "interesting .NET articles this week on AI" --template blog-newsletter --vibe neutral`
     - Should produce curated newsletter with top picks + quick hits
 5. Manual: `dotnet run -- scroll "what's the history of the bbc" --template blog-timeline --vibe upbeat`
     - Should produce timeline-structured article
-6. `dotnet run -- scroll --list-templates` — should show new templates
+6. `dotnet run -- scroll --list-templates` - should show new templates

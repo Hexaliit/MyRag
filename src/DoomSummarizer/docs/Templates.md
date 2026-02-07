@@ -167,15 +167,15 @@ Source YAML definitions are in `Resources/templates/`. To create custom ones, pl
 Blog templates (`blog-article`, `blog-timeline`, and all YAML templates) activate a six-phase evidence-grounded pipeline
 in `scroll`:
 
-1. **Evidence Preparation** — ArticleProcessor extracts segments with ONNX embeddings and TextRank salience
-2. **Document Planning** — Sentinel LLM generates JSON outline with theme keywords per section
-3. **Evidence Assignment** — Deterministic: each section gets evidence via embedding similarity + salience + relevance
+1. **Evidence Preparation** - ArticleProcessor extracts segments with ONNX embeddings and TextRank salience
+2. **Document Planning** - Sentinel LLM generates JSON outline with theme keywords per section
+3. **Evidence Assignment** - Deterministic: each section gets evidence via embedding similarity + salience + relevance
    scoring (no LLM)
-4. **Section Generation** — Main LLM generates sections sequentially with running summary, entity continuity tracking,
+4. **Section Generation** - Main LLM generates sections sequentially with running summary, entity continuity tracking,
    and drift detection
-5. **Output Validation** — Deterministic: URLs checked against fetched evidence whitelist, entities fuzzy-matched, facts
+5. **Output Validation** - Deterministic: URLs checked against fetched evidence whitelist, entities fuzzy-matched, facts
    grounded via sentence embeddings
-6. **Assembly** — Sections stitched into `BlogArticleResult`, rendered by the template
+6. **Assembly** - Sections stitched into `BlogArticleResult`, rendered by the template
 
 All embeddings (segments, themes, validation) use the same ONNX `all-MiniLM-L6-v2` model. LLM calls total N+3 (1
 outline + 1 intro + N sections + 1 conclusion). Everything else is deterministic.

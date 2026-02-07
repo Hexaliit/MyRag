@@ -75,7 +75,7 @@ Fields use HTML5 validation with ARIA error messages.
   - client: pattern
 - errors:
   - pattern: "Please enter a valid phone number"
-- help: Optional — we'll only use this for delivery updates. Include country code for international numbers.
+- help: Optional - we'll only use this for delivery updates. Include country code for international numbers.
 
 ### [#company] Company
 - type: text
@@ -84,7 +84,7 @@ Fields use HTML5 validation with ARIA error messages.
 - autocomplete: organization
 - required: false
 - maxLength: 100
-- help: Optional — enter your company name if this is a business order.
+- help: Optional - enter your company name if this is a business order.
 
 ## Sections
 

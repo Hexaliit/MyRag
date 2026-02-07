@@ -116,17 +116,17 @@ Each node goes through:
 
 - **Cache check**  - Semantic similarity >= 0.92 against previous results
 - **KB probe**  - Top-3 score >= 0.70 = skip fetch; 0.40-0.70 = reduced fetch
-- **Execute** — Delegate to sub-query executor
-- **Store** — Cache result for future queries
+- **Execute** - Delegate to sub-query executor
+- **Store** - Cache result for future queries
 
 ## Fast Path: Simple Query Detection
 
 The `ComplexityClassifier` runs **before** any expensive analysis. It classifies queries as:
 
-- **Simple** — Single topic, no references, no comparisons. Goes straight to single-pass fetch+score. This is the common
+- **Simple** - Single topic, no references, no comparisons. Goes straight to single-pass fetch+score. This is the common
   case for "What's the latest AI news?" or "Tell me about Rust's type system."
-- **Moderate** — Has URLs or mild decomposition needs. Light analysis.
-- **Complex** — Multi-topic, comparison, temporal splits, knowledge gaps. Full pipeline.
+- **Moderate** - Has URLs or mild decomposition needs. Light analysis.
+- **Complex** - Multi-topic, comparison, temporal splits, knowledge gaps. Full pipeline.
 
 Classification signals (all deterministic, no LLM):
 
@@ -199,7 +199,7 @@ terms:
     concept_type: Definition
 ```
 
-Plugin packs ship their own glossaries. The `KnowledgeGapDetector` extends this dynamically — terms discovered at query
+Plugin packs ship their own glossaries. The `KnowledgeGapDetector` extends this dynamically - terms discovered at query
 time get stored and become part of the corpus for future queries.
 
 ## Risk Mitigations
@@ -217,7 +217,7 @@ time get stored and become part of the corpus for future queries.
 
 > **"Sources are tools really"**
 
-The decomposer doesn't just split queries into search sub-queries — it routes to *tools*. A query like:
+The decomposer doesn't just split queries into search sub-queries - it routes to *tools*. A query like:
 
 > "Go to C:/test, index all the markdown files with 'summarizer' in the name, build a knowledge base called 'myfiles',
 > then tell me how long they are"
@@ -226,7 +226,7 @@ decomposes into a **tool action chain**:
 
 | Step | Tool         | Intent              | Parameters                           | Depends On |
 |------|--------------|---------------------|--------------------------------------|------------|
-| 1    | `FileSystem` | Find markdown files | `path=C:/test, pattern=*summarizer*` | —          |
+| 1    | `FileSystem` | Find markdown files | `path=C:/test, pattern=*summarizer*` | -          |
 | 2    | `Index`      | Build KB "myfiles"  | `collection=myfiles`                 | Step 1     |
 | 3    | `Analyze`    | Calculate lengths   | `metric=length`                      | Step 2     |
 
@@ -247,10 +247,10 @@ decomposes into a **tool action chain**:
 
 The `ToolUseAnalyzer` uses a two-tier approach:
 
-1. **Deterministic extraction** — file paths, collection names, crawl URLs detected via regex. When a file path + file
+1. **Deterministic extraction** - file paths, collection names, crawl URLs detected via regex. When a file path + file
    verb ("find", "go to", "list") appears, route to `FileSystem`. When "index"/"build KB" appears, route to `Index`.
 
-2. **Embedding archetype matching** — each tool kind has 5 archetype phrases (e.g., `FileSystem`: "Go to folder and find
+2. **Embedding archetype matching** - each tool kind has 5 archetype phrases (e.g., `FileSystem`: "Go to folder and find
    files", "List all files in directory"). Query clauses are embedded and matched against archetypes. Score >= 0.50 =
    tool match.
 
@@ -261,14 +261,14 @@ chains with dependencies execute sequentially. Independent tool nodes can run in
 
 ```csharp
 // Orchestrator execution order:
-// Phase A: Prerequisites (KnowledgeGap — "What is X?")
+// Phase A: Prerequisites (KnowledgeGap - "What is X?")
 // Phase B: Content references (URL/DOI fetch)
 // Phase C: Tool actions (FileSystem → Index → Analyze chain)
 // Phase D: Parallel search nodes
 // Phase E: Dependent nodes (comparison sides wait for both)
 ```
 
-### ISubQueryExecutor — Tool Support
+### ISubQueryExecutor - Tool Support
 
 Executors declare which tools they support:
 
@@ -282,7 +282,7 @@ public interface ISubQueryExecutor
 }
 ```
 
-Unsupported tools fail gracefully — the orchestrator logs a warning and marks the node as failed, allowing the rest of
+Unsupported tools fail gracefully - the orchestrator logs a warning and marks the node as failed, allowing the rest of
 the plan to continue.
 
 ## File Structure

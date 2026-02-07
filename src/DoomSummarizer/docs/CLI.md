@@ -10,7 +10,7 @@ See `docs/MCP.md` for setup and the available tools.
 
 ## Commands
 
-### `scroll` — fetch, rank, and synthesize
+### `scroll` - fetch, rank, and synthesize
 
 Generates a digest from a mix of:
 
@@ -61,14 +61,14 @@ Options (from `doomsummarizer scroll --help`):
 - `-q, --quiet`: minimal output
 - `--list-templates`: print available template names
 
-### `ask` — interactive Q&A over your stored KB
+### `ask` - interactive Q&A over your stored KB
 
 `ask` searches your locally stored items using a three-layer retrieval pipeline (Lucene FTS + embedding HNSW + entity
 profiles), then synthesizes answers using the same evidence-grounded pipeline as `scroll`. Multi-turn with conversation
 context.
 
 The synthesis pipeline uses smart evidence budgeting (short items donate budget to long ones), TextRank key-sentence
-extraction for compression, semantic re-ranking against your query, and full content snippets — not truncated summaries.
+extraction for compression, semantic re-ranking against your query, and full content snippets - not truncated summaries.
 
 Examples:
 
@@ -94,19 +94,19 @@ Interactive mode meta-commands:
 - `clear`: reset conversation memory
 - `quit` / `exit`: leave
 
-### `crawl` — build a named knowledge base from a URL or local files
+### `crawl` - build a named knowledge base from a URL or local files
 
 Accepts either a **seed URL** (web crawl) or a **local file/directory path** (document ingestion). Web crawls follow
 same-domain links, extract readable content, embed it, and store it in SQLite. Local paths ingest PDF, DOCX, Markdown,
 HTML, TXT, and PPTX files using the document processing pipeline with adaptive chunking.
 
-Re-crawls are **incremental by default** — the crawler uses HTTP conditional requests (ETag / Last-Modified) and content
+Re-crawls are **incremental by default** - the crawler uses HTTP conditional requests (ETag / Last-Modified) and content
 hashing to skip unchanged pages.
 
 Examples:
 
 ```bash
-# Web crawl — auto-names the KB from the domain
+# Web crawl - auto-names the KB from the domain
 doomsummarizer crawl https://docs.example.com
 
 # Named KB with deeper crawl
@@ -121,7 +121,7 @@ doomsummarizer crawl https://docs.example.com --force
 # Gentle crawl for external sites
 doomsummarizer crawl https://intranet.company.com --delay 1000 --concurrency 1
 
-# Local directory — ingest all supported documents (top-level only)
+# Local directory - ingest all supported documents (top-level only)
 doomsummarizer crawl C:\docs\project-specs
 
 # Local directory with subdirectories
@@ -139,7 +139,7 @@ Options:
 - `-n, --name <NAME>`: knowledge base name; defaults to a derived domain or directory label
 - `-d, --depth <N>`: max link depth for web crawls (default `3`)
 - `-m, --max-pages <N>`: max pages to crawl for web crawls (default `200`)
-- `-g, --glob <PATTERN>`: URL path filter — only pages matching this pattern are indexed (e.g., `/blog/*`, `/docs/**`).
+- `-g, --glob <PATTERN>`: URL path filter - only pages matching this pattern are indexed (e.g., `/blog/*`, `/docs/**`).
   Pages outside the filter are still crawled for link discovery but not stored.
 - `-f, --force`: re-process all pages/files regardless of cache (default: skip unchanged)
 - `--delay <MS>`: politeness delay between requests (default `1000`)
@@ -153,15 +153,15 @@ Options:
 
 When the source is a local file or directory, `crawl` runs the document ingestion pipeline:
 
-1. **File discovery** — scans for supported extensions (`.pdf`, `.docx`, `.md`, `.txt`, `.html`, `.pptx`, plus any
+1. **File discovery** - scans for supported extensions (`.pdf`, `.docx`, `.md`, `.txt`, `.html`, `.pptx`, plus any
    registered processor plugins)
-2. **Document type detection** — heuristic classification as Fiction, NonFiction, Academic, Technical, or Unknown (
+2. **Document type detection** - heuristic classification as Fiction, NonFiction, Academic, Technical, or Unknown (
    affects chunk sizing)
-3. **Adaptive chunking** — books use 5000-char chunks for narrative continuity; technical/academic docs use 2000-char
+3. **Adaptive chunking** - books use 5000-char chunks for narrative continuity; technical/academic docs use 2000-char
    chunks. PDFs are chunked by page markers; text by headings/paragraphs.
-4. **Batch embedding** — all chunks are embedded in a single ONNX batch call (not sequential)
-5. **Batch indexing** — all chunks are stored in a single SQLite transaction + Lucene index commit
-6. **NER extraction** — optional entity extraction from all chunks (`--entities`)
+4. **Batch embedding** - all chunks are embedded in a single ONNX batch call (not sequential)
+5. **Batch indexing** - all chunks are stored in a single SQLite transaction + Lucene index commit
+6. **NER extraction** - optional entity extraction from all chunks (`--entities`)
 
 Source tags for local ingestion use the `file:<name>` prefix (vs `crawl:<name>` for web crawls).
 
@@ -210,7 +210,7 @@ doomsummarizer show docs
 doomsummarizer show docs --full
 ```
 
-### `show` — browse knowledge base collections
+### `show` - browse knowledge base collections
 
 Lists all stored collections or inspects a specific one.
 
@@ -227,7 +227,7 @@ Options:
 - `-l, --limit <N>`: max items to show (default `50`)
 - `--full`: show content preview for each item
 
-### `page` — summarize one URL
+### `page` - summarize one URL
 
 Downloads a page, extracts readable content, runs the article pipeline, and optionally produces long-form output (
 blog/newsletter templates). The page is saved into SQLite as source `page`.
@@ -249,12 +249,12 @@ Options:
 - `--no-llm` (alias: `--nollm`): skip LLM calls
 - `-q, --quiet`
 
-### `sources` — show common source syntax
+### `sources` - show common source syntax
 
 Prints a quick reference table for the most common `-s/--source` forms. For the full list (including API-backed
 providers), see `docs/Sources.md`.
 
-### `config` — view/init config
+### `config` - view/init config
 
 Examples:
 
@@ -268,7 +268,7 @@ Config locations:
 - Global: `$HOME/.doomsummarizer/config.json`
 - Local override: `./doomsummarizer.json`
 
-### `setup` — install models and (optionally) Playwright
+### `setup` - install models and (optionally) Playwright
 
 Examples:
 
@@ -284,7 +284,7 @@ Notes:
 - `--playwright` installs Chromium for Playwright-based fetching; at the moment this is only used when a website is
   fetched with `UsePlaywright=true` (there is no direct CLI flag for this yet).
 
-### `benchmark` — compare Ollama models
+### `benchmark` - compare Ollama models
 
 Examples:
 
@@ -295,7 +295,7 @@ doomsummarizer benchmark --role sentinel
 doomsummarizer benchmark qwen3:4b --pull
 ```
 
-### `plugin` — manage runtime plugins
+### `plugin` - manage runtime plugins
 
 Install, enable, disable, and uninstall NuGet-based plugins at runtime.
 
@@ -320,7 +320,7 @@ doomsummarizer plugin uninstall plugin-image
 
 Plugins are stored in `~/.doomsummarizer/plugins/` and loaded automatically on startup.
 
-### `trends` — sentiment over time (from your stored DB)
+### `trends` - sentiment over time (from your stored DB)
 
 Examples:
 

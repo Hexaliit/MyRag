@@ -1,6 +1,6 @@
 # Changelog - DoomSummarizer.Core
 
-## 1.3.0 — Unified Media Pipeline, No-GPU Build, CUDA Detection Fix
+## 1.3.0 - Unified Media Pipeline, No-GPU Build, CUDA Detection Fix
 
 ### New Features
 
@@ -17,7 +17,7 @@ instead of lightweight filename-based descriptions:
   extraction into 60-second searchable windows
 
 All pipeline signals (captions, OCR text, entities, transcripts, metadata) become `ContentItem`
-records — searchable and queryable like any document chunk.
+records - searchable and queryable like any document chunk.
 
 - `BuildMediaPipelineProvider()` creates a mini DI container with ImagePipeline + AudioPipeline +
   VideoPipeline + PipelineRegistry
@@ -56,7 +56,7 @@ to stderr when CUDA Toolkit is not installed:
 - Applied in: `OnnxSessionFactory` (ImageSummarizer.Core), `OnnxEmbeddingService`
   (DocSummarizer.Core), `OnnxEmbeddingService` (DataSummarizer)
 
-## Unreleased — Score-Based Source Routing & Deduplication
+## Unreleased - Score-Based Source Routing & Deduplication
 
 ### New Features
 
@@ -82,19 +82,19 @@ phase-by-phase logic. The old `TechOnlySources` and `ArchiveSources` static Hash
 by YAML capability queries.
 
 **Affected files**:
-- `Models/SourceConfig.cs` — `IntentAffinity` and `Capabilities` properties on `SourceDefinition`
-- `Resources/sources.yaml` — All ~30 sources annotated with `intent_affinity` + `capabilities`
-- `Services/SourceRouter.cs` — `ScoreSource()`, `HasCapability()`, `GetSourcesWithCapability()`
-- `Services/SentinelSourceMapper.cs` — Score-based selection replacing phases 2–4
-- `Services/PromptInterpreter.cs` — Removed duplicate HashSets, improved sentinel QA guidance
+- `Models/SourceConfig.cs` - `IntentAffinity` and `Capabilities` properties on `SourceDefinition`
+- `Resources/sources.yaml` - All ~30 sources annotated with `intent_affinity` + `capabilities`
+- `Services/SourceRouter.cs` - `ScoreSource()`, `HasCapability()`, `GetSourcesWithCapability()`
+- `Services/SentinelSourceMapper.cs` - Score-based selection replacing phases 2–4
+- `Services/PromptInterpreter.cs` - Removed duplicate HashSets, improved sentinel QA guidance
 
 #### Ingestion Deduplication
 
 Two-phase deduplication pipeline for document ingestion:
 
-1. **Pre-embedding dedup** — Cheap text signals (word Jaccard, trigram overlap, length, heading)
+1. **Pre-embedding dedup** - Cheap text signals (word Jaccard, trigram overlap, length, heading)
    filter obvious duplicates before embedding. O(N) per chunk.
-2. **Semantic dedup** — Cosine similarity on embedding vectors catches paraphrases. Survivors
+2. **Semantic dedup** - Cosine similarity on embedding vectors catches paraphrases. Survivors
    absorb duplicates as logarithmic salience boosts.
 
 Adaptive chunk limits by document type (fiction, technical, academic, non-fiction) with
@@ -105,7 +105,7 @@ configurable min/max survivors and threshold overrides.
 Score-based routing quality pass across 30 diverse query scenarios:
 
 - **Academic filter for QA**: `arxiv` and other `academic`-capability search sources are now
-  hard-filtered from QA/howto intent. Academic papers don't answer factual trivia — this frees
+  hard-filtered from QA/howto intent. Academic papers don't answer factual trivia - this frees
   a source slot for more relevant feeds like Wikipedia and ScienceDaily.
 - **Knowledge source promotion**: Wikipedia and other `knowledge`-capability feeds are promoted
   ahead of regular news feeds for QA/howto, ensuring they appear at position ≤3 instead of last.
@@ -149,7 +149,7 @@ Two-pass refactoring eliminating ~175 lines of duplicate/dead code:
 ### Breaking Changes
 
 - `SourceDefinition` gains two new nullable properties (`IntentAffinity`, `Capabilities`). Existing
-  YAML files without these fields will use type-derived defaults — no action needed.
+  YAML files without these fields will use type-derived defaults - no action needed.
 - `SentinelSourceMapper.TechOnlySources` and `ArchiveSources` static fields are removed. Use
   `SourceRouter.HasCapability(name, "tech_only")` / `HasCapability(name, "archive")` instead.
 

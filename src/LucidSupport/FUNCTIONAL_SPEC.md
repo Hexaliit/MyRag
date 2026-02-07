@@ -2,7 +2,7 @@
 
 ## 1. What LucidSupport Is
 
-LucidSupport is a **page-aware support assistant** that uses Playwright to deeply learn web pages — their structure, visual design, validation behavior, and interactive patterns — and outputs human-editable `.support.md` files that become the source of truth for contextual help. Combined with DoomSummarizer's RAG pipeline for knowledge base integration, a tiny LLM (or no LLM at all) can deliver precise, context-aware help because all the hard work happens at learn-time, not query-time.
+LucidSupport is a **page-aware support assistant** that uses Playwright to deeply learn web pages - their structure, visual design, validation behavior, and interactive patterns - and outputs human-editable `.support.md` files that become the source of truth for contextual help. Combined with DoomSummarizer's RAG pipeline for knowledge base integration, a tiny LLM (or no LLM at all) can deliver precise, context-aware help because all the hard work happens at learn-time, not query-time.
 
 ### Core Principle: Smart Learning, Dumb Serving
 
@@ -33,7 +33,7 @@ JavaScript injected via `page.EvaluateAsync()` extracts every interactive elemen
 | Autocomplete | `autocomplete` attribute (normalized; `on`/`off` stripped) |
 | ARIA refs | `aria-describedby`, `aria-errormessage` for connected elements |
 
-**Never reads**: `.value` — privacy by architecture.
+**Never reads**: `.value` - privacy by architecture.
 
 The `PatternRegistry` then classifies each field by its attributes into named patterns (email, credit-card, phone, cvv, postal-code, etc.) using a priority-ordered rule table checking autocomplete → type → name.
 
@@ -75,7 +75,7 @@ At each breakpoint:
 
 ### Phase 4: Active Interaction Probing (`InteractionProber`)
 
-This is what makes the learner *smart* — it doesn't just read the page, it **uses** it:
+This is what makes the learner *smart* - it doesn't just read the page, it **uses** it:
 
 **Focus probing** (per field):
 - Focus the field → capture CSS diff (border, outline, shadow changes)
@@ -240,7 +240,7 @@ At runtime, the `ScopedRetrievalService` searches both:
 
 ### Widget → API → Response
 
-The JS widget sends `PageContext` (URL, visible fields, field states — never values):
+The JS widget sends `PageContext` (URL, visible fields, field states - never values):
 
 ```json
 {
@@ -276,7 +276,7 @@ Response includes: text, highlight targets (selector + style), suggestion chips,
 
 ---
 
-## 6. What's Built (Phase 1 — Current State)
+## 6. What's Built (Phase 1 - Current State)
 
 All code compiles and builds. Project structure:
 
@@ -345,7 +345,7 @@ src/LucidSupport/
 - KB auto-linking: Embed topic questions → find nearest KB articles in existing corpus
 
 ### Phase 3: API + Widget
-- `/api/help/contextual` (POST): Main help endpoint — PageContext in, HelpResponse out
+- `/api/help/contextual` (POST): Main help endpoint - PageContext in, HelpResponse out
 - `/api/learn/page` (POST): Trigger learning from API
 - `/widget/sdk.js`: Shadow DOM widget (TypeScript, <15KB)
 - Field observer: MutationObserver for validation, IntersectionObserver for scroll
@@ -384,11 +384,11 @@ src/LucidSupport/
 
 | Phase | Data | PII? |
 |-------|------|------|
-| Learning | DOM structure, CSS styles, validation attributes, label text, error messages | No — never reads `.value` |
-| Screenshots | Visual capture of the page structure (empty fields or with placeholder text only) | No — fields are empty/placeholder during learning |
-| Ingestion | Field metadata, help text, conditions, topic mappings | No — authored content only |
-| Runtime widget | URL, field IDs, field states (hasValue/hasError/errorText), viewport width | No — explicitly excludes `.value`; only boolean states |
-| LLM prompt | Page title, field label, error message, 2-3 help chunks, user question | No — structural context only |
+| Learning | DOM structure, CSS styles, validation attributes, label text, error messages | No - never reads `.value` |
+| Screenshots | Visual capture of the page structure (empty fields or with placeholder text only) | No - fields are empty/placeholder during learning |
+| Ingestion | Field metadata, help text, conditions, topic mappings | No - authored content only |
+| Runtime widget | URL, field IDs, field states (hasValue/hasError/errorText), viewport width | No - explicitly excludes `.value`; only boolean states |
+| LLM prompt | Page title, field label, error message, 2-3 help chunks, user question | No - structural context only |
 
 ---
 

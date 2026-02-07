@@ -11,14 +11,14 @@
 - **Batch dimension mismatch**: DirectML's graph optimizer fuses `MatMul+Scale` into `FusedMatMul`
   kernels compiled for `batch_size=1`. Passing multi-item tensors caused `E_INVALIDARG` or
   `0xC0000005` access violations. When GPU is active, `EmbedBatchInternal` now routes through
-  `EmbedSequential` — still GPU-accelerated, one item per forward pass.
+  `EmbedSequential` - still GPU-accelerated, one item per forward pass.
 
 - **Concurrent `InferenceSession.Run`**: DML/CUDA sessions are not thread-safe. Multiple threads
   (e.g., from `Parallel.ForEachAsync` in article processing) calling `Run` simultaneously caused
   native crashes. A `SemaphoreSlim` inference lock now serializes GPU access in both `EmbedAsync`
   and `EmbedSingleSync`.
 
-CPU execution is unaffected — no lock contention, batched inference still works.
+CPU execution is unaffected - no lock contention, batched inference still works.
 
 **Affected file**: `Services/Onnx/OnnxEmbeddingService.cs`
 
@@ -38,7 +38,7 @@ Measured: ~2400x speedup on cache hits (0.02 ms vs 72 ms cold on RTX A4000).
 
 ### Breaking Changes
 
-None — all changes are internal to `OnnxEmbeddingService`. The `IEmbeddingService` interface is
+None - all changes are internal to `OnnxEmbeddingService`. The `IEmbeddingService` interface is
 unchanged.
 
 ---

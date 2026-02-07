@@ -154,9 +154,9 @@ sensitivity**, then scores every source using metadata declared in `Resources/so
 
 Each source declares two metadata fields in YAML:
 
-- **`intent_affinity`** — per-intent scores (0–1): how well the source serves `news`, `qa`, `research`, `howto`,
+- **`intent_affinity`** - per-intent scores (0–1): how well the source serves `news`, `qa`, `research`, `howto`,
   `roundup`, `deep_dive`, `search_only`, `trend`
-- **`capabilities`** — tags: `search`, `knowledge`, `news`, `realtime`, `tech_only`, `archive`, `academic`, `reference`,
+- **`capabilities`** - tags: `search`, `knowledge`, `news`, `realtime`, `tech_only`, `archive`, `academic`, `reference`,
   `government`, `satire`
 
 Sources are scored with:
@@ -177,7 +177,7 @@ Capability-based filters prevent irrelevant sources:
 
 - **`tech_only`** sources (hn, lobsters, techcrunch, etc.) are excluded when the query has no technology/programming category
 - **`archive`** sources (wikipedia, arxiv) are excluded for `roundup` + `today`/`breaking` time sensitivity
-- **`academic`** search sources (arxiv) are excluded for `qa`/`howto` intent — academic papers don't answer factual trivia
+- **`academic`** search sources (arxiv) are excluded for `qa`/`howto` intent - academic papers don't answer factual trivia
 
 ### Knowledge promotion
 

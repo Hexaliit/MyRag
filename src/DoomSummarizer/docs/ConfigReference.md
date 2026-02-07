@@ -4,12 +4,12 @@ Complete glossary of every DoomSummarizer setting.
 
 ## Loading Order
 
-Configuration is layered — each level overrides the previous:
+Configuration is layered - each level overrides the previous:
 
-1. **Built-in defaults** — embedded `default-config.yaml` (ships with the app)
-2. **User config** — `~/.doomsummarizer/config.json` (your personal overrides)
-3. **Local config** — `./doomsummarizer.json` (project/directory overrides)
-4. **Environment variables / .NET user secrets** — API keys and secrets (highest priority)
+1. **Built-in defaults** - embedded `default-config.yaml` (ships with the app)
+2. **User config** - `~/.doomsummarizer/config.json` (your personal overrides)
+3. **Local config** - `./doomsummarizer.json` (project/directory overrides)
+4. **Environment variables / .NET user secrets** - API keys and secrets (highest priority)
 
 Your `config.json` only needs the settings you want to change. Everything else uses defaults.
 
@@ -240,7 +240,7 @@ Email delivery configuration. Supports SMTP and SendGrid.
 | `email.from_address`     | `email.fromAddress`     | string | `""`                            | Sender email address           |
 | `email.from_name`        | `email.fromName`        | string | `DoomSummarizer`                | Sender display name            |
 | `email.to_addresses`     | `email.toAddresses`     | string | `""`                            | Recipients (comma-separated)   |
-| `email.subject_template` | `email.subjectTemplate` | string | `Doom Scroll Digest — {{DATE}}` | Subject line template          |
+| `email.subject_template` | `email.subjectTemplate` | string | `Doom Scroll Digest - {{DATE}}` | Subject line template          |
 | `email.template`         | `email.template`        | string | `email`                         | Output template for body       |
 
 #### email.smtp
@@ -337,7 +337,7 @@ Each entry in the `keys` array defines an API service with its credentials, budg
 | `newsdata`           | `DOOM_NEWSDATA`                         | `keys:7:apiKey`         | NewsData.io                |
 | `tavily`             | `DOOM_TAVILY`                           | `keys:8:apiKey`         | Tavily search API          |
 | `jina`               | `DOOM_JINA`                             | `keys:9:apiKey`         | Jina AI reader API         |
-| `duckduckgo`         | —                                       | —                       | DuckDuckGo (no key needed) |
+| `duckduckgo`         | -                                       | -                       | DuckDuckGo (no key needed) |
 | `currents`           | `DOOM_CURRENTS`                         | `keys:11:apiKey`        | Currents API               |
 
 ### Per-Service Budget Fields

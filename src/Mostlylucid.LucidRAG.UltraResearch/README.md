@@ -4,7 +4,7 @@ NuGet: `Mostlylucid.LucidRAG.UltraResearch`
 
 Autonomous research corpus builder for [LucidRAG](https://github.com/scottgal/lucidrag). A long-running agentic loop that discovers, fetches, and indexes academic papers using citation graph topology, entity clusters, and LLM sentinel checkpoints to steer exploration.
 
-Unlike simple paper fetchers that retrieve N results and stop, UltraResearch uses its own **growing index** to decide what to fetch next. It continuously analyzes what it has already ingested — orphan citations, foundational references, entity coverage gaps, temporal holes — and steers itself toward the most informative papers. The result is a live, chat-ready research corpus.
+Unlike simple paper fetchers that retrieve N results and stop, UltraResearch uses its own **growing index** to decide what to fetch next. It continuously analyzes what it has already ingested - orphan citations, foundational references, entity coverage gaps, temporal holes - and steers itself toward the most informative papers. The result is a live, chat-ready research corpus.
 
 ## How It Works
 
@@ -39,8 +39,8 @@ dotnet add package Mostlylucid.LucidRAG.UltraResearch
 
 Requires the following peer dependencies (from the LucidRAG ecosystem):
 
-- `Mostlylucid.LucidRAG.DoomSummarizer.Core` — ArxivFetcher, CitationResolver, AcademicPatterns, OllamaService, SemanticScholarClient
-- `LucidRAG.Core` — RagDocumentsDbContext, CitationGraphQueries, CollectionEntity
+- `Mostlylucid.LucidRAG.DoomSummarizer.Core` - ArxivFetcher, CitationResolver, AcademicPatterns, OllamaService, SemanticScholarClient
+- `LucidRAG.Core` - RagDocumentsDbContext, CitationGraphQueries, CollectionEntity
 
 ## CLI Usage
 
@@ -187,7 +187,7 @@ Three independent signals trigger session completion:
 - `SeenIds` (`HashSet<string>`) prevents re-fetching on resume
 - `Frontier` (`List<FetchCandidate>`) preserves prioritized candidates
 - `Checkpoints` (`List<SentinelCheckpoint>`) preserves convergence history
-- At 10K+ seen IDs, state JSON is ~200KB — acceptable for SQLite/PostgreSQL
+- At 10K+ seen IDs, state JSON is ~200KB - acceptable for SQLite/PostgreSQL
 
 Resume a crashed or stopped session:
 
@@ -221,7 +221,7 @@ The sentinel runs every N papers (default: 5) and evaluates the corpus "shape":
 
 ## Semantic Scholar API
 
-The `SemanticScholarClient` provides citation traversal that arXiv alone cannot offer — specifically **reverse citations** (who cites paper X?).
+The `SemanticScholarClient` provides citation traversal that arXiv alone cannot offer - specifically **reverse citations** (who cites paper X?).
 
 - **Unauthenticated**: Shared pool of 5,000 requests per 5 minutes across all users. Works for small/medium corpora.
 - **Authenticated**: Dedicated rate limit of 1 request/second. Set via `SEMANTIC_SCHOLAR_API_KEY` environment variable or `UltraResearchOptions.SemanticScholarApiKey`.
@@ -281,11 +281,11 @@ Files are stored in `{dataDir}/ultraresearch/{sanitized_id}.md`.
 
 ## Dependencies
 
-- `DoomSummarizer.Core` — ArxivFetcher, CitationResolver, AcademicPatterns, OllamaService, SemanticScholarClient
-- `LucidRAG.Core` — RagDocumentsDbContext, CitationGraphQueries, CollectionEntity
-- `Microsoft.Extensions.Logging` — Structured logging
-- `Microsoft.Extensions.DependencyInjection` — Service registration
-- `Microsoft.Extensions.Http` — HttpClient factory
+- `DoomSummarizer.Core` - ArxivFetcher, CitationResolver, AcademicPatterns, OllamaService, SemanticScholarClient
+- `LucidRAG.Core` - RagDocumentsDbContext, CitationGraphQueries, CollectionEntity
+- `Microsoft.Extensions.Logging` - Structured logging
+- `Microsoft.Extensions.DependencyInjection` - Service registration
+- `Microsoft.Extensions.Http` - HttpClient factory
 
 ## License
 

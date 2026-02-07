@@ -63,7 +63,7 @@ If your credit card is declined during checkout, try the following:
 2. Ensure your billing address matches the address on file with your bank.
 3. Check that you have sufficient funds or credit available.
 4. Try a different card or payment method.
-5. Contact your bank — they may have flagged the transaction for security.
+5. Contact your bank - they may have flagged the transaction for security.
 
 ### Coupon Code Not Working
 If a promotional code isn't applying:

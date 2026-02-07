@@ -14,12 +14,12 @@ generates ranked, summarized digests. It also builds persistent knowledge bases 
 
 ### Build Variants
 
-Three binaries are produced from the same codebase. All have the same commands — the difference is the dependency chain
+Three binaries are produced from the same codebase. All have the same commands - the difference is the dependency chain
 and GPU support.
 
 | Binary                               | Description                                                                              | Size     | Includes                                                                                                                                                                       |
 |--------------------------------------|------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`doomsummarizer`** (slim, default) | The "it just works" version — minimal web-oriented deep research and knowledge base tool | ~30 MB   | Web crawling, KB Q&A, ONNX embeddings, DuckDB vector search, BM25 full-text, NER, LLM routing, MCP server. Requires Ollama for LLM synthesis                                   |
+| **`doomsummarizer`** (slim, default) | The "it just works" version - minimal web-oriented deep research and knowledge base tool | ~30 MB   | Web crawling, KB Q&A, ONNX embeddings, DuckDB vector search, BM25 full-text, NER, LLM routing, MCP server. Requires Ollama for LLM synthesis                                   |
 | **`lucidrag`** (complete)            | All the bells and whistles, GPU-accelerated                                              | ~1.1 GB  | Everything above + local LLM (LLamaSharp), all document formats (DOCX, HTML, PPTX), image/video/audio analysis, YouTube transcription (Whisper), subtitle processing (SRT/VTT/ASS), email delivery. CUDA + DirectML GPU support. ~600 MB of native GPU libraries |
 | **`lucidrag`** (complete, no-GPU)    | Full features, CPU-only inference                                                        | ~560 MB  | Same as above but without CUDA/DirectML GPU libraries (~600 MB smaller). Ideal for servers, CI, ARM, or systems without a supported GPU |
 
@@ -32,7 +32,7 @@ dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release -p:CompleteBu
 dotnet publish src/DoomSummarizer/DoomSummarizer.csproj -c Release -p:CompleteBuild=true -p:ExcludeGpu=true
 ```
 
-The binary name tells you which variant you're running. All examples in this manual use `doomsummarizer` — substitute
+The binary name tells you which variant you're running. All examples in this manual use `doomsummarizer` - substitute
 `lucidrag` if using the complete variant.
 
 ### Smart Routing
@@ -64,10 +64,10 @@ doomsummarizer setup [--playwright] [--ner]
 
 **Optional flags:**
 
-- `--playwright` — Install Chromium browser for JavaScript-heavy site crawling
-- `--ner` — Download BERT-NER model (~430 MB) for named entity extraction
-- `--local-llm` — Download local GGUF models for LLamaSharp inference (~2.7 GB)
-- `--skip-local-llm` — Skip local LLM model download
+- `--playwright` - Install Chromium browser for JavaScript-heavy site crawling
+- `--ner` - Download BERT-NER model (~430 MB) for named entity extraction
+- `--local-llm` - Download local GGUF models for LLamaSharp inference (~2.7 GB)
+- `--skip-local-llm` - Skip local LLM model download
 
 **Recommended first run:**
 
@@ -86,11 +86,11 @@ The variants default to different LLM providers:
 
 |                    | `doomsummarizer`                                        | `lucidrag`                                                  |
 |--------------------|---------------------------------------------------------|-------------------------------------------------------------|
-| **Default**        | LLamaSharp (local GGUF — zero-config, no server needed) | Ollama (local server at localhost:11434)                    |
+| **Default**        | LLamaSharp (local GGUF - zero-config, no server needed) | Ollama (local server at localhost:11434)                    |
 | **Setup**          | Auto-downloads GGUF models (~2.7 GB)                    | Does not download GGUF models (use `--local-llm` to opt in) |
 | **Fallback chain** | LLamaSharp → Ollama → Cloud                             | LLamaSharp → Ollama → Cloud                                 |
 
-**`doomsummarizer`** works out of the box after `setup` — no Ollama or API keys needed. To use Ollama instead, install
+**`doomsummarizer`** works out of the box after `setup` - no Ollama or API keys needed. To use Ollama instead, install
 it and start it; it will be detected automatically.
 
 **`lucidrag`** expects Ollama to be running. Install from https://ollama.com, then pull models:
@@ -122,9 +122,9 @@ doomsummarizer config [--init] [--full] [--show] [--reference]
 
 ### Config File Locations (highest priority wins)
 
-1. `./doomsummarizer.json` — Project-specific (current directory)
-2. `~/.doomsummarizer/config.json` — User config (home directory)
-3. Embedded defaults — Ships with the binary
+1. `./doomsummarizer.json` - Project-specific (current directory)
+2. `~/.doomsummarizer/config.json` - User config (home directory)
+3. Embedded defaults - Ships with the binary
 
 Deep merge: object properties merge recursively; scalars and arrays replace entirely.
 
@@ -145,8 +145,8 @@ Deep merge: object properties merge recursively; scalars and arrays replace enti
 }
 ```
 
-- `model` — Primary synthesis model (generates summaries)
-- `sentinelModel` — Fast triage model (planning, filtering, quality checks)
+- `model` - Primary synthesis model (generates summaries)
+- `sentinelModel` - Fast triage model (planning, filtering, quality checks)
 
 #### Embedding
 
@@ -253,7 +253,7 @@ Custom vibes can be added in config:
     "enabled": false,
     "fromAddress": "",
     "toAddresses": "",
-    "subjectTemplate": "Doom Scroll Digest — {{DATE}}",
+    "subjectTemplate": "Doom Scroll Digest - {{DATE}}",
     "smtp": { "host": "smtp.gmail.com", "port": 587, "useSsl": true }
   }
 }
@@ -303,7 +303,7 @@ The primary command. Fetches content from configured sources, ranks it, and gene
 | `--json`                    | Output as structured JSON (for LLM tool consumption)                                         | false       |
 | `--graph`                   | Enable knowledge graph build and display                                                     | false       |
 | `--images`                  | Display inline ASCII art images for important items                                          | false       |
-| `--local`                   | Query ONLY local knowledge base — no fetching                                                | false       |
+| `--local`                   | Query ONLY local knowledge base - no fetching                                                | false       |
 | `--no-llm\|--nollm`         | Skip LLM summarization (still runs embeddings, sentiment, topic inference)                   | false       |
 | `--no-links`                | Skip one-hop link following                                                                  | false       |
 | `--no-entities`             | Disable NER entity extraction                                                                | false       |
@@ -356,27 +356,27 @@ doomsummarizer scroll -s "https://news.ycombinator.com/best"
 # Local file ingestion (directory)
 doomsummarizer scroll -s ./my-articles/
 
-# Local file ingestion (single file — auto-detected via smart routing)
+# Local file ingestion (single file - auto-detected via smart routing)
 doomsummarizer "C:\Users\me\invoice.pdf"
 doomsummarizer "/home/me/thesis.docx"
 ```
 
 ### Local File Ingestion via scroll
 
-When you pass a local file or directory path — either as the argument or via `-s` — scroll auto-ingests the content into
+When you pass a local file or directory path - either as the argument or via `-s` - scroll auto-ingests the content into
 a named knowledge base collection before running the retrieval pipeline.
 
 **How it works:**
 
-1. **Smart routing** — Running `doomsummarizer "/path/to/file.pdf"` auto-detects the path is a file and routes to
+1. **Smart routing** - Running `doomsummarizer "/path/to/file.pdf"` auto-detects the path is a file and routes to
    `scroll -s "/path/to/file.pdf"`
-2. **Auto-naming** — The collection name is derived from the filename or directory (e.g., `invoice.pdf` → collection
+2. **Auto-naming** - The collection name is derived from the filename or directory (e.g., `invoice.pdf` → collection
    `invoice-pdf`). Override with `-n/--name`.
-3. **Document processing** — Files are processed through the full pipeline: format extraction → document type
+3. **Document processing** - Files are processed through the full pipeline: format extraction → document type
    detection → adaptive chunking → batch embedding → indexing → NER
-4. **Retrieval** — After ingestion, scroll runs the standard retrieval pipeline against the newly-created collection and
+4. **Retrieval** - After ingestion, scroll runs the standard retrieval pipeline against the newly-created collection and
    generates an LLM summary
-5. **Persistence** — The ingested content is stored in SQLite with source tag `file:<name>`, so subsequent `ask` queries
+5. **Persistence** - The ingested content is stored in SQLite with source tag `file:<name>`, so subsequent `ask` queries
    can access it
 
 **Supported formats:**
@@ -420,7 +420,7 @@ doomsummarizer ask -s file:research "summarize the findings"
 
 ### Extending with Plugins
 
-The `plugin` command lets you install additional format support and data sources from NuGet at runtime — no rebuild
+The `plugin` command lets you install additional format support and data sources from NuGet at runtime - no rebuild
 needed.
 
 ```bash
@@ -498,24 +498,24 @@ Publish to NuGet, then install with `doomsummarizer plugin install Your.Package.
 
 ### Pipeline Stages
 
-1. **Source Fetching** — Parallel fetch from configured sources
-2. **Content Extraction** — SmartReader/Mozilla Readability HTML → text
-3. **Link Following** — One-hop enrichment of top articles
-4. **Embedding** — ONNX all-MiniLM-L6-v2 vector generation
-5. **Deduplication** — Near-duplicate detection via cosine similarity
-6. **Sentiment Analysis** — Per-item positive/neutral/negative scoring
-7. **Topic Detection** — Category inference from content
-8. **RRF Ranking** — Reciprocal Rank Fusion combining: Lucene FTS, semantic similarity, freshness, authority, quality
-9. **NER** — Named entity extraction (person, organization, location)
-10. **LLM Synthesis** — Sentinel planning → parallel section generation → assembly
+1. **Source Fetching** - Parallel fetch from configured sources
+2. **Content Extraction** - SmartReader/Mozilla Readability HTML → text
+3. **Link Following** - One-hop enrichment of top articles
+4. **Embedding** - ONNX all-MiniLM-L6-v2 vector generation
+5. **Deduplication** - Near-duplicate detection via cosine similarity
+6. **Sentiment Analysis** - Per-item positive/neutral/negative scoring
+7. **Topic Detection** - Category inference from content
+8. **RRF Ranking** - Reciprocal Rank Fusion combining: Lucene FTS, semantic similarity, freshness, authority, quality
+9. **NER** - Named entity extraction (person, organization, location)
+10. **LLM Synthesis** - Sentinel planning → parallel section generation → assembly
 
 ### Output Modes
 
-- **Console Panel** (default) — Word-wrapped markdown in a bordered panel
-- **JSON** (`--json`) — Structured data with metadata, facts, themes, sentiment, sources
-- **Evidence Briefing** (`--full` or `--briefing`) — Color-coded themes, entity tables, coverage metrics
-- **Email** (`--email`) — HTML newsletter delivery via SMTP or SendGrid
-- **File** (`-o path`) — Markdown, text, HTML, or JSON to disk
+- **Console Panel** (default) - Word-wrapped markdown in a bordered panel
+- **JSON** (`--json`) - Structured data with metadata, facts, themes, sentiment, sources
+- **Evidence Briefing** (`--full` or `--briefing`) - Color-coded themes, entity tables, coverage metrics
+- **Email** (`--email`) - HTML newsletter delivery via SMTP or SendGrid
+- **File** (`-o path`) - Markdown, text, HTML, or JSON to disk
 
 ---
 
@@ -705,7 +705,7 @@ doomsummarizer man
 
 ## SECTION: Other Commands
 
-### show — Collection Inspector
+### show - Collection Inspector
 
 ```
 doomsummarizer show [collection] [--limit N] [--full]
@@ -713,7 +713,7 @@ doomsummarizer show [collection] [--limit N] [--full]
 
 Lists all knowledge base collections with stats, or inspects a specific collection's documents.
 
-### list — Content Browser
+### list - Content Browser
 
 ```
 doomsummarizer list docs [--query Q] [--source S] [--entity E] [--limit N]
@@ -723,7 +723,7 @@ doomsummarizer list entities [--type TYPE] [--limit N]
 
 Browse documents, segments, and entities in the knowledge base.
 
-### sources — Source Registry
+### sources - Source Registry
 
 ```
 doomsummarizer sources
@@ -731,7 +731,7 @@ doomsummarizer sources
 
 Displays available sources (built-in plugins + crawled collections) with examples.
 
-### trends — Analytics
+### trends - Analytics
 
 ```
 doomsummarizer trends [--days N]
@@ -739,7 +739,7 @@ doomsummarizer trends [--days N]
 
 Sentiment and topic trend analysis over configurable time period (default: 7 days).
 
-### benchmark — Model Testing
+### benchmark - Model Testing
 
 ```
 doomsummarizer benchmark [models...] [--role synthesis|sentinel|both] [--rounds N] [--pull]
@@ -747,7 +747,7 @@ doomsummarizer benchmark [models...] [--role synthesis|sentinel|both] [--rounds 
 
 Benchmarks Ollama models for speed (tokens/second) and quality. Use `--pull` to auto-download models.
 
-### plugin — Extension Manager
+### plugin - Extension Manager
 
 ```
 doomsummarizer plugin install <package> [--version V]
@@ -843,7 +843,7 @@ agents and tools.
 
 **Cause:** Embedding model not downloaded during setup.
 
-**Fix:** Run `doomsummarizer setup` — it downloads `all-MiniLM-L6-v2` automatically.
+**Fix:** Run `doomsummarizer setup` - it downloads `all-MiniLM-L6-v2` automatically.
 
 ### Problem: JavaScript-heavy sites return empty content
 
@@ -1020,15 +1020,15 @@ Deletes all cached segments, queries, and entities.
 
 | Term                    | Definition                                                                                                                             |
 |-------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| **RRF**                 | Reciprocal Rank Fusion — combines multiple ranking signals (text match, semantic similarity, freshness, authority) into a single score |
-| **NER**                 | Named Entity Recognition — extracts people, organizations, and locations from text                                                     |
+| **RRF**                 | Reciprocal Rank Fusion - combines multiple ranking signals (text match, semantic similarity, freshness, authority) into a single score |
+| **NER**                 | Named Entity Recognition - extracts people, organizations, and locations from text                                                     |
 | **Sentinel Model**      | A smaller, faster LLM used for planning and quality checks before the main synthesis model runs                                        |
 | **Vibe**                | A personality/tone preset that controls how summaries are written                                                                      |
 | **Knowledge Base (KB)** | The persistent local store of all indexed content, embeddings, and entity relationships                                                |
-| **ONNX**                | Open Neural Network Exchange — format used for the local embedding model (no API key needed)                                           |
-| **MCP**                 | Model Context Protocol — standard for exposing tools to AI agents                                                                      |
+| **ONNX**                | Open Neural Network Exchange - format used for the local embedding model (no API key needed)                                           |
+| **MCP**                 | Model Context Protocol - standard for exposing tools to AI agents                                                                      |
 | **Decomposer**          | Component that breaks complex queries into sub-questions for better evidence retrieval                                                 |
 | **Circuit Breaker**     | Fault tolerance pattern that pauses API calls after consecutive failures                                                               |
-| **Slim Build**          | Default `doomsummarizer` binary — web research, document processing (~30 MB)                                                           |
+| **Slim Build**          | Default `doomsummarizer` binary - web research, document processing (~30 MB)                                                           |
 | **Complete Build**      | Full `lucidrag` binary with all features including image/video/audio pipelines, GPU acceleration (~1.1 GB)                             |
-| **No-GPU Build**        | Complete `lucidrag` binary without GPU libraries — CPU-only ONNX + LLamaSharp (~560 MB). Build with `-p:ExcludeGpu=true`              |
+| **No-GPU Build**        | Complete `lucidrag` binary without GPU libraries - CPU-only ONNX + LLamaSharp (~560 MB). Build with `-p:ExcludeGpu=true`              |
