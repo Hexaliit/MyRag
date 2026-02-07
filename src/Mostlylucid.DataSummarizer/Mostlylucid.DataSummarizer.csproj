@@ -41,6 +41,11 @@
 
     <!-- Copy config and docs to output -->
 
+    <!-- Shared tokenizer from Summarizer.Core -->
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
+    </ItemGroup>
+
     <ItemGroup>
         <!-- DuckDB for streaming CSV/Excel/Parquet - no in-memory loading -->
         <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4"/>

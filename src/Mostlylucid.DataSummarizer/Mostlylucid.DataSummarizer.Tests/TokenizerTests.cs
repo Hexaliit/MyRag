@@ -1,4 +1,4 @@
-using Mostlylucid.DataSummarizer.Services.Onnx;
+using Mostlylucid.Summarizer.Core.Tokenizer;
 
 namespace Mostlylucid.DataSummarizer.Tests;
 

@@ -102,7 +102,7 @@ public static class CliApp
                     "Crawl a website to build a searchable knowledge base (incremental with ETag/hash caching)")
                 .WithExample("crawl", "https://docs.example.com")
                 .WithExample("crawl", "https://docs.example.com", "--force")
-                .WithExample("crawl", "https://blog.example.com", "-g", "/blog/*", "--entities")
+                .WithExample("crawl", "https://blog.example.com", "-g", "/blog/*")
                 .WithExample("crawl", "https://intranet.company.com", "--name", "intranet", "--depth", "5")
                 .WithExample("crawl", "https://wiki.local", "-n", "wiki", "-m", "500", "--delay", "1000")
                 .WithExample("crawl", "https://docs.example.com", "--name", "docs", "--ask");

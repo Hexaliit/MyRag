@@ -475,12 +475,24 @@ public sealed class RetrievalPipeline
     {
         if (items.Count <= 1) return items;
 
-        var result = new List<ContentItem>();
-        var seen = new List<float[]>(); // Embeddings of kept items
-
-        foreach (var item in items.OrderByDescending(i => i.RelevanceScore))
+        // Pre-normalize embeddings once so inner loop can use dot product (much cheaper)
+        var sorted = items.OrderByDescending(i => i.RelevanceScore).ToList();
+        var normalizedCache = new Dictionary<ContentItem, float[]>(sorted.Count);
+        foreach (var item in sorted)
         {
-            if (item.Embedding == null)
+            if (item.Embedding is not { Length: > 0 }) continue;
+            var normalized = new float[item.Embedding.Length];
+            Array.Copy(item.Embedding, normalized, item.Embedding.Length);
+            VectorMath.L2Normalize(normalized);
+            normalizedCache[item] = normalized;
+        }
+
+        var result = new List<ContentItem>();
+        var seen = new List<float[]>(sorted.Count); // Pre-normalized embeddings of kept items
+
+        foreach (var item in sorted)
+        {
+            if (!normalizedCache.TryGetValue(item, out var normEmb))
             {
                 result.Add(item); // Can't dedup without embedding
                 continue;
@@ -489,7 +501,8 @@ public sealed class RetrievalPipeline
             var isDuplicate = false;
             foreach (var seenEmb in seen)
             {
-                var sim = VectorMath.CosineSimilarity(item.Embedding, seenEmb);
+                // Dot product of normalized vectors = cosine similarity (avoids repeated norm computation)
+                var sim = VectorMath.CosineSimilarityNormalized(normEmb, seenEmb);
                 if (sim >= threshold)
                 {
                     isDuplicate = true;
@@ -500,7 +513,7 @@ public sealed class RetrievalPipeline
             if (!isDuplicate)
             {
                 result.Add(item);
-                seen.Add(item.Embedding);
+                seen.Add(normEmb);
             }
         }
 

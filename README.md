@@ -41,8 +41,8 @@ doomsummarizer scroll
 # Topic query with tone
 doomsummarizer scroll "AI regulation news" -v snarky
 
-# Build a knowledge base from any website (incremental with ETag caching)
-doomsummarizer crawl https://docs.example.com -n mydocs --entities
+# Build a knowledge base from any website (incremental with ETag caching, entities by default)
+doomsummarizer crawl https://docs.example.com -n mydocs
 doomsummarizer ask -s crawl:mydocs "how does authentication work?"
 
 # Generate a long-form article with evidence grounding
@@ -446,7 +446,7 @@ base - fetches, ranks, and synthesizes content from 30+ sources with local ONNX 
 
 ```bash
 doomsummarizer scroll "AI security news" -v snarky     # Digest with tone
-doomsummarizer crawl https://docs.example.com --entities # Build a KB
+doomsummarizer crawl https://docs.example.com            # Build a KB (entities by default)
 doomsummarizer ask -s crawl:docs "how does auth work?"   # Query your KB
 doomsummarizer scroll "Rust vs Go" -t deep-dive -o comparison.md  # Long-form article
 ```

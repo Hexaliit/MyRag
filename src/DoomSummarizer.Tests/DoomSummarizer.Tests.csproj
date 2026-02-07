@@ -8,6 +8,11 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
+    <!-- Global using for shared utilities (VectorMath, StopwordLists, etc.) -->
+    <ItemGroup>
+        <Using Include="Mostlylucid.DocSummarizer.Services.Utilities"/>
+    </ItemGroup>
+
     <!-- Mirror DoomSummarizer's CompleteBuild flag so tests compile in both modes -->
     <PropertyGroup Condition="'$(CompleteBuild)' == 'true'">
         <DefineConstants>$(DefineConstants);FEATURE_COMPLETE</DefineConstants>

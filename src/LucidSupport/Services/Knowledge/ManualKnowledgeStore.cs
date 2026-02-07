@@ -1,5 +1,5 @@
 using System.Text.Json;
-using CosineSim = DoomSummarizer.Services.VectorMath;
+using CosineSim = Mostlylucid.DocSummarizer.Services.Utilities.VectorMath;
 
 namespace LucidSupport.Services.Knowledge;
 

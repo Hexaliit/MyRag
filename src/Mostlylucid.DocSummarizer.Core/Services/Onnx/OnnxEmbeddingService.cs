@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Mostlylucid.DocSummarizer.Config;
+using Mostlylucid.Summarizer.Core.Tokenizer;
 
 namespace Mostlylucid.DocSummarizer.Services.Onnx;
 

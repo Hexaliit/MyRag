@@ -4,11 +4,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
-namespace Mostlylucid.DataSummarizer.Services.Onnx;
+namespace Mostlylucid.Summarizer.Core.Tokenizer;
 
 /// <summary>
 ///     Unified tokenizer that supports WordPiece, BPE, and Unigram models
 ///     by parsing HuggingFace's tokenizer.json format.
+///     Shared across DocSummarizer, DataSummarizer, and DomainClassifier.
 /// </summary>
 public class HuggingFaceTokenizer
 {
@@ -23,6 +24,7 @@ public class HuggingFaceTokenizer
     private readonly ITokenizerModel _model;
     private readonly Normalizer? _normalizer;
     private readonly PreTokenizer? _preTokenizer;
+    private readonly Lazy<Dictionary<int, string>> _reverseVocab;
     private readonly Dictionary<string, int> _vocab;
 
     private HuggingFaceTokenizer(
@@ -37,6 +39,8 @@ public class HuggingFaceTokenizer
         _model = model;
         _preTokenizer = preTokenizer;
         _normalizer = normalizer;
+        _reverseVocab = new Lazy<Dictionary<int, string>>(() =>
+            _vocab.ToDictionary(kv => kv.Value, kv => kv.Key));
 
         // Resolve special tokens
         ClsTokenId = ResolveSpecialToken("[CLS]", "cls_token", 101);
@@ -123,6 +127,17 @@ public class HuggingFaceTokenizer
         var config = new TokenizerConfig();
 
         return new HuggingFaceTokenizer(config, vocab, model, new BertPreTokenizer(), new BertNormalizer(null));
+    }
+
+    /// <summary>
+    ///     Decode token IDs back to tokens (for NER span extraction).
+    /// </summary>
+    public string[] Decode(long[] inputIds)
+    {
+        var reverseVocab = _reverseVocab.Value;
+        var unkToken = reverseVocab.GetValueOrDefault(UnkTokenId, "[UNK]");
+
+        return inputIds.Select(id => reverseVocab.GetValueOrDefault((int)id, unkToken)).ToArray();
     }
 
     /// <summary>
@@ -390,16 +405,19 @@ public class BpeModel : ITokenizerModel
 public class UnigramModel : ITokenizerModel
 {
     private readonly Dictionary<string, (int Id, float Score)> _pieces;
+    private readonly int _unkId;
     private readonly string _unkToken;
 
     public UnigramModel(Dictionary<string, int> vocab, ModelConfig? config)
     {
         _unkToken = config?.UnkToken ?? "<unk>";
+        _unkId = config?.UnkId ?? 0;
 
         // Build pieces with scores
         _pieces = new Dictionary<string, (int, float)>(StringComparer.Ordinal);
 
         // If we have vocab from tokenizer.json, use it
+        // Unigram models typically have scores in the vocab
         foreach (var kvp in vocab) _pieces[kvp.Key] = (kvp.Value, 0f); // Default score 0
     }
 
@@ -411,6 +429,7 @@ public class UnigramModel : ITokenizerModel
             yield break;
 
         // Viterbi-based tokenization (simplified)
+        // For production, this would use dynamic programming with scores
         var result = TokenizeViterbi(text);
         foreach (var token in result) yield return token;
     }
@@ -503,7 +522,7 @@ public class MetaspacePreTokenizer : PreTokenizer
 
     public MetaspacePreTokenizer(PreTokenizerConfig? config)
     {
-        _replacement = config?.Replacement ?? "▁";
+        _replacement = config?.Replacement ?? "\u2581";
         _addPrefixSpace = config?.AddPrefixSpace ?? true;
     }
 
@@ -524,6 +543,7 @@ public class ByteLevelPreTokenizer : PreTokenizer
     public override IEnumerable<string> PreTokenize(string text)
     {
         // GPT-2 style byte-level tokenization
+        // Split on whitespace but keep track of leading spaces
         var pattern = new Regex(@"'s|'t|'re|'ve|'m|'ll|'d| ?\w+| ?\d+| ?[^\s\w\d]+|\s+(?!\S)|\s+",
             RegexOptions.Compiled);
 

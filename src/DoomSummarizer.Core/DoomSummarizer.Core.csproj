@@ -49,6 +49,11 @@
         <DebugType>none</DebugType>
     </PropertyGroup>
 
+    <!-- Global using for shared utilities (VectorMath, StopwordLists, etc.) -->
+    <ItemGroup>
+        <Using Include="Mostlylucid.DocSummarizer.Services.Utilities"/>
+    </ItemGroup>
+
     <!-- Enable test access to internal members -->
     <ItemGroup>
         <InternalsVisibleTo Include="DoomSummarizer.Tests"/>

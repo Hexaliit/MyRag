@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
-using Mostlylucid.DocSummarizer.Services.Onnx;
+using Mostlylucid.Summarizer.Core.Tokenizer;
 
 namespace DomainClassifier.Core.Services.Onnx;
 

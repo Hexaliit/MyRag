@@ -16,20 +16,10 @@ public static class VectorMath
     ///     Returns value between -1 and 1, where 1 = identical direction.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float CosineSimilarityFloat(float[] a, float[] b)
+    public static float CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length || a.Length == 0) return 0;
         return TensorPrimitives.CosineSimilarity(a, b);
-    }
-
-    /// <summary>
-    ///     Compute cosine similarity between two vectors.
-    ///     Returns double for backward compatibility with callers expecting double precision.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static double CosineSimilarity(float[] a, float[] b)
-    {
-        return CosineSimilarityFloat(a, b);
     }
 
     /// <summary>
@@ -119,12 +109,12 @@ public static class VectorMath
     public static void AddScaled(float[] target, float[] source, float scale)
     {
         var len = Math.Min(target.Length, source.Length);
-        var targetSpan = target.AsSpan(0, len);
-        var sourceSpan = (ReadOnlySpan<float>)source.AsSpan(0, len);
+        Span<float> targetSpan = target.AsSpan(0, len);
+        ReadOnlySpan<float> sourceSpan = source.AsSpan(0, len);
 
-        var temp = len <= 512 ? stackalloc float[len] : new float[len];
+        Span<float> temp = len <= 512 ? stackalloc float[len] : new float[len];
         TensorPrimitives.Multiply(sourceSpan, scale, temp);
-        TensorPrimitives.Add(targetSpan, temp, targetSpan);
+        TensorPrimitives.Add(targetSpan, (ReadOnlySpan<float>)temp, targetSpan);
     }
 
     /// <summary>
@@ -135,7 +125,7 @@ public static class VectorMath
         if (a.Length != b.Length || a.Length == 0)
             return double.MaxValue;
 
-        var diff = a.Length <= 512 ? stackalloc float[a.Length] : new float[a.Length];
+        Span<float> diff = a.Length <= 512 ? stackalloc float[a.Length] : new float[a.Length];
         TensorPrimitives.Subtract((ReadOnlySpan<float>)a, (ReadOnlySpan<float>)b, diff);
         return TensorPrimitives.Norm(diff);
     }
