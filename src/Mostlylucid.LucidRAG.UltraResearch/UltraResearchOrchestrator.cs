@@ -29,6 +29,7 @@ public class UltraResearchOrchestrator
     ///     can inspect results after the session has been cleaned up. Bounded to 100 entries.
     /// </summary>
     private readonly ConcurrentDictionary<Guid, UltraResearchStateSnapshot> _completedSessions = new();
+    private readonly ConcurrentDictionary<Guid, ResearchSynthesis?> _completedSyntheses = new();
     private readonly Queue<Guid> _completedSessionOrder = new();
     private readonly object _completedSessionLock = new();
     private const int MaxCompletedSessionsRetained = 100;
@@ -272,6 +273,15 @@ public class UltraResearchOrchestrator
         {
             return [];
         }
+    }
+
+    /// <summary>Get the synthesis result for a session (active or completed).</summary>
+    public ResearchSynthesis? GetSynthesis(Guid sessionId)
+    {
+        if (_activeSessions.TryGetValue(sessionId, out var session))
+            return session.State.Synthesis;
+        _completedSyntheses.TryGetValue(sessionId, out var synthesis);
+        return synthesis;
     }
 
     private async Task RunLoopAsync(
@@ -609,6 +619,28 @@ public class UltraResearchOrchestrator
             state.CompletedAt = DateTimeOffset.UtcNow;
             state.StopReason ??= "Completed normally";
 
+            // Synthesis step — generate a summary of the research corpus
+            if (state.Status == UltraResearchStatus.Completed && state.PapersIngested > 0)
+            {
+                EmitProgress(session, ResearchStage.Synthesizing, "Generating research synthesis...", state);
+                try
+                {
+                    var synthesizer = scope.ServiceProvider.GetRequiredService<ResearchSynthesizer>();
+                    state.Synthesis = await synthesizer.SynthesizeAsync(state, state.CollectionId, CancellationToken.None);
+
+                    var filename = $"synthesis-{SanitizeFilename(state.Topic)}-{state.CompletedAt:yyyyMMdd-HHmmss}.md";
+                    var filePath = Path.Combine(dataDir, filename);
+                    await File.WriteAllTextAsync(filePath, state.Synthesis.SynthesisMarkdown, CancellationToken.None);
+                    state.Synthesis.SavedFilePath = filePath;
+
+                    _logger.LogInformation("Synthesis saved to {FilePath}", filePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to generate synthesis (non-fatal)");
+                }
+            }
+
             PersistState(db, state);
 
             EmitProgress(session, ResearchStage.Finalizing,
@@ -671,6 +703,7 @@ public class UltraResearchOrchestrator
                 s.Frontier.Count, s.SeenIds.Count, s.Checkpoints.Count,
                 s.StartedAt, s.CompletedAt, s.StopReason);
             _completedSessions[sessionId] = snapshot;
+            _completedSyntheses[sessionId] = s.Synthesis;
 
             // O(1) eviction via insertion-order queue instead of O(n log n) sort
             lock (_completedSessionLock)
@@ -681,6 +714,7 @@ public class UltraResearchOrchestrator
                 {
                     var toEvict = _completedSessionOrder.Dequeue();
                     _completedSessions.TryRemove(toEvict, out _);
+                    _completedSyntheses.TryRemove(toEvict, out _);
                 }
             }
 
@@ -712,6 +746,13 @@ public class UltraResearchOrchestrator
             variations.Add(string.Join(" ", words.Take(words.Length / 2)));
 
         return variations.Where(v => !state.SearchQueriesUsed.Contains(v)).Take(3).ToList();
+    }
+
+    private static string SanitizeFilename(string name)
+    {
+        var safe = string.Concat(name.Split(Path.GetInvalidFileNameChars()));
+        safe = safe.Replace(' ', '-');
+        return safe.Length > 40 ? safe[..40] : safe;
     }
 
     /// <summary>Generate a standardized collection name from a research topic.</summary>

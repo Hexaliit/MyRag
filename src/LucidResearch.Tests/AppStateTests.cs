@@ -80,6 +80,8 @@ public class AppStateTests
         _state.TotalEntities.Value = 42;
         _state.OrphanCitations.Value = 5;
         _state.NewInfoHistory.Value = [0.9, 0.7, 0.5, 0.3];
+        _state.SynthesisText.Value = "Some synthesis";
+        _state.SynthesisFilePath.Value = "/tmp/synthesis.md";
         _state.AddActivity("Some activity");
 
         _state.Reset();
@@ -97,6 +99,8 @@ public class AppStateTests
         _state.TotalEntities.Value.Should().Be(0);
         _state.OrphanCitations.Value.Should().Be(0);
         _state.NewInfoHistory.Value.Should().BeEmpty();
+        _state.SynthesisText.Value.Should().BeNull();
+        _state.SynthesisFilePath.Value.Should().BeNull();
         _state.ActivityLog.Value.Should().BeEmpty();
     }
 
@@ -114,12 +118,13 @@ public class AppStateTests
     [Fact]
     public void ViewMode_enum_has_expected_values()
     {
-        Enum.GetValues<ViewMode>().Should().HaveCount(5);
+        Enum.GetValues<ViewMode>().Should().HaveCount(6);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Dashboard);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.StartResearch);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Frontier);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Checkpoints);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Sessions);
+        Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Summary);
     }
 
     [Fact]

@@ -48,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<ResearchPaperFetcher>();
         services.TryAddScoped<ResearchFrontierManager>();
         services.TryAddScoped<ResearchSentinelEvaluator>();
+        services.TryAddScoped<ResearchSynthesizer>();
 
         // Orchestrator — singleton (manages active sessions across requests)
         services.TryAddSingleton<UltraResearchOrchestrator>();

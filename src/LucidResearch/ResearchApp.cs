@@ -77,13 +77,15 @@ public static class ResearchApp
         var frontier = FrontierView.Create(appState, services);
         var checkpoints = CheckpointView.Create(appState, services);
         var sessions = SessionView.Create(appState, services);
+        var summary = SummaryView.Create(appState);
 
         var content = new VStack(
             dashboard.IsVisible(() => appState.CurrentView.Value == ViewMode.Dashboard),
             startResearch.IsVisible(() => appState.CurrentView.Value == ViewMode.StartResearch),
             frontier.IsVisible(() => appState.CurrentView.Value == ViewMode.Frontier),
             checkpoints.IsVisible(() => appState.CurrentView.Value == ViewMode.Checkpoints),
-            sessions.IsVisible(() => appState.CurrentView.Value == ViewMode.Sessions)
+            sessions.IsVisible(() => appState.CurrentView.Value == ViewMode.Sessions),
+            summary.IsVisible(() => appState.CurrentView.Value == ViewMode.Summary)
         );
 
         // Gradient branding for header
@@ -108,6 +110,7 @@ public static class ResearchApp
         layout.AddKeyBinding(new KeyGesture(TerminalKey.F3, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Frontier);
         layout.AddKeyBinding(new KeyGesture(TerminalKey.F4, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Checkpoints);
         layout.AddKeyBinding(new KeyGesture(TerminalKey.F5, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Sessions);
+        layout.AddKeyBinding(new KeyGesture(TerminalKey.F6, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Summary);
         layout.AddKeyBinding(new KeyGesture('q', TerminalModifiers.None), () => appState.ExitRequested.Value = true);
 
         return layout;
@@ -142,6 +145,7 @@ public static class ResearchApp
             ("F3", "Frontier", ViewMode.Frontier),
             ("F4", "Checkpoints", ViewMode.Checkpoints),
             ("F5", "Sessions", ViewMode.Sessions),
+            ("F6", "Summary", ViewMode.Summary),
         };
 
         var parts = views.Select(v =>

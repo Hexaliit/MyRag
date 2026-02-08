@@ -95,6 +95,20 @@ public class StatePoller
                             {
                                 _appState.AddActivity($"Session ended: {snapshot.StopReason}");
                             }
+
+                            // Check for synthesis after status update
+                            if (snapshot.Status is UltraResearchStatus.Completed or UltraResearchStatus.Stopped)
+                            {
+                                var synthesis = _orchestrator.GetSynthesis(sessionId);
+                                if (synthesis != null && string.IsNullOrEmpty(_appState.SynthesisText.Value))
+                                {
+                                    _appState.SynthesisText.Value = synthesis.SynthesisMarkdown;
+                                    _appState.SynthesisFilePath.Value = synthesis.SavedFilePath;
+                                    _appState.AddActivity("Research synthesis ready — press F6 to view");
+                                    if (snapshot.Status == UltraResearchStatus.Completed)
+                                        _appState.CurrentView.Value = ViewMode.Summary;
+                                }
+                            }
                         });
                     }
                 }

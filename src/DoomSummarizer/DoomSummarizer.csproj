@@ -18,9 +18,11 @@
         <PublishReadyToRun>true</PublishReadyToRun>
         <!-- LLamaSharp ships multiple AVX-variant native DLLs with the same filename;
              allow last-wins for publish copy, and keep native libs alongside binary
-             (also avoids macOS Gatekeeper blocking unsigned extracted dylibs) -->
+             (also avoids macOS Gatekeeper blocking unsigned extracted dylibs).
+             Slim builds (no LLamaSharp) default to true for single-file deployment;
+             complete builds default to false to avoid AVX collisions. -->
         <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
-        <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+        <IncludeNativeLibrariesForSelfExtract Condition="'$(IncludeNativeLibrariesForSelfExtract)' == ''">false</IncludeNativeLibrariesForSelfExtract>
         <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
         <SelfContained>true</SelfContained>
 
@@ -36,10 +38,11 @@
     </PropertyGroup>
 
     <!--
-      Three build variants:
-        1. dotnet publish ... -c Release                                          → doomsummarizer (slim, ~30 MB)
-        2. dotnet publish ... -c Release -p:CompleteBuild=true                    → lucidrag (full + GPU, ~1.1 GB)
-        3. dotnet publish ... -c Release -p:CompleteBuild=true -p:ExcludeGpu=true → lucidrag (full, CPU-only, ~560 MB)
+      Four build variants:
+        1. dotnet publish ... -c Release                                                                              → doomsummarizer (slim, ~50 MB)
+        2. dotnet publish ... -c Release -p:ExcludeGpu=true -p:IncludeNativeLibrariesForSelfExtract=true              → doomsummarizer (slim-nogpu, single exe, ~30 MB)
+        3. dotnet publish ... -c Release -p:CompleteBuild=true                                                        → lucidrag (full + GPU, ~1.1 GB)
+        4. dotnet publish ... -c Release -p:CompleteBuild=true -p:ExcludeGpu=true                                     → lucidrag (full, CPU-only, ~560 MB)
     -->
     <!-- Slim vs Complete build: CompleteBuild=true includes audio/video/YouTube + LLamaSharp -->
     <PropertyGroup Condition="'$(CompleteBuild)' == 'true'">
@@ -114,13 +117,14 @@
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.LLamaSharp\Mostlylucid.DocSummarizer.LLamaSharp.csproj"/>
     </ItemGroup>
 
-    <!-- Complete-only: full media pipelines (image/audio/video), YouTube, subtitles -->
+    <!-- Complete-only: full media pipelines (image/audio/video), YouTube, subtitles, TorchSharp NER -->
     <ItemGroup Condition="'$(CompleteBuild)' == 'true'">
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Plugin.Subtitles\Mostlylucid.DoomSummarizer.Plugin.Subtitles.csproj"/>
         <ProjectReference Include="..\Mostlylucid.DoomSummarizer.Source.YouTube\Mostlylucid.DoomSummarizer.Source.YouTube.csproj"/>
         <ProjectReference Include="..\AudioSummarizer.Core\AudioSummarizer.Core.csproj"/>
         <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj"/>
         <ProjectReference Include="..\VideoSummarizer.Core\VideoSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.GraphRag.TorchSharp\Mostlylucid.GraphRag.TorchSharp.csproj"/>
     </ItemGroup>
 
     <!-- Exclude complete-only source files from slim builds -->
@@ -128,6 +132,14 @@
         <Compile Remove="Services\ImageService.cs"/>
         <Compile Remove="Services\EmailService.cs"/>
         <Compile Remove="Commands\ScrollCommand.Animation.cs"/>
+    </ItemGroup>
+
+    <!-- Slim builds: strip heavyweight native libs from complete-only media pipelines.
+         These come transitively via LucidRAG.Core → Image/VideoSummarizer but are unused in slim.
+         ExcludeAssets=all prevents the ~90 MB of native DLLs from being published. -->
+    <ItemGroup Condition="'$(CompleteBuild)' != 'true'">
+        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250507" ExcludeAssets="all" PrivateAssets="all"/>
+        <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" ExcludeAssets="all" PrivateAssets="all"/>
     </ItemGroup>
 
     <!-- Embed default config, prompt templates, starter lens files, and manual manifest -->

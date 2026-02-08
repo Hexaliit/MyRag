@@ -29,6 +29,10 @@ public class AppState
     // Convergence history (for chart)
     public State<List<double>> NewInfoHistory { get; } = new([]);
 
+    // Synthesis
+    public State<string?> SynthesisText { get; } = new(null);
+    public State<string?> SynthesisFilePath { get; } = new(null);
+
     // Navigation
     public State<ViewMode> CurrentView { get; } = new(ViewMode.Dashboard);
     public State<bool> ExitRequested { get; } = new(false);
@@ -62,6 +66,8 @@ public class AppState
         TotalEntities.Value = 0;
         OrphanCitations.Value = 0;
         NewInfoHistory.Value = [];
+        SynthesisText.Value = null;
+        SynthesisFilePath.Value = null;
         _activityQueue.Clear();
         ActivityLog.Value = [];
     }
@@ -73,5 +79,6 @@ public enum ViewMode
     StartResearch,
     Frontier,
     Checkpoints,
-    Sessions
+    Sessions,
+    Summary
 }

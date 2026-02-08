@@ -34,7 +34,7 @@ jobs:
     needs: test
     strategy:
       matrix:
-        build_type: [slim, complete]
+        build_type: [slim, slim-nogpu, complete]
         rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
         include:
           - rid: win-x64
@@ -70,6 +70,18 @@ jobs:
       - name: Publish single-file
         shell: bash
         run: |
+          # slim-nogpu: exclude GPU libs + bundle native libs into single exe (except macOS — Gatekeeper)
+          # slim:       include GPU libs + bundle native libs into single exe (except macOS)
+          # complete:   full build, native libs alongside binary (LLamaSharp AVX collisions)
+          # macOS: keep native libs alongside binary to avoid Gatekeeper blocking unsigned extracted dylibs
+          EXTRA_PROPS=""
+          if [[ "${{ matrix.build_type }}" == "slim-nogpu" ]]; then
+            EXTRA_PROPS="-p:ExcludeGpu=true"
+            [[ "${{ matrix.rid }}" != osx-* ]] && EXTRA_PROPS="$EXTRA_PROPS -p:IncludeNativeLibrariesForSelfExtract=true"
+          elif [[ "${{ matrix.build_type }}" == "slim" ]]; then
+            [[ "${{ matrix.rid }}" != osx-* ]] && EXTRA_PROPS="-p:IncludeNativeLibrariesForSelfExtract=true"
+          fi
+
           dotnet publish src/DoomSummarizer/DoomSummarizer.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
@@ -79,28 +91,47 @@ jobs:
             -p:PublishReadyToRun=true \
             -p:CompleteBuild=${{ matrix.build_type == 'complete' && 'true' || 'false' }} \
             -p:Version=${{ github.event.inputs.version }} \
+            $EXTRA_PROPS \
             -o ./publish/${{ matrix.rid }}
+
+      - name: Determine archive name
+        id: archive_name
+        shell: bash
+        run: |
+          if [[ "${{ matrix.build_type }}" == "complete" ]]; then
+            echo "name=lucidrag" >> "$GITHUB_OUTPUT"
+            echo "binary=lucidrag" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ matrix.build_type }}" == "slim-nogpu" ]]; then
+            echo "name=doomsummarizer-nogpu" >> "$GITHUB_OUTPUT"
+            echo "binary=doomsummarizer" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=doomsummarizer" >> "$GITHUB_OUTPUT"
+            echo "binary=doomsummarizer" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Stage archive contents
         shell: bash
         run: |
           mkdir -p ./stage
-          if [[ "${{ matrix.build_type }}" == "complete" ]]; then
-            BINARY_NAME="lucidrag"
-          else
-            BINARY_NAME="doomsummarizer"
-          fi
+          BINARY_NAME="${{ steps.archive_name.outputs.binary }}"
           cp ./publish/${{ matrix.rid }}/${BINARY_NAME}${{ matrix.ext }} ./stage/
-          # Native libs sit alongside binary (csproj sets IncludeNativeLibrariesForSelfExtract=false
-          # to avoid LLamaSharp AVX-variant filename collisions and macOS Gatekeeper issues)
-          cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true  # macOS
-          cp ./publish/${{ matrix.rid }}/*.so ./stage/ 2>/dev/null || true     # Linux
-          # Windows: native DLLs left outside single-file bundle (managed DLLs are inside)
-          if [[ "${{ matrix.rid }}" == win-* ]]; then
-            for f in ./publish/${{ matrix.rid }}/*.dll; do
-              [ -f "$f" ] && cp "$f" ./stage/ 2>/dev/null || true
-            done
+
+          # Complete builds: native libs always alongside binary (LLamaSharp AVX collisions)
+          # macOS slim builds: native libs alongside binary (Gatekeeper blocks unsigned extracted dylibs)
+          # Windows/Linux slim builds: native libs bundled into single file, nothing extra to copy
+          if [[ "${{ matrix.build_type }}" == "complete" ]]; then
+            cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true
+            cp ./publish/${{ matrix.rid }}/*.so ./stage/ 2>/dev/null || true
+            if [[ "${{ matrix.rid }}" == win-* ]]; then
+              for f in ./publish/${{ matrix.rid }}/*.dll; do
+                [ -f "$f" ] && cp "$f" ./stage/ 2>/dev/null || true
+              done
+            fi
+          elif [[ "${{ matrix.rid }}" == osx-* ]]; then
+            # macOS slim: copy dylibs alongside binary (Gatekeeper workaround)
+            cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true
           fi
+
           cp src/DoomSummarizer/README.md ./stage/
           cp src/DoomSummarizer/Resources/default-config.json ./stage/config.json
 
@@ -108,22 +139,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $name = "${{ matrix.build_type }}" -eq "complete" ? "lucidrag" : "doomsummarizer"
+          $name = "${{ steps.archive_name.outputs.name }}"
           Compress-Archive -Path ./stage/* -DestinationPath "./publish/${name}-${{ matrix.rid }}.zip"
 
       - name: Create archive (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          if [[ "${{ matrix.build_type }}" == "complete" ]]; then name="lucidrag"; else name="doomsummarizer"; fi
+          name="${{ steps.archive_name.outputs.name }}"
           cd ./stage
           tar -czvf "../publish/${name}-${{ matrix.rid }}.tar.gz" *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.build_type == 'complete' && 'lucidrag' || 'doomsummarizer' }}-${{ matrix.rid }}
-          path: ./publish/${{ matrix.build_type == 'complete' && 'lucidrag' || 'doomsummarizer' }}-${{ matrix.rid }}.*
+          name: ${{ steps.archive_name.outputs.name }}-${{ matrix.rid }}
+          path: ./publish/${{ steps.archive_name.outputs.name }}-${{ matrix.rid }}.*
           retention-days: 5
 
   release:
@@ -154,12 +185,13 @@ jobs:
 
             ### Downloads
 
-            Two variants are available for each platform:
+            Three variants are available for each platform (all self-contained, no .NET runtime needed):
 
             | Variant | Description |
             |---------|-------------|
-            | `doomsummarizer-{platform}` | **Deep Research** (~50 MB) — Lightweight build. Web sources, knowledge graph, hybrid search, ONNX embeddings. Uses Ollama or cloud APIs for LLM. Ingests `.md`, `.txt`, `.pdf` files. |
-            | `lucidrag-{platform}` | **LucidRAG Complete** (~120 MB) — Everything above + local GGUF inference via LLamaSharp (no Ollama needed), all document formats (DOCX, HTML, PPTX), image analysis, video analysis (shot detection, scene segmentation), YouTube transcription, audio transcription & speaker ID, subtitle processing, email delivery |
+            | `doomsummarizer-nogpu-{platform}` | **Deep Research — Smallest** (~240 MB) — Single executable, CPU-only ONNX embeddings. Web sources, knowledge graph, ONNX BERT NER, hybrid search. Uses Ollama or cloud APIs for LLM. No GPU required. |
+            | `doomsummarizer-{platform}` | **Deep Research** (~440 MB) — Single executable with GPU-accelerated ONNX embeddings (DirectML on Windows). Same features as above with faster embeddings. |
+            | `lucidrag-{platform}` | **LucidRAG Complete** (~1 GB+) — Everything above + TorchSharp NER, local GGUF inference via LLamaSharp (no Ollama needed), all document formats (DOCX, HTML, PPTX), image/video analysis, OpenCV, YouTube transcription, audio transcription & speaker ID, subtitle processing, email delivery |
 
             ### What it does
 
@@ -213,6 +245,8 @@ jobs:
             | `README.md` | Full documentation -- all commands, flags, sources, pipeline details |
             | `config.json` | Default config reference (copy to config directory to customize) |
 
+            > **Note:** Windows and Linux `doomsummarizer-nogpu` and `doomsummarizer` archives contain just 3 files (single exe + docs). macOS archives include native `.dylib` files alongside the binary (required for Gatekeeper compatibility). The `lucidrag` complete archive includes additional native libraries on all platforms.
+
             ### Works offline, scales up with APIs
 
             Out of the box, DoomSummarizer uses only free sources (RSS, HTML scraping, DuckDuckGo) and local models (ONNX embeddings, Ollama LLM). Optionally configure cloud search APIs (Brave, Serper, Tavily, NewsAPI) and cloud LLMs (Anthropic Claude, OpenAI GPT-4o) with built-in budget enforcement to stay within free tiers.
@@ -234,15 +268,21 @@ jobs:
           draft: false
           prerelease: false
           files: |
+            ./artifacts/doomsummarizer-nogpu-win-x64/*.zip
             ./artifacts/doomsummarizer-win-x64/*.zip
             ./artifacts/lucidrag-win-x64/*.zip
+            ./artifacts/doomsummarizer-nogpu-win-arm64/*.zip
             ./artifacts/doomsummarizer-win-arm64/*.zip
             ./artifacts/lucidrag-win-arm64/*.zip
+            ./artifacts/doomsummarizer-nogpu-linux-x64/*.tar.gz
             ./artifacts/doomsummarizer-linux-x64/*.tar.gz
             ./artifacts/lucidrag-linux-x64/*.tar.gz
+            ./artifacts/doomsummarizer-nogpu-linux-arm64/*.tar.gz
             ./artifacts/doomsummarizer-linux-arm64/*.tar.gz
             ./artifacts/lucidrag-linux-arm64/*.tar.gz
+            ./artifacts/doomsummarizer-nogpu-osx-x64/*.tar.gz
             ./artifacts/doomsummarizer-osx-x64/*.tar.gz
             ./artifacts/lucidrag-osx-x64/*.tar.gz
+            ./artifacts/doomsummarizer-nogpu-osx-arm64/*.tar.gz
             ./artifacts/doomsummarizer-osx-arm64/*.tar.gz
             ./artifacts/lucidrag-osx-arm64/*.tar.gz

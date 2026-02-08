@@ -117,6 +117,9 @@ public class UltraResearchState
     [JsonIgnore]
     public AnalysisContext? SessionContext { get; set; }
 
+    /// <summary>Post-research synthesis result. Populated after session completes.</summary>
+    public ResearchSynthesis? Synthesis { get; set; }
+
     public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedAt { get; set; }
     public string? StopReason { get; set; }
@@ -213,6 +216,7 @@ public enum ResearchStage
     Ingesting,
     Analyzing,
     Sentinel,
+    Synthesizing,
     Finalizing
 }
 
@@ -227,3 +231,17 @@ public record UltraResearchProgress(
     int PapersIngested,
     int FrontierSize,
     double? NewInfoRatio);
+
+/// <summary>
+///     Post-research synthesis produced after a session completes.
+/// </summary>
+public class ResearchSynthesis
+{
+    public string SynthesisMarkdown { get; set; } = "";
+    public List<string> KeyFindings { get; set; } = [];
+    public List<string> RemainingGaps { get; set; } = [];
+    public List<string> FurtherResearch { get; set; } = [];
+    public bool IsLlmGenerated { get; set; }
+    public string? SavedFilePath { get; set; }
+    public DateTimeOffset GeneratedAt { get; set; } = DateTimeOffset.UtcNow;
+}

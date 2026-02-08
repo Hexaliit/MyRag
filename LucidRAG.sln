@@ -209,6 +209,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.LucidRAG.UltraR
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LucidResearch", "src\LucidResearch\LucidResearch.csproj", "{09AFA924-332B-4704-9764-F764A8BFD4B1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.GraphRag.TorchSharp", "src\Mostlylucid.GraphRag.TorchSharp\Mostlylucid.GraphRag.TorchSharp.csproj", "{FC2054B4-99B7-414F-9041-D3A280469288}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1239,6 +1241,18 @@ Global
 		{09AFA924-332B-4704-9764-F764A8BFD4B1}.Release|x64.Build.0 = Release|Any CPU
 		{09AFA924-332B-4704-9764-F764A8BFD4B1}.Release|x86.ActiveCfg = Release|Any CPU
 		{09AFA924-332B-4704-9764-F764A8BFD4B1}.Release|x86.Build.0 = Release|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Debug|x64.Build.0 = Debug|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Debug|x86.Build.0 = Debug|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Release|x64.ActiveCfg = Release|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Release|x64.Build.0 = Release|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Release|x86.ActiveCfg = Release|Any CPU
+		{FC2054B4-99B7-414F-9041-D3A280469288}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1330,5 +1344,6 @@ Global
 		{D4B22671-0766-448B-B39F-B47A58AA18CC} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{DDBE96BF-11F5-4B43-9C35-D6460249D5B0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{09AFA924-332B-4704-9764-F764A8BFD4B1} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{FC2054B4-99B7-414F-9041-D3A280469288} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
