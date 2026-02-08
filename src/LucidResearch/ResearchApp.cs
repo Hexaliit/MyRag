@@ -7,6 +7,7 @@ using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
+using XenoAtom.Terminal.UI.Threading;
 
 namespace LucidResearch;
 
@@ -20,10 +21,11 @@ public static class ResearchApp
         // Start background polling
         statePoller.Start();
 
-        // Handle quick-start after TUI launches
-        if (appState.PendingQuickStart.Value is { } quickTopic)
+        // Handle quick-start — read before TUI starts (main thread), fire background work
+        var quickTopic = appState.PendingQuickStart.Value;
+        appState.PendingQuickStart.Value = null;
+        if (!string.IsNullOrEmpty(quickTopic))
         {
-            appState.PendingQuickStart.Value = null;
             _ = Task.Run(async () =>
             {
                 try
@@ -32,13 +34,21 @@ public static class ResearchApp
                     var orchestrator = services.GetRequiredService<UltraResearchOrchestrator>();
                     var ingester = services.GetRequiredService<IDocumentIngester>();
                     var sessionId = await orchestrator.StartAsync(config, ingester);
-                    appState.ActiveSessionId.Value = sessionId;
-                    appState.AddActivity($"Quick-started: {quickTopic}");
-                    appState.CurrentView.Value = ViewMode.Dashboard;
+
+                    // Marshal State updates to the UI thread
+                    Dispatcher.Current.Post(() =>
+                    {
+                        appState.ActiveSessionId.Value = sessionId;
+                        appState.AddActivity($"Quick-started: {quickTopic}");
+                        appState.CurrentView.Value = ViewMode.Dashboard;
+                    });
                 }
                 catch (Exception ex)
                 {
-                    appState.AddActivity($"Quick-start failed: {ex.Message}");
+                    Dispatcher.Current.Post(() =>
+                    {
+                        appState.AddActivity($"Quick-start failed: {ex.Message}");
+                    });
                 }
             });
         }

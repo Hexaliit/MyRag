@@ -1,5 +1,6 @@
 using LucidRAG.UltraResearch;
 using Microsoft.Extensions.Logging;
+using XenoAtom.Terminal.UI.Threading;
 
 namespace LucidResearch.Services;
 
@@ -53,43 +54,48 @@ public class StatePoller
         {
             try
             {
-                if (_appState.ActiveSessionId.Value is { } sid)
+                // Read ActiveSessionId on the UI thread
+                var sid = await Dispatcher.Current.InvokeAsync(() => _appState.ActiveSessionId.Value);
+
+                if (sid is { } sessionId)
                 {
-                    var snapshot = _orchestrator.GetStatus(sid);
+                    // Fetch data from orchestrator on background thread (no UI access needed)
+                    var snapshot = _orchestrator.GetStatus(sessionId);
                     if (snapshot != null)
                     {
-                        _appState.Status.Value = snapshot.Status;
-                        _appState.Topic.Value = snapshot.Topic;
-                        _appState.Iteration.Value = snapshot.Iteration;
-                        _appState.PapersFetched.Value = snapshot.PapersFetched;
-                        _appState.PapersIngested.Value = snapshot.PapersIngested;
-                        _appState.PapersFailed.Value = snapshot.PapersFailed;
-                        _appState.FrontierSize.Value = snapshot.FrontierSize;
-                        _appState.SeenCount.Value = snapshot.SeenIdsCount;
+                        var checkpoints = _orchestrator.GetCheckpointsSnapshot(sessionId, 50);
 
-                        // Single checkpoint fetch for both latest metrics and convergence history
-                        var checkpoints = _orchestrator.GetCheckpointsSnapshot(sid, 50);
-                        if (checkpoints is { Count: > 0 })
+                        // Marshal all State updates to the UI thread
+                        Dispatcher.Current.Post(() =>
                         {
-                            var latest = checkpoints[0]; // Most recent first
-                            _appState.NewInfoRatio.Value = latest.NewInfoRatio;
-                            _appState.TotalEntities.Value = latest.TotalEntities;
-                            _appState.OrphanCitations.Value = latest.OrphanCitations;
+                            _appState.Status.Value = snapshot.Status;
+                            _appState.Topic.Value = snapshot.Topic;
+                            _appState.Iteration.Value = snapshot.Iteration;
+                            _appState.PapersFetched.Value = snapshot.PapersFetched;
+                            _appState.PapersIngested.Value = snapshot.PapersIngested;
+                            _appState.PapersFailed.Value = snapshot.PapersFailed;
+                            _appState.FrontierSize.Value = snapshot.FrontierSize;
+                            _appState.SeenCount.Value = snapshot.SeenIdsCount;
 
-                            // Build history list without re-sorting — checkpoints come
-                            // in reverse order, so iterate backwards to get ascending
-                            var history = new List<double>(checkpoints.Count);
-                            for (var i = checkpoints.Count - 1; i >= 0; i--)
-                                history.Add(checkpoints[i].NewInfoRatio);
-                            _appState.NewInfoHistory.Value = history;
-                        }
+                            if (checkpoints is { Count: > 0 })
+                            {
+                                var latest = checkpoints[0];
+                                _appState.NewInfoRatio.Value = latest.NewInfoRatio;
+                                _appState.TotalEntities.Value = latest.TotalEntities;
+                                _appState.OrphanCitations.Value = latest.OrphanCitations;
 
-                        // If session completed, add activity
-                        if (snapshot.Status != UltraResearchStatus.Running &&
-                            snapshot.StopReason != null)
-                        {
-                            _appState.AddActivity($"Session ended: {snapshot.StopReason}");
-                        }
+                                var history = new List<double>(checkpoints.Count);
+                                for (var i = checkpoints.Count - 1; i >= 0; i--)
+                                    history.Add(checkpoints[i].NewInfoRatio);
+                                _appState.NewInfoHistory.Value = history;
+                            }
+
+                            if (snapshot.Status != UltraResearchStatus.Running &&
+                                snapshot.StopReason != null)
+                            {
+                                _appState.AddActivity($"Session ended: {snapshot.StopReason}");
+                            }
+                        });
                     }
                 }
 
