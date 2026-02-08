@@ -484,6 +484,9 @@ public sealed class HybridEntityExtractor : IEntityExtractor
                     canonical.ChunkIds.UnionWith(sorted[j].ChunkIds);
                     if (string.IsNullOrEmpty(canonical.Description) && !string.IsNullOrEmpty(sorted[j].Description))
                         canonical.Description = sorted[j].Description;
+                    if (!string.Equals(canonical.Name, sorted[j].Name, StringComparison.OrdinalIgnoreCase))
+                        canonical.Aliases.Add(sorted[j].Name);
+                    foreach (var alias in sorted[j].Aliases) canonical.Aliases.Add(alias);
                     used.Add(j);
                 }
             }
@@ -615,6 +618,7 @@ internal class HybridEntity
     public string? Description { get; set; }
     public int MentionCount { get; set; } = 1;
     public HashSet<string> ChunkIds { get; set; } = [];
+    public HashSet<string> Aliases { get; set; } = [];
 }
 
 internal class HybridRelationship

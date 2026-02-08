@@ -33,13 +33,6 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # LucidRAG build temporarily disabled - ImageSummarizer.Core has broken StyloFlow reference
-      # - name: Build LucidRAG
-      #   run: dotnet build src/LucidRAG/LucidRAG.csproj --configuration Release
-
-      # - name: Build LucidRAG.Tests
-      #   run: dotnet build src/LucidRAG.Tests/LucidRAG.Tests.csproj --configuration Release
-
       - name: Build DoomSummarizer
         run: dotnet build src/DoomSummarizer/DoomSummarizer.csproj --configuration Release
 
@@ -61,16 +54,11 @@ jobs:
       - name: Build CodeSummarizer.Mermaid.Jint.Tests
         run: dotnet build src/CodeSummarizer.Mermaid.Jint.Tests/CodeSummarizer.Mermaid.Jint.Tests.csproj --configuration Release
 
-      # LucidRAG tests temporarily disabled - ImageSummarizer.Core has broken StyloFlow reference
-      # - name: Run LucidRAG tests
-      #   env:
-      #     ConnectionStrings__DefaultConnection: "Host=localhost;Database=ragdocs_test;Username=postgres;Password=postgres"
-      #   run: |
-      #     dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj \
-      #       --configuration Release \
-      #       --no-build \
-      #       --filter "Category!=Browser" \
-      #       --logger "console;verbosity=normal"
+      - name: Build LucidResearch
+        run: dotnet build src/LucidResearch/LucidResearch.csproj --configuration Release
+
+      - name: Build LucidResearch.Tests
+        run: dotnet build src/LucidResearch.Tests/LucidResearch.Tests.csproj --configuration Release
 
       - name: Run DoomSummarizer tests
         run: |
@@ -97,6 +85,13 @@ jobs:
       - name: Run CodeSummarizer.Mermaid.Jint tests
         run: |
           dotnet test src/CodeSummarizer.Mermaid.Jint.Tests/CodeSummarizer.Mermaid.Jint.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=normal"
+
+      - name: Run LucidResearch tests
+        run: |
+          dotnet test src/LucidResearch.Tests/LucidResearch.Tests.csproj \
             --configuration Release \
             --no-build \
             --logger "console;verbosity=normal"

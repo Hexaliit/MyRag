@@ -3,9 +3,12 @@ using System.Text.Json;
 using System.Threading.Channels;
 using LucidRAG.Data;
 using LucidRAG.Entities;
+using LucidRAG.UltraResearch.Signals;
+using LucidRAG.UltraResearch.Waves;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace LucidRAG.UltraResearch;
 
@@ -20,6 +23,15 @@ public class UltraResearchOrchestrator
     private readonly ILogger<UltraResearchOrchestrator> _logger;
 
     private readonly ConcurrentDictionary<Guid, ActiveSession> _activeSessions = new();
+
+    /// <summary>
+    ///     Retains final status snapshots for completed/stopped/failed sessions so callers
+    ///     can inspect results after the session has been cleaned up. Bounded to 100 entries.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, UltraResearchStateSnapshot> _completedSessions = new();
+    private readonly Queue<Guid> _completedSessionOrder = new();
+    private readonly object _completedSessionLock = new();
+    private const int MaxCompletedSessionsRetained = 100;
 
     public UltraResearchOrchestrator(
         IServiceProvider services,
@@ -197,16 +209,24 @@ public class UltraResearchOrchestrator
         }
     }
 
-    /// <summary>Get a thread-safe snapshot of the current session state.</summary>
+    /// <summary>
+    ///     Get a thread-safe snapshot of session state. Returns data for both active
+    ///     and recently completed sessions (retained up to <see cref="MaxCompletedSessionsRetained"/>).
+    /// </summary>
     public UltraResearchStateSnapshot? GetStatus(Guid sessionId)
     {
-        if (!_activeSessions.TryGetValue(sessionId, out var session)) return null;
-        var s = session.State;
-        return new UltraResearchStateSnapshot(
-            s.SessionId, s.CollectionId, s.Status, s.Topic,
-            s.Iteration, s.PapersFetched, s.PapersIngested, s.PapersFailed,
-            s.Frontier.Count, s.SeenIds.Count, s.Checkpoints.Count,
-            s.StartedAt, s.CompletedAt, s.StopReason);
+        if (_activeSessions.TryGetValue(sessionId, out var session))
+        {
+            var s = session.State;
+            return new UltraResearchStateSnapshot(
+                s.SessionId, s.CollectionId, s.Status, s.Topic,
+                s.Iteration, s.PapersFetched, s.PapersIngested, s.PapersFailed,
+                s.Frontier.Count, s.SeenIds.Count, s.Checkpoints.Count,
+                s.StartedAt, s.CompletedAt, s.StopReason);
+        }
+
+        // Fall back to completed sessions cache
+        return _completedSessions.TryGetValue(sessionId, out var completed) ? completed : null;
     }
 
     /// <summary>Stream progress updates from a running session.</summary>
@@ -215,6 +235,43 @@ public class UltraResearchOrchestrator
         return _activeSessions.TryGetValue(sessionId, out var session)
             ? session.ProgressChannel.Reader.ReadAllAsync()
             : null;
+    }
+
+    /// <summary>Get a snapshot of the current frontier candidates, ordered by priority.</summary>
+    public List<FetchCandidate>? GetFrontierSnapshot(Guid sessionId, int limit = 20)
+    {
+        if (!_activeSessions.TryGetValue(sessionId, out var session)) return null;
+        // Take a snapshot — the list may be modified concurrently by the loop
+        try
+        {
+            return session.State.Frontier
+                .OrderByDescending(c => c.Priority)
+                .Take(limit)
+                .ToList();
+        }
+        catch (InvalidOperationException)
+        {
+            // Collection modified during enumeration — return empty rather than throw
+            return [];
+        }
+    }
+
+    /// <summary>Get a snapshot of sentinel checkpoints, most recent first.</summary>
+    public List<SentinelCheckpoint>? GetCheckpointsSnapshot(Guid sessionId, int limit = 5)
+    {
+        if (!_activeSessions.TryGetValue(sessionId, out var session)) return null;
+        try
+        {
+            return session.State.Checkpoints
+                .AsEnumerable()
+                .Reverse()
+                .Take(limit)
+                .ToList();
+        }
+        catch (InvalidOperationException)
+        {
+            return [];
+        }
     }
 
     private async Task RunLoopAsync(
@@ -237,6 +294,12 @@ public class UltraResearchOrchestrator
             var startTime = DateTimeOffset.UtcNow;
             var papersSinceLastSentinel = 0;
             var consecutiveLowInfo = 0;
+
+            // Initialize session-level analysis context for cross-paper signal accumulation
+            state.SessionContext ??= new AnalysisContext();
+
+            // Resolve PaperCoordinator if available (wave-coordinated processing)
+            var paperCoordinator = scope.ServiceProvider.GetService<PaperCoordinator>();
 
             // Phase 1: Initial search
             EmitProgress(session, ResearchStage.Searching,
@@ -313,71 +376,162 @@ public class UltraResearchOrchestrator
                     }
                 }
 
-                // 2b. FETCH + INGEST
+                // 2b. FETCH + INGEST (wave-coordinated if PaperCoordinator available, else legacy)
                 EmitProgress(session, ResearchStage.Fetching,
                     $"Fetching batch of {batch.Count} papers...", state);
 
-                foreach (var candidate in batch)
+                if (paperCoordinator != null)
                 {
-                    if (ct.IsCancellationRequested) break;
+                    // Wave-coordinated: process papers concurrently through PaperCoordinator
+                    // The io lane semaphore naturally rate-limits API calls
+                    // Track counters via Interlocked — wave tasks run concurrently
+                    var papersFailed = 0;
+                    var papersFetched = 0;
+                    var papersIngested = 0;
+                    var papersSinceLastSentinelCount = 0;
 
-                    var fetched = await fetcher.FetchAndPrepareAsync(candidate, dataDir, ct);
-                    if (fetched == null)
+                    var paperTasks = batch.Select(async candidate =>
                     {
-                        state.PapersFailed++;
-                        continue;
-                    }
+                        if (ct.IsCancellationRequested) return;
 
-                    state.PapersFetched++;
-
-                    // Add discovered citations to frontier
-                    var newCandidates = new List<FetchCandidate>();
-                    foreach (var (citType, citId) in fetched.CitationIds)
-                    {
-                        var key = ResearchPaperFetcher.NormalizeSeenKey(citType, citId);
-                        if (!state.SeenIds.Add(key)) continue;
-
-                        newCandidates.Add(new FetchCandidate
+                        try
                         {
-                            Id = citId,
-                            Type = citType,
-                            Source = CandidateSource.Citation,
-                            DiscoveredFrom = candidate.Id,
-                            Title = null
-                        });
-                    }
-                    frontier.AddDiscoveredCandidates(newCandidates, state);
+                            var result = await paperCoordinator.ProcessAsync(
+                                candidate, state.SessionContext, ingester,
+                                state.CollectionId, dataDir, config.DryRun, ct);
 
-                    // Get reverse citations from S2
-                    if (config.IncludeSemanticScholar)
+                            // Extract results from signals
+                            var fetchSuccess = result.Context.GetValue<bool>(ResearchSignalKeys.PaperFetchSuccess);
+                            if (!fetchSuccess)
+                            {
+                                Interlocked.Increment(ref papersFailed);
+                                return;
+                            }
+
+                            Interlocked.Increment(ref papersFetched);
+
+                            // Add discovered citations to frontier
+                            var citationIds = result.Context.GetCached<List<(string type, string id)>>("citation_ids");
+                            if (citationIds != null)
+                            {
+                                var newCandidates = new List<FetchCandidate>();
+                                foreach (var (citType, citId) in citationIds)
+                                {
+                                    var key = ResearchPaperFetcher.NormalizeSeenKey(citType, citId);
+                                    if (!state.SeenIds.Add(key)) continue;
+
+                                    newCandidates.Add(new FetchCandidate
+                                    {
+                                        Id = citId,
+                                        Type = citType,
+                                        Source = CandidateSource.Citation,
+                                        DiscoveredFrom = candidate.Id,
+                                        Title = null
+                                    });
+                                }
+                                frontier.AddDiscoveredCandidates(newCandidates, state);
+                            }
+
+                            // Get reverse citations from S2
+                            if (config.IncludeSemanticScholar)
+                            {
+                                var reverseCitations = await fetcher.GetReverseCitationsAsync(candidate, state.SeenIds, ct);
+                                frontier.AddDiscoveredCandidates(reverseCitations, state);
+                            }
+
+                            var ingestSuccess = result.Context.GetValue<bool>(ResearchSignalKeys.PaperIngestSuccess);
+                            if (ingestSuccess || config.DryRun)
+                            {
+                                Interlocked.Increment(ref papersIngested);
+                                Interlocked.Increment(ref papersSinceLastSentinelCount);
+                            }
+
+                            var title = result.Context.GetValue<string>(ResearchSignalKeys.PaperMetadataTitle);
+                            if (!string.IsNullOrEmpty(title))
+                            {
+                                var titleSnippet = title.Length > 60 ? title[..60] : title;
+                                EmitProgress(session, ResearchStage.Ingesting, $"Processed: {titleSnippet}", state);
+                            }
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            _logger.LogWarning(ex, "Wave processing failed for {Type}:{Id}", candidate.Type, candidate.Id);
+                            Interlocked.Increment(ref papersFailed);
+                        }
+                    });
+
+                    await Task.WhenAll(paperTasks);
+
+                    state.PapersFailed += papersFailed;
+                    state.PapersFetched += papersFetched;
+                    state.PapersIngested += papersIngested;
+                    papersSinceLastSentinel += papersSinceLastSentinelCount;
+                }
+                else
+                {
+                    // Legacy sequential processing (fallback when PaperCoordinator not registered)
+                    foreach (var candidate in batch)
                     {
-                        var reverseCitations = await fetcher.GetReverseCitationsAsync(candidate, state.SeenIds, ct);
-                        frontier.AddDiscoveredCandidates(reverseCitations, state);
-                    }
+                        if (ct.IsCancellationRequested) break;
 
-                    // Ingest into pipeline
-                    if (!config.DryRun)
-                    {
-                        var titleSnippet = fetched.Title.Length > 60 ? fetched.Title[..60] : fetched.Title;
-                        EmitProgress(session, ResearchStage.Ingesting,
-                            $"Ingesting: {titleSnippet}...", state);
+                        var fetched = await fetcher.FetchAndPrepareAsync(candidate, dataDir, ct);
+                        if (fetched == null)
+                        {
+                            state.PapersFailed++;
+                            continue;
+                        }
 
-                        var ingestResult = await ingester.IngestAsync(fetched.FilePath, state.CollectionId, ct);
-                        if (ingestResult.Success)
+                        state.PapersFetched++;
+
+                        // Add discovered citations to frontier
+                        var newCandidates = new List<FetchCandidate>();
+                        foreach (var (citType, citId) in fetched.CitationIds)
+                        {
+                            var key = ResearchPaperFetcher.NormalizeSeenKey(citType, citId);
+                            if (!state.SeenIds.Add(key)) continue;
+
+                            newCandidates.Add(new FetchCandidate
+                            {
+                                Id = citId,
+                                Type = citType,
+                                Source = CandidateSource.Citation,
+                                DiscoveredFrom = candidate.Id,
+                                Title = null
+                            });
+                        }
+                        frontier.AddDiscoveredCandidates(newCandidates, state);
+
+                        // Get reverse citations from S2
+                        if (config.IncludeSemanticScholar)
+                        {
+                            var reverseCitations = await fetcher.GetReverseCitationsAsync(candidate, state.SeenIds, ct);
+                            frontier.AddDiscoveredCandidates(reverseCitations, state);
+                        }
+
+                        // Ingest into pipeline
+                        if (!config.DryRun)
+                        {
+                            var titleSnippet = fetched.Title.Length > 60 ? fetched.Title[..60] : fetched.Title;
+                            EmitProgress(session, ResearchStage.Ingesting,
+                                $"Ingesting: {titleSnippet}...", state);
+
+                            var ingestResult = await ingester.IngestAsync(fetched.FilePath, state.CollectionId, ct);
+                            if (ingestResult.Success)
+                            {
+                                state.PapersIngested++;
+                                papersSinceLastSentinel++;
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Ingestion failed for {File}: {Message}",
+                                    fetched.FilePath, ingestResult.Message);
+                            }
+                        }
+                        else
                         {
                             state.PapersIngested++;
                             papersSinceLastSentinel++;
                         }
-                        else
-                        {
-                            _logger.LogWarning("Ingestion failed for {File}: {Message}",
-                                fetched.FilePath, ingestResult.Message);
-                        }
-                    }
-                    else
-                    {
-                        state.PapersIngested++;
-                        papersSinceLastSentinel++;
                     }
                 }
 
@@ -395,7 +549,10 @@ public class UltraResearchOrchestrator
                     EmitProgress(session, ResearchStage.Sentinel,
                         "Running sentinel evaluation...", state);
 
-                    var checkpoint = await sentinel.EvaluateAsync(state, state.CollectionId, ct);
+                    // Use signal-based evaluation when session context is available
+                    var checkpoint = state.SessionContext != null
+                        ? await sentinel.EvaluateFromSignalsAsync(state, state.SessionContext, state.CollectionId, ct)
+                        : await sentinel.EvaluateAsync(state, state.CollectionId, ct);
                     state.Checkpoints.Add(checkpoint);
                     papersSinceLastSentinel = 0;
 
@@ -425,6 +582,18 @@ public class UltraResearchOrchestrator
                     {
                         state.StopReason = "Sentinel determined research is complete";
                         break;
+                    }
+
+                    // Signal-based aggressive early exit: if new info ratio drops below half
+                    // the convergence threshold, exit immediately
+                    if (state.SessionContext != null)
+                    {
+                        var ratio = state.SessionContext.GetValue<double>(ResearchSignalKeys.SessionConvergenceNewInfoRatio);
+                        if (ratio < config.ConvergenceThreshold * 0.5 && state.PapersIngested >= config.SentinelInterval * 2)
+                        {
+                            state.StopReason = $"Early exit: newInfoRatio {ratio:F3} < {config.ConvergenceThreshold * 0.5:F3} (aggressive convergence)";
+                            break;
+                        }
                     }
                 }
 
@@ -494,6 +663,27 @@ public class UltraResearchOrchestrator
     {
         if (_activeSessions.TryRemove(sessionId, out var session))
         {
+            // Retain a final snapshot so callers can inspect completed session results
+            var s = session.State;
+            var snapshot = new UltraResearchStateSnapshot(
+                s.SessionId, s.CollectionId, s.Status, s.Topic,
+                s.Iteration, s.PapersFetched, s.PapersIngested, s.PapersFailed,
+                s.Frontier.Count, s.SeenIds.Count, s.Checkpoints.Count,
+                s.StartedAt, s.CompletedAt, s.StopReason);
+            _completedSessions[sessionId] = snapshot;
+
+            // O(1) eviction via insertion-order queue instead of O(n log n) sort
+            lock (_completedSessionLock)
+            {
+                _completedSessionOrder.Enqueue(sessionId);
+                while (_completedSessions.Count > MaxCompletedSessionsRetained &&
+                       _completedSessionOrder.Count > 0)
+                {
+                    var toEvict = _completedSessionOrder.Dequeue();
+                    _completedSessions.TryRemove(toEvict, out _);
+                }
+            }
+
             session.Cts.Dispose();
         }
     }

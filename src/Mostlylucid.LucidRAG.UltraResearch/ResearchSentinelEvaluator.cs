@@ -3,8 +3,10 @@ using System.Text.Json;
 using DoomSummarizer.Services;
 using LucidRAG.Data;
 using LucidRAG.Services;
+using LucidRAG.UltraResearch.Signals;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace LucidRAG.UltraResearch;
 
@@ -87,6 +89,112 @@ public class ResearchSentinelEvaluator
         }
 
         _logger.LogDebug("Sentinel checkpoint: {Papers} papers, {Entities} entities, ratio={Ratio:F2}, continue={Continue}",
+            checkpoint.TotalPapers, checkpoint.TotalEntities, checkpoint.NewInfoRatio, checkpoint.ShouldContinue);
+
+        return checkpoint;
+    }
+
+    /// <summary>
+    ///     Evaluate convergence using accumulated signals from the session AnalysisContext
+    ///     instead of re-querying the database. Faster and more responsive to recent changes.
+    /// </summary>
+    public async Task<SentinelCheckpoint> EvaluateFromSignalsAsync(
+        UltraResearchState state,
+        AnalysisContext sessionContext,
+        Guid collectionId,
+        CancellationToken ct = default)
+    {
+        var checkpoint = new SentinelCheckpoint
+        {
+            Iteration = state.Iteration,
+            TotalPapers = state.PapersIngested
+        };
+
+        // Count entities from DB (still needed for accurate count)
+        var entityCount = await _db.DocumentEntityLinks
+            .Where(del => _db.Documents
+                .Where(d => d.CollectionId == collectionId)
+                .Select(d => d.Id)
+                .Contains(del.DocumentId))
+            .Select(del => del.EntityId)
+            .Distinct()
+            .CountAsync(ct);
+        checkpoint.TotalEntities = entityCount;
+
+        // Compute new info ratio from entity count delta
+        var previousEntityCount = state.Checkpoints.LastOrDefault()?.TotalEntities ?? 0;
+        checkpoint.NewInfoRatio = entityCount > 0 && previousEntityCount > 0
+            ? (double)(entityCount - previousEntityCount) / entityCount
+            : 1.0;
+
+        // Extract author frequency from accumulated signals
+        var authorSignals = sessionContext.GetSignals(ResearchSignalKeys.PaperMetadataAuthors).ToList();
+        var authorFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var signal in authorSignals)
+        {
+            if (signal.Value is List<string> authors)
+            {
+                foreach (var author in authors)
+                {
+                    authorFrequency.TryGetValue(author, out var count);
+                    authorFrequency[author] = count + 1;
+                }
+            }
+        }
+
+        // Emit session signals
+        sessionContext.AddSignal(new Signal
+        {
+            Key = ResearchSignalKeys.SessionConvergenceNewInfoRatio,
+            Value = checkpoint.NewInfoRatio,
+            Confidence = 1.0,
+            Source = "sentinel"
+        });
+
+        sessionContext.AddSignal(new Signal
+        {
+            Key = ResearchSignalKeys.SessionAuthorFrequency,
+            Value = authorFrequency,
+            Confidence = 1.0,
+            Source = "sentinel"
+        });
+
+        // Fall through to standard evaluation for gap analysis
+        var orphans = await _graphQueries.FindOrphanCitationsAsync(collectionId, limit: 30, ct: ct);
+        checkpoint.OrphanCitations = orphans.Count;
+
+        var llmAvailable = _ollama != null && await CheckLlmAvailableAsync();
+        if (llmAvailable)
+        {
+            var topEntities = await GetTopEntitiesByTypeAsync(collectionId, ct);
+            var yearDistribution = await GetYearDistributionAsync(collectionId, ct);
+            var foundational = await _graphQueries.FindFoundationalReferencesAsync(collectionId, limit: 20, ct: ct);
+            await RunLlmSentinelAsync(checkpoint, state, topEntities, yearDistribution, orphans, foundational, ct);
+        }
+        else
+        {
+            var yearDistribution = await GetYearDistributionAsync(collectionId, ct);
+            RunStructuralSentinel(checkpoint, state, orphans, yearDistribution);
+        }
+
+        // Emit sentinel result signals
+        sessionContext.AddSignal(new Signal
+        {
+            Key = ResearchSignalKeys.SentinelGaps,
+            Value = checkpoint.IdentifiedGaps,
+            Confidence = 1.0,
+            Source = "sentinel"
+        });
+
+        sessionContext.AddSignal(new Signal
+        {
+            Key = ResearchSignalKeys.SentinelShouldContinue,
+            Value = checkpoint.ShouldContinue,
+            Confidence = 1.0,
+            Source = "sentinel"
+        });
+
+        _logger.LogDebug("Signal-based sentinel: {Papers} papers, {Entities} entities, ratio={Ratio:F2}, continue={Continue}",
             checkpoint.TotalPapers, checkpoint.TotalEntities, checkpoint.NewInfoRatio, checkpoint.ShouldContinue);
 
         return checkpoint;

@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>LucidResearch</RootNamespace>
+        <AssemblyName>lucidresearch</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- TUI framework -->
+        <PackageReference Include="XenoAtom.Terminal.UI" Version="1.0.0-preview.6" />
+        <!-- MCP server -->
+        <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
+        <!-- File logging (stdout owned by TUI) -->
+        <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+        <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+        <!-- EF Core SQLite for standalone metadata -->
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Core research engine -->
+        <ProjectReference Include="..\Mostlylucid.LucidRAG.UltraResearch\Mostlylucid.LucidRAG.UltraResearch.csproj" />
+        <!-- Domain classifiers -->
+        <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj" />
+        <ProjectReference Include="..\DomainClassifier.Financial\DomainClassifier.Financial.csproj" />
+        <ProjectReference Include="..\DomainClassifier.Technical\DomainClassifier.Technical.csproj" />
+        <ProjectReference Include="..\DomainClassifier.Narrative\DomainClassifier.Narrative.csproj" />
+        <!-- Transitive: DoomSummarizer.Core, DocSummarizer.Core, LucidRAG.Core -->
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="appsettings.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+
+</Project>

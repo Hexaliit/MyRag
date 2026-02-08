@@ -34,7 +34,8 @@ public static class CliApp
             builder.Services
                 .AddMcpServer()
                 .WithStdioServerTransport()
-                .WithToolsFromAssembly();
+                .WithToolsFromAssembly()
+                .WithToolsFromAssembly(typeof(LucidRAG.UltraResearch.Tools.UltraResearchTools).Assembly);
 
             var mcpApp = builder.Build();
             await mcpApp.RunAsync();

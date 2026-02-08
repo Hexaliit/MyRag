@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace LucidRAG.UltraResearch;
 
@@ -108,6 +109,13 @@ public class UltraResearchState
 
     /// <summary>Original config persisted for resume. Null for sessions created before this field existed.</summary>
     public UltraResearchConfig? Config { get; set; }
+
+    /// <summary>
+    ///     Transient session-level analysis context for cross-paper signal accumulation.
+    ///     Not serialized — rebuilt on resume.
+    /// </summary>
+    [JsonIgnore]
+    public AnalysisContext? SessionContext { get; set; }
 
     public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedAt { get; set; }

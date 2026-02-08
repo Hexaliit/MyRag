@@ -412,6 +412,9 @@ public sealed class ProfileAwareEntityExtractor : IEntityExtractor
                     canonical.MentionCount += candidates[j].MentionCount;
                     canonical.ChunkIds.UnionWith(candidates[j].ChunkIds);
                     foreach (var s in candidates[j].Signals) canonical.Signals.Add(s);
+                    if (!string.Equals(canonical.Name, candidates[j].Name, StringComparison.OrdinalIgnoreCase))
+                        canonical.Aliases.Add(candidates[j].Name);
+                    foreach (var alias in candidates[j].Aliases) canonical.Aliases.Add(alias);
                     used.Add(j);
                 }
             }

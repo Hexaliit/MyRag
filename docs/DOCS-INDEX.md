@@ -12,10 +12,15 @@ This index links to the canonical documentation in this repo. (All paths below a
 - **ImageSummarizer command reference**: [../src/Mostlylucid.ImageSummarizer.Cli/COMMAND-REFERENCE.md](../src/Mostlylucid.ImageSummarizer.Cli/COMMAND-REFERENCE.md)
 - **Claude / agent notes**: [../CLAUDE.md](../CLAUDE.md)
 
+## lucidRESEARCH (TUI + MCP Server)
+
+- **README (usage, keybindings, MCP config)**: [../src/LucidResearch/README.md](../src/LucidResearch/README.md)
+
 ## UltraResearch (Autonomous Research Corpus Builder)
 
 - **Full documentation**: [ULTRARESEARCH.md](ULTRARESEARCH.md)
 - **Package README**: [../src/Mostlylucid.LucidRAG.UltraResearch/README.md](../src/Mostlylucid.LucidRAG.UltraResearch/README.md)
+- **lucidRESEARCH TUI**: [../src/LucidResearch/README.md](../src/LucidResearch/README.md)
 - **Semantic Scholar API client**: [../src/DoomSummarizer.Core/Services/SemanticScholarClient.cs](../src/DoomSummarizer.Core/Services/SemanticScholarClient.cs)
 - **Sentinel prompt template**: [../src/DoomSummarizer.Core/Resources/prompts/ultraresearch-sentinel.txt](../src/DoomSummarizer.Core/Resources/prompts/ultraresearch-sentinel.txt)
 - **CLI command**: [../src/LucidRAG.Cli/Commands/UltraResearchCommand.cs](../src/LucidRAG.Cli/Commands/UltraResearchCommand.cs)
@@ -23,6 +28,7 @@ This index links to the canonical documentation in this repo. (All paths below a
 ## *lucid*RAG (Web App / RAG Platform)
 
 - **Retrieval system deep dive**: [LUCIDRAG_RETRIEVAL_SYSTEM.md](LUCIDRAG_RETRIEVAL_SYSTEM.md)
+- **Microsoft.ML package opportunity report**: [MICROSOFT_ML_PACKAGES_REPORT.md](MICROSOFT_ML_PACKAGES_REPORT.md)
 - **Conversational RAG notes**: [CONVERSATIONAL_RAG.md](CONVERSATIONAL_RAG.md)
 - **Adding ingestion sources**: [ADDING_SOURCES.md](ADDING_SOURCES.md)
 - **Unified LLM providers**: [UNIFIED_LLM_PROVIDERS.md](UNIFIED_LLM_PROVIDERS.md)

@@ -106,6 +106,7 @@
     <ItemGroup>
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj"/>
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
+        <ProjectReference Include="..\Mostlylucid.LucidRAG.UltraResearch\Mostlylucid.LucidRAG.UltraResearch.csproj"/>
     </ItemGroup>
 
     <!-- LLamaSharp: local GGUF inference (complete builds, or opt-in with -p:IncludeLLamaSharp=true) -->

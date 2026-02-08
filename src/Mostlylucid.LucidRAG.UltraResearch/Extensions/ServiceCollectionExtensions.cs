@@ -1,7 +1,9 @@
 using DoomSummarizer.Services;
+using LucidRAG.UltraResearch.Waves;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.Summarizer.Core.Analysis;
 
 namespace LucidRAG.UltraResearch.Extensions;
 
@@ -50,6 +52,16 @@ public static class ServiceCollectionExtensions
 
         // Orchestrator — singleton (manages active sessions across requests)
         services.TryAddSingleton<UltraResearchOrchestrator>();
+
+        // Wave-coordinated paper processing
+        services.TryAddScoped<ITypedAnalysisWave<FetchCandidate>, MetadataFetchWave>();
+        services.AddScoped<ITypedAnalysisWave<FetchCandidate>, ContentFetchWave>();
+        services.AddScoped<ITypedAnalysisWave<FetchCandidate>, VenueResolutionWave>();
+        services.AddScoped<ITypedAnalysisWave<FetchCandidate>, MarkdownSaveWave>();
+        services.AddScoped<ITypedAnalysisWave<FetchCandidate>, CitationExtractionWave>();
+        services.AddScoped<ITypedAnalysisWave<FetchCandidate>, IngestWave>();
+        services.AddScoped<ITypedAnalysisWave<FetchCandidate>, AuthorPromotionWave>();
+        services.TryAddScoped<PaperCoordinator>();
 
         return services;
     }

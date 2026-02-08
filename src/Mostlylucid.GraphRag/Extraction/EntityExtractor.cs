@@ -336,10 +336,13 @@ public sealed class EntityExtractor : IEntityExtractor
 
                 if (similarity >= MinEmbeddingSimilarity || stringSim >= 0.8)
                 {
-                    // Merge: combine counts, chunks, signals
+                    // Merge: combine counts, chunks, signals, track alias
                     canonical.MentionCount += candidates[j].MentionCount;
                     canonical.ChunkIds.UnionWith(candidates[j].ChunkIds);
                     foreach (var s in candidates[j].Signals) canonical.Signals.Add(s);
+                    if (!string.Equals(canonical.Name, candidates[j].Name, StringComparison.OrdinalIgnoreCase))
+                        canonical.Aliases.Add(candidates[j].Name);
+                    foreach (var alias in candidates[j].Aliases) canonical.Aliases.Add(alias);
                     used.Add(j);
                 }
             }
@@ -570,6 +573,12 @@ public class EntityCandidate
     public int MentionCount { get; set; } = 1;
     public HashSet<string> ChunkIds { get; set; } = [];
     public HashSet<string> Signals { get; set; } = [];
+
+    /// <summary>
+    ///     Alternative names merged during deduplication.
+    ///     Populated when similar entities are merged (e.g., "Docker" and "docker").
+    /// </summary>
+    public HashSet<string> Aliases { get; set; } = [];
 }
 
 public record ExtractionStats
