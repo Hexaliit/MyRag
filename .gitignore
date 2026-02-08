@@ -45,6 +45,7 @@ dlldata.c
 project.lock.json
 project.fragment.lock.json
 artifacts/
+!**/Services/**/Artifacts/
 
 *_i.c
 *_p.c
