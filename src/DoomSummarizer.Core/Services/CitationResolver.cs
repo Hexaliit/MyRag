@@ -33,8 +33,7 @@ public class CitationResolver : ICitationResolver
 
         // Polite pool header for CrossRef
         if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
-            _httpClient.DefaultRequestHeaders.Add("User-Agent",
-                "LucidRAG/1.0 (https://github.com/scottgal/lucidrag; mailto:scott@scottgal.com)");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", AcademicPatterns.AcademicUserAgent);
     }
 
     public async Task<CitationMetadata?> ResolveDoiAsync(string doi, CancellationToken ct = default)

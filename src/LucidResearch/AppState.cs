@@ -5,6 +5,9 @@ namespace LucidResearch;
 
 public class AppState
 {
+    // Quick-start from CLI argument
+    public State<string?> PendingQuickStart { get; } = new(null);
+
     // Active session tracking
     public State<Guid?> ActiveSessionId { get; } = new(null);
     public State<string> Topic { get; } = new("");

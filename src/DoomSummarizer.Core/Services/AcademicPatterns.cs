@@ -12,6 +12,9 @@ public static partial class AcademicPatterns
 {
     // ── Constants ──────────────────────────────────────────────────────
 
+    /// <summary>User-Agent for all academic API requests. Includes abuse contact per API TOS.</summary>
+    public const string AcademicUserAgent = "LucidRAG/1.0 (https://github.com/scottgal/lucidrag; mailto:abuse@mostlylucid.net)";
+
     /// <summary>Atom XML namespace used by the arXiv API.</summary>
     public static readonly XNamespace AtomNamespace = "http://www.w3.org/2005/Atom";
 

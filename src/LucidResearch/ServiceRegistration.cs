@@ -60,14 +60,12 @@ public static class ServiceRegistration
         services.AddHttpClient<ArxivFetcher>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
-            client.DefaultRequestHeaders.Add("User-Agent",
-                "LucidRAG/1.0 (https://github.com/scottgal/lucidrag)");
+            client.DefaultRequestHeaders.Add("User-Agent", AcademicPatterns.AcademicUserAgent);
         });
         services.AddHttpClient<CitationResolver>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
-            client.DefaultRequestHeaders.Add("User-Agent",
-                "LucidRAG/1.0 (https://github.com/scottgal/lucidrag)");
+            client.DefaultRequestHeaders.Add("User-Agent", AcademicPatterns.AcademicUserAgent);
         });
         services.AddScoped<ICitationResolver>(sp => sp.GetRequiredService<CitationResolver>());
         services.AddScoped<CitationGraphQueries>();
@@ -76,8 +74,7 @@ public static class ServiceRegistration
         services.AddHttpClient<ResearchPaperFetcher>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
-            client.DefaultRequestHeaders.Add("User-Agent",
-                "LucidRAG/1.0 (https://github.com/scottgal/lucidrag)");
+            client.DefaultRequestHeaders.Add("User-Agent", AcademicPatterns.AcademicUserAgent);
         });
 
         // UltraResearch orchestrator + services

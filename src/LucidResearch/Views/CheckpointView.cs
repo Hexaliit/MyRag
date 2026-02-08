@@ -3,11 +3,14 @@ using LucidRAG.UltraResearch;
 using Microsoft.Extensions.DependencyInjection;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Styling;
 
 namespace LucidResearch.Views;
 
 public static class CheckpointView
 {
+    private static readonly TextBlockStyle LabelStyle = TextBlockStyle.Default with { Foreground = Colors.Gray };
+
     public static Visual Create(AppState appState, ServiceProvider services)
     {
         return new Group("Sentinel Checkpoints")
@@ -24,18 +27,27 @@ public static class CheckpointView
                     if (checkpoints is not { Count: > 0 })
                         return "No checkpoints yet. Sentinel runs every N papers.";
 
-                    // Use StringBuilder to avoid List<string> + string.Join allocations
                     var sb = new StringBuilder();
                     sb.AppendLine($"  {"Iter",-6} {"Papers",-8} {"Entities",-10} {"NewInfo",-10} {"Gaps",-6} {"Queries",-9} {"Continue?",-10}");
                     sb.AppendLine($"  {"----",-6} {"------",-8} {"--------",-10} {"-------",-10} {"----",-6} {"-------",-9} {"---------",-10}");
 
-                    // Checkpoints come in reverse order (most recent first) — iterate
-                    // backwards to display in ascending iteration order
                     for (var i = checkpoints.Count - 1; i >= 0; i--)
                     {
                         var cp = checkpoints[i];
+
+                        // NewInfoRatio indicator
+                        var infoIndicator = cp.NewInfoRatio switch
+                        {
+                            > 0.5 => "▲", // still exploring
+                            > 0.2 => "●", // slowing
+                            _ => "▽"      // converging
+                        };
+
+                        // Continue indicator
+                        var continueText = cp.ShouldContinue ? "Yes ✓" : "No ✗";
+
                         sb.AppendLine(
-                            $"  {cp.Iteration,-6} {cp.TotalPapers,-8} {cp.TotalEntities,-10} {cp.NewInfoRatio,-10:F3} {cp.IdentifiedGaps.Count,-6} {cp.SuggestedQueries.Count,-9} {(cp.ShouldContinue ? "Yes" : "No"),-10}");
+                            $"  {cp.Iteration,-6} {cp.TotalPapers,-8} {cp.TotalEntities,-10} {infoIndicator} {cp.NewInfoRatio,-8:F3} {cp.IdentifiedGaps.Count,-6} {cp.SuggestedQueries.Count,-9} {continueText,-10}");
                     }
 
                     return sb.ToString();
@@ -43,7 +55,7 @@ public static class CheckpointView
 
                 new TextBlock(""),
 
-                // Latest checkpoint details — reuse the same snapshot call
+                // Latest checkpoint details
                 new TextBlock(() =>
                 {
                     if (appState.ActiveSessionId.Value is not { } sid)
@@ -83,7 +95,9 @@ public static class CheckpointView
                     }
 
                     return sb.ToString();
-                })
+                }),
+
+                new TextBlock("  ▲ exploring  ● slowing  ▽ converging").Style(LabelStyle)
             ).Spacing(0));
     }
 }

@@ -4,11 +4,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Styling;
 
 namespace LucidResearch.Views;
 
 public static class SessionView
 {
+    private static readonly TextBlockStyle LabelStyle = TextBlockStyle.Default with { Foreground = Colors.Gray };
+    private static readonly TextBlockStyle ValueStyle = TextBlockStyle.Default with { Foreground = Colors.White };
+
     public static Visual Create(AppState appState, ServiceProvider services)
     {
         var resumeStatus = new State<string?>("");
@@ -48,6 +52,33 @@ public static class SessionView
                         status.StopReason != null ? $"  Stop Reason:   {status.StopReason}" : ""
                     }.Where(s => s.Length > 0));
                 }),
+
+                // Success rate colored indicator
+                new HStack(
+                    new TextBlock("  Success Rate: ").Style(LabelStyle),
+                    new TextBlock(() =>
+                    {
+                        if (appState.ActiveSessionId.Value is not { } sid) return "";
+                        var orchestrator = services.GetRequiredService<UltraResearchOrchestrator>();
+                        var status = orchestrator.GetStatus(sid);
+                        if (status == null || status.PapersFetched == 0) return "";
+                        var rate = (double)status.PapersIngested / status.PapersFetched * 100;
+                        return $"{rate:F1}%";
+                    }).Style(() =>
+                    {
+                        if (appState.ActiveSessionId.Value is not { } sid)
+                            return ValueStyle;
+                        var orchestrator = services.GetRequiredService<UltraResearchOrchestrator>();
+                        var status = orchestrator.GetStatus(sid);
+                        if (status == null || status.PapersFetched == 0)
+                            return ValueStyle;
+                        var rate = (double)status.PapersIngested / status.PapersFetched * 100;
+                        return TextBlockStyle.Default with
+                        {
+                            Foreground = rate > 80 ? Colors.LimeGreen : rate > 50 ? Colors.Gold : Colors.Tomato
+                        };
+                    })
+                ).IsVisible(() => appState.ActiveSessionId.Value != null),
 
                 new TextBlock(""),
 
@@ -109,10 +140,10 @@ public static class SessionView
                                     var statusText = "Unknown";
                                     if (r.Settings != null)
                                     {
-                                        if (r.Settings.Contains("\"Status\":\"Running\"")) statusText = "Resumable";
-                                        else if (r.Settings.Contains("\"Status\":\"Stopped\"")) statusText = "Stopped";
-                                        else if (r.Settings.Contains("\"Status\":\"Completed\"")) statusText = "Completed";
-                                        else if (r.Settings.Contains("\"Status\":\"Failed\"")) statusText = "Failed";
+                                        if (r.Settings.Contains("\"Status\":\"Running\"")) statusText = "● Resumable";
+                                        else if (r.Settings.Contains("\"Status\":\"Stopped\"")) statusText = "■ Stopped";
+                                        else if (r.Settings.Contains("\"Status\":\"Completed\"")) statusText = "✓ Completed";
+                                        else if (r.Settings.Contains("\"Status\":\"Failed\"")) statusText = "✗ Failed";
                                     }
 
                                     lines.Add($"  {i + 1,-4} {name,-45} {r.UpdatedAt:yyyy-MM-dd HH:mm,-20} {statusText,-12}");
@@ -181,6 +212,10 @@ public static class SessionView
                         ).Spacing(2),
 
                         new TextBlock(() => resumeStatus.Value ?? "")
+                            .Style(() => (resumeStatus.Value ?? "").Contains("failed", StringComparison.OrdinalIgnoreCase)
+                                || (resumeStatus.Value ?? "").Contains("already running", StringComparison.OrdinalIgnoreCase)
+                                ? TextBlockStyle.Default with { Foreground = Colors.Tomato }
+                                : TextBlockStyle.Default with { Foreground = Colors.DeepSkyBlue })
                     ).Spacing(0))
             ).Spacing(1));
     }

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.RegularExpressions;
 using LucidRAG.Data;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -39,9 +40,10 @@ public class TenantSchemaInterceptor : DbConnectionInterceptor
         var tenant = _tenantAccessor.Current;
         if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId) return;
 
-        using var cmd = connection.CreateCommand();
-        // Use parameterized approach to prevent SQL injection
         var schemaName = tenant.SchemaName;
+        TenantDatabaseExtensions.ValidateSchemaName(schemaName);
+
+        using var cmd = connection.CreateCommand();
         cmd.CommandText = $"SET search_path TO \"{schemaName}\", public";
         cmd.ExecuteNonQuery();
         _logger.LogDebug("Set search_path to schema: {Schema}", schemaName);
@@ -52,8 +54,10 @@ public class TenantSchemaInterceptor : DbConnectionInterceptor
         var tenant = _tenantAccessor.Current;
         if (tenant == null || tenant.TenantId == TenantConstants.DefaultTenantId) return;
 
-        await using var cmd = connection.CreateCommand();
         var schemaName = tenant.SchemaName;
+        TenantDatabaseExtensions.ValidateSchemaName(schemaName);
+
+        await using var cmd = connection.CreateCommand();
         cmd.CommandText = $"SET search_path TO \"{schemaName}\", public";
         await cmd.ExecuteNonQueryAsync(ct);
         _logger.LogDebug("Set search_path to schema: {Schema}", schemaName);
@@ -185,8 +189,14 @@ public class PostgresTenantDbContextFactory : ITenantDbContextFactory
 /// <summary>
 ///     Extension methods for tenant-aware database operations.
 /// </summary>
-public static class TenantDatabaseExtensions
+public static partial class TenantDatabaseExtensions
 {
+    /// <summary>
+    ///     Validates a PostgreSQL schema name. Only lowercase alphanumeric and underscores allowed.
+    /// </summary>
+    [GeneratedRegex(@"^[a-z0-9_]+$")]
+    private static partial Regex SafeSchemaNameRegex();
+
     /// <summary>
     ///     Execute a database operation in the context of a specific tenant.
     /// </summary>
@@ -204,6 +214,19 @@ public static class TenantDatabaseExtensions
     /// </summary>
     public static async Task SetSearchPathAsync(this DbContext context, string schema)
     {
-        await context.Database.ExecuteSqlRawAsync($"SET search_path TO {schema}, public");
+        ValidateSchemaName(schema);
+        await context.Database.ExecuteSqlRawAsync(
+            $"SET search_path TO \"{schema}\", public");
+    }
+
+    /// <summary>
+    ///     Validate a schema name to prevent SQL injection. Defence-in-depth at the SQL boundary.
+    /// </summary>
+    internal static void ValidateSchemaName(string schema)
+    {
+        if (string.IsNullOrEmpty(schema) || !SafeSchemaNameRegex().IsMatch(schema))
+            throw new ArgumentException(
+                $"Invalid schema name: '{schema}'. Only lowercase alphanumeric and underscores allowed.",
+                nameof(schema));
     }
 }

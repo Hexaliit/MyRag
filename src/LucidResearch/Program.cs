@@ -49,4 +49,12 @@ await using (var scope = services.CreateAsyncScope())
     await db.Database.EnsureCreatedAsync();
 }
 
+// Quick-start: lucidresearch "topic here"
+var topicArg = args.FirstOrDefault(a => !a.StartsWith('-'));
+if (!string.IsNullOrEmpty(topicArg))
+{
+    var appState = services.GetRequiredService<AppState>();
+    appState.PendingQuickStart.Value = topicArg;
+}
+
 await ResearchApp.RunAsync(args, services);

@@ -31,8 +31,7 @@ public static class ServiceCollectionExtensions
             {
                 Timeout = TimeSpan.FromSeconds(30)
             };
-            httpClient.DefaultRequestHeaders.Add("User-Agent",
-                "LucidRAG/1.0 (https://github.com/scottgal/lucidrag)");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", AcademicPatterns.AcademicUserAgent);
 
             var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
                 .CreateLogger<SemanticScholarClient>();

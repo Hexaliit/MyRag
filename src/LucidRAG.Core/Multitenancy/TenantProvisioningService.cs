@@ -226,6 +226,8 @@ public class TenantProvisioningService : ITenantProvisioningService
 
     private async Task CreateSchemaAsync(string schemaName, CancellationToken ct)
     {
+        TenantDatabaseExtensions.ValidateSchemaName(schemaName);
+
         var connectionString = _configuration.GetConnectionString("DefaultConnection");
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(ct);
@@ -239,6 +241,8 @@ public class TenantProvisioningService : ITenantProvisioningService
 
     private async Task DropSchemaAsync(string schemaName, CancellationToken ct)
     {
+        TenantDatabaseExtensions.ValidateSchemaName(schemaName);
+
         var connectionString = _configuration.GetConnectionString("DefaultConnection");
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(ct);
@@ -252,6 +256,8 @@ public class TenantProvisioningService : ITenantProvisioningService
 
     private async Task MigrateTenantSchemaAsync(string schemaName, CancellationToken ct)
     {
+        TenantDatabaseExtensions.ValidateSchemaName(schemaName);
+
         // Get the tenant ID from schema name (tenant_{id})
         var tenantId = schemaName.Replace("tenant_", "");
 

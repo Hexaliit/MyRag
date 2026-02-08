@@ -16,6 +16,17 @@ namespace DoomSummarizer.Services;
 /// </summary>
 public static class ApiRateLimiter
 {
+    // Absolute minimums — never overridable, even with API keys.
+    // These protect against user config setting rate limits below what the API TOS allows.
+    private static readonly Dictionary<string, int> SystemMinimumDelayMs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["arxiv"] = 3000,           // arXiv TOS: max 1 req/3s
+        ["semantic_scholar"] = 1000, // S2: 1 req/sec with key
+        ["crossref"] = 1000,        // CrossRef: polite pool
+        ["wikipedia"] = 200,        // Wikimedia policy
+        ["reddit"] = 1000,          // Reddit: 1 req/sec without OAuth
+    };
+
     // Defaults when no config entry exists
     private static readonly Dictionary<string, int> DefaultDelayMs = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -67,9 +78,36 @@ public static class ApiRateLimiter
     public static void Configure(ApiKeyService keys)
     {
         foreach (var svc in keys.GetConfiguredServices())
-            if (!string.IsNullOrEmpty(svc.Name))
-                ServiceConfigs[svc.Name] = svc;
+        {
+            if (string.IsNullOrEmpty(svc.Name)) continue;
+            ServiceConfigs[svc.Name] = svc;
+
+            // Warn if user's rate limit would be overridden by system floor
+            if (svc.RateLimitMs > 0 && SystemMinimumDelayMs.TryGetValue(svc.Name, out var floor)
+                && svc.RateLimitMs < floor)
+            {
+                Debug.WriteLine($"[ApiRateLimiter] {svc.Name}: user rateLimitMs={svc.RateLimitMs} overridden by system floor={floor}ms");
+            }
+        }
     }
+
+    /// <summary>
+    ///     Get the effective delay for a service, showing both user config and system floor.
+    /// </summary>
+    public static (int effectiveMs, int userMs, int systemFloorMs) GetEffectiveDelay(string service)
+    {
+        var userDelay = ServiceConfigs.TryGetValue(service, out var cfg) && cfg.RateLimitMs > 0
+            ? cfg.RateLimitMs
+            : DefaultDelayMs.GetValueOrDefault(service, 200);
+        var systemMin = SystemMinimumDelayMs.GetValueOrDefault(service, 0);
+        return (Math.Max(userDelay, systemMin), userDelay, systemMin);
+    }
+
+    /// <summary>
+    ///     Get all system-enforced rate limit floors (for display/documentation).
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> GetSystemFloors()
+        => SystemMinimumDelayMs;
 
     /// <summary>
     ///     Acquire a rate-limited slot for the given service.
@@ -169,9 +207,13 @@ public static class ApiRateLimiter
 
     private static int GetDelay(string service)
     {
-        return ServiceConfigs.TryGetValue(service, out var cfg) && cfg.RateLimitMs > 0
+        var userDelay = ServiceConfigs.TryGetValue(service, out var cfg) && cfg.RateLimitMs > 0
             ? cfg.RateLimitMs
             : DefaultDelayMs.GetValueOrDefault(service, 200);
+
+        // System minimum is an absolute floor — protects API TOS compliance
+        var systemMin = SystemMinimumDelayMs.GetValueOrDefault(service, 0);
+        return Math.Max(userDelay, systemMin);
     }
 
     private static int GetMaxRetries(string service)

@@ -21,7 +21,9 @@ public class SemanticScholarClient
     private readonly ILogger<SemanticScholarClient> _logger;
     private readonly ConcurrentDictionary<string, S2Paper?> _cache = new();
 
-    // Rate limiting: 1 req/sec (unauthenticated: 5000 req/5min shared pool)
+    // System minimum: 1 req/sec even with API key (S2 documented limit).
+    // This is an internal safety net; ApiRateLimiter also enforces a floor for "semantic_scholar".
+    private static readonly TimeSpan SystemMinRequestInterval = TimeSpan.FromSeconds(1);
     private readonly SemaphoreSlim _rateLimiter = new(1, 1);
     private DateTimeOffset _lastRequest = DateTimeOffset.MinValue;
 
@@ -231,8 +233,8 @@ public class SemanticScholarClient
         try
         {
             var elapsed = DateTimeOffset.UtcNow - _lastRequest;
-            if (elapsed < TimeSpan.FromSeconds(1))
-                await Task.Delay(TimeSpan.FromSeconds(1) - elapsed, ct);
+            if (elapsed < SystemMinRequestInterval)
+                await Task.Delay(SystemMinRequestInterval - elapsed, ct);
 
             _lastRequest = DateTimeOffset.UtcNow;
         }

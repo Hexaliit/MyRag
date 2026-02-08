@@ -2,6 +2,7 @@ using LucidRAG.UltraResearch;
 using Microsoft.Extensions.DependencyInjection;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Styling;
 
 namespace LucidResearch.Views;
 
@@ -17,38 +18,19 @@ public static class StartResearchView
         var arxivCategories = new State<string?>("");
         var collectionName = new State<string?>("");
         var statusMessage = new State<string?>("");
+        var showAdvanced = new State<bool>(false);
 
-        return new Group("Start New Research Session")
+        var labelStyle = TextBlockStyle.Default with { Foreground = Colors.Gray };
+        var promptStyle = TextBlockStyle.Default with { Foreground = Colors.DeepSkyBlue };
+
+        return new Group("Start New Research")
             .Content(new VStack(
-                new HStack(
-                    new TextBlock("Topic: "),
-                    new TextBox(topic)
-                ),
-                new HStack(
-                    new TextBlock("Max Papers: "),
-                    new TextBox(maxPapers)
-                ),
-                new HStack(
-                    new TextBlock("Batch Size: "),
-                    new TextBox(batchSize)
-                ),
-                new HStack(
-                    new TextBlock("Max Iterations: "),
-                    new TextBox(maxIterations)
-                ),
-                new HStack(
-                    new TextBlock("Seed arXiv IDs (comma-separated): "),
-                    new TextBox(seedArxivIds)
-                ),
-                new HStack(
-                    new TextBlock("arXiv Categories (comma-separated): "),
-                    new TextBox(arxivCategories)
-                ),
-                new HStack(
-                    new TextBlock("Collection Name (auto if empty): "),
-                    new TextBox(collectionName)
-                ),
+                // Prominent topic input
+                new TextBlock("What do you want to research?").Style(promptStyle),
+                new TextBox(topic),
                 new TextBlock(""),
+
+                // Action buttons
                 new HStack(
                     new Button("Start Research").Click(async () =>
                     {
@@ -103,12 +85,52 @@ public static class StartResearchView
                             statusMessage.Value = $"Error: {ex.Message}";
                         }
                     }),
+                    new Button(() => showAdvanced.Value ? "Hide Advanced" : "Advanced...").Click(() =>
+                    {
+                        showAdvanced.Value = !showAdvanced.Value;
+                    }),
                     new Button("Cancel").Click(() =>
                     {
                         appState.CurrentView.Value = ViewMode.Dashboard;
                     })
                 ).Spacing(2),
+
+                new TextBlock(""),
+
+                // Collapsible advanced options
+                new VStack(
+                    new TextBlock("Advanced Options").Style(labelStyle),
+                    new HStack(
+                        new TextBlock("Max Papers:      ").Style(labelStyle),
+                        new TextBox(maxPapers)
+                    ),
+                    new HStack(
+                        new TextBlock("Batch Size:      ").Style(labelStyle),
+                        new TextBox(batchSize)
+                    ),
+                    new HStack(
+                        new TextBlock("Max Iterations:  ").Style(labelStyle),
+                        new TextBox(maxIterations)
+                    ),
+                    new HStack(
+                        new TextBlock("Seed arXiv IDs:  ").Style(labelStyle),
+                        new TextBox(seedArxivIds)
+                    ),
+                    new HStack(
+                        new TextBlock("Categories:      ").Style(labelStyle),
+                        new TextBox(arxivCategories)
+                    ),
+                    new HStack(
+                        new TextBlock("Collection Name: ").Style(labelStyle),
+                        new TextBox(collectionName)
+                    )
+                ).Spacing(1).IsVisible(() => showAdvanced.Value),
+
+                // Status message
                 new TextBlock(() => statusMessage.Value ?? "")
+                    .Style(() => string.IsNullOrEmpty(statusMessage.Value) || statusMessage.Value.StartsWith("Error")
+                        ? TextBlockStyle.Default with { Foreground = Colors.Tomato }
+                        : TextBlockStyle.Default with { Foreground = Colors.DeepSkyBlue })
             ).Spacing(1));
     }
 }
