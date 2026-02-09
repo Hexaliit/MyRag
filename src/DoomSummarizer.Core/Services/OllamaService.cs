@@ -406,7 +406,17 @@ public partial class OllamaService
             System.Diagnostics.Debug.WriteLine($"Content analysis JSON parse failed, using raw: {ex.Message}");
         }
 
-        return (response.Length > 200 ? response[..200] : response, "general", 0f);
+        // Fallback: extract first complete sentence from original content (not LLM response)
+        var fallbackText = content ?? title;
+        if (!string.IsNullOrEmpty(fallbackText))
+        {
+            var sentenceEnd = fallbackText.IndexOfAny(['.', '!', '?']);
+            if (sentenceEnd > 0 && sentenceEnd < 300)
+                return (fallbackText[..(sentenceEnd + 1)], "general", 0f);
+            return (fallbackText.Length > 200 ? fallbackText[..200] + "..." : fallbackText, "general", 0f);
+        }
+
+        return (title, "general", 0f);
     }
 
     public async Task<string> SynthesizeSummaryAsync(
@@ -472,18 +482,7 @@ public partial class OllamaService
             }
 
             // Build content item lookups for O(1) matching (replaces O(n*m) FirstOrDefault scans)
-            Dictionary<string, ContentItem>? contentByUrl = null;
-            Dictionary<string, ContentItem>? contentByTitle = null;
-            if (contentItems is { Count: > 0 })
-            {
-                contentByUrl = new Dictionary<string, ContentItem>(contentItems.Count, StringComparer.OrdinalIgnoreCase);
-                contentByTitle = new Dictionary<string, ContentItem>(contentItems.Count, StringComparer.OrdinalIgnoreCase);
-                foreach (var c in contentItems)
-                {
-                    if (c.Url != null) contentByUrl.TryAdd(c.Url, c);
-                    if (c.Title != null) contentByTitle.TryAdd(c.Title, c);
-                }
-            }
+            var (contentByUrl, contentByTitle) = ContentItemHelpers.BuildContentLookups(contentItems);
 
             // Confidence + re-ranking both need the query embedding — compute once.
             double? avgQuerySimilarity = null;
@@ -496,9 +495,7 @@ public partial class OllamaService
                 var matchedItems = new List<ContentItem>(5);
                 foreach (var ti in topItems)
                 {
-                    ContentItem? c = null;
-                    if (ti.url != null) contentByUrl.TryGetValue(ti.url, out c);
-                    if (c == null) contentByTitle!.TryGetValue(ti.title, out c);
+                    var c = ContentItemHelpers.Resolve(contentByUrl, contentByTitle, ti.url, ti.title);
                     if (c?.Embedding != null)
                     {
                         matchedItems.Add(c);
@@ -559,11 +556,7 @@ public partial class OllamaService
 
             foreach (var item in topItems)
             {
-                ContentItem? contentItem = null;
-                if (contentByUrl != null && item.url != null)
-                    contentByUrl.TryGetValue(item.url, out contentItem);
-                if (contentItem == null && contentByTitle != null)
-                    contentByTitle.TryGetValue(item.title, out contentItem);
+                var contentItem = ContentItemHelpers.Resolve(contentByUrl, contentByTitle, item.url, item.title);
                 var raw = contentItem?.Content;
                 var len = raw?.Length ?? item.summary?.Length ?? 0;
                 itemContents.Add((item, raw, len));
@@ -667,18 +660,56 @@ public partial class OllamaService
         }
         else
         {
-            // Digest mode: group by topic
+            // Digest mode: group by topic, but include full content evidence
+            var (digestContentByUrl, digestContentByTitle) = ContentItemHelpers.BuildContentLookups(contentItems);
+
             var byTopic = items
                 .GroupBy(x => x.topic)
                 .OrderByDescending(g => g.Max(i => i.relevance))
-                .Take(8);
+                .Take(8)
+                .ToList();
+
+            // Pre-count total items for accurate evidence budgeting
+            var totalDigestItems = byTopic.Sum(g => Math.Min(g.Count(), 5));
+            var digestEvidenceBudget = GetMaxEvidenceCharsPerItem(false, Math.Max(totalDigestItems, 1));
 
             var itemsList = new StringBuilder();
+            var digestEvidence = new StringBuilder();
+            var evidenceIndex = 0;
             foreach (var group in byTopic)
             {
                 itemsList.AppendLine($"\n## {group.Key.ToUpperInvariant()}");
                 foreach (var item in group.OrderByDescending(i => i.relevance).Take(5))
-                    itemsList.AppendLine($"- {item.title}: {item.summary}");
+                {
+                    evidenceIndex++;
+                    itemsList.AppendLine($"- [{evidenceIndex}] {item.title}: {item.summary}");
+
+                    // Resolve full content for evidence block
+                    var contentItem = ContentItemHelpers.Resolve(
+                        digestContentByUrl, digestContentByTitle, item.url, item.title);
+
+                    var rawContent = contentItem?.Content;
+                    digestEvidence.AppendLine($"\n[{evidenceIndex}] {item.title}");
+                    if (!string.IsNullOrEmpty(rawContent))
+                    {
+                        var maxChars = digestEvidenceBudget;
+                        if (rawContent.Length > maxChars)
+                        {
+                            var snippet = embedder != null
+                                ? TextRankExtractor.ExtractKeySentences(rawContent, embedder, batchEmbedder, maxChars)
+                                : rawContent[..maxChars] + "...";
+                            digestEvidence.AppendLine(snippet);
+                        }
+                        else
+                        {
+                            digestEvidence.AppendLine(rawContent);
+                        }
+                    }
+                    else
+                    {
+                        digestEvidence.AppendLine(item.summary);
+                    }
+                }
             }
 
             prompt = PromptTemplateService.Render("digest", new Dictionary<string, object?>
@@ -687,6 +718,7 @@ public partial class OllamaService
                 ["VIBE"] = vibe,
                 ["VIBE_PROMPT"] = vibePrompt,
                 ["ITEMS"] = itemsList.ToString(),
+                ["EVIDENCE"] = digestEvidence.ToString(),
                 ["USER_QUERY"] = userQuery ?? ""
             });
         }
@@ -901,18 +933,29 @@ public partial class OllamaService
         }
 
         // Fallback: create a default outline if sentinel failed
-        outline ??= new BlogOutline
+        // Generate indices based on actual item count to avoid OOB
+        if (outline == null)
         {
-            Title = $"{query} — A Deep Dive",
-            Sections =
-            [
-                new BlogOutlineSection { Heading = "Background", KeyItems = [0, 1, 2], Notes = "Set the scene" },
-                new BlogOutlineSection
-                    { Heading = "Key Developments", KeyItems = [3, 4, 5, 6], Notes = "Main findings" },
-                new BlogOutlineSection { Heading = "Current State", KeyItems = [7, 8, 9], Notes = "Where things stand" }
-            ],
-            ConclusionAngle = "What's next"
-        };
+            var count = topItems.Count;
+            var third = Math.Max(1, count / 3);
+            var sec1 = Enumerable.Range(0, Math.Min(third, count)).ToList();
+            var sec2 = Enumerable.Range(third, Math.Min(third + 1, count - third)).ToList();
+            var sec3 = Enumerable.Range(Math.Min(third * 2, count), Math.Max(0, count - third * 2)).ToList();
+
+            outline = new BlogOutline
+            {
+                Title = $"{query} — A Deep Dive",
+                Sections =
+                [
+                    new BlogOutlineSection { Heading = "Background", KeyItems = sec1, Notes = "Set the scene" },
+                    new BlogOutlineSection
+                        { Heading = "Key Developments", KeyItems = sec2, Notes = "Main findings" },
+                    new BlogOutlineSection
+                        { Heading = "Current State", KeyItems = sec3, Notes = "Where things stand" }
+                ],
+                ConclusionAngle = "What's next"
+            };
+        }
 
         // Pass 2: Generate each section with context bridging
         var sections = new List<BlogSectionResult>();
@@ -1054,7 +1097,7 @@ public partial class OllamaService
                 ["SHARED_REFERENCES"] = sharedReferences,
                 ["METHODOLOGY_TERMS"] = methodologyTerms,
                 // Standard longform fields (empty defaults for non-longform templates)
-                ["RUNNING_SUMMARY"] = "",
+                ["RUNNING_SUMMARY"] = previousContext,
                 ["ENTITY_GUIDANCE"] = "",
                 ["DRIFT_GUIDANCE"] = "",
                 ["EXCLUDE_TOPICS"] = "",
@@ -1167,14 +1210,15 @@ public partial class OllamaService
         var response = await GenerateAsync(prompt, null, 0.6, ct);
 
         // Parse structured response
-        return ParseNewsletterResponse(response, topPicks, quickHitItems, query ?? "");
+        return ParseNewsletterResponse(response, topPicks, quickHitItems, query ?? "", contentItems);
     }
 
     private static NewsletterResult ParseNewsletterResponse(
         string response,
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> topPicks,
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> quickHitItems,
-        string query)
+        string query,
+        List<ContentItem>? contentItems = null)
     {
         var result = new NewsletterResult { Topic = query };
 
@@ -1182,6 +1226,15 @@ public partial class OllamaService
         var introMatch = IntroRegex().Match(response);
         if (introMatch.Success)
             result = result with { Introduction = introMatch.Groups[1].Value.Trim() };
+        else
+        {
+            // Fallback intro from top items when regex fails
+            var introItems = topPicks.Take(3).Select(p => p.title);
+            result = result with
+            {
+                Introduction = $"Today's top stories: {string.Join(", ", introItems)}."
+            };
+        }
 
         // Parse PICKs
         var picks = new List<NewsletterPick>();
@@ -1196,15 +1249,26 @@ public partial class OllamaService
                 Commentary = match.Groups[4].Value.Trim()
             });
 
-        // Fallback: if parsing failed, create picks from evidence
+        // Fallback: if parsing failed, create picks from evidence (use full content when available)
         if (picks.Count == 0)
-            picks = topPicks.Select(p => new NewsletterPick
+        {
+            var (fbContentByUrl, fbContentByTitle) = ContentItemHelpers.BuildContentLookups(contentItems);
+
+            picks = topPicks.Select(p =>
             {
-                Title = p.title,
-                Url = p.url,
-                Source = GetSourceFromUrl(p.url),
-                Commentary = p.summary
+                var ci = ContentItemHelpers.Resolve(fbContentByUrl, fbContentByTitle, p.url, p.title);
+                var commentary = ci?.Content ?? p.summary;
+                // Truncate for newsletter pick commentary
+                if (commentary.Length > 500) commentary = commentary[..500] + "...";
+                return new NewsletterPick
+                {
+                    Title = p.title,
+                    Url = p.url ?? "",
+                    Source = GetSourceFromUrl(p.url ?? ""),
+                    Commentary = commentary
+                };
             }).ToList();
+        }
         result = result with { TopPicks = picks };
 
         // Parse QUICK_HITS
@@ -1306,16 +1370,38 @@ public partial class OllamaService
                 // Key points as sub-items
                 foreach (var point in analysis.KeyPoints.Take(2)) itemsList.AppendLine($"  - {point}");
 
-                // Collect evidence
-                if (includeEvidence && analysis.SegmentReferences.Count > 0)
-                    allEvidence.Add(new EvidenceItem
+                // Collect evidence — include items even with 0 segments using Content fallback
+                if (includeEvidence)
+                {
+                    var segments = analysis.SegmentReferences.Take(3).ToList();
+                    if (segments.Count == 0 && !string.IsNullOrEmpty(article.Item.Content))
                     {
-                        ArticleId = article.Item.Id,
-                        ArticleTitle = article.Item.Title,
-                        ArticleUrl = article.Item.Url,
-                        Topic = analysis.Topic,
-                        TopSegments = analysis.SegmentReferences.Take(3).ToList()
-                    });
+                        // Use first portion of Content directly as evidence
+                        var contentSnippet = article.Item.Content.Length > 300
+                            ? article.Item.Content[..300] + "..."
+                            : article.Item.Content;
+                        segments =
+                        [
+                            new SegmentReference
+                            {
+                                SegmentId = $"{article.Item.Id}_content",
+                                Text = contentSnippet,
+                                Salience = 0.5f,
+                                Type = "Content"
+                            }
+                        ];
+                    }
+
+                    if (segments.Count > 0)
+                        allEvidence.Add(new EvidenceItem
+                        {
+                            ArticleId = article.Item.Id,
+                            ArticleTitle = article.Item.Title,
+                            ArticleUrl = article.Item.Url,
+                            Topic = analysis.Topic,
+                            TopSegments = segments
+                        });
+                }
             }
         }
 

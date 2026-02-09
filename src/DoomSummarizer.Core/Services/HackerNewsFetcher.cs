@@ -62,9 +62,13 @@ public class HackerNewsFetcher(HttpClient httpClient)
 
                 var stories = await Task.WhenAll(tasks);
 
+                // Build items first, then enrich link posts in parallel
+                var linkEnrichTasks = new List<(ContentItem item, Task<string?> fetchTask)>();
+
                 foreach (var story in stories.Where(s => s != null && s.Score >= config.MinScore))
                     if (seen.Add(story!.Id))
-                        items.Add(new ContentItem
+                    {
+                        var item = new ContentItem
                         {
                             Id = $"hn_{story.Id}",
                             Source = "hn",
@@ -75,7 +79,24 @@ public class HackerNewsFetcher(HttpClient httpClient)
                             Score = story.Score,
                             CommentCount = story.Descendants,
                             CreatedAt = DateTimeOffset.FromUnixTimeSeconds(story.Time)
-                        });
+                        };
+
+                        items.Add(item);
+
+                        // Queue link posts for parallel content enrichment
+                        if (string.IsNullOrEmpty(item.Content) && !string.IsNullOrEmpty(story.Url))
+                            linkEnrichTasks.Add((item,
+                                ContentItemHelpers.FetchLinkContentAsync(httpClient, story.Url)));
+                    }
+
+                // Enrich link posts in parallel (bounded by the shared helper's timeout)
+                if (linkEnrichTasks.Count > 0)
+                {
+                    await Task.WhenAll(linkEnrichTasks.Select(t => t.fetchTask));
+                    foreach (var (item, fetchTask) in linkEnrichTasks)
+                        if (fetchTask is { IsCompletedSuccessfully: true, Result: not null })
+                            item.Content = fetchTask.Result;
+                }
             }
             catch (Exception ex)
             {

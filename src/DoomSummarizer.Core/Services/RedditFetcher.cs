@@ -52,6 +52,14 @@ public class RedditFetcher(HttpClient httpClient)
                              !thumb.Contains("default"))
                         imageUrl = thumb;
 
+                    var content = post.Selftext;
+
+                    // For link posts (not self posts), fetch content from the target URL
+                    if (!post.IsSelf && string.IsNullOrWhiteSpace(content) && !string.IsNullOrEmpty(post.Url))
+                    {
+                        content = await ContentItemHelpers.FetchLinkContentAsync(httpClient, post.Url);
+                    }
+
                     items.Add(new ContentItem
                     {
                         Id = id,
@@ -60,7 +68,7 @@ public class RedditFetcher(HttpClient httpClient)
                         Url = post.IsSelf
                             ? $"https://reddit.com{post.Permalink}"
                             : post.Url,
-                        Content = post.Selftext,
+                        Content = content,
                         Author = post.Author,
                         Score = post.Score,
                         CommentCount = post.NumComments,

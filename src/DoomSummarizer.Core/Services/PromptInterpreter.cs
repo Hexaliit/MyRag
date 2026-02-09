@@ -126,7 +126,10 @@ public partial class PromptInterpreter
                         $"Sentinel raw: {json[..Math.Min(json.Length, 400)]}");
                 }
 
-                if (intent != null && (intent.Categories?.Count ?? 0) > 0)
+                if (intent != null &&
+                    ((intent.Categories?.Count ?? 0) > 0
+                     || (intent.SearchQueries?.Count ?? 0) > 0
+                     || intent.HasSubqueries))
                 {
                     // Debug: show composite query detection
                     if (intent.IsComposite || intent.HasSubqueries)
@@ -137,6 +140,10 @@ public partial class PromptInterpreter
                             Debug.WriteLine($"  - {sq}");
                     }
 
+                    if ((intent.Categories?.Count ?? 0) == 0)
+                        Debug.WriteLine(
+                            $"Sentinel: accepted intent without categories (has {intent.SearchQueries?.Count ?? 0} queries, {intent.Subqueries?.Count ?? 0} subqueries)");
+
                     var router = await GetRouterAsync();
                     var result = SentinelSourceMapper.ToInterpretedPrompt(intent, router, prompt, nerContext);
                     return result;
@@ -146,7 +153,7 @@ public partial class PromptInterpreter
                 if (intent != null)
                 {
                     Debug.WriteLine(
-                        $"Sentinel: parsed but empty categories. intent={intent.Intent ?? "null"}, queries={string.Join(", ", intent.SearchQueries ?? [])}");
+                        $"Sentinel: parsed but no usable data. categories={intent.Categories?.Count ?? 0}, queries={string.Join(", ", intent.SearchQueries ?? [])}, subqueries={intent.Subqueries?.Count ?? 0}");
                     Debug.WriteLine(
                         $"Raw JSON: {json[..Math.Min(json.Length, 500)]}");
                 }

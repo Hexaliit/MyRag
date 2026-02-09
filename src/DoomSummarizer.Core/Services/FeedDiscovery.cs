@@ -180,6 +180,10 @@ public partial class FeedDiscovery
 
             if (string.IsNullOrEmpty(title)) continue;
 
+            var cleanContent = CleanHtml(description);
+            // Skip items where both title and content are empty/whitespace
+            if (string.IsNullOrWhiteSpace(cleanContent) && string.IsNullOrWhiteSpace(title)) continue;
+
             var createdAt = DateTimeOffset.UtcNow;
             if (!string.IsNullOrEmpty(pubDate) && DateTimeOffset.TryParse(pubDate, out var parsed)) createdAt = parsed;
 
@@ -189,7 +193,7 @@ public partial class FeedDiscovery
                 Source = "feed",
                 Title = CleanHtml(title),
                 Url = link ?? feedUrl,
-                Content = CleanHtml(description),
+                Content = string.IsNullOrWhiteSpace(cleanContent) ? null : cleanContent,
                 CreatedAt = createdAt
             });
         }
@@ -216,6 +220,10 @@ public partial class FeedDiscovery
 
             if (string.IsNullOrEmpty(title)) continue;
 
+            var cleanContent = CleanHtml(summary);
+            // Skip items where both title and content are empty/whitespace
+            if (string.IsNullOrWhiteSpace(cleanContent) && string.IsNullOrWhiteSpace(title)) continue;
+
             var createdAt = DateTimeOffset.UtcNow;
             if (!string.IsNullOrEmpty(updated) && DateTimeOffset.TryParse(updated, out var parsed)) createdAt = parsed;
 
@@ -225,7 +233,7 @@ public partial class FeedDiscovery
                 Source = "feed",
                 Title = CleanHtml(title),
                 Url = link ?? feedUrl,
-                Content = CleanHtml(summary),
+                Content = string.IsNullOrWhiteSpace(cleanContent) ? null : cleanContent,
                 CreatedAt = createdAt
             });
         }

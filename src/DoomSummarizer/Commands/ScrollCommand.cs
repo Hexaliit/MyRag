@@ -680,7 +680,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"Entity store query failed: {ex.Message}");
+                                AnsiConsole.MarkupLine($"[yellow]Entity store query failed: {FormattingHelpers.Esc(ex.Message)}[/]");
                             }
                     }
 
@@ -796,7 +796,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 {
                     items.AddRange(cachedItems);
                     fetchTask.Value = 100;
-                    fetchTask.Description = $"[green]Reused {items.Count} cached segments (skipped fetching)[/]";
+                    fetchTask.Description = $"[green]Reused {cachedItems.Count} cached items (skipped fetching)[/]";
                 }
             }
 
@@ -1152,7 +1152,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             AnsiConsole.MarkupLine($"[grey]URL:[/] {Markup.Escape(item.Url)}");
                         if (!string.IsNullOrEmpty(item.Content))
                         {
-                            var content = item.Content.Length > 500 ? item.Content[..500] + "..." : item.Content;
+                            var content = item.Content.Length > 1000 ? item.Content[..1000] + "..." : item.Content;
                             AnsiConsole.MarkupLine($"[grey]{Markup.Escape(content)}[/]");
                         }
 
@@ -1206,7 +1206,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             {
                 // Dedupe by URL (same article from different sources)
                 // and by title (catches exact duplicates without URL)
-                var normalizedUrl = item.Url?.Split('?')[0].TrimEnd('/') ?? "";
+                var normalizedUrl = item.Url?.Split('?')[0].Split('#')[0].TrimEnd('/') ?? "";
                 var normalizedTitle = item.Title.ToLowerInvariant().Trim();
 
                 var isDuplicate = (!string.IsNullOrEmpty(normalizedUrl) && seenUrls.Contains(normalizedUrl))
@@ -1228,6 +1228,11 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                                 item.Content = existing.Content;
                             if (item.Embedding == null && existing.Embedding != null)
                                 item.Embedding = EmbeddingCompat.FromBytes(existing.Embedding);
+                            // Preserve fresh topic/sentiment when available from current analysis
+                            if (!string.IsNullOrEmpty(existing.DetectedTopic) && string.IsNullOrEmpty(item.DetectedTopic))
+                                item.DetectedTopic = existing.DetectedTopic;
+                            if (existing.SentimentScore != 0 && item.SentimentScore == 0)
+                                item.SentimentScore = existing.SentimentScore;
                         }
                     }
 
@@ -1297,9 +1302,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                     catch (Exception ex)
                     {
-                        if (settings.DebugPipeline)
-                            AnsiConsole.MarkupLine(
-                                $"[grey]Lucene KB search skipped: {FormattingHelpers.Esc(ex.Message)}[/]");
+                        AnsiConsole.MarkupLine(
+                            $"[grey]KB Lucene search skipped: {FormattingHelpers.Esc(ex.Message)}[/]");
                     }
 
                     // Layer 2: Embedding search for semantic coverage (catches related content)
@@ -1312,9 +1316,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     }
                     catch (Exception ex)
                     {
-                        if (settings.DebugPipeline)
-                            AnsiConsole.MarkupLine(
-                                $"[grey]Embedding search skipped: {FormattingHelpers.Esc(ex.Message)}[/]");
+                        AnsiConsole.MarkupLine(
+                            $"[grey]KB embedding search skipped: {FormattingHelpers.Esc(ex.Message)}[/]");
                     }
 
                     // Layer 3: Entity profile HNSW search (when entity profiles exist)
@@ -1851,13 +1854,13 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             // Summary from top salience segments (deterministic, no LLM)
                             var topSegments = processed.TopSegments
                                 .OrderByDescending(s => s.SalienceScore)
-                                .Take(3)
+                                .Take(5)
                                 .ToList();
                             item.Summary = topSegments.Count > 0
                                 ? string.Join(" ", topSegments.Select(s =>
-                                    s.Text.Length > 200 ? s.Text[..200] : s.Text))
-                                : item.Content?.Length > 300
-                                    ? item.Content[..300] + "..."
+                                    s.Text.Length > 500 ? s.Text[..500] : s.Text))
+                                : item.Content?.Length > 500
+                                    ? item.Content[..500] + "..."
                                     : item.Content ?? item.Title;
 
                             // Structural analysis
@@ -1868,8 +1871,8 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                         {
                             System.Diagnostics.Debug.WriteLine($"Segmentation failed: {ex.Message}");
                             var content = item.Content ?? "";
-                            item.Summary = content.Length > 300
-                                ? content[..300] + "..."
+                            item.Summary = content.Length > 500
+                                ? content[..500] + "..."
                                 : content.Length > 0
                                     ? content
                                     : item.Title;
@@ -2063,17 +2066,24 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 if (relatedIds.Count > 0)
                 {
                     var relatedItems = await boot.Storage.LoadItemsByIdsAsync(relatedIds);
-                    // Assign slightly lower relevance so they appear after scored items
+                    // Assign relevance scaled by position in the entity-related list
+                    // First items are more relevant (more shared entities), later ones less so
                     var lowestScore = uniqueItems.Count > 0
                         ? uniqueItems.Min(i => i.RelevanceScore)
                         : 0.1;
+                    var addedCount = 0;
                     foreach (var item in relatedItems)
                         if (!existingIds.Contains(item.Id))
                         {
                             var enriched = item with { Source = item.Source + " (via entities)" };
-                            enriched.RelevanceScore = lowestScore * 0.9;
+                            // Scale: first entity-related item gets 0.95x lowest, last gets 0.7x
+                            var positionFactor = relatedItems.Count > 1
+                                ? 0.95 - 0.25 * ((double)addedCount / (relatedItems.Count - 1))
+                                : 0.85;
+                            enriched.RelevanceScore = lowestScore * positionFactor;
                             uniqueItems.Add(enriched);
                             existingIds.Add(item.Id);
+                            addedCount++;
                         }
 
                     if (relatedItems.Count > 0)
@@ -2407,7 +2417,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
             }
             else
             {
-                finalSummary = GenerateFallbackSummary(analyzedItems, vibe, ingestedDocType);
+                finalSummary = GenerateFallbackSummary(analyzedItems, vibe, ingestedDocType, uniqueItems);
             }
 
             summaryTask.Value = 100;

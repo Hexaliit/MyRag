@@ -54,6 +54,8 @@ public static partial class TextRankExtractor
             return text.Length > maxChars ? text[..maxChars] + "..." : text;
 
         // Embed sentences — batch when possible, sequential fallback
+        // Use a lower threshold (10 chars) to handle content with short sentences
+        const int minSentenceLen = 10;
         var embeddings = new float[sentences.Count][];
         try
         {
@@ -63,7 +65,7 @@ public static partial class TextRankExtractor
                 var embeddableIndices = new List<int>();
                 var embeddableTexts = new List<string>();
                 for (var i = 0; i < sentences.Count; i++)
-                    if (sentences[i].Length >= 20)
+                    if (sentences[i].Length >= minSentenceLen)
                     {
                         embeddableIndices.Add(i);
                         embeddableTexts.Add(sentences[i]);
@@ -80,7 +82,7 @@ public static partial class TextRankExtractor
             {
                 // Sequential fallback
                 for (var i = 0; i < sentences.Count; i++)
-                    if (sentences[i].Length >= 20)
+                    if (sentences[i].Length >= minSentenceLen)
                         embeddings[i] = embedder(sentences[i]);
             }
         }
@@ -90,8 +92,20 @@ public static partial class TextRankExtractor
             return text[..maxChars] + "...";
         }
 
-        // Build similarity graph + run PageRank
-        var scores = ComputeTextRank(embeddings, sentences.Count);
+        // Check if any embeddings were produced — if not, use frequency-based scoring
+        var hasEmbeddings = embeddings.Any(e => e != null);
+
+        float[] scores;
+        if (hasEmbeddings)
+        {
+            // Build similarity graph + run PageRank
+            scores = ComputeTextRank(embeddings, sentences.Count);
+        }
+        else
+        {
+            // Frequency-based fallback: score by word overlap with other sentences
+            scores = ComputeFrequencyScores(sentences);
+        }
 
         // Select top sentences by centrality, maintaining original order
         var indexed = scores
@@ -190,6 +204,42 @@ public static partial class TextRankExtractor
 
             (scores, newScores) = (newScores, scores);
             if (maxDiff < ConvergenceThreshold) break;
+        }
+
+        return scores;
+    }
+
+    /// <summary>
+    ///     Frequency-based sentence scoring fallback when embeddings are unavailable.
+    ///     Scores sentences by word overlap with other sentences (proxy for centrality).
+    /// </summary>
+    private static float[] ComputeFrequencyScores(List<string> sentences)
+    {
+        var scores = new float[sentences.Count];
+
+        // Build word sets for each sentence
+        var wordSets = sentences.Select(s =>
+            new HashSet<string>(
+                s.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(w => w.ToLowerInvariant().Trim('.', ',', '!', '?', ';', ':')),
+                StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        // Score by Jaccard overlap with all other sentences
+        for (var i = 0; i < sentences.Count; i++)
+        {
+            var total = 0f;
+            for (var j = 0; j < sentences.Count; j++)
+            {
+                if (i == j) continue;
+                var intersection = wordSets[i].Count(w => wordSets[j].Contains(w));
+                var union = wordSets[i].Count + wordSets[j].Count - intersection;
+                if (union > 0) total += (float)intersection / union;
+            }
+
+            scores[i] = total;
+            // Slight boost for longer sentences (more substantive)
+            scores[i] *= 1.0f + Math.Min(0.3f, sentences[i].Length / 500f);
         }
 
         return scores;

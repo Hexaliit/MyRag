@@ -92,7 +92,9 @@ public class LinkFollowingService
                 onActivity?.Invoke($"Fetching {host}: {Truncate(item.Title, 50)}");
 
                 var linkedPages = await FollowLinksForItemAsync(item, ct);
-                item.LinkedPages.AddRange(linkedPages);
+                // Filter out linked pages with null/empty content
+                var validPages = linkedPages.Where(p => !string.IsNullOrWhiteSpace(p.Content)).ToList();
+                item.LinkedPages.AddRange(validPages);
 
                 if (item.IsEnriched)
                 {
@@ -100,8 +102,8 @@ public class LinkFollowingService
                     onActivity?.Invoke($"[green]Enriched[/] {host} ({structInfo})");
                 }
 
-                if (linkedPages.Count > 0)
-                    onActivity?.Invoke($"Found {linkedPages.Count} linked pages from {host}");
+                if (validPages.Count > 0)
+                    onActivity?.Invoke($"Found {validPages.Count} linked pages from {host}");
             }
             catch (OperationCanceledException)
             {

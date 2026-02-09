@@ -276,7 +276,11 @@ public partial class NewsFetcher(HttpClient httpClient)
         var text = HtmlTagRegex().Replace(html, " ");
         text = WebUtility.HtmlDecode(text);
         text = WhitespaceRegex().Replace(text, " ").Trim();
-        return text.Length > 1500 ? text[..1500] : text;
+        if (text.Length <= 1500) return text;
+        // Truncate at last sentence boundary before 1500 chars
+        var truncated = text[..1500];
+        var lastSentence = truncated.LastIndexOfAny(['.', '!', '?']);
+        return lastSentence > 500 ? truncated[..(lastSentence + 1)] : truncated;
     }
 
     [GeneratedRegex(@"<[^>]+>")]

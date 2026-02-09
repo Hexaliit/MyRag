@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using DoomSummarizer.Models;
+using DoomSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Spectre.Console;
 
@@ -85,8 +86,12 @@ public partial class ScrollCommand
     private static string GenerateFallbackSummary(
         List<(string title, string summary, string topic, float sentiment, string url, double relevance)> items,
         string vibe,
-        IngestDocumentType docType = IngestDocumentType.Unknown)
+        IngestDocumentType docType = IngestDocumentType.Unknown,
+        List<ContentItem>? contentItems = null)
     {
+        // Build content lookups for full content access
+        var (contentByUrl, contentByTitle) = ContentItemHelpers.BuildContentLookups(contentItems);
+
         var sb = new StringBuilder();
         var heading = docType switch
         {
@@ -130,12 +135,17 @@ public partial class ScrollCommand
 
                 sb.AppendLine($"  [{sentimentIcon}] [{bar}] {pct}% | {item.title}");
 
+                // Resolve full content from ContentItem when available
+                var contentItem = ContentItemHelpers.Resolve(contentByUrl, contentByTitle, item.url, item.title);
+
+                var displayContent = contentItem?.Content ?? item.summary;
+
                 // Show content snippet for top stories — this is the "segment" the user wants
-                if (!string.IsNullOrEmpty(item.summary) && item.summary != item.title)
+                if (!string.IsNullOrEmpty(displayContent) && displayContent != item.title)
                 {
-                    var truncated = item.summary.Length > 300
-                        ? item.summary[..300] + "..."
-                        : item.summary;
+                    var truncated = displayContent.Length > 600
+                        ? displayContent[..600] + "..."
+                        : displayContent;
                     sb.AppendLine($"      {truncated}");
                 }
 

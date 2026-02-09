@@ -16,6 +16,9 @@ public class WebsiteFetcher : IAsyncDisposable
     private IPlaywright? _playwright;
     private bool _playwrightInitialized;
 
+    // Rate limit concurrent fetches to avoid overwhelming servers
+    private static readonly SemaphoreSlim FetchThrottle = new(6, 6);
+
     public WebsiteFetcher(HttpClient httpClient)
     {
         _httpClient = httpClient;
@@ -32,6 +35,7 @@ public class WebsiteFetcher : IAsyncDisposable
     /// </summary>
     public async Task<(string title, string content, string? author, string? image)> ExtractArticleAsync(string url)
     {
+        await FetchThrottle.WaitAsync();
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -60,9 +64,14 @@ public class WebsiteFetcher : IAsyncDisposable
             // Fallback to basic extraction
             return FallbackExtractArticle(html, url);
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"SmartReader extraction failed for {url}: {ex.Message}");
             return ("", "", null, null);
+        }
+        finally
+        {
+            FetchThrottle.Release();
         }
     }
 
@@ -101,15 +110,19 @@ public class WebsiteFetcher : IAsyncDisposable
                 }
                 else
                 {
-                    var response = await _httpClient.GetAsync(site.Url);
-                    response.EnsureSuccessStatusCode();
-                    html = await response.Content.ReadAsStringAsync();
+                    html = await FetchWithRetryAsync(site.Url);
                 }
 
                 var articles = await ExtractArticlesAsync(html, site.Url, site.Selector);
-                items.AddRange(articles);
+                // Filter out articles with empty/whitespace content
+                var validArticles = articles.Where(a =>
+                    !string.IsNullOrWhiteSpace(a.Content) || !string.IsNullOrWhiteSpace(a.Title)).ToList();
+                var skipped = articles.Count - validArticles.Count;
+                if (skipped > 0)
+                    Debug.WriteLine($"Skipped {skipped} articles with empty content from {site.Url}");
+                items.AddRange(validArticles);
 
-                progress?.Invoke($"Extracted {articles.Count} articles from {site.Url}");
+                progress?.Invoke($"Extracted {validArticles.Count} articles from {site.Url}");
             }
             catch (Exception ex)
             {
@@ -118,6 +131,37 @@ public class WebsiteFetcher : IAsyncDisposable
         }
 
         return items;
+    }
+
+    /// <summary>
+    ///     Fetch a URL with a single retry for transient HTTP errors (408, 429, 5xx).
+    /// </summary>
+    private async Task<string> FetchWithRetryAsync(string url)
+    {
+        const int maxRetries = 1;
+        for (var attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            var response = await _httpClient.GetAsync(url);
+            var statusCode = (int)response.StatusCode;
+
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync();
+
+            // Retry on transient errors only
+            var isTransient = statusCode is 408 or 429 or (>= 500 and <= 599);
+            if (!isTransient || attempt >= maxRetries)
+            {
+                response.EnsureSuccessStatusCode(); // throws
+            }
+
+            // Exponential backoff: 1s for first retry
+            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+            Debug.WriteLine($"Retrying {url} after {delay.TotalSeconds}s (HTTP {statusCode})");
+            await Task.Delay(delay);
+        }
+
+        // Unreachable, but compiler requires it
+        throw new HttpRequestException($"Failed to fetch {url} after {maxRetries + 1} attempts");
     }
 
     private async Task<string> FetchWithPlaywrightAsync(string url)
