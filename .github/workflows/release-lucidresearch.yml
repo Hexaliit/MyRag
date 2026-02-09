@@ -71,10 +71,6 @@ jobs:
           dotnet publish src/LucidResearch/LucidResearch.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
-            --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:EnableCompressionInSingleFile=true \
-            -p:PublishReadyToRun=true \
             -p:Version=${{ github.event.inputs.version }} \
             -o ./publish/${{ matrix.rid }}
 
@@ -83,13 +79,9 @@ jobs:
         run: |
           mkdir -p ./stage
           cp ./publish/${{ matrix.rid }}/lucidresearch${{ matrix.ext }} ./stage/
-          # Native libs sit alongside binary
-          cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true  # macOS
-          cp ./publish/${{ matrix.rid }}/*.so ./stage/ 2>/dev/null || true     # Linux
-          if [[ "${{ matrix.rid }}" == win-* ]]; then
-            for f in ./publish/${{ matrix.rid }}/*.dll; do
-              [ -f "$f" ] && cp "$f" ./stage/ 2>/dev/null || true
-            done
+          # macOS can't bundle native libs into single file — copy them alongside
+          if [[ "${{ matrix.rid }}" == osx-* ]]; then
+            cp ./publish/${{ matrix.rid }}/*.dylib ./stage/ 2>/dev/null || true
           fi
           cp src/LucidResearch/README.md ./stage/
           cp src/LucidResearch/appsettings.json ./stage/

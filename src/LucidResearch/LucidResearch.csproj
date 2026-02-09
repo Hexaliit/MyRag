@@ -7,6 +7,21 @@
         <Nullable>enable</Nullable>
         <RootNamespace>LucidResearch</RootNamespace>
         <AssemblyName>lucidresearch</AssemblyName>
+
+        <!-- Single-file publish: one executable, no loose assemblies -->
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+        <PublishReadyToRun>true</PublishReadyToRun>
+
+        <!-- Embed debug symbols, suppress loose PDBs and XML docs in publish -->
+        <DebugType>embedded</DebugType>
+        <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+        <PublishDocumentationFile>false</PublishDocumentationFile>
+
+        <!-- Bundle native libs into the single file on Windows/Linux; macOS can't -->
+        <IncludeNativeLibrariesForSelfExtract
+            Condition="'$(RuntimeIdentifier)' != '' AND !$(RuntimeIdentifier.StartsWith('osx'))">true</IncludeNativeLibrariesForSelfExtract>
     </PropertyGroup>
 
     <ItemGroup>
@@ -36,7 +51,23 @@
     <ItemGroup>
         <Content Include="appsettings.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
         </Content>
     </ItemGroup>
+
+    <!-- Strip unnecessary files from single-file publish output -->
+    <Target Name="CleanPublishOutput" AfterTargets="Publish" Condition="'$(PublishSingleFile)' == 'true'">
+        <ItemGroup>
+            <_FilesToDelete Include="$(PublishDir)runtimes\**\*" />
+            <_FilesToDelete Include="$(PublishDir).playwright\**\*" />
+            <_FilesToDelete Include="$(PublishDir)playwright.ps1" />
+            <_FilesToDelete Include="$(PublishDir)*.lib" />
+            <_FilesToDelete Include="$(PublishDir)*.pdb" />
+            <_FilesToDelete Include="$(PublishDir)*.xml" />
+            <_FilesToDelete Include="$(PublishDir)ggml-metal.metal" />
+        </ItemGroup>
+        <Delete Files="@(_FilesToDelete)" />
+        <RemoveDir Directories="$(PublishDir)runtimes;$(PublishDir).playwright" />
+    </Target>
 
 </Project>

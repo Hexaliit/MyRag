@@ -620,25 +620,10 @@ public class UltraResearchOrchestrator
             state.StopReason ??= "Completed normally";
 
             // Synthesis step — generate a summary of the research corpus
-            if (state.Status == UltraResearchStatus.Completed && state.PapersIngested > 0)
+            // Generate for both Completed and Stopped (user-stopped) sessions
+            if (state.PapersIngested > 0)
             {
-                EmitProgress(session, ResearchStage.Synthesizing, "Generating research synthesis...", state);
-                try
-                {
-                    var synthesizer = scope.ServiceProvider.GetRequiredService<ResearchSynthesizer>();
-                    state.Synthesis = await synthesizer.SynthesizeAsync(state, state.CollectionId, CancellationToken.None);
-
-                    var filename = $"synthesis-{SanitizeFilename(state.Topic)}-{state.CompletedAt:yyyyMMdd-HHmmss}.md";
-                    var filePath = Path.Combine(dataDir, filename);
-                    await File.WriteAllTextAsync(filePath, state.Synthesis.SynthesisMarkdown, CancellationToken.None);
-                    state.Synthesis.SavedFilePath = filePath;
-
-                    _logger.LogInformation("Synthesis saved to {FilePath}", filePath);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to generate synthesis (non-fatal)");
-                }
+                await GenerateSynthesisAsync(scope.ServiceProvider, state, dataDir, session);
             }
 
             PersistState(db, state);
@@ -656,6 +641,16 @@ public class UltraResearchOrchestrator
             state.StopReason = "Cancelled by user";
             state.CompletedAt = DateTimeOffset.UtcNow;
             _logger.LogInformation("Session {SessionId} cancelled", state.SessionId);
+
+            // Generate synthesis even for cancelled sessions (fresh scope — original is disposed)
+            if (state.PapersIngested > 0)
+            {
+                var dataDir = state.Config?.DataDirectory ?? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "lucidrag");
+                using var synthScope = _services.CreateScope();
+                await GenerateSynthesisAsync(synthScope.ServiceProvider, state, dataDir, session);
+                PersistState(synthScope.ServiceProvider, state);
+            }
         }
         catch (Exception ex)
         {
@@ -688,6 +683,49 @@ public class UltraResearchOrchestrator
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to persist state for collection {CollectionId}", state.CollectionId);
+        }
+    }
+
+    /// <summary>Persist state using a fresh service provider (for cancelled sessions where original scope is disposed).</summary>
+    private void PersistState(IServiceProvider services, UltraResearchState state)
+    {
+        try
+        {
+            var db = services.GetRequiredService<RagDocumentsDbContext>();
+            PersistState(db, state);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist state for collection {CollectionId}", state.CollectionId);
+        }
+    }
+
+    /// <summary>
+    ///     Generate synthesis from the research corpus. Works for both completed and stopped sessions.
+    ///     Uses CancellationToken.None to ensure synthesis completes even after user cancellation.
+    /// </summary>
+    private async Task GenerateSynthesisAsync(
+        IServiceProvider services,
+        UltraResearchState state,
+        string dataDir,
+        ActiveSession session)
+    {
+        EmitProgress(session, ResearchStage.Synthesizing, "Generating research synthesis...", state);
+        try
+        {
+            var synthesizer = services.GetRequiredService<ResearchSynthesizer>();
+            state.Synthesis = await synthesizer.SynthesizeAsync(state, state.CollectionId, CancellationToken.None);
+
+            var filename = $"synthesis-{SanitizeFilename(state.Topic)}-{state.CompletedAt:yyyyMMdd-HHmmss}.md";
+            var filePath = Path.Combine(dataDir, filename);
+            await File.WriteAllTextAsync(filePath, state.Synthesis.SynthesisMarkdown, CancellationToken.None);
+            state.Synthesis.SavedFilePath = filePath;
+
+            _logger.LogInformation("Synthesis saved to {FilePath}", filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to generate synthesis (non-fatal)");
         }
     }
 
