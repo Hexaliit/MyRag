@@ -56,6 +56,7 @@ jobs:
           dotnet build ${{ env.PROJECT_PATH }} \
             --configuration Release \
             --no-restore \
+            -p:GeneratePackageOnBuild=false \
             -p:MinVerVersionOverride=${{ steps.get_version.outputs.VERSION }}
 
       - name: Pack
@@ -64,6 +65,7 @@ jobs:
             --configuration Release \
             --no-build \
             --output ./artifacts \
+            -p:GeneratePackageOnBuild=false \
             -p:MinVerVersionOverride=${{ steps.get_version.outputs.VERSION }}
 
       - name: List artifacts

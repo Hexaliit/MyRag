@@ -65,9 +65,11 @@ runs:
       if: inputs.pre-pack-build == 'true'
       shell: bash
       run: |
-        ARGS=""
+        # Override GeneratePackageOnBuild to prevent .NET 10 SDK from producing
+        # a package during build, which conflicts with the explicit pack step.
+        ARGS="-p:GeneratePackageOnBuild=false"
         if [ "${{ inputs.use-nuget-dep }}" = "true" ]; then
-          ARGS="-p:UseNuGetDependency=true -p:CorePackageVersion=${{ inputs.version }}"
+          ARGS="$ARGS -p:UseNuGetDependency=true -p:CorePackageVersion=${{ inputs.version }}"
         fi
         dotnet build ${{ inputs.project-path }} \
           -c Release $ARGS ${{ inputs.extra-build-args }}
@@ -75,9 +77,11 @@ runs:
     - name: Pack
       shell: bash
       run: |
-        ARGS=""
+        # Override GeneratePackageOnBuild to prevent .NET 10 SDK from skipping
+        # the build when this property is true in the csproj (causes NU5026).
+        ARGS="-p:GeneratePackageOnBuild=false"
         if [ "${{ inputs.use-nuget-dep }}" = "true" ]; then
-          ARGS="-p:UseNuGetDependency=true -p:CorePackageVersion=${{ inputs.version }}"
+          ARGS="$ARGS -p:UseNuGetDependency=true -p:CorePackageVersion=${{ inputs.version }}"
         fi
         NO_BUILD=""
         if [ "${{ inputs.pre-pack-build }}" = "true" ]; then

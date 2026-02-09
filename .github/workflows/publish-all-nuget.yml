@@ -694,8 +694,6 @@ jobs:
           artifact-name: codesummarizer-mermaid-jint
           version: ${{ github.event.inputs.version }}
           publish-snupkg: 'true'
-          pre-pack-build: 'true'
-          extra-build-args: '-p:GeneratePackageOnBuild=false'
 
   # ── Wait for all Tier 4 plugins ─────────────────────────────────────
   wait-for-tier4-plugins:
