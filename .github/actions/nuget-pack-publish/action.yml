@@ -35,6 +35,9 @@ inputs:
   extra-build-args:
     description: 'Extra args for the pre-pack build step'
     default: ''
+  publish-nuget:
+    description: 'Publish to NuGet.org (set false for oversized packages)'
+    default: 'true'
   github-token:
     description: 'GitHub token for GitHub Packages (required if publish-github is true)'
     default: ''
@@ -97,6 +100,7 @@ runs:
         user: 'mostlylucid'
 
     - name: Publish to NuGet.org
+      if: inputs.publish-nuget == 'true'
       shell: bash
       run: |
         dotnet nuget push ./artifacts/*.nupkg \

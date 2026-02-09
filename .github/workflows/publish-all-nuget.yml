@@ -806,6 +806,7 @@ jobs:
           artifact-name: doomsummarizer-complete
           version: ${{ github.event.inputs.version }}
           use-nuget-dep: 'false'
+          publish-nuget: 'false'
           publish-github: 'true'
           github-token: ${{ github.token }}
 
