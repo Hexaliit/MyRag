@@ -91,7 +91,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/Mostlylucid.Storage.Core/Mostlylucid.Storage.Core.csproj
-          tag-prefix: storagev
+          tag-prefix: storcorev
           artifact-name: storage-core
           version: ${{ github.event.inputs.version }}
 
@@ -183,7 +183,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/Mostlylucid.DocSummarizer.Rdbms.Sqlite/Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj
-          tag-prefix: rdbmssqlitev
+          tag-prefix: dssqlitev
           artifact-name: rdbms-sqlite
           version: ${{ github.event.inputs.version }}
 
@@ -196,7 +196,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/Mostlylucid.DocSummarizer.FullText.Lucene/Mostlylucid.DocSummarizer.FullText.Lucene.csproj
-          tag-prefix: ftslucenev
+          tag-prefix: dsftlucev
           artifact-name: fts-lucene
           version: ${{ github.event.inputs.version }}
 
@@ -209,7 +209,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/Mostlylucid.DocSummarizer.FullText.Sqlite/Mostlylucid.DocSummarizer.FullText.Sqlite.csproj
-          tag-prefix: ftssqlitev
+          tag-prefix: dsftsqlv
           artifact-name: fts-sqlite
           version: ${{ github.event.inputs.version }}
 
@@ -222,7 +222,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/Mostlylucid.DocSummarizer.Anthropic/Mostlylucid.DocSummarizer.Anthropic.csproj
-          tag-prefix: docsumanthv
+          tag-prefix: dsanthv
           artifact-name: docsummarizer-anthropic
           version: ${{ github.event.inputs.version }}
 
@@ -235,7 +235,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/Mostlylucid.DocSummarizer.OpenAI/Mostlylucid.DocSummarizer.OpenAI.csproj
-          tag-prefix: docsumoaiv
+          tag-prefix: dsoaiv
           artifact-name: docsummarizer-openai
           version: ${{ github.event.inputs.version }}
 
@@ -371,7 +371,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/VideoSummarizer.Core/VideoSummarizer.Core.csproj
-          tag-prefix: videosumv
+          tag-prefix: vidsumv
           artifact-name: videosummarizer
           version: ${{ github.event.inputs.version }}
 
