@@ -97,6 +97,13 @@ public class DocSummarizerConfig
     ///     Deduplication configuration for both ingestion and retrieval phases.
     /// </summary>
     public DeduplicationConfig Deduplication { get; set; } = new();
+
+    /// <summary>
+    ///     Data directory for DuckDB persistent vector store.
+    ///     Used when BertRag.VectorStore = DuckDB.
+    ///     Defaults to "./data" if not set.
+    /// </summary>
+    public string? DuckDbDataDirectory { get; set; }
 }
 
 /// <summary>

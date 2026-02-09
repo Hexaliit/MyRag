@@ -5,7 +5,6 @@ using DomainClassifier.Technical.Extensions;
 using DoomSummarizer.Services;
 using LucidRAG.Data;
 using LucidRAG.Services;
-using LucidRAG.Services;
 using LucidRAG.UltraResearch;
 using LucidRAG.UltraResearch.Extensions;
 using LucidResearch.Services;
@@ -46,13 +45,20 @@ public static class ServiceRegistration
             options.UseSqlite(connectionString));
 
         // DocSummarizer pipeline (chunk, embed, entity extract)
+        // Use DuckDB for persistent vector storage so embeddings survive restarts
+        var dataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "lucidrag");
+        Directory.CreateDirectory(dataDir);
+
         services.AddDocSummarizer(opt =>
         {
             opt.EmbeddingBackend = EmbeddingBackend.Onnx;
             opt.Onnx.EmbeddingModel = OnnxEmbeddingModel.AllMiniLmL6V2;
-            opt.BertRag.VectorStore = VectorStoreBackend.InMemory;
+            opt.BertRag.VectorStore = VectorStoreBackend.DuckDB;
             opt.BertRag.CollectionName = "ragdocuments";
             opt.BertRag.ReindexOnStartup = false;
+            opt.DuckDbDataDirectory = dataDir;
         });
         services.AddPipelineRegistry();
 
@@ -94,6 +100,7 @@ public static class ServiceRegistration
         services.AddSingleton<IDocumentIngester, DocumentIngester>();
         services.AddSingleton<AppState>();
         services.AddSingleton<StatePoller>();
+        services.AddSingleton<ResearchChatService>();
     }
 
     public static ServiceProvider BuildServiceProvider(string[] args)

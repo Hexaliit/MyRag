@@ -33,6 +33,10 @@ public class AppState
     public State<string?> SynthesisText { get; } = new(null);
     public State<string?> SynthesisFilePath { get; } = new(null);
 
+    // Chat
+    public State<string> ChatDisplay { get; } = new("");
+    public State<bool> ChatLoading { get; } = new(false);
+
     // Navigation
     public State<ViewMode> CurrentView { get; } = new(ViewMode.Dashboard);
     public State<bool> ExitRequested { get; } = new(false);
@@ -80,5 +84,6 @@ public enum ViewMode
     Frontier,
     Checkpoints,
     Sessions,
-    Summary
+    Summary,
+    Chat
 }

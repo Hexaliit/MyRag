@@ -34,6 +34,12 @@ public static class ResearchSignalKeys
     public const string PaperIngestSuccess = "paper.ingest.success";
     public const string PaperIngestSegmentCount = "paper.ingest.segment_count";
 
+    // Evidence extraction signals
+    public const string PaperEvidenceCodeBlocks = "paper.evidence.code_blocks";
+    public const string PaperEvidenceTables = "paper.evidence.tables";
+    public const string PaperEvidenceEquations = "paper.evidence.equations";
+    public const string PaperEvidenceTotal = "paper.evidence.total";
+
     // Author signals
     public const string PaperAuthorsPromoted = "paper.authors.promoted";
 

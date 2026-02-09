@@ -60,6 +60,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITypedAnalysisWave<FetchCandidate>, MarkdownSaveWave>();
         services.AddScoped<ITypedAnalysisWave<FetchCandidate>, CitationExtractionWave>();
         services.AddScoped<ITypedAnalysisWave<FetchCandidate>, IngestWave>();
+        services.AddScoped<ITypedAnalysisWave<FetchCandidate>, PaperEvidenceExtractor>();
         services.AddScoped<ITypedAnalysisWave<FetchCandidate>, AuthorPromotionWave>();
         services.TryAddScoped<PaperCoordinator>();
 

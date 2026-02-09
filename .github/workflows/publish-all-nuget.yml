@@ -261,7 +261,7 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: ./.github/actions/nuget-pack-publish
         with:
-          project-path: src/Mostlylucid.LucidRAG.LLM/Mostlylucid.LucidRAG.LLM.csproj
+          project-path: src/LucidRAG.LLM/LucidRAG.LLM.csproj
           tag-prefix: llmv
           artifact-name: llm
           version: ${{ github.event.inputs.version }}
@@ -274,7 +274,7 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: ./.github/actions/nuget-pack-publish
         with:
-          project-path: src/Mostlylucid.LucidRAG.Decomposer/Mostlylucid.LucidRAG.Decomposer.csproj
+          project-path: src/LucidRAG.Decomposer/LucidRAG.Decomposer.csproj
           tag-prefix: decompv
           artifact-name: decomposer
           version: ${{ github.event.inputs.version }}

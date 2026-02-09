@@ -1,6 +1,8 @@
+using LucidRAG.Data;
 using LucidRAG.UltraResearch;
 using LucidResearch.Services;
 using LucidResearch.Views;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -52,6 +54,23 @@ public static class ResearchApp
                 }
             });
         }
+        else
+        {
+            // On startup, check for past sessions and show Sessions view if any exist
+            try
+            {
+                using var scope = services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
+                var hasSessions = await db.Collections
+                    .AnyAsync(c => c.Settings != null && c.Name.StartsWith("ultraresearch-"));
+                if (hasSessions)
+                    appState.CurrentView.Value = ViewMode.Sessions;
+            }
+            catch
+            {
+                // DB not available yet — stay on Dashboard
+            }
+        }
 
         try
         {
@@ -78,6 +97,7 @@ public static class ResearchApp
         var checkpoints = CheckpointView.Create(appState, services);
         var sessions = SessionView.Create(appState, services);
         var summary = SummaryView.Create(appState);
+        var chat = ChatView.Create(appState, services);
 
         var content = new VStack(
             dashboard.IsVisible(() => appState.CurrentView.Value == ViewMode.Dashboard),
@@ -85,7 +105,8 @@ public static class ResearchApp
             frontier.IsVisible(() => appState.CurrentView.Value == ViewMode.Frontier),
             checkpoints.IsVisible(() => appState.CurrentView.Value == ViewMode.Checkpoints),
             sessions.IsVisible(() => appState.CurrentView.Value == ViewMode.Sessions),
-            summary.IsVisible(() => appState.CurrentView.Value == ViewMode.Summary)
+            summary.IsVisible(() => appState.CurrentView.Value == ViewMode.Summary),
+            chat.IsVisible(() => appState.CurrentView.Value == ViewMode.Chat)
         );
 
         // Gradient branding for header
@@ -111,6 +132,7 @@ public static class ResearchApp
         layout.AddKeyBinding(new KeyGesture(TerminalKey.F4, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Checkpoints);
         layout.AddKeyBinding(new KeyGesture(TerminalKey.F5, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Sessions);
         layout.AddKeyBinding(new KeyGesture(TerminalKey.F6, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Summary);
+        layout.AddKeyBinding(new KeyGesture(TerminalKey.F7, TerminalModifiers.None), () => appState.CurrentView.Value = ViewMode.Chat);
         layout.AddKeyBinding(new KeyGesture('q', TerminalModifiers.None), () => appState.ExitRequested.Value = true);
 
         return layout;
@@ -146,6 +168,7 @@ public static class ResearchApp
             ("F4", "Checkpoints", ViewMode.Checkpoints),
             ("F5", "Sessions", ViewMode.Sessions),
             ("F6", "Summary", ViewMode.Summary),
+            ("F7", "Chat", ViewMode.Chat),
         };
 
         var parts = views.Select(v =>

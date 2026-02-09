@@ -141,8 +141,8 @@ public static class SessionView
                                     if (r.Settings != null)
                                     {
                                         if (r.Settings.Contains("\"Status\":\"Running\"")) statusText = "● Resumable";
-                                        else if (r.Settings.Contains("\"Status\":\"Stopped\"")) statusText = "■ Stopped";
-                                        else if (r.Settings.Contains("\"Status\":\"Completed\"")) statusText = "✓ Completed";
+                                        else if (r.Settings.Contains("\"Status\":\"Stopped\"")) statusText = "■ Chat-ready";
+                                        else if (r.Settings.Contains("\"Status\":\"Completed\"")) statusText = "✓ Chat-ready";
                                         else if (r.Settings.Contains("\"Status\":\"Failed\"")) statusText = "✗ Failed";
                                     }
 
@@ -207,6 +207,40 @@ public static class SessionView
                                 catch (Exception ex)
                                 {
                                     resumeStatus.Value = $"Resume failed: {ex.Message}";
+                                }
+                            }),
+                            new Button("Load for Chat (F7)").Click(async () =>
+                            {
+                                try
+                                {
+                                    using var scope = services.CreateScope();
+                                    var db = scope.ServiceProvider.GetRequiredService<RagDocumentsDbContext>();
+
+                                    var latest = await db.Collections
+                                        .Where(c => c.Settings != null &&
+                                                    c.Name.StartsWith("ultraresearch-") &&
+                                                    (c.Settings.Contains("\"Status\":\"Completed\"") ||
+                                                     c.Settings.Contains("\"Status\":\"Stopped\"")))
+                                        .OrderByDescending(c => c.UpdatedAt)
+                                        .FirstOrDefaultAsync();
+
+                                    if (latest == null)
+                                    {
+                                        resumeStatus.Value = "No completed sessions found for chat.";
+                                        return;
+                                    }
+
+                                    // Set active session so Chat view enables
+                                    appState.ActiveSessionId.Value = latest.Id;
+                                    var topic = latest.Name.Replace("ultraresearch-", "");
+                                    appState.Topic.Value = topic;
+                                    appState.Status.Value = UltraResearchStatus.Completed;
+                                    appState.AddActivity($"Loaded session '{topic}' for Q&A chat");
+                                    resumeStatus.Value = $"Loaded '{topic}' — press F7 to chat.";
+                                }
+                                catch (Exception ex)
+                                {
+                                    resumeStatus.Value = $"Load failed: {ex.Message}";
                                 }
                             })
                         ).Spacing(2),

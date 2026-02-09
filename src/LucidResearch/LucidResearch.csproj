@@ -48,6 +48,16 @@
         <!-- Transitive: DoomSummarizer.Core, DocSummarizer.Core, LucidRAG.Core -->
     </ItemGroup>
 
+    <!-- Exclude heavyweight native libs from transitive dependencies (Image/Audio/VideoSummarizer).
+         These come transitively via LucidRAG.Core but are unused in the research TUI.
+         ExcludeAssets=all prevents ~90 MB of native DLLs from being published.
+         Re-enable if adding ImageSummarizer integration for paper figure analysis. -->
+    <ItemGroup>
+        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250507" ExcludeAssets="all" PrivateAssets="all"/>
+        <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" ExcludeAssets="all" PrivateAssets="all"/>
+        <PackageReference Include="Whisper.net.Runtime.Metal" Version="1.9.0" ExcludeAssets="all" PrivateAssets="all"/>
+    </ItemGroup>
+
     <ItemGroup>
         <Content Include="appsettings.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -65,6 +75,11 @@
             <_FilesToDelete Include="$(PublishDir)*.pdb" />
             <_FilesToDelete Include="$(PublishDir)*.xml" />
             <_FilesToDelete Include="$(PublishDir)ggml-metal.metal" />
+            <!-- Catch any leaked OpenCV/Whisper native libs -->
+            <_FilesToDelete Include="$(PublishDir)opencv*.dll" />
+            <_FilesToDelete Include="$(PublishDir)libopencv*" />
+            <_FilesToDelete Include="$(PublishDir)whisper*" />
+            <_FilesToDelete Include="$(PublishDir)ggml*" />
         </ItemGroup>
         <Delete Files="@(_FilesToDelete)" />
         <RemoveDir Directories="$(PublishDir)runtimes;$(PublishDir).playwright" />

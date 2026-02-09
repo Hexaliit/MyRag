@@ -92,7 +92,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IVectorStore>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
-            return CreateVectorStore(config);
+            return CreateVectorStore(config, sp);
         });
 
         // Register LLM service based on configured backend
@@ -220,7 +220,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IVectorStore>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
-            return CreateVectorStore(config);
+            return CreateVectorStore(config, sp);
         });
 
         // Register LLM service based on configured backend
@@ -384,14 +384,31 @@ public static class ServiceCollectionExtensions
         return new OllamaEmbeddingService(ollamaService);
     }
 
-    private static IVectorStore CreateVectorStore(DocSummarizerConfig config)
+    private static IVectorStore CreateVectorStore(DocSummarizerConfig config, IServiceProvider sp)
     {
         return config.BertRag.VectorStore switch
         {
             VectorStoreBackend.InMemory => new InMemoryVectorStore(),
+            VectorStoreBackend.DuckDB => CreateDuckDbAdapter(config, sp),
             VectorStoreBackend.Qdrant => CreateQdrantStore(config),
             _ => new InMemoryVectorStore()
         };
+    }
+
+    private static IVectorStore CreateDuckDbAdapter(DocSummarizerConfig config, IServiceProvider sp)
+    {
+        // Try to resolve an existing Storage.Core IVectorStore (e.g., registered by AddVectorStoreForStandaloneMode)
+        var storageStore = sp.GetService<Storage.Core.Abstractions.IVectorStore>();
+        if (storageStore != null)
+            return new DuckDBVectorStoreAdapter(storageStore);
+
+        // Fallback: create a DuckDB store directly
+        var options = Storage.Core.Config.VectorStoreOptions.ForStandaloneMode(
+            config.DuckDbDataDirectory ?? "./data");
+        var logger = sp.GetService<ILogger<Storage.Core.Implementations.DuckDBVectorStore>>();
+        var wrappedOptions = Options.Create(options);
+        var duckDbStore = new Storage.Core.Implementations.DuckDBVectorStore(wrappedOptions, logger!);
+        return new DuckDBVectorStoreAdapter(duckDbStore);
     }
 
     private static IVectorStore CreateQdrantStore(DocSummarizerConfig config)

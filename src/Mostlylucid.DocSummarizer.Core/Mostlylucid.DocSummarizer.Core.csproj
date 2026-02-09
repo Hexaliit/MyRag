@@ -57,6 +57,14 @@
         <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
+    <!-- Storage.Core for DuckDB persistent vector store adapter -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\Mostlylucid.Storage.Core\Mostlylucid.Storage.Core.csproj"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.Storage.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
     <!-- CodeSummarizer: tree-sitter code analysis (~50MB native grammars, excluded in slim) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true' AND '$(CompleteBuild)' != 'false'">
         <ProjectReference Include="..\CodeSummarizer.Core\CodeSummarizer.Core.csproj"/>
