@@ -58,14 +58,15 @@ jobs:
       - name: Poll NuGet
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.summarizer.core/${VERSION}/mostlylucid.lucidrag.summarizer.core.${VERSION}.nupkg")
-            echo "Attempt $i: HTTP $STATUS"
+            echo "Attempt $i/45: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then exit 0; fi
             sleep 30
           done
-          echo "Timeout — continuing anyway"
+          echo "::error::Timeout waiting for mostlylucid.lucidrag.summarizer.core ${VERSION} on NuGet"
+          exit 1
 
   # ── Tier 0.5: CodeSummarizer, Storage.Core, DataSummarizer.Core ────────
   publish-codesummarizer:
@@ -119,16 +120,26 @@ jobs:
       - name: Poll NuGet for Tier 0.5
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          FAILED=""
           for pkg in mostlylucid.lucidrag.codesummarizer mostlylucid.lucidrag.storage.core mostlylucid.lucidrag.datasummarizer; do
             echo "Waiting for $pkg ${VERSION}..."
-            for i in $(seq 1 30); do
+            FOUND=false
+            for i in $(seq 1 45); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
                 "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
-              echo "  Attempt $i: HTTP $STATUS"
-              if [ "$STATUS" = "200" ]; then break; fi
+              echo "  Attempt $i/45: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then FOUND=true; break; fi
               sleep 30
             done
+            if [ "$FOUND" = "false" ]; then
+              echo "::error::Timeout waiting for $pkg ${VERSION} on NuGet"
+              FAILED="$FAILED $pkg"
+            fi
           done
+          if [ -n "$FAILED" ]; then
+            echo "Failed to find:$FAILED"
+            exit 1
+          fi
 
   # ── Tier 1: DocSummarizer ─────────────────────────────────────────────
   publish-docsummarizer:
@@ -152,14 +163,15 @@ jobs:
       - name: Poll NuGet
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.docsummarizer/${VERSION}/mostlylucid.lucidrag.docsummarizer.${VERSION}.nupkg")
-            echo "Attempt $i: HTTP $STATUS"
+            echo "Attempt $i/45: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then exit 0; fi
             sleep 30
           done
-          echo "Timeout — continuing anyway"
+          echo "::error::Timeout waiting for mostlylucid.lucidrag.docsummarizer ${VERSION} on NuGet"
+          exit 1
 
   # ── Tier 2: Backends (parallel) ───────────────────────────────────────
   publish-rdbms-sqlite:
@@ -241,16 +253,26 @@ jobs:
       - name: Poll NuGet for backends
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          FAILED=""
           for pkg in mostlylucid.lucidrag.docsummarizer.rdbms.sqlite mostlylucid.lucidrag.docsummarizer.fulltext.lucene mostlylucid.lucidrag.docsummarizer.fulltext.sqlite mostlylucid.lucidrag.docsummarizer.anthropic mostlylucid.lucidrag.docsummarizer.openai; do
             echo "Waiting for $pkg ${VERSION}..."
-            for i in $(seq 1 30); do
+            FOUND=false
+            for i in $(seq 1 45); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
                 "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
-              echo "  Attempt $i: HTTP $STATUS"
-              if [ "$STATUS" = "200" ]; then break; fi
+              echo "  Attempt $i/45: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then FOUND=true; break; fi
               sleep 30
             done
+            if [ "$FOUND" = "false" ]; then
+              echo "::error::Timeout waiting for $pkg ${VERSION} on NuGet"
+              FAILED="$FAILED $pkg"
+            fi
           done
+          if [ -n "$FAILED" ]; then
+            echo "Failed to find:$FAILED"
+            exit 1
+          fi
 
   # ── Tier 2.5: LLM, Decomposer, Image, Audio (parallel) ──────────────
   publish-llm:
@@ -318,16 +340,26 @@ jobs:
       - name: Poll NuGet for Tier 2.5
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          FAILED=""
           for pkg in mostlylucid.lucidrag.llm mostlylucid.lucidrag.decomposer mostlylucid.lucidrag.imagesummarizer mostlylucid.lucidrag.audiosummarizer; do
             echo "Waiting for $pkg ${VERSION}..."
-            for i in $(seq 1 30); do
+            FOUND=false
+            for i in $(seq 1 45); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
                 "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
-              echo "  Attempt $i: HTTP $STATUS"
-              if [ "$STATUS" = "200" ]; then break; fi
+              echo "  Attempt $i/45: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then FOUND=true; break; fi
               sleep 30
             done
+            if [ "$FOUND" = "false" ]; then
+              echo "::error::Timeout waiting for $pkg ${VERSION} on NuGet"
+              FAILED="$FAILED $pkg"
+            fi
           done
+          if [ -n "$FAILED" ]; then
+            echo "Failed to find:$FAILED"
+            exit 1
+          fi
 
   # ── Tier 2.5c: VideoSummarizer (needs Image + Audio) ──────────────────
   publish-videosummarizer:
@@ -351,14 +383,15 @@ jobs:
       - name: Poll NuGet
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.videosummarizer/${VERSION}/mostlylucid.lucidrag.videosummarizer.${VERSION}.nupkg")
-            echo "Attempt $i: HTTP $STATUS"
+            echo "Attempt $i/45: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then exit 0; fi
             sleep 30
           done
-          echo "Timeout — continuing anyway"
+          echo "::error::Timeout waiting for mostlylucid.lucidrag.videosummarizer ${VERSION} on NuGet"
+          exit 1
 
   # ── Tier 3: DoomSummarizer.Core ───────────────────────────────────────
   publish-doomsummarizer:
@@ -383,14 +416,15 @@ jobs:
       - name: Poll NuGet
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.doomsummarizer.core/${VERSION}/mostlylucid.lucidrag.doomsummarizer.core.${VERSION}.nupkg")
-            echo "Attempt $i: HTTP $STATUS"
+            echo "Attempt $i/45: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then exit 0; fi
             sleep 30
           done
-          echo "Timeout — continuing anyway"
+          echo "::error::Timeout waiting for mostlylucid.lucidrag.doomsummarizer.core ${VERSION} on NuGet"
+          exit 1
 
   # ── Tier 3.5: UltraResearch (needs DoomSummarizer.Core) ──────────────
   publish-ultraresearch:
@@ -709,16 +743,26 @@ jobs:
       - name: Poll NuGet for plugins
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          FAILED=""
           for pkg in mostlylucid.lucidrag.plugins.books mostlylucid.lucidrag.plugins.audio mostlylucid.lucidrag.plugins.data mostlylucid.lucidrag.plugins.image mostlylucid.lucidrag.plugins.video; do
             echo "Waiting for $pkg ${VERSION}..."
-            for i in $(seq 1 30); do
+            FOUND=false
+            for i in $(seq 1 45); do
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
                 "https://api.nuget.org/v3-flatcontainer/$pkg/${VERSION}/$pkg.${VERSION}.nupkg")
-              echo "  Attempt $i: HTTP $STATUS"
-              if [ "$STATUS" = "200" ]; then break; fi
+              echo "  Attempt $i/45: HTTP $STATUS"
+              if [ "$STATUS" = "200" ]; then FOUND=true; break; fi
               sleep 30
             done
+            if [ "$FOUND" = "false" ]; then
+              echo "::error::Timeout waiting for $pkg ${VERSION} on NuGet"
+              FAILED="$FAILED $pkg"
+            fi
           done
+          if [ -n "$FAILED" ]; then
+            echo "Failed to find:$FAILED"
+            exit 1
+          fi
 
   # ── Tier 4.5: Plugins.Complete (meta-package) ───────────────────────
   publish-plugins-complete:

@@ -118,13 +118,14 @@ public class AppStateTests
     [Fact]
     public void ViewMode_enum_has_expected_values()
     {
-        Enum.GetValues<ViewMode>().Should().HaveCount(6);
+        Enum.GetValues<ViewMode>().Should().HaveCount(7);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Dashboard);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.StartResearch);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Frontier);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Checkpoints);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Sessions);
         Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Summary);
+        Enum.GetValues<ViewMode>().Should().Contain(ViewMode.Chat);
     }
 
     [Fact]
