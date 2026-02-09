@@ -424,19 +424,7 @@ jobs:
           echo "::error::Timeout waiting for mostlylucid.lucidrag.doomsummarizer.core ${VERSION} on NuGet"
           exit 1
 
-  # ── Tier 3.5: UltraResearch (needs DoomSummarizer.Core) ──────────────
-  publish-ultraresearch:
-    needs: wait-for-doomsummarizer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with: { fetch-depth: 0 }
-      - uses: ./.github/actions/nuget-pack-publish
-        with:
-          project-path: src/Mostlylucid.LucidRAG.UltraResearch/Mostlylucid.LucidRAG.UltraResearch.csproj
-          tag-prefix: ultraresv
-          artifact-name: ultraresearch
-          version: ${{ github.event.inputs.version }}
+  # ── Tier 3.5: UltraResearch — SKIPPED (depends on LucidRAG.Core which is not a NuGet package)
 
   # ── Tier 4: Sources + Readers + Plugins (all parallel) ────────────────
   publish-source-hackernews:
@@ -841,7 +829,6 @@ jobs:
       - publish-audiosummarizer
       - publish-videosummarizer
       - publish-doomsummarizer
-      - publish-ultraresearch
       - publish-codesummarizer-mermaid-jint
       - publish-source-hackernews
       - publish-source-reddit
@@ -891,7 +878,7 @@ jobs:
           echo "| 2.5 | \`Mostlylucid.LucidRAG.AudioSummarizer\` | ${{ needs.publish-audiosummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2.5 | \`Mostlylucid.LucidRAG.VideoSummarizer\` | ${{ needs.publish-videosummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 3 | \`Mostlylucid.LucidRAG.DoomSummarizer.Core\` | ${{ needs.publish-doomsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 3.5 | \`Mostlylucid.LucidRAG.UltraResearch\` | ${{ needs.publish-ultraresearch.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3.5 | \`Mostlylucid.LucidRAG.UltraResearch\` | skipped (LucidRAG.Core dep) |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.HackerNews\` | ${{ needs.publish-source-hackernews.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Reddit\` | ${{ needs.publish-source-reddit.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Google\` | ${{ needs.publish-source-google.result }} |" >> $GITHUB_STEP_SUMMARY
