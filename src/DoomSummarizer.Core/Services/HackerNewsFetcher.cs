@@ -95,7 +95,10 @@ public class HackerNewsFetcher(HttpClient httpClient)
                     await Task.WhenAll(linkEnrichTasks.Select(t => t.fetchTask));
                     foreach (var (item, fetchTask) in linkEnrichTasks)
                         if (fetchTask is { IsCompletedSuccessfully: true, Result: not null })
+                        {
                             item.Content = fetchTask.Result;
+                            item.IsEnriched = true;
+                        }
                 }
             }
             catch (Exception ex)

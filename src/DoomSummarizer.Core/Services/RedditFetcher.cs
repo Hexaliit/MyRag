@@ -55,9 +55,11 @@ public class RedditFetcher(HttpClient httpClient)
                     var content = post.Selftext;
 
                     // For link posts (not self posts), fetch content from the target URL
+                    var enrichedFromLink = false;
                     if (!post.IsSelf && string.IsNullOrWhiteSpace(content) && !string.IsNullOrEmpty(post.Url))
                     {
                         content = await ContentItemHelpers.FetchLinkContentAsync(httpClient, post.Url);
+                        enrichedFromLink = content != null;
                     }
 
                     items.Add(new ContentItem
@@ -69,6 +71,7 @@ public class RedditFetcher(HttpClient httpClient)
                             ? $"https://reddit.com{post.Permalink}"
                             : post.Url,
                         Content = content,
+                        IsEnriched = enrichedFromLink,
                         Author = post.Author,
                         Score = post.Score,
                         CommentCount = post.NumComments,

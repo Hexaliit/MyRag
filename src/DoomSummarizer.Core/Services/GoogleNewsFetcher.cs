@@ -97,6 +97,8 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
         // Resolve Google News redirect URLs to actual article URLs
         await ResolveRedirectUrlsAsync(items);
 
+        await EnrichItemContentAsync(items);
+
         return items;
     }
 
@@ -151,14 +153,50 @@ public partial class GoogleNewsFetcher(HttpClient httpClient)
             // Don't use AnsiConsole here — this runs from background tasks during Progress rendering
             Debug.WriteLine($"Google News topic '{topic}' feed failed, falling back to search: {ex.Message}");
             // Fall back to keyword search — topic feeds can be unreliable
-            // (SearchAsync already resolves redirect URLs)
+            // (SearchAsync already resolves redirect URLs and enriches content)
             return await SearchAsync(topic.ToLowerInvariant().Replace("_", " "), maxResults, 7);
         }
 
         // Resolve Google News redirect URLs to actual article URLs
         await ResolveRedirectUrlsAsync(items);
 
+        await EnrichItemContentAsync(items);
+
         return items;
+    }
+
+    /// <summary>
+    ///     Enrich items with full article content from their resolved URLs.
+    ///     Skips items with unresolved Google News redirect URLs and items that already have content.
+    /// </summary>
+    private async Task EnrichItemContentAsync(List<ContentItem> items)
+    {
+        var toEnrich = items
+            .Where(i => !string.IsNullOrEmpty(i.Url)
+                        && !i.Url.Contains("news.google.com/", StringComparison.OrdinalIgnoreCase)
+                        && (string.IsNullOrEmpty(i.Content) || i.Content.Length < 200))
+            .ToList();
+
+        if (toEnrich.Count == 0) return;
+
+        using var semaphore = new SemaphoreSlim(5);
+        var tasks = toEnrich
+            .Select(async i =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    var content = await ContentItemHelpers.FetchLinkContentAsync(httpClient, i.Url!);
+                    if (content != null)
+                    {
+                        i.Content = content;
+                        i.IsEnriched = true;
+                    }
+                }
+                finally { semaphore.Release(); }
+            })
+            .ToList();
+        await Task.WhenAll(tasks);
     }
 
     /// <summary>

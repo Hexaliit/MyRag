@@ -83,6 +83,37 @@ public class DuckDuckGoSearch
                 {
                     if (_circuit != null)
                         await _circuit.ReportSuccessAsync(ServiceName);
+
+                    // Enrich search results with full article content (bounded parallel)
+                    // Skip homepage URLs (no path) — SmartReader can't extract articles from them
+                    var toEnrich = items
+                        .Where(i => !string.IsNullOrEmpty(i.Url)
+                                    && (string.IsNullOrEmpty(i.Content) || i.Content.Length < 200)
+                                    && HasArticlePath(i.Url!))
+                        .ToList();
+
+                    if (toEnrich.Count > 0)
+                    {
+                        using var enrichSemaphore = new SemaphoreSlim(5);
+                        var linkEnrichTasks = toEnrich
+                            .Select(async i =>
+                            {
+                                await enrichSemaphore.WaitAsync();
+                                try
+                                {
+                                    var content = await ContentItemHelpers.FetchLinkContentAsync(_httpClient, i.Url!);
+                                    if (content != null)
+                                    {
+                                        i.Content = content;
+                                        i.IsEnriched = true;
+                                    }
+                                }
+                                finally { enrichSemaphore.Release(); }
+                            })
+                            .ToList();
+                        await Task.WhenAll(linkEnrichTasks);
+                    }
+
                     progress?.Invoke($"Found {items.Count} search results");
                     return items;
                 }
@@ -148,6 +179,25 @@ public class DuckDuckGoSearch
         }
 
         return items;
+    }
+
+    /// <summary>
+    ///     Returns true if the URL has a meaningful path (not just a homepage).
+    ///     SmartReader can't extract articles from homepages, so skip them.
+    /// </summary>
+    private static bool HasArticlePath(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            var path = uri.AbsolutePath.TrimEnd('/');
+            // Root path or single-segment paths like /news are index pages
+            return path.Length > 1 && path.Count(c => c == '/') >= 2;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string? ExtractUrl(string? href)

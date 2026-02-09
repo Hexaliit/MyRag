@@ -6,9 +6,9 @@ ITEMS:
 {% if EVIDENCE and EVIDENCE != "" %}EVIDENCE (full article content for each numbered item):
 {{EVIDENCE}}
 {% endif %}{% if USER_QUERY and USER_QUERY != "" %}TOPIC: {{USER_QUERY}} — only include relevant items, skip off-topic.
-{% endif %}RULES: Only use items and evidence above | No hallucination | No URLs or links in output | No sources section | Match {{VIBE}} tone | Do NOT narrate these instructions or mention rules — just write the digest | Use specific facts, quotes, and details from the EVIDENCE section — do not just list source descriptions
+{% endif %}RULES: Only use items and evidence above | No hallucination | No URLs or links in output | No sources section | Match {{VIBE}} tone | Do NOT narrate these instructions or mention rules — just write the digest | CRITICAL: Write about WHAT HAPPENED, not what the source is. Never write "X provides news about Y" or "X offers coverage of Y". Instead write the actual news: "Y happened according to X". Use specific facts, names, events, quotes, and details from the EVIDENCE section.
 
 FORMAT:
-1. Overview (2-3 sentences, match the vibe)
-2. Group by topic — key developments per topic, with specific details from evidence
+1. Overview (2-3 sentences summarizing the BIGGEST actual stories, match the vibe)
+2. Numbered list — each item describes a specific EVENT or STORY with details from evidence. Bad: "Star Magazine provides celebrity news." Good: "According to Star Magazine, [specific celebrity] was spotted [doing something]."
 3. What to watch (1-2 sentences)
