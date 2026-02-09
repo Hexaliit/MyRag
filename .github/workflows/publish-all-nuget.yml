@@ -276,7 +276,7 @@ jobs:
 
   # ── Tier 2.5: LLM, Decomposer, Image, Audio (parallel) ──────────────
   publish-llm:
-    needs: wait-for-docsummarizer
+    needs: wait-for-backends
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -297,7 +297,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/LucidRAG.Decomposer/LucidRAG.Decomposer.csproj
-          tag-prefix: decompv
+          tag-prefix: decomv
           artifact-name: decomposer
           version: ${{ github.event.inputs.version }}
 
@@ -403,7 +403,7 @@ jobs:
       - uses: ./.github/actions/nuget-pack-publish
         with:
           project-path: src/DoomSummarizer.Core/DoomSummarizer.Core.csproj
-          tag-prefix: doomsumv
+          tag-prefix: doomcorev
           artifact-name: doomsummarizer
           version: ${{ github.event.inputs.version }}
           publish-snupkg: 'true'
