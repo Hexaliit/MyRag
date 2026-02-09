@@ -101,16 +101,19 @@ runs:
       run: |
         dotnet nuget push ./artifacts/*.nupkg \
           --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json --skip-duplicate
-      continue-on-error: true
+          --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
 
     - name: Publish symbols
       if: inputs.publish-snupkg == 'true'
       shell: bash
       run: |
-        dotnet nuget push ./artifacts/*.snupkg \
-          --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json --skip-duplicate
+        if ls ./artifacts/*.snupkg 1>/dev/null 2>&1; then
+          dotnet nuget push ./artifacts/*.snupkg \
+            --api-key ${{ steps.nuget.outputs.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json --skip-duplicate
+        else
+          echo "No .snupkg files found — skipping symbol publish"
+        fi
       continue-on-error: true
 
     - name: Publish to GitHub Packages

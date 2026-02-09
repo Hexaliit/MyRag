@@ -82,15 +82,7 @@ jobs:
           dotnet nuget push ./artifacts/*.nupkg \
             --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
             --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
-
-      - name: Publish symbols to NuGet
-        run: |
-          dotnet nuget push ./artifacts/*.snupkg \
-            --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
-        continue-on-error: true  # Symbols are optional
+            --skip-duplicate --no-symbols
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

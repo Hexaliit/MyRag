@@ -47,7 +47,6 @@ jobs:
           version: ${{ github.event.inputs.version }}
           use-nuget-dep: 'false'
           publish-github: 'true'
-          publish-snupkg: 'true'
           github-token: ${{ github.token }}
 
   # ── Wait for Summarizer.Core on NuGet ──────────────────────────────────
@@ -406,7 +405,6 @@ jobs:
           tag-prefix: doomcorev
           artifact-name: doomsummarizer
           version: ${{ github.event.inputs.version }}
-          publish-snupkg: 'true'
 
   # ── Wait for DoomSummarizer.Core ──────────────────────────────────────
   wait-for-doomsummarizer:
@@ -439,7 +437,6 @@ jobs:
           tag-prefix: ultraresv
           artifact-name: ultraresearch
           version: ${{ github.event.inputs.version }}
-          publish-snupkg: 'true'
 
   # ── Tier 4: Sources + Readers + Plugins (all parallel) ────────────────
   publish-source-hackernews:
@@ -727,7 +724,6 @@ jobs:
           tag-prefix: codemermaidv
           artifact-name: codesummarizer-mermaid-jint
           version: ${{ github.event.inputs.version }}
-          publish-snupkg: 'true'
 
   # ── Wait for all Tier 4 plugins ─────────────────────────────────────
   wait-for-tier4-plugins:
