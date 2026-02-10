@@ -612,18 +612,22 @@ exemplars:
   - question: "Funniest news stories this week"
     topic: humor
     type: roundup
+    vibe: funny
 
   - question: "Best satirical takes on current events"
     topic: satire
     type: roundup
+    vibe: snarky
 
   - question: "Show me some comedy and humor articles"
     topic: humor
     type: roundup
+    vibe: funny
 
   - question: "Ridiculous headlines that are actually real"
     topic: humor
     type: roundup
+    vibe: funny
 
   - question: "Parody and satire news roundup"
     topic: satire

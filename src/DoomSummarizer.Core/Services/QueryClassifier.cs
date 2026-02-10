@@ -88,32 +88,44 @@ public class QueryClassifier
     }
 
     /// <summary>
-    ///     Classify a query using multi-match weighted voting.
-    ///     1. Score ALL exemplars against query embedding (single pass)
-    ///     2. Take candidates above threshold → candidate set
-    ///     3. Weighted vote per dimension: max_sim + 0.05 * (count - 1)
-    ///     4. Detect composite/complex from type/complexity votes
+    ///     Classify a query using inline IDF-weighted multi-match voting.
+    ///     Single pass over all exemplars: scores, votes, vibe/composite/complex and top-5
+    ///     are all accumulated in one loop. No intermediate list allocations.
     /// </summary>
     public async Task<QueryClassification> ClassifyAsync(string query, CancellationToken ct = default)
     {
         if (_allExemplars == null || _embedding == null)
             return new QueryClassification();
 
-        // 0. Feature decomposition (runs in parallel with embedding conceptually — sub-0.02ms)
+        // 0. Feature extraction (< 0.02ms, pre-compiled regexes)
         var features = QueryFeatures.Extract(query);
         var embeddingInput = _config.SynonymExpansionEnabled
             ? QueryFeatures.ExpandSynonyms(query, _config.ShortQueryMaxWords + 1)
             : query;
         var queryEmbedding = await _embedding.EmbedAsync(embeddingInput, ct);
 
-        // 1. Score ALL exemplars in a single pass — no centroid pre-filter.
-        //    With SIMD cosine sim, scoring ~450 exemplars is <1ms.
-        //    Simultaneously track: candidates, best match, vibe, composite top-2, complex.
-        var scored = new List<ScoredExemplarInternal>(_allExemplars.Count / 3);
-        ScoredExemplarInternal? bestOverall = null;
-        ScoredExemplarInternal? bestVibeMatch = null;
+        // 1. Single pass: score all exemplars + accumulate votes inline.
+        //    Eliminates the `scored` list and separate WeightedVote iterations.
+        //    Tracks: topic/type max+count, best match, vibe, composite top-2, complex, top-5.
+
+        // Voting accumulators (inline — no second pass needed)
+        var topicMax = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var topicCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var typeMax = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var typeCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        // Best/vibe/composite/complex trackers
+        ExemplarEmbedding? bestExemplar = null;
+        var bestScore = 0.0;
+        ExemplarEmbedding? bestVibeExemplar = null;
+        var bestVibeScore = 0.0;
         double compositeTop1 = 0, compositeTop2 = 0;
-        var isComplex = false;
+        var bestComplexScore = 0.0;
+        var candidateCount = 0;
+
+        // Top-5 bounded insert (avoid LINQ sort over full candidate list)
+        var top5 = new (ExemplarEmbedding Exemplar, double Score)[5];
+        var top5Count = 0;
 
         foreach (var exemplar in _allExemplars)
         {
@@ -121,109 +133,125 @@ public class QueryClassifier
             if (sim < _config.MinCandidateThreshold)
                 continue;
 
-            var item = new ScoredExemplarInternal(exemplar, sim);
-            scored.Add(item);
+            candidateCount++;
+            var topic = exemplar.Exemplar.Topic;
+            var type = exemplar.Exemplar.Type;
 
-            if (bestOverall == null || sim > bestOverall.Score)
-                bestOverall = item;
+            // Inline topic voting: track max + count
+            if (!topicMax.TryGetValue(topic, out var curTopicMax) || sim > curTopicMax)
+                topicMax[topic] = sim;
+            topicCount.TryGetValue(topic, out var tc);
+            topicCount[topic] = tc + 1;
 
-            // Vibe: track best vibe match by raw similarity
-            if (exemplar.Exemplar.Vibe != null
-                && (bestVibeMatch == null || sim > bestVibeMatch.Score))
-                bestVibeMatch = item;
+            // Inline type voting: track max + count
+            if (!typeMax.TryGetValue(type, out var curTypeMax) || sim > curTypeMax)
+                typeMax[type] = sim;
+            typeCount.TryGetValue(type, out var tyc);
+            typeCount[type] = tyc + 1;
 
-            // Composite: track top 2 scores for consensus check
-            if (exemplar.Exemplar.Type.Equals("composite", StringComparison.OrdinalIgnoreCase))
+            // Best overall
+            if (sim > bestScore)
             {
-                if (sim > compositeTop1)
-                {
-                    compositeTop2 = compositeTop1;
-                    compositeTop1 = sim;
-                }
-                else if (sim > compositeTop2)
-                {
-                    compositeTop2 = sim;
-                }
+                bestScore = sim;
+                bestExemplar = exemplar;
             }
 
-            // Complex: any match above threshold
-            if (!isComplex && exemplar.Exemplar.Complexity == "complex"
-                && sim > _config.ComplexThreshold)
-                isComplex = true;
-        }
-
-        if (scored.Count == 0)
-        {
-            return new QueryClassification
+            // Vibe: best vibe-tagged match
+            if (exemplar.Exemplar.Vibe != null && sim > bestVibeScore)
             {
-                Categories = new Dictionary<string, double>(),
-                QueryType = "roundup",
-                QueryTypeConfidence = 0
-            };
+                bestVibeScore = sim;
+                bestVibeExemplar = exemplar;
+            }
+
+            // Composite: top-2 consensus
+            if (type.Equals("composite", StringComparison.OrdinalIgnoreCase))
+            {
+                if (sim > compositeTop1) { compositeTop2 = compositeTop1; compositeTop1 = sim; }
+                else if (sim > compositeTop2) { compositeTop2 = sim; }
+            }
+
+            // Complex: track best complex score (ratio checked post-loop)
+            if (exemplar.Exemplar.Complexity == "complex" && sim > bestComplexScore)
+                bestComplexScore = sim;
+
+            // Top-5 bounded insert (insertion sort into small fixed array)
+            if (top5Count < 5)
+            {
+                top5[top5Count++] = (exemplar, sim);
+            }
+            else if (sim > top5[4].Score)
+            {
+                top5[4] = (exemplar, sim);
+                // Bubble up to maintain sorted order (at most 4 swaps)
+                for (var j = 3; j >= 0 && top5[j + 1].Score > top5[j].Score; j--)
+                    (top5[j], top5[j + 1]) = (top5[j + 1], top5[j]);
+            }
         }
 
-        // 2. Multi-match weighted vote for each dimension (IDF-weighted)
-        var topicScores = WeightedVote(scored, s => s.Exemplar.Exemplar.Topic, _topicIdf);
-        var typeScores = WeightedVote(scored, s => s.Exemplar.Exemplar.Type, _typeIdf);
+        if (candidateCount == 0)
+            return new QueryClassification { QueryType = "roundup", QueryTypeConfidence = 0 };
 
-        // Filter topic scores below threshold
+        // 2. Compute IDF-weighted scores from accumulated max+count
         var filteredTopics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (topic, score) in topicScores)
+        foreach (var (topic, maxSim) in topicMax)
         {
+            var idf = _topicIdf?.GetValueOrDefault(topic, 1.0) ?? 1.0;
+            var score = maxSim + _config.CountBoost * Math.Log2(topicCount[topic]) * idf;
             if (score >= _config.MinTopicThreshold)
                 filteredTopics[topic] = score;
         }
 
-        // 3. Feature-based type score adjustments for short queries
+        var typeScores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (type, maxSim) in typeMax)
+        {
+            var idf = _typeIdf?.GetValueOrDefault(type, 1.0) ?? 1.0;
+            typeScores[type] = maxSim + _config.CountBoost * Math.Log2(typeCount[type]) * idf;
+        }
+
+        // 3. Feature-based type adjustments for short queries
         var isShort = features.IsShortQuery(_config.ShortQueryMaxWords);
         if (isShort)
         {
             if (features.HasHowtoMarker)
             {
-                typeScores.TryGetValue("howto", out var howtoScore);
-                typeScores["howto"] = howtoScore + _config.HowtoFeatureBoost;
+                typeScores.TryGetValue("howto", out var s);
+                typeScores["howto"] = s + _config.HowtoFeatureBoost;
             }
-
             if (features.HasComparisonMarker)
             {
-                typeScores.TryGetValue("comparison", out var compScore);
-                typeScores["comparison"] = compScore + _config.ComparisonFeatureBoost;
+                typeScores.TryGetValue("comparison", out var s);
+                typeScores["comparison"] = s + _config.ComparisonFeatureBoost;
             }
-
             if (features.HasQaMarker && !features.HasSearchOnlyMarker)
             {
-                typeScores.TryGetValue("qa", out var qaScore);
-                typeScores["qa"] = qaScore + _config.QaFeatureBoost;
+                typeScores.TryGetValue("qa", out var s);
+                typeScores["qa"] = s + _config.QaFeatureBoost;
             }
-
-            // Short queries without intent markers are overwhelmingly roundups
             if (!features.HasQuestionWord && !features.HasComparisonMarker
                 && !features.HasHowtoMarker && !features.HasSearchOnlyMarker
                 && !features.HasQaMarker)
             {
-                typeScores.TryGetValue("roundup", out var roundupScore);
-                typeScores["roundup"] = roundupScore + _config.DefaultRoundupBoost;
+                typeScores.TryGetValue("roundup", out var s);
+                typeScores["roundup"] = s + _config.DefaultRoundupBoost;
             }
         }
 
-        // Feature-based search_only fast path (applies to all query lengths)
+        // Search-only fast path (all query lengths)
         var forceSearchOnly = false;
         if (features.HasSearchOnlyMarker)
         {
-            var topEmbeddingType = bestOverall?.Exemplar.Exemplar.Type;
-            if (bestOverall == null || bestOverall.Score < 0.85
-                || topEmbeddingType == "search_only" || topEmbeddingType == "qa")
+            var topType = bestExemplar?.Exemplar.Type;
+            if (bestExemplar == null || bestScore < 0.85
+                || topType == "search_only" || topType == "qa")
                 forceSearchOnly = true;
         }
 
-        // 4. Best type — exclude composite (handled by IsComposite flag)
+        // 4. Best type (exclude composite — handled by IsComposite flag)
         var bestType = "roundup";
         var bestTypeScore = 0.0;
         foreach (var (type, score) in typeScores)
         {
-            if (type.Equals("composite", StringComparison.OrdinalIgnoreCase))
-                continue;
-
+            if (type.Equals("composite", StringComparison.OrdinalIgnoreCase)) continue;
             if (score > bestTypeScore && score >= _config.MinTypeThreshold)
             {
                 bestTypeScore = score;
@@ -237,16 +265,23 @@ public class QueryClassifier
             bestTypeScore = Math.Max(bestTypeScore, _config.SearchOnlyFeatureThreshold);
         }
 
-        // 5. Vibe from single-pass tracking
+        // 5. Vibe — require both absolute threshold AND proximity to best overall match.
+        //    Prevents false vibes when a neutral query matches non-vibe exemplars much better.
         string? vibe = null;
         var vibeConfidence = 0.0;
-        if (bestVibeMatch != null && bestVibeMatch.Score > _config.VibeThreshold)
+        if (bestVibeExemplar != null && bestVibeScore > _config.VibeThreshold
+            && bestVibeScore >= bestScore * _config.VibeMinRatio)
         {
-            vibe = bestVibeMatch.Exemplar.Exemplar.Vibe;
-            vibeConfidence = bestVibeMatch.Score;
+            vibe = bestVibeExemplar.Exemplar.Vibe;
+            vibeConfidence = bestVibeScore;
         }
 
-        // 6. Composite from single-pass top-2 consensus
+        // 5b. Complex — same ratio guard as vibe. Prevents false escalation when a simple
+        //     query shares topic semantic space with complex exemplars.
+        var isComplex = bestComplexScore > _config.ComplexThreshold
+                        && bestComplexScore >= bestScore * _config.ComplexMinRatio;
+
+        // 6. Composite consensus
         var compositeThreshold = _config.CompositeRawThreshold;
         if (features.HasCompositeConjunction && features.WordCount >= 5)
             compositeThreshold *= 0.85;
@@ -254,21 +289,21 @@ public class QueryClassifier
                           && compositeTop1 > compositeThreshold
                           && compositeTop2 > compositeThreshold * 0.85;
 
-        // 7. Source hints from best match
-        List<string>? sourceHints = bestOverall?.Exemplar.Exemplar.Sources;
+        // 7. Build top matches from bounded top-5 array (already sorted by insertion)
+        // Sort the filled portion (insertion sort may leave unsorted initial fills)
+        var filled = top5Count;
+        for (var i = 1; i < filled; i++)
+            for (var j = i; j > 0 && top5[j].Score > top5[j - 1].Score; j--)
+                (top5[j], top5[j - 1]) = (top5[j - 1], top5[j]);
 
-        // 8. Top matches for debug output
-        var topMatches = scored
-            .OrderByDescending(s => s.Score)
-            .Take(5)
-            .Select(s => new ScoredExemplar(
-                s.Exemplar.Exemplar.Question,
-                s.Exemplar.Exemplar.Topic,
-                s.Exemplar.Exemplar.Type,
-                s.Score))
-            .ToList();
+        var topMatches = new List<ScoredExemplar>(filled);
+        for (var i = 0; i < filled; i++)
+        {
+            var (ex, sc) = top5[i];
+            topMatches.Add(new ScoredExemplar(ex.Exemplar.Question, ex.Exemplar.Topic, ex.Exemplar.Type, sc));
+        }
 
-        // 9. Short-query confidence scaling
+        // 8. Short-query confidence scaling
         if (isShort)
             bestTypeScore *= _config.ShortQueryConfidenceScale;
 
@@ -281,54 +316,12 @@ public class QueryClassifier
             VibeConfidence = vibeConfidence,
             IsComposite = isComposite,
             IsComplex = isComplex,
-            SourceHints = sourceHints,
-            BestMatch = bestOverall?.Exemplar.Exemplar.Question,
-            BestMatchScore = bestOverall?.Score ?? 0,
+            SourceHints = bestExemplar?.Exemplar.Sources,
+            BestMatch = bestExemplar?.Exemplar.Question,
+            BestMatchScore = bestScore,
             TopMatches = topMatches,
             Features = isShort ? features : null
         };
-    }
-
-    /// <summary>
-    ///     IDF-weighted voting: score = max_sim + CountBoost * log2(count) * idf(label).
-    ///     Combines three statistical principles:
-    ///     1. Max anchoring — best individual match dominates
-    ///     2. Logarithmic count — diminishing returns from additional matches
-    ///     3. IDF weighting — rare labels (howto, comparison) get stronger count boosts
-    ///        than frequent labels (roundup) to correct for class imbalance
-    /// </summary>
-    private Dictionary<string, double> WeightedVote(
-        List<ScoredExemplarInternal> scored,
-        Func<ScoredExemplarInternal, string> labelSelector,
-        Dictionary<string, double>? idf = null)
-    {
-        var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        var maxByLabel = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        var countByLabel = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var item in scored)
-        {
-            var label = labelSelector(item);
-
-            if (!maxByLabel.TryGetValue(label, out var currentMax) || item.Score > currentMax)
-                maxByLabel[label] = item.Score;
-
-            countByLabel.TryGetValue(label, out var count);
-            countByLabel[label] = count + 1;
-        }
-
-        foreach (var (label, maxSim) in maxByLabel)
-        {
-            var count = countByLabel[label];
-            var labelIdf = idf?.GetValueOrDefault(label, 1.0) ?? 1.0;
-            // IDF-weighted log2 count boost:
-            //   roundup (idf≈1.5): 40 matches → 0.05 * 5.3 * 1.5 = 0.40
-            //   howto   (idf≈4.8): 5 matches  → 0.05 * 2.3 * 4.8 = 0.55
-            // Rare types get stronger boost per match, correcting for class imbalance
-            result[label] = maxSim + _config.CountBoost * Math.Log2(Math.Max(count, 1)) * labelIdf;
-        }
-
-        return result;
     }
 
     /// <summary>
@@ -457,6 +450,4 @@ public class QueryClassifier
     }
 
     private record ExemplarEmbedding(QueryExemplar Exemplar, float[] Embedding);
-
-    private record ScoredExemplarInternal(ExemplarEmbedding Exemplar, double Score);
 }

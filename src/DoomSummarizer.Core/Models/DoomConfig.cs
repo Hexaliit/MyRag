@@ -148,11 +148,25 @@ public record ClassifierConfig
     /// <summary>Minimum raw cosine similarity for a complex exemplar to flag the query as complex.</summary>
     public double ComplexThreshold { get; init; } = 0.50;
 
+    /// <summary>
+    ///     Minimum ratio of bestComplexScore / bestOverallScore for complex flag to fire.
+    ///     Prevents false complex escalation when a simple query matches complex exemplars
+    ///     only because they share the same topic semantic space.
+    /// </summary>
+    public double ComplexMinRatio { get; init; } = 0.85;
+
     /// <summary>Minimum raw cosine similarity for a vibe exemplar to trigger vibe detection.</summary>
-    public double VibeThreshold { get; init; } = 0.70;
+    public double VibeThreshold { get; init; } = 0.60;
+
+    /// <summary>
+    ///     Minimum ratio of bestVibeScore / bestOverallScore for vibe to fire.
+    ///     Prevents false vibes when a neutral query is much closer to non-vibe exemplars.
+    ///     0.85 = vibe exemplar must be within 85% of the best overall match.
+    /// </summary>
+    public double VibeMinRatio { get; init; } = 0.85;
 
     /// <summary>Minimum raw cosine similarity (consensus of top 2) for composite detection.</summary>
-    public double CompositeRawThreshold { get; init; } = 0.75;
+    public double CompositeRawThreshold { get; init; } = 0.82;
 
     // ── Short-Query Feature Decomposition ──
 

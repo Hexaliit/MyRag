@@ -118,7 +118,7 @@ internal static partial class QueryFeatures
 
     /// <summary>Detects composite query conjunctions (multi-part queries).</summary>
     [GeneratedRegex(
-        @"\b(and\s+also|also\s+(check|show|get|find|look)|plus\s+\w+|as\s+well\s+as|in\s+addition\s+to|along\s+with)\b",
+        @"\b(and\s+also|and\s+(compare|summarize|check|find|show|tell)|also\s+(check|show|get|find|look)|plus\s+\w+|as\s+well\s+as|in\s+addition\s+to|along\s+with)\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex CompositeConjunctionPattern();
 

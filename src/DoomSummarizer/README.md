@@ -1275,6 +1275,7 @@ Pre-built binaries for both `doomsummarizer` and `lucidrag`: Windows x64/ARM64, 
 | [MCP Server](docs/MCP.md) | MCP server setup and tools reference |
 | [Automation](docs/Automation.md) | JSON output, file output, scheduling |
 | [Retrieval Improvements](docs/RETRIEVAL_IMPROVEMENTS.md) | Advanced search and scoring |
+| [Semantic Query Classifier](../../docs/SEMANTIC_QUERY_CLASSIFIER.md) | Embedding-based query classification, scoring algorithm, exemplar system |
 | [Embedding Optimization](docs/EmbeddingOptimization.md) | Model selection, GPU, caching, dedup pipeline |
 | [Adaptive Retrieval](docs/FunctionalSpec.AdaptiveRetrieval.md) | Cache-vs-live retrieval, gap-filling |
 | [Troubleshooting](docs/Troubleshooting.md) | Common issues and fixes |

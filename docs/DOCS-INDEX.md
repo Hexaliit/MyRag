@@ -42,6 +42,7 @@ This index links to the canonical documentation in this repo. (All paths below a
 - **CLI docs**: [../src/DoomSummarizer/docs/CLI.md](../src/DoomSummarizer/docs/CLI.md)
 - **Config**: [../src/DoomSummarizer/docs/Config.md](../src/DoomSummarizer/docs/Config.md)
 - **Config reference**: [../src/DoomSummarizer/docs/ConfigReference.md](../src/DoomSummarizer/docs/ConfigReference.md)
+- **Semantic query classifier**: [SEMANTIC_QUERY_CLASSIFIER.md](SEMANTIC_QUERY_CLASSIFIER.md) — embedding-based deterministic classification (complete flow, scoring algorithm, exemplar system, CLI diagnostics)
 - **Cloud LLM routing/models**: [../src/DoomSummarizer/docs/CloudLLM.md](../src/DoomSummarizer/docs/CloudLLM.md)
 - **Sources**: [../src/DoomSummarizer/docs/Sources.md](../src/DoomSummarizer/docs/Sources.md)
 - **MCP server**: [../src/DoomSummarizer/docs/MCP.md](../src/DoomSummarizer/docs/MCP.md)

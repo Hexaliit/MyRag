@@ -203,8 +203,10 @@ classifier:
   min_type_threshold: 0.30         # Minimum weighted vote score for type detection
   count_boost: 0.05                # IDF count boost multiplier: max_sim + count_boost * log2(count) * idf
   complex_threshold: 0.50          # Min raw similarity for complex detection
-  vibe_threshold: 0.70             # Min raw similarity for vibe detection
-  composite_raw_threshold: 0.75    # Min raw similarity (consensus top-2) for composite detection
+  complex_min_ratio: 0.85          # Complex score must be >= 85% of best overall (prevents false escalation)
+  vibe_threshold: 0.60             # Min raw similarity for vibe detection
+  vibe_min_ratio: 0.85             # Vibe score must be >= 85% of best overall (prevents false vibes on neutral queries)
+  composite_raw_threshold: 0.82    # Min raw similarity (consensus top-2) for composite detection
 
   # Short-Query Feature Decomposition — structural features supplement embedding
   # for short queries where vocabulary overlap causes noisy similarity scores
