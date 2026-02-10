@@ -193,6 +193,30 @@ ingestion:
     heading: 0.10                    # Weight for title/heading overlap
     threshold: 0.80                  # Combined score threshold: pairs above this are pre-disposed
 
+# ─── Semantic Classifier ────────────────────────────────────────────
+# Controls the embedding-based multi-match weighted voting algorithm
+# used for deterministic pre-LLM query classification.
+# Tune these thresholds to adjust classification sensitivity.
+classifier:
+  min_candidate_threshold: 0.35    # Minimum cosine similarity to enter candidate set
+  min_topic_threshold: 0.35        # Minimum weighted vote score to include a topic
+  min_type_threshold: 0.30         # Minimum weighted vote score for type detection
+  count_boost: 0.05                # IDF count boost multiplier: max_sim + count_boost * log2(count) * idf
+  complex_threshold: 0.50          # Min raw similarity for complex detection
+  vibe_threshold: 0.70             # Min raw similarity for vibe detection
+  composite_raw_threshold: 0.75    # Min raw similarity (consensus top-2) for composite detection
+
+  # Short-Query Feature Decomposition — structural features supplement embedding
+  # for short queries where vocabulary overlap causes noisy similarity scores
+  short_query_max_words: 4         # Max word count to consider "short" (features apply more strongly)
+  howto_feature_boost: 0.12        # Type boost when "how do I", "set up" etc. detected
+  comparison_feature_boost: 0.12   # Type boost when "compare", "vs" etc. detected
+  default_roundup_boost: 0.08      # Type boost for roundup on short queries with no intent markers
+  qa_feature_boost: 0.10           # Type boost when "what is", "who is" etc. detected
+  search_only_feature_threshold: 0.60  # Min confidence for search_only feature override
+  synonym_expansion_enabled: false # MiniLM handles abbreviations well without expansion
+  short_query_confidence_scale: 0.85  # Scale type confidence down for short queries (signals uncertainty)
+
 # ─── Retrieval Expansion ─────────────────────────────────────────────
 expansion:
   concentration_threshold: 0.4      # Fraction of top-K from one source to trigger expansion

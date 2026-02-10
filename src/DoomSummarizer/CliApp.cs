@@ -151,6 +151,14 @@ public static class CliApp
                 .WithExample("plugin", "install", "Acme.CustomSource", "--version", "2.1.0")
                 .WithExample("plugin", "shorthands");
 
+            config.AddCommand<ExemplarsCommand>("exemplars")
+                .WithDescription("Manage query exemplars for embedding-based classification")
+                .WithExample("exemplars")
+                .WithExample("exemplars", "--list")
+                .WithExample("exemplars", "--init")
+                .WithExample("exemplars", "--rebuild")
+                .WithExample("exemplars", "--validate");
+
             config.AddBranch("list", list =>
             {
                 list.SetDescription("List stored data: documents, segments, or entities");
@@ -200,7 +208,7 @@ public static class CliApp
     private static bool IsKnownCommand(string arg)
     {
         if (arg is "scroll" or "setup" or "trends" or "config" or "crawl" or "show" or "sources" or "ask" or "man"
-            or "benchmark" or "page" or "plugin" or "list")
+            or "benchmark" or "page" or "plugin" or "list" or "exemplars")
             return true;
 
         // Check plugin-contributed commands

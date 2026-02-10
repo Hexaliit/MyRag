@@ -1,3 +1,4 @@
+using DoomSummarizer.Models;
 using DoomSummarizer.Services;
 
 namespace DoomSummarizer.Tests;
@@ -23,6 +24,19 @@ public class ConfigServiceTests
         var dir = Path.GetDirectoryName(path);
 
         Directory.Exists(dir).Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetVectorDbPath_RespectsConfigOverride()
+    {
+        var config = new DoomConfig
+        {
+            Storage = new StorageConfig { VectorDbPath = "~/custom/my-vectors.duckdb" }
+        };
+        var path = ConfigService.GetVectorDbPath(config);
+
+        path.Should().Contain("custom");
+        path.Should().EndWith("my-vectors.duckdb");
     }
 
     [Fact]

@@ -17,6 +17,23 @@ public partial class PromptInterpreter
     /// </summary>
     private static readonly Lazy<SourceRouter> SharedRouter = new(() => SourceRouter.Load());
 
+    /// <summary>
+    ///     Shared embedding-based query classifier. Initialized once on first use.
+    ///     Provides deterministic pre-LLM classification via cosine similarity.
+    ///     Configure via <see cref="ConfigureClassifier" /> before first use.
+    /// </summary>
+    private static QueryClassifier SharedClassifier = new();
+
+    /// <summary>
+    ///     Configure the shared classifier with custom thresholds from config.
+    ///     Must be called before the first InterpretAsync call for settings to take effect.
+    /// </summary>
+    public static void ConfigureClassifier(Models.ClassifierConfig config)
+    {
+        if (!SharedClassifier.IsInitialized)
+            SharedClassifier = new QueryClassifier(config);
+    }
+
     private static readonly string[] ImagePatterns =
     [
         "show me an image for ", "show me an image of ", "show me a picture of ",
@@ -45,21 +62,71 @@ public partial class PromptInterpreter
     }
 
     /// <summary>
+    ///     Minimum embedding match score to skip the sentinel LLM entirely.
+    ///     When embedding classification is this confident, we use it directly —
+    ///     sentinel is only needed for decomposition or weak matches.
+    /// </summary>
+    private const double StrongMatchThreshold = 0.55;
+
+    /// <summary>
     ///     Interpret a natural language prompt into fetch actions.
-    ///     Uses a structured sentinel LLM that outputs category weights and intent type
-    ///     instead of picking specific sources — source selection is heuristic.
-    ///     When NER context is provided, entity-specific search queries are injected
-    ///     for more precise API filtering.
+    ///     Strategy: embedding-first, sentinel-for-decomposition.
+    ///     1. Always run embedding classifier (deterministic, fast ONNX cosine sim)
+    ///     2. If strong match: use embedding categories + type directly, skip sentinel
+    ///     3. If weak match or composite query likely: call sentinel for decomposition only
+    ///     4. Sentinel output enriches with search_queries, subqueries, filter_keywords —
+    ///        but categories come from embeddings.
     /// </summary>
     public async Task<InterpretedPrompt> InterpretAsync(string prompt, QueryNerContext? nerContext,
         CancellationToken ct = default)
     {
-        // If Ollama isn't available, use keyword-based fallback
+        // Ensure router + classifier are initialized before classification
+        await GetRouterAsync();
+
+        // Pre-LLM: deterministic embedding-based classification (always runs when available)
+        Models.QueryClassification? embeddingClassification = null;
+        if (SharedClassifier.IsInitialized)
+        {
+            embeddingClassification = await SharedClassifier.ClassifyAsync(prompt, ct);
+            var vibeInfo = embeddingClassification.Vibe != null
+                ? $" | vibe={embeddingClassification.Vibe} ({embeddingClassification.VibeConfidence:F2})"
+                : "";
+            var compositeInfo = embeddingClassification.IsComposite ? " | COMPOSITE" : "";
+            var complexInfo = embeddingClassification.IsComplex ? " | COMPLEX" : "";
+            Debug.WriteLine(
+                $"Embedding classifier: {FormatCategories(embeddingClassification.Categories)} " +
+                $"| type={embeddingClassification.QueryType} ({embeddingClassification.QueryTypeConfidence:F2})" +
+                $"{vibeInfo}{compositeInfo}{complexInfo}" +
+                $" | best={embeddingClassification.BestMatch} ({embeddingClassification.BestMatchScore:F2})");
+        }
+
+        // Strong embedding match + non-composite query → skip sentinel entirely
+        var isStrongMatch = embeddingClassification is { BestMatchScore: >= StrongMatchThreshold }
+                            && embeddingClassification.Categories.Count > 0;
+        // Composite: embedding classifier already incorporates feature-based conjunction detection
+        var looksComposite = embeddingClassification?.IsComposite == true
+                             || prompt.Contains("; ", StringComparison.Ordinal);
+        // Complex queries benefit from sentinel even with strong match
+        var needsSentinel = looksComposite || embeddingClassification?.IsComplex == true;
+
+        if (isStrongMatch && !needsSentinel)
+        {
+            Debug.WriteLine("Embedding match strong — skipping sentinel LLM");
+            var router = await GetRouterAsync();
+            var intent = BuildIntentFromClassification(embeddingClassification!, prompt);
+            var result = SentinelSourceMapper.ToInterpretedPrompt(intent, router, prompt, nerContext);
+            result.EmbeddingClassification = embeddingClassification;
+            return result;
+        }
+
+        // Weak match or composite query → call sentinel for decomposition + refinement
         if (!await _ollama.IsAvailableAsync())
         {
-            var fallback = await FallbackInterpretAsync(prompt);
+            // No sentinel available — use embedding + keyword fallback
+            var fallback = await FallbackInterpretAsync(prompt, embeddingClassification);
             if (nerContext != null)
                 EnrichWithNerContext(fallback, nerContext);
+            fallback.EmbeddingClassification = embeddingClassification;
             return fallback;
         }
 
@@ -140,12 +207,22 @@ public partial class PromptInterpreter
                             Debug.WriteLine($"  - {sq}");
                     }
 
-                    if ((intent.Categories?.Count ?? 0) == 0)
+                    // Categories come from embeddings when available;
+                    // sentinel provides decomposition (search_queries, subqueries, filter_keywords)
+                    if (embeddingClassification?.Categories.Count > 0)
+                    {
                         Debug.WriteLine(
-                            $"Sentinel: accepted intent without categories (has {intent.SearchQueries?.Count ?? 0} queries, {intent.Subqueries?.Count ?? 0} subqueries)");
+                            $"Using embedding categories (sentinel for decomposition only)");
+                        intent = intent with { Categories = embeddingClassification.Categories };
+
+                        // Use embedding query type when it's confident
+                        if (embeddingClassification.QueryTypeConfidence > 0.45)
+                            intent = intent with { Intent = embeddingClassification.QueryType };
+                    }
 
                     var router = await GetRouterAsync();
                     var result = SentinelSourceMapper.ToInterpretedPrompt(intent, router, prompt, nerContext);
+                    result.EmbeddingClassification = embeddingClassification;
                     return result;
                 }
 
@@ -174,10 +251,45 @@ public partial class PromptInterpreter
                 Debug.WriteLine($"  at {trace}");
         }
 
-        var fallbackResult = await FallbackInterpretAsync(prompt);
+        var fallbackResult = await FallbackInterpretAsync(prompt, embeddingClassification);
         if (nerContext != null)
             EnrichWithNerContext(fallbackResult, nerContext);
+        fallbackResult.EmbeddingClassification = embeddingClassification;
         return fallbackResult;
+    }
+
+    /// <summary>
+    ///     Build a SentinelIntent from embedding classification alone (no LLM needed).
+    ///     Used when the embedding match is strong enough to skip the sentinel.
+    /// </summary>
+    private static SentinelIntent BuildIntentFromClassification(
+        Models.QueryClassification classification, string prompt)
+    {
+        var searchTerms = SentinelSourceMapper.ExtractTopicTerms(prompt);
+        var searchQueries = new List<string>();
+        if (!string.IsNullOrEmpty(searchTerms))
+            searchQueries.Add(searchTerms);
+
+        // Use embedding vibe when detected, otherwise neutral
+        var tone = classification.Vibe ?? "neutral";
+
+        return new SentinelIntent
+        {
+            Intent = classification.QueryType,
+            Categories = classification.Categories,
+            Tone = tone,
+            SearchQueries = searchQueries,
+            FilterKeywords = searchTerms?.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList() ?? [],
+            ExplicitSources = classification.SourceHints ?? []
+        };
+    }
+
+    private static string FormatCategories(Dictionary<string, double> categories)
+    {
+        return string.Join(", ", categories
+            .OrderByDescending(kv => kv.Value)
+            .Take(5)
+            .Select(kv => $"{kv.Key}={kv.Value:F2}"));
     }
 
     /// <summary>
@@ -229,9 +341,12 @@ public partial class PromptInterpreter
     }
 
     /// <summary>
-    ///     Keyword-based fallback when LLM isn't available
+    ///     Keyword-based fallback when LLM isn't available.
+    ///     When embedding classification is available, uses it for topic routing
+    ///     instead of keyword matching alone.
     /// </summary>
-    private async Task<InterpretedPrompt> FallbackInterpretAsync(string prompt)
+    private async Task<InterpretedPrompt> FallbackInterpretAsync(
+        string prompt, Models.QueryClassification? embeddingClassification = null)
     {
         var lower = prompt.ToLowerInvariant();
         var result = new InterpretedPrompt
@@ -281,21 +396,46 @@ public partial class PromptInterpreter
                 break;
             }
 
-        // Use YAML-driven topic routing for category detection
-        var router = await GetRouterAsync();
-        var detectedTopic = await router.DetectTopicAsync(prompt);
-        if (detectedTopic != "default")
-        {
-            var routing = router.RouteByTopic(detectedTopic);
-            // Map YAML source names to CLI source identifiers
-            foreach (var src in routing.Sources)
-            {
-                var mapped = SentinelSourceMapper.MapYamlSourceToCli(src, routing, prompt);
-                if (mapped != null && !result.Sources.Contains(mapped))
-                    result.Sources.Add(mapped);
-            }
+        // Enrich vibe from embedding when keyword detection returned neutral
+        if (result.Vibe == "neutral" && embeddingClassification?.Vibe != null
+            && embeddingClassification.VibeConfidence > 0.50)
+            result.Vibe = embeddingClassification.Vibe;
 
-            result.Topics.Add(detectedTopic);
+        // If embedding classification has categories, use them for routing (deterministic)
+        var router = await GetRouterAsync();
+        if (embeddingClassification?.Categories.Count > 0)
+        {
+            Debug.WriteLine("Fallback: using embedding categories for routing");
+            var intent = BuildIntentFromClassification(embeddingClassification, prompt);
+            var embeddingResult = SentinelSourceMapper.ToInterpretedPrompt(intent, router, prompt);
+            // Merge embedding-derived sources and topics into our result
+            foreach (var src in embeddingResult.Sources)
+                if (!result.Sources.Contains(src))
+                    result.Sources.Add(src);
+            foreach (var topic in embeddingResult.Topics)
+                if (!result.Topics.Contains(topic))
+                    result.Topics.Add(topic);
+            foreach (var sq in embeddingResult.SearchQueries)
+                if (!result.SearchQueries.Contains(sq))
+                    result.SearchQueries.Add(sq);
+        }
+        else
+        {
+            // No embedding — fall back to keyword-based topic detection
+            var detectedTopic = await router.DetectTopicAsync(prompt);
+            if (detectedTopic != "default")
+            {
+                var routing = router.RouteByTopic(detectedTopic);
+                // Map YAML source names to CLI source identifiers
+                foreach (var src in routing.Sources)
+                {
+                    var mapped = SentinelSourceMapper.MapYamlSourceToCli(src, routing, prompt);
+                    if (mapped != null && !result.Sources.Contains(mapped))
+                        result.Sources.Add(mapped);
+                }
+
+                result.Topics.Add(detectedTopic);
+            }
         }
 
         // Detect sources
@@ -411,6 +551,9 @@ public partial class PromptInterpreter
         // Initialize semantic embeddings if not yet done and embedding service is available
         if (!router.HasEmbeddings && _embedding != null)
             await router.InitializeEmbeddingsAsync(_embedding);
+        // Initialize query classifier if not yet done
+        if (!SharedClassifier.IsInitialized && _embedding != null)
+            await SharedClassifier.InitializeAsync(_embedding);
         return router;
     }
 
@@ -515,5 +658,12 @@ public record InterpretedPrompt
     ///     When Global or Connective, entity graph enrichment is auto-enabled.
     /// </summary>
     public GraphScope GraphScope { get; set; } = GraphScope.Local;
+
+    /// <summary>
+    ///     Embedding-based classification result (deterministic, pre-LLM).
+    ///     Available when QueryClassifier is initialized with exemplars.
+    ///     Contains topic categories, query type, and best-matching exemplar.
+    /// </summary>
+    public Models.QueryClassification? EmbeddingClassification { get; set; }
 }
 

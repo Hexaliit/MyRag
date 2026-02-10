@@ -323,17 +323,25 @@ public static class ConfigService
 
     public static string GetDbPath(DoomConfig config)
     {
-        var path = config.Storage.DbPath.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        var raw = config.Storage.DbPath;
+        var path = raw.StartsWith('~')
+            ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + raw[1..]
+            : raw;
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
         return path;
     }
 
-    public static string GetVectorDbPath()
+    public static string GetVectorDbPath(DoomConfig? config = null)
     {
-        var path = Path.Combine(ConfigDir, "vectors.duckdb");
-        Directory.CreateDirectory(ConfigDir);
+        var raw = config?.Storage.VectorDbPath ?? "~/.doomsummarizer/vectors.duckdb";
+        var path = raw.StartsWith('~')
+            ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + raw[1..]
+            : raw;
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
         return path;
     }
 }

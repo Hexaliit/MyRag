@@ -14,24 +14,47 @@ public class DuckDbEntityGraphStore : IEntityGraphStore
 {
     private readonly string _dbPath;
     private readonly int _dim;
+    private readonly bool _ownsConnection;
     private DuckDBConnection? _conn;
 
+    /// <summary>
+    ///     Create a new entity graph store with its own connection.
+    /// </summary>
     public DuckDbEntityGraphStore(string dbPath, int embeddingDimension = 384)
     {
         _dbPath = dbPath;
         _dim = embeddingDimension;
+        _ownsConnection = true;
+    }
+
+    /// <summary>
+    ///     Create a new entity graph store sharing an existing DuckDB connection.
+    ///     The caller is responsible for the connection's lifetime.
+    /// </summary>
+    public DuckDbEntityGraphStore(DuckDBConnection existingConnection, int embeddingDimension = 384)
+    {
+        _dbPath = "";
+        _dim = embeddingDimension;
+        _ownsConnection = false;
+        _conn = existingConnection;
     }
 
     public async Task InitializeAsync()
     {
-        var dir = Path.GetDirectoryName(_dbPath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
+        if (_conn == null)
+        {
+            // Own connection path — open a new connection
+            var dir = Path.GetDirectoryName(_dbPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
 
-        _conn = new DuckDBConnection($"Data Source={_dbPath}");
-        await _conn.OpenAsync();
+            _conn = new DuckDBConnection($"Data Source={_dbPath}");
+            await _conn.OpenAsync();
 
-        await ExecAsync("INSTALL vss; LOAD vss; SET hnsw_enable_experimental_persistence = true;");
+            await ExecAsync("INSTALL vss; LOAD vss; SET hnsw_enable_experimental_persistence = true;");
+        }
+
+        // Always create tables (idempotent)
         await CreateTablesAsync();
     }
 
@@ -516,7 +539,7 @@ public class DuckDbEntityGraphStore : IEntityGraphStore
 
     public async ValueTask DisposeAsync()
     {
-        if (_conn != null)
+        if (_conn != null && _ownsConnection)
         {
             await _conn.CloseAsync();
             await _conn.DisposeAsync();

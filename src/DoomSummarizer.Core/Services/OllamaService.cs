@@ -452,16 +452,21 @@ public partial class OllamaService
             var bestRelevance = sortedItems.Count > 0 ? sortedItems[0].relevance : 0.0;
             var relevanceFloor = Math.Max(0.15, bestRelevance * 0.30); // at least 30% of top item
 
-            // Deduplicate by URL (keep the higher-relevance duplicate, which comes first after sort)
-            // For unresolved Google News URLs, deduplicate by title instead
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Deduplicate by URL, normalized title, and filter homepage/section pages.
+            // Keeps the higher-relevance duplicate (comes first after sort).
+            var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenNormTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var topItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>();
             foreach (var item in sortedItems)
             {
                 if (item.relevance < relevanceFloor) break; // sorted descending, so all remaining are below floor
-                var key = item.url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
+                if (IsHomepageTitle(item.title)) continue; // skip homepage/section pages
+                var urlKey = item.url.Contains("news.google.com", StringComparison.OrdinalIgnoreCase)
                     ? item.title : item.url;
-                if (!seen.Add(key)) continue;
+                if (!seenUrls.Add(urlKey)) continue;
+                // Near-dedup by normalized title (strips " - CNN" etc.)
+                var normTitle = NormalizeTitle(item.title);
+                if (!seenNormTitles.Add(normTitle)) continue;
                 topItems.Add(item);
                 if (topItems.Count >= 15) break;
             }
@@ -660,10 +665,33 @@ public partial class OllamaService
         }
         else
         {
-            // Digest mode: group by topic, but include full content evidence
+            // Digest mode: group by topic, include full content evidence, deduplicate
             var (digestContentByUrl, digestContentByTitle) = ContentItemHelpers.BuildContentLookups(contentItems);
 
-            var byTopic = items
+            // Pre-filter: remove homepage/section page items that lack real article content.
+            // These produce garbage like "CNN provides the latest news and breaking news coverage".
+            var filteredItems = items.Where(item =>
+            {
+                // Skip items whose title is clearly a site/section page (e.g., "Latest News from CNN")
+                if (IsHomepageTitle(item.title)) return false;
+                // Skip items with no content AND summary is just a site description
+                var ci = ContentItemHelpers.Resolve(digestContentByUrl, digestContentByTitle, item.url, item.title);
+                if (string.IsNullOrEmpty(ci?.Content) && IsSiteDescription(item.summary))
+                    return false;
+                return true;
+            }).ToList();
+
+            // Near-dedup by normalized title: collapse same-story-different-outlet
+            var seenNormTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var dedupedItems = new List<(string title, string summary, string topic, float sentiment, string url, double relevance)>();
+            foreach (var item in filteredItems.OrderByDescending(i => i.relevance))
+            {
+                var normTitle = NormalizeTitle(item.title);
+                if (seenNormTitles.Add(normTitle))
+                    dedupedItems.Add(item);
+            }
+
+            var byTopic = dedupedItems
                 .GroupBy(x => x.topic)
                 .OrderByDescending(g => g.Max(i => i.relevance))
                 .Take(8)
@@ -681,14 +709,30 @@ public partial class OllamaService
                 itemsList.AppendLine($"\n## {group.Key.ToUpperInvariant()}");
                 foreach (var item in group.OrderByDescending(i => i.relevance).Take(5))
                 {
-                    evidenceIndex++;
-                    itemsList.AppendLine($"- [{evidenceIndex}] {item.title}: {item.summary}");
-
                     // Resolve full content for evidence block
                     var contentItem = ContentItemHelpers.Resolve(
                         digestContentByUrl, digestContentByTitle, item.url, item.title);
 
                     var rawContent = contentItem?.Content;
+
+                    // Use LinkedPages content as fallback when main content is empty
+                    if (string.IsNullOrEmpty(rawContent) && contentItem?.LinkedPages is { Count: > 0 })
+                    {
+                        var linkedContent = contentItem.LinkedPages
+                            .Where(lp => !string.IsNullOrEmpty(lp.Content))
+                            .Select(lp => lp.Content!)
+                            .FirstOrDefault();
+                        if (!string.IsNullOrEmpty(linkedContent))
+                            rawContent = linkedContent;
+                    }
+
+                    // Skip items that have no real evidence (just a bare title or site description)
+                    if (string.IsNullOrEmpty(rawContent) && IsSiteDescription(item.summary))
+                        continue;
+
+                    evidenceIndex++;
+                    itemsList.AppendLine($"- [{evidenceIndex}] {item.title}: {item.summary}");
+
                     digestEvidence.AppendLine($"\n[{evidenceIndex}] {item.title}");
                     if (!string.IsNullOrEmpty(rawContent))
                     {
@@ -728,6 +772,126 @@ public partial class OllamaService
 
         var systemPrompt = BuildSynthesisSystemPrompt(vibe, vibePrompt);
         return await GenerateAsync(prompt, systemPrompt, 0.6, ct);
+    }
+
+    // --- Digest filtering helpers (static arrays avoid per-call allocation) ---
+
+    private static readonly string[] HomepagePatterns =
+    [
+        "latest news", "top stories", "news, weather", "news and breaking",
+        "news coverage", "homepage", "front page", "technology section"
+    ];
+
+    /// <summary>
+    ///     Generic words that appear in site taglines but not in real article headlines.
+    ///     Used to detect "[Brand] - [generic tagline]" homepages.
+    /// </summary>
+    private static readonly HashSet<string> TaglineWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "news", "technology", "tech", "business", "science", "culture", "startup",
+        "breaking", "latest", "reviews", "information", "updates", "section",
+        "and", "the", "in", "of", "for", "|", "-", "—", "–", "·", ","
+    };
+
+    private static readonly string[] SiteDescriptionPatterns =
+    [
+        "provides the latest", "provides breaking", "offers breaking",
+        "offers the latest", "provides news", "offers news",
+        "provides live", "offers live coverage",
+        "delivers the latest", "your source for",
+        "provides updates on", "the latest headlines"
+    ];
+
+    private static readonly string[] TitleSeparators = [" - ", " | ", " — ", " – ", " · "];
+
+    /// <summary>
+    ///     Check if a title looks like a homepage or section page (not a specific article).
+    ///     Only matches short, generic titles — real headlines with "breaking news:" followed
+    ///     by specific content are NOT filtered.
+    /// </summary>
+    public static bool IsHomepageTitle(string title)
+    {
+        var t = title.Trim();
+        var lower = t.ToLowerInvariant();
+        var words = t.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var wordCount = words.Length;
+
+        // "Breaking News: Major Earthquake..." is a real headline (has colon + detail)
+        // "Breaking News | CNN" is a homepage (no detail after separator)
+        if (lower.Contains("breaking news") || lower.Contains("news from"))
+        {
+            // Only filter if there's no substantive content after the pattern
+            // (i.e., short title with no colon/detail)
+            return wordCount < 8 && !lower.Contains(':');
+        }
+
+        // Direct pattern match (e.g., "latest news", "top stories")
+        if (HomepagePatterns.Any(p => lower.Contains(p)) && wordCount < 10)
+            return true;
+
+        // Detect "[Brand] [sep] [generic tagline]" pattern:
+        // e.g., "TechCrunch | Startup and Technology News"
+        // Find the rightmost separator; if everything after it is generic tagline words, it's a homepage.
+        foreach (var sep in TitleSeparators)
+        {
+            var sepIdx = t.LastIndexOf(sep, StringComparison.Ordinal);
+            if (sepIdx <= 0) continue;
+
+            var afterSep = t[(sepIdx + sep.Length)..].Trim();
+            if (string.IsNullOrEmpty(afterSep)) continue;
+
+            var afterWords = afterSep.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            // All words after separator must be generic tagline words
+            if (afterWords.Length >= 2 && afterWords.All(w => TaglineWords.Contains(w)))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Check if a summary reads like a site description rather than article content.
+    ///     Also returns true for empty/null summaries (no useful evidence).
+    /// </summary>
+    public static bool IsSiteDescription(string summary)
+    {
+        if (string.IsNullOrEmpty(summary)) return true;
+        var lower = summary.ToLowerInvariant();
+        return SiteDescriptionPatterns.Any(p => lower.Contains(p));
+    }
+
+    /// <summary>
+    ///     Normalize a title for near-dedup: strip source attribution (once) and punctuation.
+    ///     Returns empty string for very short results (caller should skip dedup for those).
+    /// </summary>
+    private static string NormalizeTitle(string title)
+    {
+        var t = title.Trim();
+
+        // Strip source attribution ONCE: find the rightmost separator and strip from there.
+        // This avoids cumulative stripping (e.g., "A - B | C - CNN" → "A - B | C", not "A").
+        var bestIdx = -1;
+        foreach (var sep in TitleSeparators)
+        {
+            var idx = t.LastIndexOf(sep, StringComparison.Ordinal);
+            if (idx > 0 && idx > t.Length * 0.4 && idx > bestIdx)
+                bestIdx = idx;
+        }
+
+        if (bestIdx > 0)
+            t = t[..bestIdx];
+
+        // Lowercase and strip non-alphanumeric for fuzzy match
+        var normalized = new string(t.ToLowerInvariant()
+            .Where(c => char.IsLetterOrDigit(c) || c == ' ')
+            .ToArray()).Trim();
+
+        // Guard: if normalized result is too short (< 3 words), it's too collision-prone
+        // for title-based dedup. Return original lowered title to fall through to URL dedup.
+        if (normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 3)
+            return title.ToLowerInvariant().Trim();
+
+        return normalized;
     }
 
     /// <summary>

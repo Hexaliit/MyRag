@@ -186,6 +186,8 @@ public sealed class ItemProcessor : IDisposable
     /// </summary>
     public async Task PersistEntitiesAsync(ContentItem item, List<NerEntity> entities)
     {
+        if (_entityStore == null) return;
+
         var deduped = entities
             .GroupBy(e => e.Text.ToLowerInvariant())
             .Select(g => g.MaxBy(e => e.Confidence)!)
@@ -196,14 +198,14 @@ public sealed class ItemProcessor : IDisposable
         {
             var entityId = KnowledgeGraphService.GenerateEntityId(entity.Text, entity.Type);
             entityIds.Add(entityId);
-            await _entityStore!.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
-            await _entityStore!.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence, item.Title);
+            await _entityStore.UpsertEntityAsync(entityId, entity.Text, entity.Type, entity.Confidence);
+            await _entityStore.UpsertEntityMentionAsync(entityId, item.Id, entity.Confidence, item.Title);
         }
 
         // Build co-occurrence edges
         for (var i = 0; i < entityIds.Count; i++)
         for (var j = i + 1; j < entityIds.Count; j++)
-            await _entityStore!.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
+            await _entityStore.UpsertRelationshipAsync(entityIds[i], entityIds[j]);
     }
 
     /// <summary>

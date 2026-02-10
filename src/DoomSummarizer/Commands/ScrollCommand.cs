@@ -91,33 +91,23 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         {
             await boot.Storage.ClearAllAsync();
 
-            // Also clear the DuckDB vector store (knowledge graph, HNSW embeddings)
-            var clearVectorDbPath = ConfigService.GetVectorDbPath();
-            if (File.Exists(clearVectorDbPath))
+            // Delete the DuckDB vector store file directly.
+            // Opening connections just to clear tables is fragile (DuckDB.NET
+            // doesn't support multiple connections to the same file per process).
+            var clearVectorDbPath = ConfigService.GetVectorDbPath(boot.Config);
+            foreach (var ext in new[] { "", ".wal" })
             {
-                try
+                var file = clearVectorDbPath + ext;
+                if (File.Exists(file))
                 {
-                    await using var vs = new DuckDbVectorStore(clearVectorDbPath);
-                    await vs.InitializeAsync();
-                    await vs.ClearAllAsync();
-                    AnsiConsole.MarkupLine("[green]Vector store cleared (HNSW embeddings)[/]");
-                }
-                catch (Exception ex)
-                {
-                    AnsiConsole.MarkupLine($"[yellow]Could not clear vector store: {Markup.Escape(ex.Message)}[/]");
-                }
-
-                try
-                {
-                    await using var es = new DuckDbEntityGraphStore(clearVectorDbPath);
-                    await es.InitializeAsync();
-                    await es.ClearAllAsync();
-                    AnsiConsole.MarkupLine("[green]Entity graph store cleared (entities, relationships, profiles)[/]");
-                }
-                catch (Exception ex)
-                {
-                    AnsiConsole.MarkupLine(
-                        $"[yellow]Could not clear entity graph store: {Markup.Escape(ex.Message)}[/]");
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception ex)
+                    {
+                        AnsiConsole.MarkupLine($"[yellow]Could not delete {Markup.Escape(Path.GetFileName(file))}: {Markup.Escape(ex.Message)}[/]");
+                    }
                 }
             }
 
@@ -130,7 +120,7 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
         if (await boot.Storage.IsFtsIndexEmptyAsync()) await BackfillFtsIndexAsync(boot.Storage, settings.Quiet);
 
         // Initialize DuckDB vector store and entity graph store if needed
-        var vectorDbPath = ConfigService.GetVectorDbPath();
+        var vectorDbPath = ConfigService.GetVectorDbPath(boot.Config);
         if (File.Exists(vectorDbPath) || settings.Graph || settings.BackfillEntityProfiles)
             await boot.InitializeEntityStoresAsync();
 
@@ -343,6 +333,33 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                             sq.Contains(subquery, StringComparison.OrdinalIgnoreCase) ||
                             subquery.Contains(sq, StringComparison.OrdinalIgnoreCase)))
                         interpreted.SearchQueries.Add(subquery);
+
+            // Show embedding classification in debug mode
+            if (settings.DebugPipeline && interpreted.EmbeddingClassification != null)
+            {
+                var ec = interpreted.EmbeddingClassification;
+                var embCats = string.Join(", ", ec.Categories
+                    .OrderByDescending(kv => kv.Value).Take(5)
+                    .Select(kv => $"{kv.Key}={kv.Value:F2}"));
+                var vibeStr = ec.Vibe != null ? $" | vibe={ec.Vibe} ({ec.VibeConfidence:F2})" : "";
+                var flagsStr = (ec.IsComposite ? " | composite" : "") + (ec.IsComplex ? " | complex" : "");
+                AnsiConsole.MarkupLine(
+                    $"[grey]Embedding: {Markup.Escape(embCats)} | type={ec.QueryType} ({ec.QueryTypeConfidence:F2}){Markup.Escape(vibeStr)}{flagsStr}[/]");
+                if (ec.TopMatches.Count > 0)
+                {
+                    var topStr = string.Join(", ", ec.TopMatches.Take(3)
+                        .Select(m => $"\"{Markup.Escape(m.Question)}\" ({m.Score:F2})"));
+                    AnsiConsole.MarkupLine($"[grey]  Top matches: {topStr}[/]");
+                }
+                if (interpreted.SentinelIntent != null)
+                {
+                    var sentCats = string.Join(", ", (interpreted.SentinelIntent.Categories ?? new())
+                        .OrderByDescending(kv => kv.Value).Take(5)
+                        .Select(kv => $"{kv.Key}={kv.Value:F2}"));
+                    AnsiConsole.MarkupLine(
+                        $"[grey]Final: {Markup.Escape(sentCats)} | intent={interpreted.SentinelIntent.Intent} | vibe={interpreted.Vibe}[/]");
+                }
+            }
 
             // Use interpreted vibe unless explicitly overridden
             if (settings.Vibe == "neutral" && interpreted.Vibe != "neutral")
@@ -1260,6 +1277,32 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                     AnsiConsole.MarkupLine($"[grey]Source filter: {preFilterCount} → {uniqueItems.Count} items[/]");
             }
 
+            // Stage 2.1b: Filter out homepage/section pages and site descriptions
+            // These are aggregator homepages (Engadget, TechCrunch, etc.) and items whose
+            // content is just "X provides the latest news..." rather than actual articles.
+            if (!isLocalMode)
+            {
+                var preHomepageCount = uniqueItems.Count;
+                uniqueItems = uniqueItems.Where(item =>
+                {
+                    if (DoomSummarizer.Services.OllamaService.IsHomepageTitle(item.Title)) return false;
+                    // Filter site descriptions only when there's no actual article content
+                    if (DoomSummarizer.Services.OllamaService.IsSiteDescription(item.Summary ?? "")
+                        && string.IsNullOrEmpty(item.Content)) return false;
+                    // URL-based homepage detection: short paths = homepage/section page
+                    if (IsHomepageUrl(item.Url)) return false;
+                    return true;
+                }).ToList();
+
+                if (uniqueItems.Count < preHomepageCount)
+                {
+                    fetchTask.Description = $"[cyan]Homepage filter: {uniqueItems.Count} items[/]";
+                    if (settings.DebugPipeline)
+                        AnsiConsole.MarkupLine(
+                            $"[grey]Homepage/site-description filter: {preHomepageCount} → {uniqueItems.Count} items[/]");
+                }
+            }
+
             // Stage 2.2: KB enrichment (web queries only) — Lucene + Embeddings
             // Uses sentinel-generated Lucene query + semantic similarity for better recall
             if (!isLocalMode && uniqueItems.Count > 0)
@@ -1441,9 +1484,14 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 var preScoreCount = uniqueItems.Count;
 
                 // Broad queries (news/roundup) use a lower gate to avoid over-filtering
-                // diverse results; focused queries (qa/howto/research) use the strict default
-                var isBroadIntent = interpreted?.SentinelIntent?.Intent is "news" or "roundup" or "general";
-                float? gateOverride = isBroadIntent ? 0.20f : null;
+                // diverse results; focused queries (qa/howto/research) use the strict default.
+                // Check sentinel intent, earlyQueryType, AND raw heuristic (sentinel may override
+                // Roundup→Explainer for "Summarize X" queries that are really roundups).
+                var rawQueryType = QueryTypeDetector.Detect(queryText);
+                var isBroadIntent = interpreted?.SentinelIntent?.Intent is "news" or "roundup" or "general"
+                                    || earlyQueryType is QueryType.Roundup
+                                    || rawQueryType is QueryType.Roundup;
+                float? gateOverride = isBroadIntent ? 0.15f : null;
 
                 scoringOpts = new ScoringOptions
                 {
@@ -1667,6 +1715,68 @@ public sealed partial class ScrollCommand : AsyncCommand<ScrollCommand.Settings>
                 // Capture stats for JSON output
                 linkCacheHits = linkService.CacheHits;
                 linksSkippedByRelevance = linkService.LinksSkippedByRelevance;
+            }
+
+            // Stage 2.5d: Second-pass content enrichment for top items still lacking content.
+            // Catches items from search APIs (Brave, Google News) that only had short snippets.
+            {
+                var needsContent = uniqueItems
+                    .Take(settings.Limit)
+                    .Where(i => string.IsNullOrEmpty(i.Content) && !string.IsNullOrEmpty(i.Url))
+                    .ToList();
+
+                if (needsContent.Count > 0)
+                {
+                    var enrichTask = ctx.AddTask("[cyan]Enriching content[/]", maxValue: needsContent.Count);
+                    var enriched = 0;
+
+                    // Fetch in parallel with a concurrency limit
+                    using var semaphore = new SemaphoreSlim(4);
+                    var tasks = needsContent.Select(async item =>
+                    {
+                        await semaphore.WaitAsync(cancellationToken);
+                        try
+                        {
+                            var content = await ContentItemHelpers.FetchLinkContentAsync(
+                                httpClient, item.Url!, cancellationToken);
+                            if (!string.IsNullOrEmpty(content))
+                            {
+                                item.Content = content;
+                                item.IsEnriched = true;
+                                Interlocked.Increment(ref enriched);
+                                // Re-embed with full content
+                                var textToEmbed = $"{item.Title} {content}".Trim();
+                                item.Embedding = await boot.Embedding.EmbedAsync(textToEmbed, cancellationToken);
+                            }
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch
+                        {
+                            // Non-fatal: item keeps its existing snippet
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                            enrichTask.Increment(1);
+                        }
+                    }).ToList(); // Materialize to start all tasks before awaiting
+
+                    try
+                    {
+                        await Task.WhenAll(tasks);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+
+                    enrichTask.Description = enriched > 0
+                        ? $"[green]Enriched {enriched}/{needsContent.Count} items with full content[/]"
+                        : "[grey]No additional content found[/]";
+                }
             }
 
             // In-corpus link authority ("silly PageRank"):

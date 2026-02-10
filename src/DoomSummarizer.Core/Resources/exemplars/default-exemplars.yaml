@@ -1,0 +1,2003 @@
+# Default Query Exemplars for Embedding-Based Classification
+# Each exemplar has: question text, topic area, query type, and optional source/vibe/complexity hints.
+# Users can add their own YAML files to ~/.doomsummarizer/exemplars/ to extend or override.
+# After editing, run: doomsummarizer prompt-cache rebuild
+
+exemplars:
+  # ══════════════════════════════════════════════
+  # ── Technology ──
+  # ══════════════════════════════════════════════
+  - question: "What's the latest tech news?"
+    topic: technology
+    type: roundup
+
+  - question: "Show me programming and software articles"
+    topic: technology
+    type: roundup
+
+  - question: "Latest developments in computer hardware"
+    topic: technology
+    type: roundup
+
+  - question: "What are developers working on?"
+    topic: programming
+    type: roundup
+
+  - question: "Top technology stories this week"
+    topic: technology
+    type: roundup
+
+  - question: "New gadgets and consumer electronics news"
+    topic: technology
+    type: roundup
+
+  - question: "What's new in cloud computing?"
+    topic: technology
+    type: roundup
+
+  - question: "Latest mobile and smartphone news"
+    topic: technology
+    type: roundup
+
+  - question: "How do I set up Docker?"
+    topic: technology
+    type: howto
+
+  - question: "Step by step guide for Kubernetes deployment"
+    topic: technology
+    type: howto
+
+  - question: "How to configure nginx reverse proxy"
+    topic: technology
+    type: howto
+
+  - question: "Tutorial for setting up a CI/CD pipeline"
+    topic: technology
+    type: howto
+
+  - question: "Compare React vs Vue for a new project"
+    topic: technology
+    type: comparison
+
+  - question: "What's the difference between REST and GraphQL?"
+    topic: technology
+    type: comparison
+
+  - question: "Compare AWS vs Azure vs GCP for hosting"
+    topic: technology
+    type: comparison
+
+  - question: "Deep analysis of the state of web development"
+    topic: technology
+    type: deep_dive
+
+  # ══════════════════════════════════════════════
+  # ── AI / Machine Learning ──
+  # ══════════════════════════════════════════════
+  - question: "What's new in artificial intelligence?"
+    topic: ai
+    type: roundup
+
+  - question: "Latest machine learning research papers"
+    topic: ai
+    type: roundup
+
+  - question: "ChatGPT and LLM news today"
+    topic: ai
+    type: roundup
+
+  - question: "AI model releases and announcements this week"
+    topic: ai
+    type: roundup
+
+  - question: "What are the latest AI startups doing?"
+    topic: ai
+    type: roundup
+
+  - question: "News about large language models and generative AI"
+    topic: ai
+    type: roundup
+
+  - question: "Latest developments in computer vision and image generation"
+    topic: ai
+    type: roundup
+
+  - question: "How does transformer architecture work?"
+    topic: ai
+    type: qa
+
+  - question: "What is retrieval augmented generation?"
+    topic: ai
+    type: qa
+
+  - question: "What are AI agents and how do they work?"
+    topic: ai
+    type: qa
+
+  - question: "Explain the difference between GPT and BERT"
+    topic: ai
+    type: comparison
+
+  - question: "Compare open source AI models vs proprietary ones"
+    topic: ai
+    type: comparison
+
+  - question: "In-depth analysis of recent AI safety developments"
+    topic: ai
+    type: deep_dive
+
+  - question: "How might the EU AI Act affect open source development in practice?"
+    topic: ai
+    type: deep_dive
+    complexity: complex
+
+  - question: "What are the long-term implications of artificial general intelligence?"
+    topic: ai
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Programming ──
+  # ══════════════════════════════════════════════
+  - question: "Best new open source projects this week"
+    topic: programming
+    type: roundup
+
+  - question: "What's trending on Hacker News?"
+    topic: programming
+    type: roundup
+    sources: [hn]
+
+  - question: "Latest .NET and C# developments"
+    topic: programming
+    type: roundup
+
+  - question: "New programming language features and releases"
+    topic: programming
+    type: roundup
+
+  - question: "What's new in the Rust programming community?"
+    topic: programming
+    type: roundup
+
+  - question: "Latest Python ecosystem news and updates"
+    topic: programming
+    type: roundup
+
+  - question: "JavaScript and TypeScript community updates"
+    topic: programming
+    type: roundup
+
+  - question: "How to write unit tests in Python"
+    topic: programming
+    type: howto
+
+  - question: "How do I create a REST API in C#?"
+    topic: programming
+    type: howto
+
+  - question: "Guide to writing clean code and refactoring"
+    topic: programming
+    type: howto
+
+  - question: "What is dependency injection?"
+    topic: programming
+    type: qa
+
+  - question: "What are design patterns in software engineering?"
+    topic: programming
+    type: qa
+
+  - question: "Compare Go vs Rust for systems programming"
+    topic: programming
+    type: comparison
+
+  # ══════════════════════════════════════════════
+  # ── Entertainment ──
+  # ══════════════════════════════════════════════
+  - question: "Summarize the best celebrity gossip stories"
+    topic: entertainment
+    type: roundup
+
+  - question: "What's happening in movies and TV?"
+    topic: entertainment
+    type: roundup
+
+  - question: "Latest entertainment and celebrity news"
+    topic: entertainment
+    type: roundup
+
+  - question: "New movie trailers and release dates"
+    topic: entertainment
+    type: roundup
+
+  - question: "Music industry news and album releases"
+    topic: entertainment
+    type: roundup
+
+  - question: "What's trending in pop culture right now?"
+    topic: entertainment
+    type: roundup
+
+  - question: "Latest streaming service shows and originals"
+    topic: entertainment
+    type: roundup
+
+  - question: "Who won the Oscars this year?"
+    topic: entertainment
+    type: qa
+
+  - question: "What's the best new show on Netflix?"
+    topic: entertainment
+    type: qa
+
+  - question: "When does the new season premiere?"
+    topic: entertainment
+    type: qa
+
+  - question: "Compare the top streaming platforms"
+    topic: entertainment
+    type: comparison
+
+  # ══════════════════════════════════════════════
+  # ── Science ──
+  # ══════════════════════════════════════════════
+  - question: "Latest scientific discoveries this week"
+    topic: science
+    type: roundup
+
+  - question: "What is quantum computing?"
+    topic: science
+    type: qa
+
+  - question: "How does CRISPR gene editing work?"
+    topic: science
+    type: qa
+
+  - question: "Recent breakthroughs in physics research"
+    topic: science
+    type: roundup
+
+  - question: "New research published in Nature and Science journals"
+    topic: science
+    type: roundup
+
+  - question: "Biology and genetics research news"
+    topic: science
+    type: roundup
+
+  - question: "What's happening in chemistry and materials science?"
+    topic: science
+    type: roundup
+
+  - question: "Comprehensive overview of fusion energy progress"
+    topic: science
+    type: deep_dive
+
+  - question: "How does quantum entanglement actually work?"
+    topic: science
+    type: deep_dive
+
+  - question: "What are the implications of recent dark matter research?"
+    topic: science
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Health ──
+  # ══════════════════════════════════════════════
+  - question: "Health news and medical breakthroughs"
+    topic: health
+    type: roundup
+
+  - question: "What are the symptoms of long COVID?"
+    topic: health
+    type: qa
+
+  - question: "Latest vaccine research developments"
+    topic: health
+    type: roundup
+
+  - question: "How does the immune system fight infections?"
+    topic: health
+    type: qa
+
+  - question: "Mental health awareness and wellness news"
+    topic: health
+    type: roundup
+
+  - question: "New treatments and therapies in clinical trials"
+    topic: health
+    type: roundup
+
+  - question: "Nutrition and diet research findings"
+    topic: health
+    type: roundup
+
+  - question: "What's the latest on pandemic preparedness?"
+    topic: health
+    type: qa
+
+  - question: "How to improve sleep quality?"
+    topic: health
+    type: howto
+
+  # ══════════════════════════════════════════════
+  # ── Business / Finance ──
+  # ══════════════════════════════════════════════
+  - question: "Business news and market updates today"
+    topic: business
+    type: roundup
+
+  - question: "Latest stock market trends and analysis"
+    topic: finance
+    type: roundup
+
+  - question: "What's happening in the crypto market?"
+    topic: finance
+    type: roundup
+
+  - question: "How do interest rates affect the economy?"
+    topic: business
+    type: qa
+
+  - question: "Compare S&P 500 vs NASDAQ performance"
+    topic: finance
+    type: comparison
+
+  - question: "Startup funding rounds and venture capital news"
+    topic: business
+    type: roundup
+
+  - question: "Corporate earnings reports and quarterly results"
+    topic: finance
+    type: roundup
+
+  - question: "Economic indicators and GDP growth updates"
+    topic: business
+    type: roundup
+
+  - question: "What are the latest mergers and acquisitions?"
+    topic: business
+    type: roundup
+
+  - question: "Global trade news and tariff developments"
+    topic: business
+    type: roundup
+
+  - question: "What are the second-order effects of rising interest rates on the tech sector?"
+    topic: business
+    type: deep_dive
+    complexity: complex
+
+  - question: "How will central bank policy changes affect emerging markets?"
+    topic: finance
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Politics ──
+  # ══════════════════════════════════════════════
+  - question: "Political news roundup for today"
+    topic: politics
+    type: roundup
+
+  - question: "What's happening in Congress this week?"
+    topic: politics
+    type: roundup
+
+  - question: "Latest election polls and predictions"
+    topic: politics
+    type: roundup
+
+  - question: "What does the new legislation mean for healthcare?"
+    topic: politics
+    type: qa
+
+  - question: "Policy debates and government decisions today"
+    topic: politics
+    type: roundup
+
+  - question: "What are the key political developments this month?"
+    topic: politics
+    type: roundup
+
+  - question: "Latest Supreme Court decisions and rulings"
+    topic: politics
+    type: roundup
+
+  - question: "How does the electoral system work?"
+    topic: politics
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── World News ──
+  # ══════════════════════════════════════════════
+  - question: "International news headlines today"
+    topic: world
+    type: roundup
+
+  - question: "What's the latest on the conflict in Ukraine?"
+    topic: world
+    type: roundup
+
+  - question: "Major diplomatic developments this week"
+    topic: world
+    type: roundup
+
+  - question: "Explain the history of NATO expansion"
+    topic: world
+    type: deep_dive
+
+  - question: "What's the news from the Middle East?"
+    topic: world
+    type: roundup
+
+  - question: "Latest headlines from Europe"
+    topic: world
+    type: roundup
+
+  - question: "What's happening in Asia this week?"
+    topic: world
+    type: roundup
+
+  - question: "News from Africa and developing nations"
+    topic: world
+    type: roundup
+
+  - question: "What's going on in South America?"
+    topic: world
+    type: roundup
+
+  - question: "Global humanitarian crisis updates"
+    topic: world
+    type: roundup
+
+  - question: "United Nations and international organizations news"
+    topic: world
+    type: roundup
+
+  - question: "How might shifting alliances reshape the global order over the next decade?"
+    topic: world
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Environment / Climate ──
+  # ══════════════════════════════════════════════
+  - question: "Climate change news and environmental updates"
+    topic: environment
+    type: roundup
+
+  - question: "Latest renewable energy developments"
+    topic: environment
+    type: roundup
+
+  - question: "What is the Paris Agreement?"
+    topic: climate
+    type: qa
+
+  - question: "How much has global temperature risen?"
+    topic: climate
+    type: qa
+
+  - question: "Sustainability and green technology news"
+    topic: environment
+    type: roundup
+
+  - question: "Wildlife conservation and biodiversity updates"
+    topic: environment
+    type: roundup
+
+  - question: "What are the latest carbon emissions data?"
+    topic: climate
+    type: qa
+
+  - question: "Electric vehicle market and clean energy trends"
+    topic: environment
+    type: roundup
+
+  - question: "What's the state of ocean pollution and plastics?"
+    topic: environment
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── Sports ──
+  # ══════════════════════════════════════════════
+  - question: "Sports scores and highlights today"
+    topic: sports
+    type: roundup
+
+  - question: "Premier League results this weekend"
+    topic: sports
+    type: roundup
+
+  - question: "Who won the Super Bowl?"
+    topic: sports
+    type: qa
+
+  - question: "Olympics medal count and top performances"
+    topic: sports
+    type: roundup
+
+  - question: "Latest transfer rumors and signings"
+    topic: sports
+    type: roundup
+
+  - question: "NBA and basketball news today"
+    topic: sports
+    type: roundup
+
+  - question: "Formula 1 race results and standings"
+    topic: sports
+    type: roundup
+
+  - question: "Cricket and rugby match updates"
+    topic: sports
+    type: roundup
+
+  - question: "Tennis Grand Slam results and rankings"
+    topic: sports
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Space ──
+  # ══════════════════════════════════════════════
+  - question: "Space news and rocket launches this week"
+    topic: space
+    type: roundup
+
+  - question: "Latest SpaceX Starship update"
+    topic: space
+    type: roundup
+
+  - question: "What's NASA working on right now?"
+    topic: space
+    type: qa
+
+  - question: "How far is Mars from Earth?"
+    topic: space
+    type: qa
+
+  - question: "New discoveries from the James Webb Space Telescope"
+    topic: space
+    type: roundup
+
+  - question: "Mars mission updates and plans"
+    topic: space
+    type: roundup
+
+  - question: "Commercial space industry news"
+    topic: space
+    type: roundup
+
+  - question: "Asteroid detection and planetary defense updates"
+    topic: space
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Security ──
+  # ══════════════════════════════════════════════
+  - question: "Cybersecurity news and data breach alerts"
+    topic: security
+    type: roundup
+
+  - question: "Latest zero-day vulnerabilities discovered"
+    topic: security
+    type: roundup
+
+  - question: "How to protect against phishing attacks"
+    topic: security
+    type: howto
+
+  - question: "Ransomware attacks and threat intelligence updates"
+    topic: security
+    type: roundup
+
+  - question: "New security patches and software updates"
+    topic: security
+    type: roundup
+
+  - question: "How to set up two-factor authentication?"
+    topic: security
+    type: howto
+
+  - question: "What are the biggest cybersecurity threats right now?"
+    topic: security
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── Humor / Satire ──
+  # ══════════════════════════════════════════════
+  - question: "Funniest news stories this week"
+    topic: humor
+    type: roundup
+
+  - question: "Best satirical takes on current events"
+    topic: satire
+    type: roundup
+
+  - question: "Show me some comedy and humor articles"
+    topic: humor
+    type: roundup
+
+  - question: "Ridiculous headlines that are actually real"
+    topic: humor
+    type: roundup
+
+  - question: "Parody and satire news roundup"
+    topic: satire
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Disaster ──
+  # ══════════════════════════════════════════════
+  - question: "Recent earthquakes and natural disasters"
+    topic: disaster
+    type: roundup
+
+  - question: "Are there any tsunami warnings right now?"
+    topic: disaster
+    type: qa
+
+  - question: "Hurricane and severe weather tracking updates"
+    topic: disaster
+    type: roundup
+
+  - question: "Wildfire news and evacuation notices"
+    topic: disaster
+    type: roundup
+
+  - question: "Emergency alerts and disaster preparedness"
+    topic: disaster
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── Fact-checking ──
+  # ══════════════════════════════════════════════
+  - question: "Fact check recent viral claims"
+    topic: factcheck
+    type: qa
+
+  - question: "Is this news story true or misinformation?"
+    topic: factcheck
+    type: qa
+
+  - question: "Debunked conspiracy theories this week"
+    topic: factcheck
+    type: roundup
+
+  - question: "What are the most shared false claims online?"
+    topic: factcheck
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── UK-specific ──
+  # ══════════════════════════════════════════════
+  - question: "UK Parliament debates and votes this week"
+    topic: uk_politics
+    type: roundup
+
+  - question: "What's the latest from Parliament?"
+    topic: uk_politics
+    type: qa
+
+  - question: "Latest UK government policy announcements"
+    topic: uk_politics
+    type: roundup
+
+  - question: "Latest UK news and headlines"
+    topic: uk
+    type: roundup
+
+  - question: "What's the news in the UK today?"
+    topic: uk
+    type: roundup
+
+  - question: "British news stories and current affairs"
+    topic: uk
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Crime ──
+  # ══════════════════════════════════════════════
+  - question: "Crime news and reports today"
+    topic: crime
+    type: roundup
+
+  - question: "Local crime reports and statistics"
+    topic: crime
+    type: qa
+
+  - question: "Major criminal investigations in the news"
+    topic: crime
+    type: roundup
+
+  - question: "Law enforcement and policing updates"
+    topic: crime
+    type: roundup
+
+  - question: "What are the latest court cases and verdicts?"
+    topic: crime
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Flooding ──
+  # ══════════════════════════════════════════════
+  - question: "Are there any flood warnings right now?"
+    topic: flooding
+    type: qa
+
+  - question: "Current flooding and river level alerts"
+    topic: flooding
+    type: qa
+
+  - question: "Flood damage and recovery updates"
+    topic: flooding
+    type: roundup
+
+  - question: "Heavy rain and flood risk forecast"
+    topic: flooding
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── Pharma ──
+  # ══════════════════════════════════════════════
+  - question: "New drug approvals and pharmaceutical news"
+    topic: pharma
+    type: roundup
+
+  - question: "What's in the FDA pipeline for cancer treatments?"
+    topic: pharma
+    type: qa
+
+  - question: "Clinical trial results and drug development updates"
+    topic: pharma
+    type: roundup
+
+  - question: "Pharmaceutical company earnings and pipeline news"
+    topic: pharma
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Education ──
+  # ══════════════════════════════════════════════
+  - question: "Education news and school policy updates"
+    topic: education
+    type: roundup
+
+  - question: "University research and higher education news"
+    topic: education
+    type: roundup
+
+  - question: "How is AI changing education?"
+    topic: education
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── Gaming ──
+  # ══════════════════════════════════════════════
+  - question: "Latest video game news and releases"
+    topic: gaming
+    type: roundup
+
+  - question: "New game announcements and trailers"
+    topic: gaming
+    type: roundup
+
+  - question: "Esports tournament results and highlights"
+    topic: gaming
+    type: roundup
+
+  - question: "What are the best games coming out this month?"
+    topic: gaming
+    type: qa
+
+  - question: "PC gaming hardware and GPU news"
+    topic: gaming
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Food ──
+  # ══════════════════════════════════════════════
+  - question: "Food industry news and restaurant updates"
+    topic: food
+    type: roundup
+
+  - question: "What are the latest food trends?"
+    topic: food
+    type: roundup
+
+  - question: "Food safety recalls and warnings"
+    topic: food
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── Transport ──
+  # ══════════════════════════════════════════════
+  - question: "Transportation and travel news"
+    topic: transport
+    type: roundup
+
+  - question: "Aviation industry news and airline updates"
+    topic: transport
+    type: roundup
+
+  - question: "Public transit and railway disruptions"
+    topic: transport
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── DEFAULT / General ──
+  # ══════════════════════════════════════════════
+  - question: "What's in the news today?"
+    topic: default
+    type: roundup
+
+  - question: "Give me a news roundup"
+    topic: default
+    type: roundup
+
+  - question: "What's happening in the world right now?"
+    topic: default
+    type: roundup
+
+  - question: "Summarize the top stories"
+    topic: default
+    type: roundup
+
+  - question: "Daily news digest please"
+    topic: default
+    type: roundup
+
+  - question: "Catch me up on the headlines"
+    topic: default
+    type: roundup
+
+  - question: "What are people talking about today?"
+    topic: default
+    type: roundup
+
+  - question: "Any interesting stories today?"
+    topic: default
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Cross-Topic How-To (strengthens howto type signal) ──
+  # ══════════════════════════════════════════════
+  - question: "How do I set up a home network?"
+    topic: technology
+    type: howto
+
+  - question: "How to build a personal website"
+    topic: programming
+    type: howto
+
+  - question: "How to get started with machine learning"
+    topic: ai
+    type: howto
+
+  - question: "How can I start investing in stocks?"
+    topic: finance
+    type: howto
+
+  - question: "How to reduce my carbon footprint"
+    topic: environment
+    type: howto
+
+  - question: "How to prepare for an earthquake"
+    topic: disaster
+    type: howto
+
+  - question: "How do I create a budget?"
+    topic: finance
+    type: howto
+
+  - question: "Guide to setting up a VPN"
+    topic: security
+    type: howto
+
+  - question: "Step by step guide to Docker containers"
+    topic: technology
+    type: howto
+
+  - question: "Tutorial for deploying an app to the cloud"
+    topic: technology
+    type: howto
+
+  - question: "Walkthrough for setting up continuous integration"
+    topic: programming
+    type: howto
+
+  - question: "How do I configure a database backup?"
+    topic: technology
+    type: howto
+
+  # ══════════════════════════════════════════════
+  # ── Cross-Topic Comparisons (strengthens comparison type signal) ──
+  # ══════════════════════════════════════════════
+  - question: "Compare Python vs JavaScript for web development"
+    topic: programming
+    type: comparison
+
+  - question: "What's the difference between Docker and Kubernetes?"
+    topic: technology
+    type: comparison
+
+  - question: "Compare electric cars vs hybrid cars"
+    topic: environment
+    type: comparison
+
+  - question: "Which is better: Spotify or Apple Music?"
+    topic: entertainment
+    type: comparison
+
+  - question: "Compare Windows vs Mac for developers"
+    topic: technology
+    type: comparison
+
+  - question: "PostgreSQL vs MySQL comparison"
+    topic: programming
+    type: comparison
+
+  - question: "Compare the main cloud providers for startups"
+    topic: business
+    type: comparison
+
+  - question: "React vs Angular vs Vue comparison"
+    topic: programming
+    type: comparison
+
+  # ══════════════════════════════════════════════
+  # ── Cross-Topic Q&A (strengthens qa type signal) ──
+  # ══════════════════════════════════════════════
+  - question: "What is blockchain technology?"
+    topic: technology
+    type: qa
+
+  - question: "What causes inflation?"
+    topic: business
+    type: qa
+
+  - question: "What is the greenhouse effect?"
+    topic: climate
+    type: qa
+
+  - question: "What is an API?"
+    topic: programming
+    type: qa
+
+  - question: "What is gerrymandering?"
+    topic: politics
+    type: qa
+
+  - question: "What is net zero emissions?"
+    topic: climate
+    type: qa
+
+  - question: "What is the difference between weather and climate?"
+    topic: science
+    type: qa
+
+  - question: "What are mRNA vaccines?"
+    topic: health
+    type: qa
+
+  # ══════════════════════════════════════════════
+  # ── Composite (sentinel escalation) ──
+  # ══════════════════════════════════════════════
+  - question: "Summarize tech news and also what's happening in politics"
+    topic: technology
+    type: composite
+
+  - question: "AI developments this week and compare the top models"
+    topic: ai
+    type: composite
+
+  - question: "Latest climate news, also check what scientists are saying"
+    topic: environment
+    type: composite
+
+  - question: "What's the sports scores and also any entertainment gossip?"
+    topic: sports
+    type: composite
+
+  - question: "Get me business news and find out what's new in AI"
+    topic: business
+    type: composite
+
+  - question: "Health updates plus the latest on the pandemic and also vaccine news"
+    topic: health
+    type: composite
+
+  - question: "Tell me about AI news and also what's going on in politics"
+    topic: ai
+    type: composite
+
+  - question: "What's new in tech? Also summarize the top world news"
+    topic: technology
+    type: composite
+
+  - question: "Science research and also any space exploration updates"
+    topic: science
+    type: composite
+
+  - question: "UK politics plus international news roundup"
+    topic: uk_politics
+    type: composite
+
+  - question: "Gaming news and show me the latest tech releases too"
+    topic: gaming
+    type: composite
+
+  - question: "Finance update and also give me entertainment news"
+    topic: finance
+    type: composite
+
+  # ══════════════════════════════════════════════
+  # ── Search Only (skip news feeds) ──
+  # ══════════════════════════════════════════════
+  - question: "What's the weather like right now?"
+    topic: default
+    type: search_only
+
+  - question: "What time is it in Tokyo?"
+    topic: default
+    type: search_only
+
+  - question: "Convert 100 dollars to euros"
+    topic: default
+    type: search_only
+
+  - question: "Define 'ontological'"
+    topic: default
+    type: search_only
+
+  - question: "What's the population of France?"
+    topic: default
+    type: search_only
+
+  - question: "How tall is Mount Everest?"
+    topic: default
+    type: search_only
+
+  - question: "What is the speed of light?"
+    topic: default
+    type: search_only
+
+  - question: "Who wrote Pride and Prejudice?"
+    topic: default
+    type: search_only
+
+  - question: "What's the exchange rate for GBP to USD?"
+    topic: default
+    type: search_only
+
+  - question: "Current temperature in New York"
+    topic: default
+    type: search_only
+
+  - question: "How many calories in an apple?"
+    topic: default
+    type: search_only
+
+  - question: "What year was the Eiffel Tower built?"
+    topic: default
+    type: search_only
+
+  - question: "Define the word 'epistemology'"
+    topic: default
+    type: search_only
+
+  - question: "What does 'ambiguous' mean?"
+    topic: default
+    type: search_only
+
+  - question: "Convert 50 kilometers to miles"
+    topic: default
+    type: search_only
+
+  - question: "Convert Fahrenheit to Celsius"
+    topic: default
+    type: search_only
+
+  - question: "What's the capital of Brazil?"
+    topic: default
+    type: search_only
+
+  - question: "Who was the first president of the United States?"
+    topic: default
+    type: search_only
+
+  - question: "What is the boiling point of water?"
+    topic: default
+    type: search_only
+
+  - question: "How far is the Moon from Earth?"
+    topic: default
+    type: search_only
+
+  - question: "What country has the largest area?"
+    topic: default
+    type: search_only
+
+  - question: "When was Wikipedia founded?"
+    topic: default
+    type: search_only
+
+  - question: "Look up the definition of 'pragmatic'"
+    topic: default
+    type: search_only
+
+  - question: "What's the current Bitcoin price?"
+    topic: default
+    type: search_only
+
+  # Conversion patterns
+  - question: "Convert meters to feet"
+    topic: default
+    type: search_only
+
+  - question: "How many ounces in a pound?"
+    topic: default
+    type: search_only
+
+  - question: "Convert euros to Japanese yen"
+    topic: default
+    type: search_only
+
+  # Population / factual lookup patterns
+  - question: "What is the population of Germany?"
+    topic: default
+    type: search_only
+
+  - question: "What's the population of Tokyo?"
+    topic: default
+    type: search_only
+
+  - question: "How many people live in India?"
+    topic: default
+    type: search_only
+
+  - question: "What is the GDP of the UK?"
+    topic: default
+    type: search_only
+
+  # Definition patterns
+  - question: "Define the term 'nihilism'"
+    topic: default
+    type: search_only
+
+  - question: "What does 'juxtaposition' mean?"
+    topic: default
+    type: search_only
+
+  - question: "Meaning of the word 'ubiquitous'"
+    topic: default
+    type: search_only
+
+  # Quick factual answers
+  - question: "When is the next solar eclipse?"
+    topic: default
+    type: search_only
+
+  - question: "What is the distance from London to Paris?"
+    topic: default
+    type: search_only
+
+  - question: "What are the ingredients in aspirin?"
+    topic: default
+    type: search_only
+
+  - question: "What's today's date?"
+    topic: default
+    type: search_only
+
+  - question: "How old is the universe?"
+    topic: default
+    type: search_only
+
+  # Conversion patterns (exact utility operations)
+  - question: "Convert dollars to pounds"
+    topic: default
+    type: search_only
+
+  - question: "How many grams in a kilogram?"
+    topic: default
+    type: search_only
+
+  - question: "Exchange rate calculator dollars to euros"
+    topic: default
+    type: search_only
+
+  - question: "Convert liters to gallons"
+    topic: default
+    type: search_only
+
+  # Definition patterns (single-word lookups)
+  - question: "Define 'hermeneutic'"
+    topic: default
+    type: search_only
+
+  - question: "Define 'solipsism'"
+    topic: default
+    type: search_only
+
+  - question: "Define the word 'pedagogy'"
+    topic: default
+    type: search_only
+
+  - question: "Dictionary definition of 'paradigm'"
+    topic: default
+    type: search_only
+
+  # ══════════════════════════════════════════════
+  # ── Trend / Pattern Analysis ──
+  # ══════════════════════════════════════════════
+  - question: "How has AI adoption changed over the past year?"
+    topic: ai
+    type: trend
+
+  - question: "What are the emerging trends in technology?"
+    topic: technology
+    type: trend
+
+  - question: "Show me the trend in renewable energy investment"
+    topic: environment
+    type: trend
+
+  - question: "How has remote work evolved since the pandemic?"
+    topic: business
+    type: trend
+
+  - question: "What are the rising topics in programming communities?"
+    topic: programming
+    type: trend
+
+  - question: "How is public opinion on climate change shifting?"
+    topic: climate
+    type: trend
+
+  # ══════════════════════════════════════════════
+  # ── News (pure current events, not digest) ──
+  # ══════════════════════════════════════════════
+  - question: "Breaking news right now"
+    topic: default
+    type: news
+
+  - question: "What just happened in the news?"
+    topic: default
+    type: news
+
+  - question: "Any breaking stories this hour?"
+    topic: default
+    type: news
+
+  - question: "Latest live news updates"
+    topic: default
+    type: news
+
+  - question: "Is there any major news breaking?"
+    topic: default
+    type: news
+
+  # ══════════════════════════════════════════════
+  # ── Vibe: Doom ──
+  # ══════════════════════════════════════════════
+  - question: "Give me the most depressing news you can find"
+    topic: default
+    type: roundup
+    vibe: doom
+
+  - question: "Doom-scroll through today's terrible headlines"
+    topic: default
+    type: roundup
+    vibe: doom
+
+  - question: "Give me a doom-and-gloom take on the latest news"
+    topic: default
+    type: roundup
+    vibe: doom
+
+  - question: "What's the worst news today?"
+    topic: default
+    type: roundup
+    vibe: doom
+
+  - question: "Show me everything that's going wrong in the world"
+    topic: default
+    type: roundup
+    vibe: doom
+
+  # ══════════════════════════════════════════════
+  # ── Vibe: Hopeful ──
+  # ══════════════════════════════════════════════
+  - question: "Show me some good news and positive stories"
+    topic: default
+    type: roundup
+    vibe: hopeful
+
+  - question: "What's the most uplifting news today?"
+    topic: default
+    type: roundup
+    vibe: hopeful
+
+  - question: "Give me an optimistic take on the headlines"
+    topic: default
+    type: roundup
+    vibe: hopeful
+
+  - question: "Feel-good stories and positive developments"
+    topic: default
+    type: roundup
+    vibe: hopeful
+
+  # ══════════════════════════════════════════════
+  # ── Vibe: Snarky ──
+  # ══════════════════════════════════════════════
+  - question: "Roast the latest tech announcements"
+    topic: technology
+    type: roundup
+    vibe: snarky
+
+  - question: "Give me a sarcastic take on today's news"
+    topic: default
+    type: roundup
+    vibe: snarky
+
+  - question: "Skewer the dumbest headlines of the day"
+    topic: default
+    type: roundup
+    vibe: snarky
+
+  - question: "Deliver the news with maximum snark"
+    topic: default
+    type: roundup
+    vibe: snarky
+
+  # ══════════════════════════════════════════════
+  # ── Vibe: Funny ──
+  # ══════════════════════════════════════════════
+  - question: "Make the news funny and entertaining"
+    topic: default
+    type: roundup
+    vibe: funny
+
+  - question: "Give me a comedic take on today's stories"
+    topic: default
+    type: roundup
+    vibe: funny
+
+  - question: "News but make it hilarious"
+    topic: default
+    type: roundup
+    vibe: funny
+
+  # ══════════════════════════════════════════════
+  # ── Vibe: Upbeat ──
+  # ══════════════════════════════════════════════
+  - question: "Give me an excited energetic news roundup"
+    topic: default
+    type: roundup
+    vibe: upbeat
+
+  - question: "Enthusiastic take on the latest developments"
+    topic: default
+    type: roundup
+    vibe: upbeat
+
+  - question: "Hype up the biggest stories today"
+    topic: default
+    type: roundup
+    vibe: upbeat
+
+  # ══════════════════════════════════════════════
+  # ── Vibe: Friendly ──
+  # ══════════════════════════════════════════════
+  - question: "Casually catch me up on the news"
+    topic: default
+    type: roundup
+    vibe: friendly
+
+  - question: "Give me a chill relaxed news summary"
+    topic: default
+    type: roundup
+    vibe: friendly
+
+  - question: "Friendly chat about what's happening today"
+    topic: default
+    type: roundup
+    vibe: friendly
+
+  # ══════════════════════════════════════════════
+  # ── Vibe: Toon ──
+  # ══════════════════════════════════════════════
+  - question: "Give me the news in a cartoon style"
+    topic: default
+    type: roundup
+    vibe: toon
+
+  - question: "Comic book version of today's headlines"
+    topic: default
+    type: roundup
+    vibe: toon
+
+  # ══════════════════════════════════════════════
+  # ── Complex (may benefit from sentinel) ──
+  # ══════════════════════════════════════════════
+  - question: "What are the second-order effects of rising interest rates on the tech sector?"
+    topic: business
+    type: deep_dive
+    complexity: complex
+
+  - question: "Analyze the geopolitical implications of semiconductor supply chain changes"
+    topic: world
+    type: deep_dive
+    complexity: complex
+
+  - question: "How will quantum computing affect current encryption standards?"
+    topic: technology
+    type: deep_dive
+    complexity: complex
+
+  - question: "What are the cascading effects of Arctic ice melt on global weather patterns?"
+    topic: climate
+    type: deep_dive
+    complexity: complex
+
+  - question: "How might social media regulation reshape political discourse?"
+    topic: politics
+    type: deep_dive
+    complexity: complex
+
+  - question: "What are the interconnected risks of antibiotic resistance and global travel?"
+    topic: health
+    type: deep_dive
+    complexity: complex
+
+  - question: "Explain the feedback loops between housing costs, immigration, and labor markets"
+    topic: business
+    type: deep_dive
+    complexity: complex
+
+  - question: "How does the interaction between AI and energy demand affect climate goals?"
+    topic: ai
+    type: deep_dive
+    complexity: complex
+  # ══════════════════════════════════════════════
+  # ── Technology (more variety) ──
+  # ══════════════════════════════════════════════
+  - question: "Any big changes in web browsers recently?"
+    topic: technology
+    type: roundup
+
+  - question: "What's new with Linux distros and desktop environments?"
+    topic: technology
+    type: roundup
+
+  - question: "Give me a quick digest of enterprise IT news"
+    topic: technology
+    type: roundup
+
+  - question: "What's going on with data centers and cloud infrastructure?"
+    topic: technology
+    type: roundup
+
+  - question: "Latest news about chips, GPUs, and semiconductors"
+    topic: technology
+    type: roundup
+
+  - question: "Are there any major outages or incidents today?"
+    topic: technology
+    type: news
+
+  - question: "How do I set up SSH keys properly?"
+    topic: technology
+    type: howto
+
+  - question: "What's the best way to back up a Linux server?"
+    topic: technology
+    type: howto
+
+  - question: "How do I set up a reverse proxy with Caddy?"
+    topic: technology
+    type: howto
+
+  - question: "Explain what a load balancer actually does"
+    topic: technology
+    type: qa
+
+  - question: "Difference between TCP and UDP in plain English?"
+    topic: technology
+    type: comparison
+
+  - question: "Which is better for home lab: Proxmox or ESXi?"
+    topic: technology
+    type: comparison
+
+  - question: "Deep dive on the future of ARM laptops"
+    topic: technology
+    type: deep_dive
+
+  # ══════════════════════════════════════════════
+  # ── AI / ML (more variety + ops) ──
+  # ══════════════════════════════════════════════
+  - question: "What changed in open-source LLMs this week?"
+    topic: ai
+    type: roundup
+
+  - question: "What are people doing with small local models lately?"
+    topic: ai
+    type: roundup
+
+  - question: "Any new benchmarks or eval methods for LLMs?"
+    topic: ai
+    type: roundup
+
+  - question: "What's new in embeddings and vector databases?"
+    topic: ai
+    type: roundup
+
+  - question: "Latest news in model quantization and ONNX deployment"
+    topic: ai
+    type: roundup
+
+  - question: "Explain embeddings like I'm technical but tired"
+    topic: ai
+    type: qa
+
+  - question: "What is HNSW and why is it fast?"
+    topic: ai
+    type: qa
+
+  - question: "How does reranking differ from vector similarity?"
+    topic: ai
+    type: comparison
+
+  - question: "Compare GraphRAG vs classic RAG"
+    topic: ai
+    type: comparison
+
+  - question: "Write a practical plan to improve RAG accuracy without bigger models"
+    topic: ai
+    type: howto
+
+  - question: "In-depth: why do RAG systems drift over time?"
+    topic: ai
+    type: deep_dive
+    complexity: complex
+
+  - question: "Analyze the cost structure of AI support bots vs deterministic support systems"
+    topic: ai
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Programming (broader languages + tooling) ──
+  # ══════════════════════════════════════════════
+  - question: "Show me the top dev tooling updates this week"
+    topic: programming
+    type: roundup
+
+  - question: "Any notable releases in the .NET ecosystem?"
+    topic: programming
+    type: roundup
+
+  - question: "What's happening in the JavaScript framework world?"
+    topic: programming
+    type: roundup
+
+  - question: "New compiler or runtime releases I should know about?"
+    topic: programming
+    type: roundup
+
+  - question: "What are people building with Rust right now?"
+    topic: programming
+    type: roundup
+
+  - question: "How do I debug a memory leak in a web app?"
+    topic: programming
+    type: howto
+
+  - question: "How do I profile a .NET app for CPU hotspots?"
+    topic: programming
+    type: howto
+
+  - question: "How do I design a clean API boundary?"
+    topic: programming
+    type: howto
+
+  - question: "Explain event sourcing without buzzwords"
+    topic: programming
+    type: qa
+
+  - question: "What is idempotency and why do I care?"
+    topic: programming
+    type: qa
+
+  - question: "Compare monolith vs microservices for a small team"
+    topic: programming
+    type: comparison
+
+  - question: "Compare RabbitMQ vs Kafka for event streams"
+    topic: programming
+    type: comparison
+
+  - question: "Deep analysis: what makes a system maintainable at scale?"
+    topic: programming
+    type: deep_dive
+
+  # ══════════════════════════════════════════════
+  # ── Security (more concrete) ──
+  # ══════════════════════════════════════════════
+  - question: "What are the top security stories today?"
+    topic: security
+    type: roundup
+
+  - question: "Any major breaches or leaks this week?"
+    topic: security
+    type: roundup
+
+  - question: "Is there a critical patch I should apply urgently?"
+    topic: security
+    type: qa
+
+  - question: "How do I harden an Ubuntu server quickly?"
+    topic: security
+    type: howto
+
+  - question: "How do I rotate credentials without breaking everything?"
+    topic: security
+    type: howto
+
+  - question: "Explain what zero trust actually means in practice"
+    topic: security
+    type: qa
+
+  - question: "Difference between authentication and authorization?"
+    topic: security
+    type: comparison
+
+  - question: "Compare SSO vs passwordless login approaches"
+    topic: security
+    type: comparison
+
+  - question: "Deep dive: how do supply chain attacks actually propagate?"
+    topic: security
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Business / Finance (more variety) ──
+  # ══════════════════════════════════════════════
+  - question: "Give me the business headlines that matter today"
+    topic: business
+    type: roundup
+
+  - question: "What's the market reacting to right now?"
+    topic: finance
+    type: news
+
+  - question: "Any big IPO or earnings surprises this week?"
+    topic: finance
+    type: roundup
+
+  - question: "What's happening with venture funding lately?"
+    topic: business
+    type: roundup
+
+  - question: "Explain what a yield curve is"
+    topic: finance
+    type: qa
+
+  - question: "How do I read an earnings report quickly?"
+    topic: finance
+    type: howto
+
+  - question: "Compare ETFs vs index funds for long-term investing"
+    topic: finance
+    type: comparison
+
+  - question: "Deep dive: why do markets crash when liquidity dries up?"
+    topic: finance
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Politics / UK politics (more phrasing variety) ──
+  # ══════════════════════════════════════════════
+  - question: "What's the political story of the day?"
+    topic: politics
+    type: news
+
+  - question: "What bills are moving through government right now?"
+    topic: politics
+    type: roundup
+
+  - question: "Summarize the latest policy fights"
+    topic: politics
+    type: roundup
+
+  - question: "What's going on in Westminster this week?"
+    topic: uk_politics
+    type: roundup
+
+  - question: "Any major UK policy announcements today?"
+    topic: uk_politics
+    type: news
+
+  - question: "Explain how a UK general election works"
+    topic: uk_politics
+    type: qa
+
+  - question: "Compare UK and US political systems at a high level"
+    topic: politics
+    type: comparison
+
+  - question: "Deep analysis: how does media coverage shape election outcomes?"
+    topic: politics
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── World / Geopolitics (more variety) ──
+  # ══════════════════════════════════════════════
+  - question: "What's the biggest international story right now?"
+    topic: world
+    type: news
+
+  - question: "Give me a quick global news brief"
+    topic: world
+    type: roundup
+
+  - question: "What's happening with global supply chains?"
+    topic: world
+    type: roundup
+
+  - question: "Any major diplomatic developments today?"
+    topic: world
+    type: news
+
+  - question: "Explain why the South China Sea matters"
+    topic: world
+    type: qa
+
+  - question: "Compare NATO and the EU: who does what?"
+    topic: world
+    type: comparison
+
+  - question: "Deep dive: how do sanctions actually affect economies over time?"
+    topic: world
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Environment / Climate (more variety) ──
+  # ══════════════════════════════════════════════
+  - question: "What's new in renewable energy right now?"
+    topic: environment
+    type: roundup
+
+  - question: "Any major climate reports released recently?"
+    topic: climate
+    type: roundup
+
+  - question: "What's happening with EV adoption this year?"
+    topic: environment
+    type: trend
+
+  - question: "Explain what carbon pricing is"
+    topic: climate
+    type: qa
+
+  - question: "How do heat pumps actually work?"
+    topic: environment
+    type: qa
+
+  - question: "How can cities reduce flood risk?"
+    topic: environment
+    type: howto
+
+  - question: "Compare nuclear vs renewables for decarbonization"
+    topic: climate
+    type: comparison
+
+  - question: "Deep analysis: what climate tipping points are most near-term?"
+    topic: climate
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Health (more variety, cautious) ──
+  # ══════════════════════════════════════════════
+  - question: "What are the big public health stories this week?"
+    topic: health
+    type: roundup
+
+  - question: "Any major updates on infectious disease outbreaks?"
+    topic: health
+    type: roundup
+
+  - question: "Explain what an HbA1c test measures"
+    topic: health
+    type: qa
+
+  - question: "What does 'prediabetes' mean clinically?"
+    topic: health
+    type: qa
+
+  - question: "How do clinical trials decide if a treatment works?"
+    topic: health
+    type: qa
+
+  - question: "How can I improve sleep habits without medication?"
+    topic: health
+    type: howto
+
+  - question: "Compare intermittent fasting vs calorie counting"
+    topic: health
+    type: comparison
+
+  - question: "Deep dive: why do chronic conditions correlate with inflammation markers?"
+    topic: health
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Education / Careers (adds practical routing) ──
+  # ══════════════════════════════════════════════
+  - question: "What's changing in schools and education policy?"
+    topic: education
+    type: roundup
+
+  - question: "Any updates in higher education funding or student finance?"
+    topic: education
+    type: roundup
+
+  - question: "How do I plan a study schedule that actually sticks?"
+    topic: education
+    type: howto
+
+  - question: "How do I prepare for a technical interview?"
+    topic: careers
+    type: howto
+
+  - question: "Compare bootcamps vs university for software careers"
+    topic: careers
+    type: comparison
+
+  - question: "What skills are most in demand for developers this year?"
+    topic: careers
+    type: trend
+
+  # ══════════════════════════════════════════════
+  # ── Support / SaaS Ops (for lucidSupport-style routing) ──
+  # ══════════════════════════════════════════════
+  - question: "Customers say they can't log in — what should we check first?"
+    topic: support_ops
+    type: howto
+
+  - question: "Users are seeing a 500 error on checkout; how do we triage?"
+    topic: support_ops
+    type: howto
+
+  - question: "How do we write a good troubleshooting playbook?"
+    topic: support_ops
+    type: howto
+
+  - question: "Summarize the top support issues this week"
+    topic: support_ops
+    type: roundup
+
+  - question: "Show me which tickets are trending upward"
+    topic: support_ops
+    type: trend
+
+  - question: "Create a short macro reply for password reset failures"
+    topic: support_ops
+    type: qa
+    vibe: concise
+
+  - question: "Compare live chat vs email support for a small team"
+    topic: support_ops
+    type: comparison
+
+  - question: "Deep dive: how do we reduce ticket volume without hurting CSAT?"
+    topic: support_ops
+    type: deep_dive
+    complexity: complex
+
+  # ══════════════════════════════════════════════
+  # ── Entertainment / Culture (more phrasing variety) ──
+  # ══════════════════════════════════════════════
+  - question: "What's worth watching this week?"
+    topic: entertainment
+    type: qa
+
+  - question: "Any major entertainment stories today?"
+    topic: entertainment
+    type: news
+
+  - question: "Give me a short pop culture roundup"
+    topic: entertainment
+    type: roundup
+
+  - question: "Compare Netflix vs Disney+ for family viewing"
+    topic: entertainment
+    type: comparison
+
+  # ══════════════════════════════════════════════
+  # ── Gaming (more variety) ──
+  # ══════════════════════════════════════════════
+  - question: "What games are people obsessed with right now?"
+    topic: gaming
+    type: roundup
+
+  - question: "Any major game delays or studio shakeups?"
+    topic: gaming
+    type: roundup
+
+  - question: "Recommend a game like Cyberpunk but shorter"
+    topic: gaming
+    type: qa
+
+  - question: "Compare Steam Deck vs handheld Windows PCs"
+    topic: gaming
+    type: comparison
+
+  # ══════════════════════════════════════════════
+  # ── Disaster / Weather-ish (routing variety; still 'disaster') ──
+  # ══════════════════════════════════════════════
+  - question: "Any severe weather alerts right now?"
+    topic: disaster
+    type: qa
+
+  - question: "Is there an earthquake warning system where I live?"
+    topic: disaster
+    type: qa
+
+  - question: "How do I build a basic emergency kit?"
+    topic: disaster
+    type: howto
+
+  - question: "Summarize major disasters this week"
+    topic: disaster
+    type: roundup
+
+  # ══════════════════════════════════════════════
+  # ── Factcheck / Misinformation (more variety) ──
+  # ══════════════════════════════════════════════
+  - question: "Is this screenshot claim accurate?"
+    topic: factcheck
+    type: qa
+
+  - question: "What’s the context behind this viral clip?"
+    topic: factcheck
+    type: qa
+
+  - question: "Round up the biggest misinformation narratives this week"
+    topic: factcheck
+    type: roundup
+
+  - question: "How do fact-checkers verify sources?"
+    topic: factcheck
+    type: howto
+
+  # ══════════════════════════════════════════════
+  # ── Meta / Help (useful for router + CLI) ──
+  # ══════════════════════════════════════════════
+  - question: "How do I add new exemplar YAML files?"
+    topic: tooling
+    type: howto
+
+  - question: "Rebuild the prompt cache after I edit exemplars"
+    topic: tooling
+    type: howto
+
+  - question: "Explain how the semantic router chooses a topic"
+    topic: tooling
+    type: qa
+
+  - question: "Compare centroid routing vs kNN exemplar matching"
+    topic: tooling
+    type: comparison

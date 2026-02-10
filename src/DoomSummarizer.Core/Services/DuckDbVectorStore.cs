@@ -15,6 +15,12 @@ public class DuckDbVectorStore : IAsyncDisposable
     private DuckDBConnection? _conn;
 
     /// <summary>
+    ///     The underlying DuckDB connection. Available after <see cref="InitializeAsync" />.
+    ///     Used to share a single connection with <see cref="DuckDbEntityGraphStore" />.
+    /// </summary>
+    public DuckDBConnection? Connection => _conn;
+
+    /// <summary>
     ///     Create a new DuckDB vector store.
     /// </summary>
     /// <param name="dbPath">Path to the .duckdb file</param>

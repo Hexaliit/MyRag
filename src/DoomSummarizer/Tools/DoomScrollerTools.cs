@@ -60,7 +60,7 @@ public static class DoomScrollerTools
             await _storage.InitializeAsync();
 
             // Initialize entity graph store for knowledge graph queries
-            var vectorDbPath = ConfigService.GetVectorDbPath();
+            var vectorDbPath = ConfigService.GetVectorDbPath(_config);
             if (File.Exists(vectorDbPath))
             {
                 _entityStore = new DuckDbEntityGraphStore(vectorDbPath);

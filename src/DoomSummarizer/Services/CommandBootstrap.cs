@@ -91,6 +91,9 @@ public sealed class CommandBootstrap : IAsyncDisposable
         var vibeResolver = new VibeResolver(config);
         vibeResolver.LoadLenses(typeof(CommandBootstrap).Assembly);
 
+        // Configure the shared query classifier with thresholds from config
+        PromptInterpreter.ConfigureClassifier(config.Classifier);
+
         return new CommandBootstrap(config, dbPath, storage, embedding, vibeResolver);
     }
 
@@ -307,24 +310,35 @@ public sealed class CommandBootstrap : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Initialize DuckDB vector store and entity graph store from the shared vector DB path.
+    ///     Initialize DuckDB vector store and entity graph store sharing a single connection.
     /// </summary>
     public async Task InitializeEntityStoresAsync()
     {
-        var vectorDbPath = ConfigService.GetVectorDbPath();
+        var vectorDbPath = ConfigService.GetVectorDbPath(Config);
         VectorStore = new DuckDbVectorStore(vectorDbPath);
         await VectorStore.InitializeAsync();
-        EntityStore = new DuckDbEntityGraphStore(vectorDbPath);
+        // Share the VectorStore's connection — DuckDB.NET doesn't support
+        // multiple connections to the same file in the same process.
+        EntityStore = new DuckDbEntityGraphStore(VectorStore.Connection!);
         await EntityStore.InitializeAsync();
     }
 
     /// <summary>
-    ///     Initialize only the entity graph store (no vector store needed).
+    ///     Initialize only the entity graph store.
+    ///     Shares VectorStore's connection if available; opens its own otherwise.
     /// </summary>
     public async Task<IEntityGraphStore> InitializeEntityGraphStoreAsync()
     {
-        var vectorDbPath = ConfigService.GetVectorDbPath();
-        EntityStore = new DuckDbEntityGraphStore(vectorDbPath);
+        if (VectorStore?.Connection != null)
+        {
+            EntityStore = new DuckDbEntityGraphStore(VectorStore.Connection);
+        }
+        else
+        {
+            var vectorDbPath = ConfigService.GetVectorDbPath(Config);
+            EntityStore = new DuckDbEntityGraphStore(vectorDbPath);
+        }
+
         await EntityStore.InitializeAsync();
         return EntityStore;
     }

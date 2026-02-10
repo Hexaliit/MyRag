@@ -17,6 +17,7 @@ public record DoomConfig
     public LlamaSharpConfigSection LlamaSharp { get; init; } = new();
     public IngestionConfig Ingestion { get; init; } = new();
     public ExpansionConfig Expansion { get; init; } = new();
+    public ClassifierConfig Classifier { get; init; } = new();
     public Dictionary<string, string> Vibes { get; init; } = new();
     public List<ApiKeyEntry> Keys { get; init; } = [];
     public ApiBudgetConfig ApiBudget { get; init; } = new();
@@ -123,6 +124,61 @@ public record ExpansionConfig
 
     /// <summary>Enable on-demand embedding of low-salience chunks during expansion.</summary>
     public bool DeferredEmbedding { get; init; } = true;
+}
+
+/// <summary>
+///     Semantic query classifier thresholds. Controls the embedding-based
+///     multi-match weighted voting algorithm used for deterministic pre-LLM classification.
+///     All thresholds can be tuned per device profile or user preference.
+/// </summary>
+public record ClassifierConfig
+{
+    /// <summary>Minimum cosine similarity for an exemplar to enter the candidate set.</summary>
+    public float MinCandidateThreshold { get; init; } = 0.35f;
+
+    /// <summary>Minimum weighted vote score to include a topic in the result.</summary>
+    public float MinTopicThreshold { get; init; } = 0.35f;
+
+    /// <summary>Minimum weighted vote score for a type to be considered.</summary>
+    public float MinTypeThreshold { get; init; } = 0.30f;
+
+    /// <summary>Base count boost multiplier in IDF-weighted voting: max_sim + CountBoost * log2(count) * idf.</summary>
+    public double CountBoost { get; init; } = 0.05;
+
+    /// <summary>Minimum raw cosine similarity for a complex exemplar to flag the query as complex.</summary>
+    public double ComplexThreshold { get; init; } = 0.50;
+
+    /// <summary>Minimum raw cosine similarity for a vibe exemplar to trigger vibe detection.</summary>
+    public double VibeThreshold { get; init; } = 0.70;
+
+    /// <summary>Minimum raw cosine similarity (consensus of top 2) for composite detection.</summary>
+    public double CompositeRawThreshold { get; init; } = 0.75;
+
+    // ── Short-Query Feature Decomposition ──
+
+    /// <summary>Maximum word count to consider a query "short" (features apply more strongly).</summary>
+    public int ShortQueryMaxWords { get; init; } = 4;
+
+    /// <summary>Type score boost when a howto intent marker is detected on a short query.</summary>
+    public double HowtoFeatureBoost { get; init; } = 0.12;
+
+    /// <summary>Type score boost when a comparison intent marker is detected on a short query.</summary>
+    public double ComparisonFeatureBoost { get; init; } = 0.12;
+
+    /// <summary>Type score boost for roundup when short query has no intent markers.</summary>
+    public double DefaultRoundupBoost { get; init; } = 0.08;
+
+    /// <summary>Type score boost when a QA intent marker (what is, who is) is detected on a short query.</summary>
+    public double QaFeatureBoost { get; init; } = 0.10;
+
+    /// <summary>Minimum confidence for search_only feature-based override.</summary>
+    public double SearchOnlyFeatureThreshold { get; init; } = 0.60;
+
+    /// <summary>Enable synonym expansion for abbreviations in short queries (MiniLM handles these well without expansion).</summary>
+    public bool SynonymExpansionEnabled { get; init; } = false;
+
+    /// <summary>Confidence scaling factor for short queries (applied to final type confidence).</summary>
+    public double ShortQueryConfidenceScale { get; init; } = 0.85;
 }
 
 public record SourcesConfig
@@ -244,6 +300,7 @@ public record OutputConfig
 public record StorageConfig
 {
     public string DbPath { get; init; } = "~/.doomsummarizer/doom.db";
+    public string VectorDbPath { get; init; } = "~/.doomsummarizer/vectors.duckdb";
     public int RetentionDays { get; init; } = 30;
 }
 
@@ -395,6 +452,7 @@ public record PluginSettings
 [JsonSerializable(typeof(IngestionConfig))]
 [JsonSerializable(typeof(PreDedupWeights))]
 [JsonSerializable(typeof(ExpansionConfig))]
+[JsonSerializable(typeof(ClassifierConfig))]
 [JsonSerializable(typeof(List<ApiKeyEntry>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

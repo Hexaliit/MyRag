@@ -68,7 +68,7 @@ public class LinkFollowingService
         using var semaphore = new SemaphoreSlim(4);
         var tasks = items.Select(async (item, i) =>
         {
-            if (_totalLinksFetched >= _config.MaxTotalLinks)
+            if (Volatile.Read(ref _totalLinksFetched) >= _config.MaxTotalLinks)
             {
                 Interlocked.Increment(ref completed);
                 progress?.Report((completed, total));
@@ -109,9 +109,10 @@ public class LinkFollowingService
             {
                 throw;
             }
-            catch
+            catch (Exception ex)
             {
                 // Don't let link following failures break the pipeline
+                System.Diagnostics.Debug.WriteLine($"Link following failed for {item.Url}: {ex.Message}");
             }
             finally
             {
@@ -152,7 +153,7 @@ public class LinkFollowingService
         var results = new List<LinkedPage>();
         var remaining = Math.Min(
             _config.MaxLinksPerArticle,
-            _config.MaxTotalLinks - _totalLinksFetched);
+            _config.MaxTotalLinks - Volatile.Read(ref _totalLinksFetched));
 
         if (remaining <= 0) return results;
 

@@ -143,6 +143,32 @@ public partial class ScrollCommand
     }
 
     /// <summary>
+    ///     Detect if a URL is likely a homepage or section page (not a specific article).
+    ///     Short paths like tmz.com, tmz.com/, tmz.com/celebrity-news are homepages.
+    ///     Longer paths like tmz.com/2026/02/09/halle-berry-engaged are articles.
+    /// </summary>
+    private static bool IsHomepageUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return false;
+        try
+        {
+            var uri = new Uri(url);
+            var path = uri.AbsolutePath.Trim('/');
+            // No path → definitely homepage (e.g., tmz.com)
+            if (string.IsNullOrEmpty(path)) return true;
+            // Single segment path → section page (e.g., tmz.com/celebrity-news)
+            var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 1 && !path.Contains('.'))
+                return true;
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     ///     Filter items by allowed/blocked domain lists.
     ///     AllowedDomains = allowlist (if non-empty, only these pass).
     ///     BlockedDomains = blocklist (removed after allow check).
