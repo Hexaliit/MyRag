@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using Pgvector;
 
 #nullable disable
 
@@ -17,10 +18,224 @@ namespace LucidRAG.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.1")
+                .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyCollectionLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("ApiKeyId", "CollectionId")
+                        .IsUnique();
+
+                    b.ToTable("api_key_collection_links", (string)null);
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowChat")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AllowSearch")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("KeyPrefix")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NormalizedOwnerEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("RateLimitPerDay")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RateLimitPerMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SigningSecret")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<long>("TotalRequests")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique();
+
+                    b.HasIndex("KeyPrefix")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedOwnerEmail");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasFilter("\"Slug\" IS NOT NULL");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("api_keys", (string)null);
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyIndexingSource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CrawlStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DocumentCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ETag")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("LastCrawledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastModifiedHeader")
+                        .HasColumnType("text");
+
+                    b.Property<int>("MaxDocuments")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("NextScheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SourceValue")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("TriggerCrawlNow")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId")
+                        .IsUnique();
+
+                    b.ToTable("api_key_indexing_sources", (string)null);
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyReadDomain", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId", "Domain")
+                        .IsUnique();
+
+                    b.ToTable("api_key_read_domains", (string)null);
+                });
 
             modelBuilder.Entity("LucidRAG.Entities.CollectionEntity", b =>
                 {
@@ -113,7 +328,7 @@ namespace LucidRAG.Migrations
                     b.Property<float>("Cohesion")
                         .HasColumnType("real");
 
-                    b.Property<Guid>("CollectionId")
+                    b.Property<Guid?>("CollectionId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -190,15 +405,24 @@ namespace LucidRAG.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ActiveDocumentIds")
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("CollectionId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("LastTopicQuery")
+                        .HasColumnType("text");
+
                     b.Property<string>("Title")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<string>("TopicSignature")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -239,6 +463,44 @@ namespace LucidRAG.Migrations
                     b.HasIndex("ConversationId");
 
                     b.ToTable("conversation_messages", (string)null);
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.CustomDomainEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("VerificationToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId")
+                        .IsUnique();
+
+                    b.HasIndex("Domain")
+                        .IsUnique();
+
+                    b.ToTable("custom_domains", (string)null);
                 });
 
             modelBuilder.Entity("LucidRAG.Entities.DocumentEntity", b =>
@@ -309,6 +571,10 @@ namespace LucidRAG.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("StagingPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -337,6 +603,11 @@ namespace LucidRAG.Migrations
                     b.HasIndex("SourceUrl");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("SourcePath", "CollectionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_documents_source_path_collection")
+                        .HasFilter("source_path IS NOT NULL");
 
                     b.ToTable("documents", (string)null);
                 });
@@ -565,6 +836,64 @@ namespace LucidRAG.Migrations
                     b.ToTable("entities", (string)null);
                 });
 
+            modelBuilder.Entity("LucidRAG.Entities.FeatureEmbedding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DocumentCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Vector>("Embedding")
+                        .HasColumnType("vector(384)");
+
+                    b.Property<string>("EmbeddingModel")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("FeatureText")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("FeatureType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("NormalizedText")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("OccurrenceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("CollectionId", "FeatureType");
+
+                    b.HasIndex("CollectionId", "NormalizedText", "FeatureType")
+                        .IsUnique();
+
+                    b.ToTable("feature_embeddings", (string)null);
+                });
+
             modelBuilder.Entity("LucidRAG.Entities.FolderEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -731,6 +1060,58 @@ namespace LucidRAG.Migrations
                     b.ToTable("ingestion_sources", (string)null);
                 });
 
+            modelBuilder.Entity("LucidRAG.Entities.ProcessingSignalEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long?>("DurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SignalType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("StagingPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.HasIndex("CorrelationId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DocumentId", "CreatedAt");
+
+                    b.HasIndex("SignalType", "CreatedAt");
+
+                    b.ToTable("processing_signals", (string)null);
+                });
+
             modelBuilder.Entity("LucidRAG.Entities.RetrievalEntityRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -829,6 +1210,125 @@ namespace LucidRAG.Migrations
                     b.ToTable("retrieval_entities", (string)null);
                 });
 
+            modelBuilder.Entity("LucidRAG.Entities.SaasQueryLogEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("LlmTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("QueryText")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("QueryType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RequestDomain")
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<int>("ResultCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RetrievalTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SearchMode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("TotalTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountryCode");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("QueryType");
+
+                    b.HasIndex("ApiKeyId", "CreatedAt");
+
+                    b.HasIndex("ApiKeyId", "Success", "CreatedAt");
+
+                    b.ToTable("saas_query_logs", (string)null);
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.SaasUsageRollupEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AggregatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("AutocompleteCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("AvgResponseTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("ChatCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<long>("FailedCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("P95ResponseTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("P99ResponseTimeMs")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("SearchCount")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("saas_usage_rollups", (string)null);
+                });
+
             modelBuilder.Entity("LucidRAG.Entities.ScannedPageGroup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -899,6 +1399,140 @@ namespace LucidRAG.Migrations
                     b.ToTable("scanned_page_memberships", (string)null);
                 });
 
+            modelBuilder.Entity("LucidRAG.Entities.SegmentLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LinkType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SourceSegmentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("TargetSegmentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<double>("Weight")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("SourceSegmentHash");
+
+                    b.HasIndex("TargetSegmentHash");
+
+                    b.HasIndex("SourceSegmentHash", "TargetSegmentHash")
+                        .IsUnique();
+
+                    b.ToTable("segment_links", (string)null);
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.WidgetConfigEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccentColor")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BorderRadius")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CorpusStyle")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CustomCss")
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)");
+
+                    b.Property<string>("FaviconUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("FontFamily")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("MaxResults")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("PageDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PageTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Placeholder")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<bool>("ShowBranding")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Theme")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WelcomeMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId")
+                        .IsUnique();
+
+                    b.ToTable("widget_configs", (string)null);
+                });
+
             modelBuilder.Entity("LucidRAG.Identity.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -925,6 +1559,9 @@ namespace LucidRAG.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasCompletedOnboarding")
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("LastLoginAt")
@@ -1110,6 +1747,57 @@ namespace LucidRAG.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyCollectionLink", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.ApiKeyEntity", "ApiKey")
+                        .WithMany("CollectionLinks")
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
+
+                    b.Navigation("Collection");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyEntity", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Collection");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyIndexingSource", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.ApiKeyEntity", "ApiKey")
+                        .WithOne("IndexingSource")
+                        .HasForeignKey("LucidRAG.Entities.ApiKeyIndexingSource", "ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyReadDomain", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.ApiKeyEntity", "ApiKey")
+                        .WithMany("ReadDomains")
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
+                });
+
             modelBuilder.Entity("LucidRAG.Entities.CollectionSalientTerm", b =>
                 {
                     b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
@@ -1126,8 +1814,7 @@ namespace LucidRAG.Migrations
                     b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
                         .WithMany()
                         .HasForeignKey("CollectionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("LucidRAG.Entities.CommunityEntity", "ParentCommunity")
                         .WithMany("ChildCommunities")
@@ -1177,6 +1864,17 @@ namespace LucidRAG.Migrations
                         .IsRequired();
 
                     b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.CustomDomainEntity", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.ApiKeyEntity", "ApiKey")
+                        .WithOne("CustomDomain")
+                        .HasForeignKey("LucidRAG.Entities.CustomDomainEntity", "ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
                 });
 
             modelBuilder.Entity("LucidRAG.Entities.DocumentEntity", b =>
@@ -1256,6 +1954,16 @@ namespace LucidRAG.Migrations
                     b.Navigation("Entity");
                 });
 
+            modelBuilder.Entity("LucidRAG.Entities.FeatureEmbedding", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Collection");
+                });
+
             modelBuilder.Entity("LucidRAG.Entities.FolderEntity", b =>
                 {
                     b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
@@ -1305,6 +2013,28 @@ namespace LucidRAG.Migrations
                     b.Navigation("Collection");
                 });
 
+            modelBuilder.Entity("LucidRAG.Entities.SaasQueryLogEntity", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.ApiKeyEntity", "ApiKey")
+                        .WithMany()
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.SaasUsageRollupEntity", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.ApiKeyEntity", "ApiKey")
+                        .WithMany()
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
+                });
+
             modelBuilder.Entity("LucidRAG.Entities.ScannedPageGroup", b =>
                 {
                     b.HasOne("LucidRAG.Entities.CollectionEntity", "Collection")
@@ -1332,6 +2062,28 @@ namespace LucidRAG.Migrations
                     b.Navigation("Entity");
 
                     b.Navigation("Group");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.SegmentLink", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.DocumentEntity", "Document")
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.WidgetConfigEntity", b =>
+                {
+                    b.HasOne("LucidRAG.Entities.ApiKeyEntity", "ApiKey")
+                        .WithOne("WidgetConfig")
+                        .HasForeignKey("LucidRAG.Entities.WidgetConfigEntity", "ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -1383,6 +2135,19 @@ namespace LucidRAG.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("LucidRAG.Entities.ApiKeyEntity", b =>
+                {
+                    b.Navigation("CollectionLinks");
+
+                    b.Navigation("CustomDomain");
+
+                    b.Navigation("IndexingSource");
+
+                    b.Navigation("ReadDomains");
+
+                    b.Navigation("WidgetConfig");
                 });
 
             modelBuilder.Entity("LucidRAG.Entities.CollectionEntity", b =>

@@ -4,9 +4,12 @@ using LucidRAG.Config;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using LucidRAG.Services.Background;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services;
+using Polly;
+using Polly.Retry;
 
 namespace LucidRAG.Services;
 
@@ -19,6 +22,18 @@ public class DocumentProcessingService(
 {
     private const string CollectionName = "ragdocs";
     private readonly RagDocumentsConfig _config = config.Value;
+
+    private static readonly ResiliencePipeline<ImportResult> ImportRetryPipeline =
+        new ResiliencePipelineBuilder<ImportResult>()
+            .AddRetry(new RetryStrategyOptions<ImportResult>
+            {
+                MaxRetryAttempts = 3,
+                Delay = TimeSpan.FromMilliseconds(100),
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true,
+                ShouldHandle = new PredicateBuilder<ImportResult>().Handle<DbUpdateException>()
+            })
+            .Build();
 
     public async Task<Guid> QueueDocumentAsync(Stream fileStream, string filename, Guid? collectionId,
         CancellationToken ct = default)
@@ -110,6 +125,30 @@ public class DocumentProcessingService(
         // Normalize source path for consistent matching
         var normalizedSourcePath = sourcePath.Replace('\\', '/').ToLowerInvariant();
 
+        return await ImportRetryPipeline.ExecuteAsync(async ct2 =>
+        {
+            // Detach any tracked entities from previous attempts
+            foreach (var entry in db.ChangeTracker.Entries()
+                .Where(e => e.State != EntityState.Detached))
+                entry.State = EntityState.Detached;
+
+            fileStream.Position = 0;
+            return await TryImportAsync(fileStream, filename, collectionId,
+                normalizedSourcePath, contentHash, extension, sourceCreatedAt, sourceModifiedAt, ct2);
+        }, ct);
+    }
+
+    private async Task<ImportResult> TryImportAsync(
+        Stream fileStream,
+        string filename,
+        Guid? collectionId,
+        string normalizedSourcePath,
+        string contentHash,
+        string extension,
+        DateTimeOffset? sourceCreatedAt,
+        DateTimeOffset? sourceModifiedAt,
+        CancellationToken ct)
+    {
         // Check for existing document with same source path in collection
         var existingDoc = await db.Documents
             .FirstOrDefaultAsync(d =>

@@ -62,7 +62,7 @@ Mostlylucid.DocSummarizer.OpenAI    → OpenAI/GPT-4o integration
 
 # Specialized Services
 Mostlylucid.GraphRag                → Entity extraction & knowledge graph
-Mostlylucid.RAG                     → Vector store abstraction (DuckDB/Qdrant)
+Mostlylucid.RAG                     → Vector store abstraction (DuckDB/Qdrant/Typesense via commercial plugin)
 ```
 
 **Dependency flow**
@@ -190,7 +190,7 @@ Fully configurable via `DocSummarizer:Deduplication` section in `appsettings.jso
 ### Specialized Services
 
 - `src/Mostlylucid.GraphRag/GraphRagPipeline.cs` - Entity extraction orchestration
-- `src/Mostlylucid.RAG/` - Vector store abstraction (DuckDB/Qdrant backends)
+- `src/Mostlylucid.RAG/` - Vector store abstraction (DuckDB/Qdrant backends). Typesense available via commercial `LucidRAG.Plugin.Typesense` for unified BM25 + vector search.
 
 ## Configuration
 
@@ -201,12 +201,14 @@ Primary configuration in `src/LucidRAG/appsettings.json`:
 - `DocSummarizer:BertRag:VectorStore` - "DuckDB" (default) or "Qdrant"
 - `DocSummarizer:Ollama:BaseUrl/Model` - LLM backend for chat
 - `Prompts` section - Query clarification, decomposition, self-correction toggles
+- `Typesense` section (commercial plugin) - Host, Port, ApiKey, CollectionName, EmbeddingModel, DefaultAlpha (0.0=pure BM25, 1.0=pure vector, default 0.3)
 
 ## Storage Backends
 
 - **PostgreSQL 16+** - Production database (EF Core)
 - **SQLite** - Standalone/CLI mode (metadata only)
-- **Qdrant** - Production vector store (persistent embeddings)
+- **Qdrant** - Self-hosted vector store (persistent embeddings)
+- **Typesense** - Production SaaS search engine (unified BM25 + semantic vector search in one engine). Commercial plugin: `LucidRAG.Plugin.Typesense`. Sub-50ms hybrid search with built-in auto-embedding, rank fusion, and multi-tenant collection isolation. Replaces both Qdrant and Lucene.NET with a single backend.
 - **InMemory** - Standalone vector store (ephemeral, no persistence)
 - **ONNX** - Local embeddings (all-MiniLM-L6-v2, no API keys needed)
 

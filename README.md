@@ -11,14 +11,14 @@
 [![GitHub release](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Release&logo=github)](https://github.com/scottgal/lucidrag/releases)
 [![GitHub Downloads](https://img.shields.io/github/downloads/scottgal/lucidrag/total?label=Downloads&logo=github)](https://github.com/scottgal/lucidrag/releases)
 
-> **IN DEVELOPMENT** - This project is under active development and not yet ready for production use. APIs may change
-> without notice. Watch this repo for updates.
+> **IN DEVELOPMENT** — This project is under active development. The hosted SaaS version at
+> **[lucidrag.com](https://www.lucidrag.com)** will be available shortly — watch this repo for updates!
 
 </div>
 
 ---
 
-## DoomSummarizer - Console-First Research Assistant
+## DoomSummarizer — Console-First Research Assistant
 
 <div align="center">
 
@@ -27,10 +27,11 @@
 
 </div>
 
-**DoomSummarizer** is a distillation of ***lucid***RAG principles - hybrid search, entity extraction, knowledge graph
-construction, evidence-grounded synthesis - compressed into a standalone single-binary CLI. It fetches, ranks, and
-synthesizes news and research with a built-in local knowledge base, NER entity extraction, and long-form article
-generation. No API keys required for default sources.
+**DoomSummarizer** is a distillation of ***lucid***RAG principles — hybrid search, entity extraction, knowledge graph
+construction, evidence-grounded synthesis — compressed into a standalone single-binary CLI. Fully open source, it includes
+the web crawler with HTTP ETag/Last-Modified cache-aware incremental crawling that also powers the commercial
+***lucid***RAG SaaS platform's indexing pipeline. It fetches, ranks, and synthesizes news and research with a built-in
+local knowledge base, NER entity extraction, and long-form article generation. No API keys required for default sources.
 If you've used NotebookLM: this is that workflow, but open, local-first, and composable.
 _Aside: we're not trying to be NotebookLM; DoomSummarizer is intentionally a different system built around local control, open components, and composable workflows._
 
@@ -68,14 +69,34 @@ Most RAG systems are basic document-to-vector pipelines. ***lucid***RAG is diffe
 
 | Feature          | Basic RAG        | ***lucid***RAG                                   |
 |------------------|------------------|--------------------------------------------------|
-| Search           | Semantic only    | Hybrid BM25 + Semantic with RRF fusion           |
+| Search           | Semantic only    | Hybrid BM25 + Semantic with RRF fusion (Typesense / Qdrant + Lucene) |
 | Query Processing | Direct embedding | Agentic decomposition (Sentinel)                 |
 | Knowledge        | Flat chunks      | GraphRAG with entity extraction & communities    |
 | Images           | Not supported    | 22-wave ML pipeline (OCR, faces, motion, scenes) |
 | Data Files       | Not supported    | CSV, Excel, Parquet profiling with DuckDB        |
 | Video            | Not supported    | Scene detection, transcript extraction           |
-| Deployment       | Cloud-dependent  | **Zero API keys** - runs fully local             |
+| Deployment       | Cloud-dependent  | **Zero API keys** — runs fully local             |
 | Multi-tenancy    | Not supported    | Schema-per-tenant with automatic provisioning    |
+
+---
+
+## LucidRAG SaaS (Coming Soon)
+
+**[lucidrag.com](https://www.lucidrag.com)** — the fully managed, hosted version of ***lucid***RAG is on the way.
+
+The SaaS edition is powered by [**Typesense**](https://typesense.org/) as its unified search engine — replacing separate Qdrant and Lucene.NET deployments with a single, high-performance C++ engine that handles **both** BM25 keyword search **and** semantic vector search in one query. One API call performs hybrid retrieval with configurable rank fusion, delivering sub-50ms latency at millions of documents.
+
+**Why Typesense for production SaaS?**
+
+- **Unified hybrid search** — BM25 + HNSW vector search + rank fusion in a single engine. No more synchronizing two separate search indices.
+- **Built-in semantic search** — Auto-generates embeddings from document fields using built-in ONNX models (all-MiniLM-L12-v2) or remote APIs (OpenAI, etc.). No external embedding pipeline needed.
+- **Built-in conversational RAG** — Send a natural language question, get a grounded answer with streaming. Multi-collection context aggregation out of the box.
+- **Sub-50ms search latency** — In-memory C++ architecture with HNSW indexing. 28M records on 4 vCPUs at 28ms average.
+- **Multi-tenant ready** — Scoped API keys with collection-level isolation map directly to SaaS multi-tenancy patterns.
+- **Single binary, zero dependencies** — No JVM, no runtime overhead, no garbage collection pauses. Raft-based HA clustering built in.
+- **Natural language query understanding** — LLM-powered intent detection converts free-form queries into structured filters (similar to LucidRAG's Sentinel, but at the search engine level).
+
+The entire OSS core — including the ***lucid***RAG CLI (with all non-Typesense search engines built in and working), DoomSummarizer (the web crawler and research assistant), and all pipeline infrastructure — remains fully open source under The Unlicense. The SaaS platform uses ***lucid***RAG's plugin architecture to build something that works at scale: adding Typesense as a unified search backend, multi-tenant SaaS isolation, API key management, analytics dashboards, and the embeddable widget CDN.
 
 ---
 
@@ -320,7 +341,7 @@ Enterprise-ready tenant isolation:
 - PostgreSQL schema-per-tenant isolation
 - Automatic schema provisioning on first access
 - Domain-based routing (subdomain or path)
-- Per-tenant Qdrant collections
+- Per-tenant Qdrant collections (self-hosted) or Typesense collections (SaaS)
 - Role-based access control per tenant
 
 ---
@@ -355,9 +376,23 @@ Enterprise-ready tenant isolation:
   "DocSummarizer": {
     "EmbeddingBackend": "Onnx",  // Onnx (local), Ollama, OpenAI, Anthropic
     "BertRag": {
-      "VectorStore": "Qdrant",   // Qdrant (production), DuckDB
+      "VectorStore": "Qdrant",   // Qdrant (self-hosted), DuckDB
       "CollectionName": "ragdocs"
     }
+  }
+}
+```
+
+**Typesense (SaaS / Production):**
+
+```json
+{
+  "Typesense": {
+    "Host": "localhost",
+    "Port": "8108",
+    "ApiKey": "your-api-key",
+    "CollectionName": "lucidrag_evidence",
+    "DefaultAlpha": 0.3
   }
 }
 ```
@@ -442,7 +477,7 @@ Use cloud providers only when enabled; local Ollama remains primary by default.
 [![DoomSummarizer Releases](https://img.shields.io/github/v/release/scottgal/lucidrag?include_prereleases&label=Download&logo=github)](https://github.com/scottgal/lucidrag/releases)
 
 A distillation of ***lucid***RAG into a single-binary CLI. Console-first research assistant and personal knowledge
-base - fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings, no API keys required.
+base — fetches, ranks, and synthesizes content from 30+ sources with local ONNX embeddings, no API keys required.
 
 ```bash
 doomsummarizer scroll "AI security news" -v snarky     # Digest with tone
@@ -454,7 +489,9 @@ doomsummarizer scroll "Rust vs Go" -t deep-dive -o comparison.md  # Long-form ar
 **[Full documentation →](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)** | *
 *[Download →](https://github.com/scottgal/lucidrag/releases)**
 
-### *lucid*RAG CLI
+### *lucid*RAG CLI (Fully OSS)
+
+The CLI ships with all search engines built in — ONNX embeddings, BM25 (Lucene.NET), Qdrant vector search, and RRF fusion all work out of the box. No commercial plugins or API keys required.
 
 ```bash
 # Process files (auto-routes by extension)
@@ -539,9 +576,10 @@ dotnet test src/LucidRAG.Tests/LucidRAG.Tests.csproj -c Release --filter "Catego
 
 **Optional Services:**
 
-- **Ollama** - Local LLM inference (DoomSummarizer defaults: `gemma3:4b` + `qwen3:0.6b`)
-- **Qdrant** - Production vector storage
-- **Docling** - Enhanced PDF/DOCX parsing
+- **Ollama** — Local LLM inference (DoomSummarizer defaults: `gemma3:4b` + `qwen3:0.6b`)
+- **Qdrant** — Self-hosted vector storage
+- **Typesense** — Unified hybrid search engine (BM25 + semantic vectors in one engine) — used in SaaS production
+- **Docling** — Enhanced PDF/DOCX parsing
 
 ---
 
@@ -591,7 +629,7 @@ src/
 
 ## License
 
-The UnLicense - see [LICENSE](LICENSE)
+The UnLicense — see [LICENSE](LICENSE)
 
 ---
 
@@ -604,8 +642,6 @@ the [Issues](https://github.com/scottgal/lucidrag/issues) for areas where help i
 
 <div align="center">
 
-**[GitHub](https://github.com/scottgal/lucidrag)** | **[Releases](https://github.com/scottgal/lucidrag/releases)** | *
-*[Issues](https://github.com/scottgal/lucidrag/issues)** | *
-*[DoomSummarizer Docs](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
+**[GitHub](https://github.com/scottgal/lucidrag)** | **[LucidRAG SaaS](https://www.lucidrag.com)** | **[Releases](https://github.com/scottgal/lucidrag/releases)** | **[Issues](https://github.com/scottgal/lucidrag/issues)** | **[DoomSummarizer Docs](https://github.com/scottgal/lucidrag/blob/main/src/DoomSummarizer/README.md)**
 
 </div>
