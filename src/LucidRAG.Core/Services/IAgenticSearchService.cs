@@ -81,7 +81,12 @@ public record ChatRequest(
     Guid[]? DocumentIds = null,
     string? SystemPrompt = null,
     SearchMode SearchMode = SearchMode.Hybrid,
-    string? LensId = null // Optional lens override (user selection)
+    string? LensId = null, // Optional lens override (user selection)
+    // Plan-driven limits (set by controller from PlanLimits)
+    int? MaxResponseTokens = null,
+    string? SynthesisModel = null,
+    string? CustomLlmApiKey = null,
+    string? CustomLlmProvider = null
 );
 
 public record ChatResponse(

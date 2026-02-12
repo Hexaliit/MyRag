@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -112,6 +114,84 @@ public class AnthropicLlmService : ILlmService
     }
 
     /// <inheritdoc />
+    public async IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt, LlmOptions? options = null,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var model = options?.Model ?? _config.Model;
+        var maxTokens = options?.MaxTokens ?? _config.MaxTokens;
+        var temperature = options?.Temperature ?? _config.Temperature;
+
+        var request = new AnthropicRequest
+        {
+            Model = model,
+            MaxTokens = maxTokens,
+            Temperature = temperature,
+            Stream = true,
+            Messages =
+            [
+                new AnthropicMessage { Role = "user", Content = prompt }
+            ]
+        };
+
+        if (!string.IsNullOrEmpty(options?.SystemPrompt)) request.System = options.SystemPrompt;
+
+        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/v1/messages")
+        {
+            Content = new StringContent(jsonContent, Encoding.UTF8, "application/json")
+        };
+
+        HttpResponseMessage? response = null;
+        try
+        {
+            response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogError("Anthropic streaming API error: {StatusCode} - {Error}", response.StatusCode,
+                    errorContent);
+                throw new HttpRequestException(
+                    $"Anthropic API error: {response.StatusCode} - {errorContent}");
+            }
+
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var reader = new StreamReader(stream);
+
+            string? line;
+            while ((line = await reader.ReadLineAsync(ct)) != null)
+            {
+                if (string.IsNullOrEmpty(line) || !line.StartsWith("data: ")) continue;
+
+                var json = line[6..];
+                if (json == "[DONE]") break;
+
+                // Parse outside yield to avoid CS1626 (yield in try-catch)
+                string? tokenText = null;
+                var shouldStop = false;
+                try
+                {
+                    var evt = JsonSerializer.Deserialize<AnthropicStreamEvent>(json, _jsonOptions);
+                    if (evt?.Type == "content_block_delta") tokenText = evt.Delta?.Text;
+                    if (evt?.Type == "message_stop") shouldStop = true;
+                }
+                catch (JsonException)
+                {
+                    // Skip malformed SSE events
+                }
+
+                if (tokenText != null) yield return tokenText;
+                if (shouldStop) break;
+            }
+        }
+        finally
+        {
+            response?.Dispose();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<T?> GenerateJsonAsync<T>(string prompt, LlmOptions? options = null,
         CancellationToken ct = default)
         where T : class
@@ -218,6 +298,7 @@ public class AnthropicLlmService : ILlmService
         public int MaxTokens { get; set; }
         public double Temperature { get; set; }
         public string? System { get; set; }
+        public bool? Stream { get; set; }
         public required List<AnthropicMessage> Messages { get; set; }
     }
 
@@ -248,5 +329,17 @@ public class AnthropicLlmService : ILlmService
     {
         public int InputTokens { get; set; }
         public int OutputTokens { get; set; }
+    }
+
+    private class AnthropicStreamEvent
+    {
+        public string? Type { get; set; }
+        public AnthropicDelta? Delta { get; set; }
+    }
+
+    private class AnthropicDelta
+    {
+        public string? Type { get; set; }
+        public string? Text { get; set; }
     }
 }

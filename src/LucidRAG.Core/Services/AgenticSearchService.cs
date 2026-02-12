@@ -90,8 +90,11 @@ public class AgenticSearchService(
         // VectorStoreDocId format is "{name}_{docHash}" (e.g., "1025_e586be1c8a7e5d02")
         // Segment IDs from Qdrant use just the docHash part (e.g., "e586be1c8a7e5d02_s_0")
         // So we need to extract the docHash for matching
+        // Scoped by collection and document IDs to avoid full table scan
         var documents = await db.Documents
             .Where(d => d.VectorStoreDocId != null)
+            .Where(d => !request.CollectionId.HasValue || d.CollectionId == request.CollectionId)
+            .Where(d => request.DocumentIds == null || request.DocumentIds.Contains(d.Id))
             .ToListAsync(ct);
 
         var documentLookup = documents
@@ -104,7 +107,8 @@ public class AgenticSearchService(
         // Retrieve more candidates for BM25 re-ranking (3x the final count)
         var candidateCount = Math.Max(request.TopK * 3, 50);
 
-        foreach (var subQuery in queryPlan.SubQueries.OrderBy(sq => sq.Priority))
+        // Execute sub-queries in parallel for lower latency
+        var subQueryTasks = queryPlan.SubQueries.Select(async subQuery =>
         {
             logger.LogDebug("Executing sub-query: {Query} (purpose: {Purpose})", subQuery.Query, subQuery.Purpose);
 
@@ -117,9 +121,12 @@ public class AgenticSearchService(
                 null,
                 ct);
 
-            // Store with dense score and priority
-            foreach (var s in segments) allSegments.Add((s, s.QuerySimilarity, subQuery.Priority));
-        }
+            return segments.Select(s => (s, s.QuerySimilarity, subQuery.Priority)).ToList();
+        }).ToList();
+
+        var subQueryResults = await Task.WhenAll(subQueryTasks);
+        foreach (var batch in subQueryResults)
+            allSegments.AddRange(batch);
 
         // Deduplicate segments by ID, keeping best dense score
         var uniqueSegments = allSegments
@@ -235,253 +242,77 @@ public class AgenticSearchService(
 
     public async Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken ct = default)
     {
-        // Resolve lens (user override > collection default > system default)
-        var lens = await ResolveLensAsync(request, ct);
-        logger.LogDebug("Using lens '{LensId}' for query: {Query}", lens.Manifest.Id, request.Query);
+        var ctx = await PrepareChatPipelineAsync(request, ct);
 
-        // Get or create conversation
-        var conversationId = request.ConversationId;
-        var isNewConversation = !conversationId.HasValue;
-        if (isNewConversation)
+        // Handle early-exit cases
+        if (ctx.SearchResult.QueryPlan?.NeedsClarification == true)
         {
-            var conv = await conversationService.CreateConversationAsync(request.CollectionId, ct: ct);
-            conversationId = conv.Id;
-        }
-
-        // Add user message
-        await conversationService.AddMessageAsync(conversationId.Value, "user", request.Query, ct: ct);
-
-        // Build context from conversation history
-        var context = await conversationService.BuildContextAsync(conversationId.Value, ct: ct);
-
-        // Follow-up detection for existing conversations
-        var queryToSearch = request.Query;
-        Guid[]? cachedDocumentIds = null;
-        FollowUpDetectionResult? followUpResult = null;
-
-        if (!isNewConversation)
-        {
-            var previousQuery = await conversationService.GetLastTopicQueryAsync(conversationId.Value, ct);
-            followUpResult = await sentinelService.DetectFollowUpAsync(request.Query, previousQuery, ct: ct);
-
-            logger.LogInformation(
-                "Follow-up detection: IsFollowUp={IsFollowUp}, Confidence={Confidence:F2}, Reason='{Reason}'",
-                followUpResult.IsFollowUp, followUpResult.Confidence, followUpResult.Reason);
-
-            if (followUpResult.IsFollowUp)
-            {
-                // Use resolved query if coreferences were expanded
-                if (!string.IsNullOrEmpty(followUpResult.ResolvedQuery))
-                {
-                    queryToSearch = followUpResult.ResolvedQuery;
-                    logger.LogDebug("Using resolved query: '{Original}' -> '{Resolved}'", request.Query, queryToSearch);
-                }
-
-                // Use cached document set if confidence is high
-                if (followUpResult.UseSameDocumentSet)
-                {
-                    cachedDocumentIds = await conversationService.GetActiveDocumentsAsync(conversationId.Value, ct);
-                    if (cachedDocumentIds?.Length > 0)
-                        logger.LogInformation("Using cached document set of {Count} documents for follow-up",
-                            cachedDocumentIds.Length);
-                }
-            }
-        }
-
-        // Get collection for lens template context
-        var collection = request.CollectionId.HasValue
-            ? await db.Collections.FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct)
-            : null;
-
-        // Render system prompt using lens template (unless explicitly overridden)
-        string systemPrompt;
-        if (!string.IsNullOrEmpty(request.SystemPrompt))
-        {
-            // User provided explicit system prompt - use it directly
-            var systemPromptKey = request.SystemPrompt;
-            systemPrompt = _prompts.SystemPrompts.GetValueOrDefault(systemPromptKey, _prompts.SystemPrompts["Default"]);
-        }
-        else
-        {
-            // Use lens template to render system prompt
-            var promptContext = new
-            {
-                tenant_name = "LucidRAG", // TODO: Get from TenantContext when available
-                collection_description = collection?.Description ?? "",
-                collection_name = collection?.Name ?? "documents"
-            };
-
-            systemPrompt = lensRender.RenderSystemPrompt(lens, promptContext);
-        }
-
-        // Search for relevant segments
-        // Use cached document IDs if follow-up with high confidence, otherwise search normally
-        var documentIdsToSearch = cachedDocumentIds ?? request.DocumentIds;
-
-        var searchResult = await SearchAsync(new SearchRequest(
-            queryToSearch, // Use resolved query (with expanded coreferences)
-            request.CollectionId,
-            documentIdsToSearch,
-            SearchMode: request.SearchMode), ct);
-
-        // Store document set for follow-up questions if this is a new topic or new conversation
-        if (!followUpResult?.UseSameDocumentSet == true || isNewConversation || cachedDocumentIds == null)
-        {
-            var documentIdsFromSearch = searchResult.Results
-                .Select(r => r.DocumentId)
-                .Where(id => id != Guid.Empty)
-                .Distinct()
-                .ToArray();
-
-            if (documentIdsFromSearch.Length > 0)
-            {
-                await conversationService.SetActiveDocumentsAsync(
-                    conversationId.Value,
-                    documentIdsFromSearch,
-                    queryToSearch,
-                    ct: ct);
-
-                logger.LogDebug("Stored {Count} document IDs for conversation {ConversationId}",
-                    documentIdsFromSearch.Length, conversationId);
-            }
-        }
-
-        // Check if Sentinel needs clarification
-        if (searchResult.QueryPlan?.NeedsClarification == true)
-        {
-            var clarificationQuestion = searchResult.QueryPlan.ClarificationQuestion
+            var clarificationQuestion = ctx.SearchResult.QueryPlan.ClarificationQuestion
                                         ??
                                         "Could you please clarify your question? I want to make sure I understand what you're looking for.";
-
-            logger.LogInformation("Sentinel requesting clarification for query: {Query}", request.Query);
-
-            await conversationService.AddMessageAsync(conversationId.Value, "assistant", clarificationQuestion, ct: ct);
-
-            return new ChatResponse(
-                clarificationQuestion,
-                [],
-                conversationId.Value,
-                true,
-                clarificationQuestion,
+            await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", clarificationQuestion, ct: ct);
+            return new ChatResponse(clarificationQuestion, [], ctx.ConversationId, true, clarificationQuestion,
                 Timestamp: DateTimeOffset.UtcNow);
         }
 
-        // Check if no results - ask for clarification
-        // Note: Only check result count, not confidence. If we have results, proceed with synthesis.
-        // Low confidence with results should still attempt to answer (synthesis can determine relevance).
-        if (searchResult.Results.Count == 0)
+        if (ctx.SearchResult.Results.Count == 0)
         {
             var noResultsMessage = "I couldn't find relevant information in the uploaded documents. Could you try:\n" +
                                    "- Rephrasing your question\n" +
                                    "- Being more specific about what you're looking for\n" +
                                    "- Asking about topics covered in the documents";
-
-            logger.LogInformation("No results found for query: {Query}", request.Query);
-
-            await conversationService.AddMessageAsync(conversationId.Value, "assistant", noResultsMessage, ct: ct);
-
-            return new ChatResponse(
-                noResultsMessage,
-                [],
-                conversationId.Value,
-                true,
-                noResultsMessage,
+            await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", noResultsMessage, ct: ct);
+            return new ChatResponse(noResultsMessage, [], ctx.ConversationId, true, noResultsMessage,
                 Timestamp: DateTimeOffset.UtcNow);
         }
 
-        // In demo mode, check if query is relevant to indexed documents
-        if (_ragConfig.DemoMode.Enabled)
+        if (_ragConfig.DemoMode.Enabled &&
+            !ctx.SearchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore))
         {
-            var hasRelevantResults = searchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore);
-            if (!hasRelevantResults)
-            {
-                logger.LogInformation(
-                    "Demo mode: Query '{Query}' appears off-topic (no results above {Threshold} threshold)",
-                    request.Query, _ragConfig.DemoMode.MinRelevanceScore);
-
-                var offTopicAnswer = _ragConfig.DemoMode.OffTopicMessage;
-                await conversationService.AddMessageAsync(conversationId.Value, "assistant", offTopicAnswer, ct: ct);
-                return new ChatResponse(offTopicAnswer, [], conversationId.Value, IsOffTopic: true,
-                    Timestamp: DateTimeOffset.UtcNow);
-            }
+            var offTopicAnswer = _ragConfig.DemoMode.OffTopicMessage;
+            await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", offTopicAnswer, ct: ct);
+            return new ChatResponse(offTopicAnswer, [], ctx.ConversationId, IsOffTopic: true,
+                Timestamp: DateTimeOffset.UtcNow);
         }
 
-        // Build sources for response with relevance filtering and deduplication
-        // 1. Filter by minimum relevance score (semantic mode uses cosine similarity 0-1)
-        // 2. Deduplicate semantically similar segments to avoid repetition
-        var retrievalDedupConfig = _docSummarizerConfig.Deduplication.Retrieval;
-        var minRelevanceScore = retrievalDedupConfig.MinRelevanceScore;
-        const double textSimilarityThreshold = 0.7; // Jaccard similarity for text-based dedup
-
-        var relevantResults = searchResult.Results
-            .Where(r => r.Score >= minRelevanceScore)
-            .Take(10) // Take more candidates for deduplication
-            .ToList();
-
-        // If no results meet threshold, return empty (triggers "no info" response)
-        if (relevantResults.Count == 0)
-            logger.LogInformation("No results above relevance threshold {Threshold} for query: {Query}",
-                minRelevanceScore, request.Query);
-
-        // Deduplicate by text similarity (greedy selection)
-        var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
-
-        var sources = dedupedResults
-            .Take(5) // Final top 5 after dedup
-            .Select((r, i) => new SourceCitation(
-                i + 1,
-                r.DocumentId,
-                r.DocumentName,
-                r.SegmentId,
-                r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text,
-                r.SectionTitle,
-                MatchedEntities: r.DomainEntities,
-                DocumentType: r.DomainDetected))
-            .ToList();
-
-        // Build thinking/transparency output
-        var thinking = BuildThinkingOutput(request.Query, searchResult);
-
-        // Check if this is a keyword query - skip synthesis
-        var queryType = searchResult.QueryPlan?.QueryType ?? QueryType.Semantic;
+        // Synthesis
+        var queryType = ctx.SearchResult.QueryPlan?.QueryType ?? QueryType.Semantic;
         string answer;
 
         if (queryType == QueryType.Keyword || queryType == QueryType.Navigation)
         {
-            // Keyword/navigation query - just list matching documents without synthesis
             logger.LogInformation("Query '{Query}' is {Type} - skipping synthesis", request.Query, queryType);
-            answer = BuildKeywordResponseNoThinking(sources);
+            answer = BuildKeywordResponseNoThinking(ctx.Sources);
         }
         else
         {
-            // Semantic/comparison/aggregation - use LLM synthesis
-            answer = await BuildAnswerAsync(request.Query, sources, systemPrompt, ct);
-            // Note: thinking is now returned separately in ThinkingNote, not prepended
+            answer = await BuildAnswerAsync(request.Query, ctx.Sources, ctx.SystemPrompt,
+                ctx.ConversationContext, ctx.SynthesisOptions, ct);
         }
 
         // Save assistant message
-        var metadata = JsonSerializer.Serialize(new { sources = sources.Select(s => s.SegmentId) });
-        await conversationService.AddMessageAsync(conversationId.Value, "assistant", answer, metadata, ct);
+        var metadata = JsonSerializer.Serialize(new { sources = ctx.Sources.Select(s => s.SegmentId) });
+        await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", answer, metadata, ct);
 
         // Build decomposition info for UI
-        var decomposition = searchResult.QueryPlan != null
+        var decomposition = ctx.SearchResult.QueryPlan != null
             ? new DecompositionInfo(
-                searchResult.QueryPlan.Confidence,
-                searchResult.QueryPlan.SubQueries
+                ctx.SearchResult.QueryPlan.Confidence,
+                ctx.SearchResult.QueryPlan.SubQueries
                     .Select(sq => new SubQueryInfo(sq.Query, sq.Purpose ?? "", sq.Priority))
                     .ToList(),
-                searchResult.QueryPlan.Confidence < 0.7)
+                ctx.SearchResult.QueryPlan.Confidence < 0.7)
             : null;
 
-        return new ChatResponse(answer, sources, conversationId.Value, Timestamp: DateTimeOffset.UtcNow)
+        return new ChatResponse(answer, ctx.Sources, ctx.ConversationId, Timestamp: DateTimeOffset.UtcNow)
         {
-            QueryPlan = searchResult.QueryPlan,
+            QueryPlan = ctx.SearchResult.QueryPlan,
             Decomposition = decomposition,
-            LensId = lens.Manifest.Id,
-            LensStyles = lens.Styles,
-            ThinkingNote = thinking,
-            SearchTimeMs = (int)searchResult.ResponseTimeMs,
-            SegmentCount = searchResult.Results.Count
+            LensId = ctx.Lens.Manifest.Id,
+            LensStyles = ctx.Lens.Styles,
+            ThinkingNote = ctx.Thinking,
+            SearchTimeMs = (int)ctx.SearchResult.ResponseTimeMs,
+            SegmentCount = ctx.SearchResult.Results.Count
         };
     }
 
@@ -515,12 +346,15 @@ public class AgenticSearchService(
         }
     }
 
-    /// <inheritdoc />
-    public async IAsyncEnumerable<ChatStreamChunk> ChatStreamWithSourcesAsync(ChatRequest request,
-        [EnumeratorCancellation] CancellationToken ct = default)
+    /// <summary>
+    ///     Shared pipeline setup for both ChatAsync and ChatStreamWithSourcesAsync.
+    ///     Returns all state needed for synthesis, eliminating duplication between the two methods.
+    /// </summary>
+    private async Task<ChatPipelineContext> PrepareChatPipelineAsync(ChatRequest request, CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         var lens = await ResolveLensAsync(request, ct);
+
         var conversationId = request.ConversationId;
         var isNewConversation = !conversationId.HasValue;
         if (isNewConversation)
@@ -530,6 +364,11 @@ public class AgenticSearchService(
         }
 
         await conversationService.AddMessageAsync(conversationId.Value, "user", request.Query, ct: ct);
+
+        // Build conversation context from history
+        var context = await conversationService.BuildContextAsync(conversationId.Value, ct: ct);
+
+        // Follow-up detection
         var queryToSearch = request.Query;
         Guid[]? cachedDocumentIds = null;
         FollowUpDetectionResult? followUpResult = null;
@@ -545,10 +384,11 @@ public class AgenticSearchService(
             }
         }
 
+        // Resolve system prompt
         var collection = request.CollectionId.HasValue
             ? await db.Collections.FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct)
             : null;
-        var sysPrompt = !string.IsNullOrEmpty(request.SystemPrompt)
+        var systemPrompt = !string.IsNullOrEmpty(request.SystemPrompt)
             ? _prompts.SystemPrompts.GetValueOrDefault(request.SystemPrompt, _prompts.SystemPrompts["Default"])
             : lensRender.RenderSystemPrompt(lens,
                 new
@@ -556,11 +396,14 @@ public class AgenticSearchService(
                     tenant_name = "LucidRAG", collection_description = collection?.Description ?? "",
                     collection_name = collection?.Name ?? "documents"
                 });
-        var searchResult =
-            await SearchAsync(
-                new SearchRequest(queryToSearch, request.CollectionId, cachedDocumentIds ?? request.DocumentIds,
-                    SearchMode: request.SearchMode), ct);
+
+        // Execute search
+        var searchResult = await SearchAsync(
+            new SearchRequest(queryToSearch, request.CollectionId, cachedDocumentIds ?? request.DocumentIds,
+                SearchMode: request.SearchMode), ct);
         var searchTimeMs = (int)sw.ElapsedMilliseconds;
+
+        // Store document set for follow-ups
         if (!followUpResult?.UseSameDocumentSet == true || isNewConversation || cachedDocumentIds == null)
         {
             var docIds = searchResult.Results.Select(r => r.DocumentId).Where(id => id != Guid.Empty).Distinct()
@@ -569,10 +412,10 @@ public class AgenticSearchService(
                 await conversationService.SetActiveDocumentsAsync(conversationId.Value, docIds, queryToSearch, ct: ct);
         }
 
-        // Apply relevance filtering and deduplication (same as non-streaming)
-        var streamDedupConfig = _docSummarizerConfig.Deduplication.Retrieval;
-        const double textSimilarityThreshold = 0.7; // Jaccard similarity for text-based dedup
-        var relevantResults = searchResult.Results.Where(r => r.Score >= streamDedupConfig.MinRelevanceScore).Take(10)
+        // Apply relevance filtering and deduplication
+        var dedupConfig = _docSummarizerConfig.Deduplication.Retrieval;
+        const double textSimilarityThreshold = 0.7;
+        var relevantResults = searchResult.Results.Where(r => r.Score >= dedupConfig.MinRelevanceScore).Take(10)
             .ToList();
         var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
         var sources = dedupedResults.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName,
@@ -580,59 +423,108 @@ public class AgenticSearchService(
             MatchedEntities: r.DomainEntities, DocumentType: r.DomainDetected)).ToList();
 
         var thinking = BuildThinkingOutput(request.Query, searchResult);
-        yield return new ChatStreamChunk("sources", Sources: sources, ConversationId: conversationId,
-            ThinkingNote: thinking, SearchTimeMs: searchTimeMs, SegmentCount: searchResult.Results.Count);
-        if (searchResult.QueryPlan?.NeedsClarification == true)
+
+        // Build synthesis options from plan limits
+        var synthesisProfile = _docSummarizerConfig.Ollama.GetSynthesisProfile();
+        var synthesisOptions = new LlmOptions
         {
-            var msg = searchResult.QueryPlan.ClarificationQuestion ?? "Could you please clarify?";
-            await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct);
+            Model = request.SynthesisModel ?? synthesisProfile.Model,
+            Temperature = synthesisProfile.Temperature,
+            MaxTokens = request.MaxResponseTokens ?? synthesisProfile.MaxTokens
+        };
+
+        return new ChatPipelineContext
+        {
+            ConversationId = conversationId.Value,
+            Sources = sources,
+            SearchResult = searchResult,
+            SystemPrompt = systemPrompt,
+            ConversationContext = context,
+            Lens = lens,
+            FollowUpResult = followUpResult,
+            IsNewConversation = isNewConversation,
+            Thinking = thinking,
+            SearchTimeMs = searchTimeMs,
+            SynthesisOptions = synthesisOptions
+        };
+    }
+
+    /// <summary>Internal state bag for the shared pipeline.</summary>
+    private sealed class ChatPipelineContext
+    {
+        public Guid ConversationId { get; init; }
+        public List<SourceCitation> Sources { get; init; } = [];
+        public SearchResult SearchResult { get; init; } = null!;
+        public string SystemPrompt { get; init; } = "";
+        public string? ConversationContext { get; init; }
+        public LensPackage Lens { get; init; } = null!;
+        public FollowUpDetectionResult? FollowUpResult { get; init; }
+        public bool IsNewConversation { get; init; }
+        public string Thinking { get; init; } = "";
+        public int SearchTimeMs { get; init; }
+        public LlmOptions SynthesisOptions { get; init; } = null!;
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<ChatStreamChunk> ChatStreamWithSourcesAsync(ChatRequest request,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var ctx = await PrepareChatPipelineAsync(request, ct);
+
+        // Yield sources immediately for early display
+        yield return new ChatStreamChunk("sources", Sources: ctx.Sources, ConversationId: ctx.ConversationId,
+            ThinkingNote: ctx.Thinking, SearchTimeMs: ctx.SearchTimeMs,
+            SegmentCount: ctx.SearchResult.Results.Count);
+
+        // Handle early-exit cases
+        if (ctx.SearchResult.QueryPlan?.NeedsClarification == true)
+        {
+            var msg = ctx.SearchResult.QueryPlan.ClarificationQuestion ?? "Could you please clarify?";
+            await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", msg, ct: ct);
             yield return new ChatStreamChunk("text", msg);
             yield return new ChatStreamChunk("done");
             yield break;
         }
 
-        if (sources.Count == 0)
+        if (ctx.Sources.Count == 0)
         {
             var msg = "I don't have relevant information in the available documents to answer that question.";
-            await conversationService.AddMessageAsync(conversationId.Value, "assistant", msg, ct: ct);
+            await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", msg, ct: ct);
             yield return new ChatStreamChunk("text", msg);
             yield return new ChatStreamChunk("done");
             yield break;
         }
 
         if (_ragConfig.DemoMode.Enabled &&
-            !searchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore))
+            !ctx.SearchResult.Results.Any(r => r.Score >= _ragConfig.DemoMode.MinRelevanceScore))
         {
-            await conversationService.AddMessageAsync(conversationId.Value, "assistant",
+            await conversationService.AddMessageAsync(ctx.ConversationId, "assistant",
                 _ragConfig.DemoMode.OffTopicMessage, ct: ct);
             yield return new ChatStreamChunk("text", _ragConfig.DemoMode.OffTopicMessage);
             yield return new ChatStreamChunk("done");
             yield break;
         }
 
-        var queryType = searchResult.QueryPlan?.QueryType ?? QueryType.Semantic;
+        var queryType = ctx.SearchResult.QueryPlan?.QueryType ?? QueryType.Semantic;
         if (queryType == QueryType.Keyword || queryType == QueryType.Navigation)
         {
-            var resp = BuildKeywordResponseNoThinking(sources);
-            await conversationService.AddMessageAsync(conversationId.Value, "assistant", resp, ct: ct);
-            foreach (var w in resp.Split(' '))
-            {
-                if (ct.IsCancellationRequested) yield break;
-                yield return new ChatStreamChunk("text", w + " ");
-                await Task.Delay(10, ct);
-            }
-
+            var resp = BuildKeywordResponseNoThinking(ctx.Sources);
+            await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", resp, ct: ct);
+            yield return new ChatStreamChunk("text", resp);
             yield return new ChatStreamChunk("done");
             yield break;
         }
 
-        // Build prompt for natural synthesis (not segment-by-segment description)
-        // IMPORTANT: Never expose internal IDs, scores, or retrieval mechanics to user
-        var sourceTextsStr = string.Join("\n\n", sources.Select(s => $"[{s.Number}] {s.Text}"));
+        // Build synthesis prompt with conversation context
+        var sourceTextsStr = string.Join("\n\n", ctx.Sources.Select(s => $"[{s.Number}] {s.Text}"));
+        var conversationBlock = string.IsNullOrEmpty(ctx.ConversationContext)
+            ? ""
+            : $"\nCONVERSATION HISTORY:\n{ctx.ConversationContext}\n";
+
         var prompt = $@"You are a knowledgeable assistant. Answer the question using ONLY the information below.
 
-{sysPrompt}
-
+{ctx.SystemPrompt}
+{conversationBlock}
 QUESTION: {request.Query}
 
 INFORMATION:
@@ -643,47 +535,46 @@ RULES:
 - Add citation numbers [1], [2] at the end of sentences to reference sources
 - NEVER mention ""sources"", ""documents"", ""excerpts"", ""segments"", or ""according to""
 - If the information doesn't answer the question, say ""I don't have information about that.""
+- If this is a follow-up question, build on the conversation context
 
 ANSWER:";
-        string? answerToStream = null;
+
+        // True streaming synthesis — cache check first, then LLM token stream
+        var fullAnswer = new StringBuilder();
         var evidenceHash = SynthesisCacheService.ComputeHash(sourceTextsStr);
+
         if (synthesisCache.TryGetSynthesis(request.Query, evidenceHash, out var cached))
-            answerToStream = cached;
+        {
+            // Cache hit — yield entire cached answer at once (no artificial delays)
+            yield return new ChatStreamChunk("text", cached);
+            fullAnswer.Append(cached);
+        }
         else
-            try
+        {
+            // Cache miss — true LLM streaming: tokens arrive as they're generated
+            // Note: yield cannot be inside try-catch (CS1626), so errors propagate to caller.
+            // The caller (SSE endpoint) will handle stream errors gracefully.
+            await foreach (var token in llmService.GenerateStreamingAsync(prompt, ctx.SynthesisOptions, ct))
             {
-                var synthesisProfile = _docSummarizerConfig.Ollama.GetSynthesisProfile();
-                answerToStream = (await llmService.GenerateAsync(prompt, new LlmOptions
-                {
-                    Model = synthesisProfile.Model,
-                    Temperature = synthesisProfile.Temperature,
-                    MaxTokens = synthesisProfile.MaxTokens
-                }, ct)).Trim();
-                logger.LogDebug("Synthesis using profile {Profile}: model={Model}",
-                    _docSummarizerConfig.Ollama.DefaultSynthesisProfile, synthesisProfile.Model);
-                synthesisCache.SetSynthesis(request.Query, sourceTextsStr, answerToStream,
-                    sources.Select(s => s.DocumentId).Distinct().ToArray());
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Streaming LLM failed");
-                answerToStream = sources.Count > 0 ? sources[0].Text : "Error generating response.";
+                yield return new ChatStreamChunk("text", token);
+                fullAnswer.Append(token);
             }
 
-        foreach (var w in answerToStream!.Split(' '))
-        {
-            if (ct.IsCancellationRequested) yield break;
-            yield return new ChatStreamChunk("text", w + " ");
-            await Task.Delay(20, ct);
+            if (fullAnswer.Length > 0)
+            {
+                var answer = fullAnswer.ToString().Trim();
+                synthesisCache.SetSynthesis(request.Query, sourceTextsStr, answer,
+                    ctx.Sources.Select(s => s.DocumentId).Distinct().ToArray());
+            }
         }
 
-        await conversationService.AddMessageAsync(conversationId.Value, "assistant", answerToStream,
-            JsonSerializer.Serialize(new { sources = sources.Select(s => s.SegmentId) }), ct);
+        await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", fullAnswer.ToString().Trim(),
+            JsonSerializer.Serialize(new { sources = ctx.Sources.Select(s => s.SegmentId) }), ct);
         yield return new ChatStreamChunk("done");
     }
 
     private async Task<string> BuildAnswerAsync(string query, List<SourceCitation> sources, string systemPrompt,
-        CancellationToken ct)
+        string? conversationContext, LlmOptions? synthesisOptions, CancellationToken ct)
     {
         if (sources.Count == 0)
             return
@@ -695,10 +586,14 @@ ANSWER:";
         // Create prompt for LLM synthesis - STRICT documents-only answering
         // Key: Ask for NATURAL synthesis, not segment-by-segment description
         // IMPORTANT: Never expose internal IDs, scores, or retrieval mechanics to user
+        var conversationBlock = string.IsNullOrEmpty(conversationContext)
+            ? ""
+            : $"\nCONVERSATION HISTORY:\n{conversationContext}\n";
+
         var prompt = $@"You are a knowledgeable assistant. Answer the question using ONLY the information below.
 
 {systemPrompt}
-
+{conversationBlock}
 QUESTION: {query}
 
 INFORMATION:
@@ -710,6 +605,7 @@ RULES:
 - NEVER mention ""sources"", ""documents"", ""excerpts"", ""segments"", or ""according to""
 - NEVER start sentences with ""Source [1] says"" or ""In [1], we learn""
 - If the information doesn't answer the question, say ""I don't have information about that.""
+- If this is a follow-up question, build on the conversation context
 - Do NOT ask if the answer was helpful or add meta-commentary
 
 EXAMPLE:
@@ -732,15 +628,18 @@ ANSWER:";
                 return cachedAnswer!;
             }
 
+            // Use plan-driven synthesis options, falling back to config profile
             var synthesisProfile = _docSummarizerConfig.Ollama.GetSynthesisProfile();
-            logger.LogDebug("Generating LLM answer for query: {Query} using profile {Profile} ({Model})",
-                query, _docSummarizerConfig.Ollama.DefaultSynthesisProfile, synthesisProfile.Model);
-            var answer = await llmService.GenerateAsync(prompt, new LlmOptions
+            var llmOpts = new LlmOptions
             {
-                Model = synthesisProfile.Model,
-                Temperature = synthesisProfile.Temperature,
-                MaxTokens = synthesisProfile.MaxTokens
-            }, ct);
+                Model = synthesisOptions?.Model ?? synthesisProfile.Model,
+                Temperature = synthesisOptions?.Temperature ?? synthesisProfile.Temperature,
+                MaxTokens = synthesisOptions?.MaxTokens ?? synthesisProfile.MaxTokens
+            };
+
+            logger.LogDebug("Generating LLM answer for query: {Query} using model {Model} (maxTokens={MaxTokens})",
+                query, llmOpts.Model, llmOpts.MaxTokens);
+            var answer = await llmService.GenerateAsync(prompt, llmOpts, ct);
             var trimmedAnswer = answer.Trim();
 
             // Store in cache with document IDs for invalidation tracking

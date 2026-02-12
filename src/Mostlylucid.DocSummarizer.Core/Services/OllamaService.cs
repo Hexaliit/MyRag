@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -238,6 +239,85 @@ public class OllamaService
         }
         finally
         {
+            sw.Stop();
+            GenerateDurationHistogram.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("model", modelName));
+        }
+    }
+
+    /// <summary>
+    ///     Stream text tokens from a specific model as they are generated.
+    ///     Unlike GenerateWithModelAsync, this yields each NDJSON chunk immediately
+    ///     instead of buffering into a StringBuilder — providing true time-to-first-token.
+    /// </summary>
+    public async IAsyncEnumerable<string> GenerateStreamingWithModelAsync(
+        string modelName, string prompt, OllamaGenerateOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        using var activity = ActivitySource.StartActivity("OllamaGenerateStreaming", ActivityKind.Client);
+        activity?.SetTag("llm.model", modelName);
+        activity?.SetTag("llm.prompt_length", prompt.Length);
+
+        var sw = Stopwatch.StartNew();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(_timeout);
+
+        var temperature = options?.Temperature ?? 0.3;
+        var request = new OllamaGenerateRequest
+        {
+            Model = modelName,
+            Prompt = prompt,
+            Options = new OllamaOptions { Temperature = temperature }
+        };
+
+        if (options?.MaxTokens is > 0)
+        {
+            request.Options.NumPredict = options.MaxTokens;
+        }
+
+        var json = JsonSerializer.Serialize(request, DocSummarizerJsonContext.Default.OllamaGenerateRequest);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var estimatedPromptTokens = prompt.Length / 4;
+        PromptTokensHistogram.Record(estimatedPromptTokens,
+            new KeyValuePair<string, object?>("model", modelName));
+
+        var totalChars = 0;
+
+        HttpResponseMessage? response = null;
+        try
+        {
+            response = await _httpClient.PostAsync("/api/generate", content, cts.Token);
+            response.EnsureSuccessStatusCode();
+
+            using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+            using var reader = new StreamReader(stream);
+
+            string? line;
+            while ((line = await reader.ReadLineAsync(cts.Token)) != null)
+            {
+                if (string.IsNullOrEmpty(line)) continue;
+
+                var chunk = JsonSerializer.Deserialize(line, DocSummarizerJsonContext.Default.OllamaGenerateResponse);
+                if (chunk?.Response != null)
+                {
+                    totalChars += chunk.Response.Length;
+                    yield return chunk.Response;
+                }
+
+                if (chunk?.Done == true) break;
+            }
+
+            var estimatedResponseTokens = totalChars / 4;
+            ResponseTokensHistogram.Record(estimatedResponseTokens,
+                new KeyValuePair<string, object?>("model", modelName));
+            activity?.SetTag("llm.response_length", totalChars);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            GenerateCounter.Add(1, new KeyValuePair<string, object?>("model", modelName));
+        }
+        finally
+        {
+            response?.Dispose();
             sw.Stop();
             GenerateDurationHistogram.Record(sw.Elapsed.TotalMilliseconds,
                 new KeyValuePair<string, object?>("model", modelName));
@@ -788,6 +868,19 @@ public class OllamaGenerateRequest
 public class OllamaOptions
 {
     [JsonPropertyName("temperature")] public double Temperature { get; set; }
+
+    [JsonPropertyName("num_predict")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? NumPredict { get; set; }
+}
+
+/// <summary>
+///     Options for streaming generation requests.
+/// </summary>
+public class OllamaGenerateOptions
+{
+    public double? Temperature { get; set; }
+    public int? MaxTokens { get; set; }
 }
 
 public class OllamaGenerateResponse

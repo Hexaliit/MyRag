@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Mostlylucid.DocSummarizer.Config;
 
@@ -32,6 +33,27 @@ public class OllamaLlmService : ILlmService
         if (!string.IsNullOrEmpty(options.SystemPrompt)) fullPrompt = $"{options.SystemPrompt}\n\n{prompt}";
 
         return await _ollamaService.GenerateWithModelAsync(model, fullPrompt, temperature, ct);
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<string> GenerateStreamingAsync(
+        string prompt, LlmOptions? options = null,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        options ??= LlmOptions.Default;
+        var model = options.Model ?? _config.Model;
+
+        var fullPrompt = prompt;
+        if (!string.IsNullOrEmpty(options.SystemPrompt)) fullPrompt = $"{options.SystemPrompt}\n\n{prompt}";
+
+        var ollamaOptions = new OllamaGenerateOptions
+        {
+            Temperature = options.Temperature ?? _config.Temperature,
+            MaxTokens = options.MaxTokens
+        };
+
+        await foreach (var token in _ollamaService.GenerateStreamingWithModelAsync(model, fullPrompt, ollamaOptions, ct))
+            yield return token;
     }
 
     /// <inheritdoc />
