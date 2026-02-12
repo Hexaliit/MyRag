@@ -138,6 +138,7 @@ public class ApiKeyService(
         }
 
         var entity = await db.ApiKeys
+            .AsNoTracking()
             .Include(k => k.ReadDomains)
             .Include(k => k.IndexingSource)
             .Include(k => k.Collection)
@@ -166,6 +167,7 @@ public class ApiKeyService(
     public async Task<ApiKeyEntity?> GetByIdAsync(Guid keyId, CancellationToken ct)
     {
         return await db.ApiKeys
+            .AsNoTracking()
             .Include(k => k.ReadDomains)
             .Include(k => k.IndexingSource)
             .Include(k => k.Collection)
@@ -179,6 +181,7 @@ public class ApiKeyService(
     public async Task<ApiKeyEntity?> GetBySlugAsync(string slug, CancellationToken ct)
     {
         return await db.ApiKeys
+            .AsNoTracking()
             .Include(k => k.Collection)
             .Include(k => k.CollectionLinks)
                 .ThenInclude(l => l.Collection)
@@ -203,6 +206,7 @@ public class ApiKeyService(
         }
 
         var entity = await db.ApiKeys
+            .AsNoTracking()
             .Include(k => k.ReadDomains)
             .Include(k => k.IndexingSource)
             .Include(k => k.Collection)
@@ -241,6 +245,7 @@ public class ApiKeyService(
     public async Task<List<ApiKeyEntity>> GetByUserIdAsync(string userId, CancellationToken ct)
     {
         return await db.ApiKeys
+            .AsNoTracking()
             .Include(k => k.ReadDomains)
             .Include(k => k.IndexingSource)
             .Where(k => k.UserId == userId && k.RevokedAt == null)
@@ -432,6 +437,7 @@ public class ApiKeyService(
     public async Task<List<ApiKeyCollectionLink>> GetLinkedCollectionsAsync(Guid keyId, CancellationToken ct)
     {
         return await db.ApiKeyCollectionLinks
+            .AsNoTracking()
             .Include(l => l.Collection)
             .Where(l => l.ApiKeyId == keyId)
             .OrderBy(l => l.SortOrder)

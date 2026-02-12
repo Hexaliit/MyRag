@@ -264,6 +264,7 @@ public class DocumentProcessingService(
     public async Task<DocumentEntity?> GetDocumentAsync(Guid documentId, CancellationToken ct = default)
     {
         return await db.Documents
+            .AsNoTracking()
             .Include(d => d.Collection)
             .FirstOrDefaultAsync(d => d.Id == documentId, ct);
     }
@@ -271,7 +272,7 @@ public class DocumentProcessingService(
     public async Task<List<DocumentEntity>> GetDocumentsAsync(Guid? collectionId = null, bool readyOnly = false,
         CancellationToken ct = default)
     {
-        var query = db.Documents.Include(d => d.Collection).AsQueryable();
+        var query = db.Documents.AsNoTracking().Include(d => d.Collection).AsQueryable();
 
         if (collectionId.HasValue) query = query.Where(d => d.CollectionId == collectionId);
 
@@ -380,6 +381,7 @@ public class DocumentProcessingService(
     {
         // Get entities linked to this document through DocumentEntityLink
         return await db.DocumentEntityLinks
+            .AsNoTracking()
             .Where(link => link.DocumentId == documentId)
             .Select(link => link.Entity)
             .Distinct()
@@ -394,6 +396,7 @@ public class DocumentProcessingService(
         if (document?.CollectionId == null) return [];
 
         return await db.EvidenceArtifacts
+            .AsNoTracking()
             .Where(e => db.RetrievalEntities
                 .Any(ent => ent.Id == e.EntityId && ent.CollectionId == document.CollectionId))
             .OrderByDescending(e => e.CreatedAt)
@@ -421,23 +424,26 @@ public class DocumentProcessingService(
 
     public async Task<int> ClearAllAsync(bool clearVectors = true, CancellationToken ct = default)
     {
-        // Get all documents first
-        var documents = await db.Documents.ToListAsync(ct);
-        var count = documents.Count;
+        // Get file paths only (not full entities) for disk cleanup
+        var filePaths = await db.Documents
+            .Where(d => d.FilePath != null)
+            .Select(d => d.FilePath!)
+            .ToListAsync(ct);
+        var count = await db.Documents.CountAsync(ct);
 
         // Delete files from disk
-        foreach (var doc in documents)
+        foreach (var filePath in filePaths)
             try
             {
-                if (!string.IsNullOrEmpty(doc.FilePath) && File.Exists(doc.FilePath))
+                if (File.Exists(filePath))
                 {
-                    var dir = Path.GetDirectoryName(doc.FilePath);
+                    var dir = Path.GetDirectoryName(filePath);
                     if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir)) Directory.Delete(dir, true);
                 }
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to delete files for document {DocumentId}", doc.Id);
+                logger.LogWarning(ex, "Failed to delete files at {FilePath}", filePath);
             }
 
         // Clear vectors from vector store by deleting and recreating collection
@@ -445,7 +451,7 @@ public class DocumentProcessingService(
             try
             {
                 await vectorStore.DeleteCollectionAsync(CollectionName, ct);
-                await vectorStore.InitializeAsync(CollectionName, 384, ct); // Reinitialize empty collection
+                await vectorStore.InitializeAsync(CollectionName, 384, ct);
                 logger.LogInformation("Cleared vectors from collection {CollectionName}", CollectionName);
             }
             catch (Exception ex)
@@ -453,26 +459,14 @@ public class DocumentProcessingService(
                 logger.LogWarning(ex, "Failed to clear vectors from collection {CollectionName}", CollectionName);
             }
 
-        // Clear database (cascade deletes entity links, etc.)
-        db.Documents.RemoveRange(documents);
-
-        // Also clear extracted entities not linked to any documents
-        var orphanedEntities = await db.Entities.ToListAsync(ct);
-        db.Entities.RemoveRange(orphanedEntities);
-
-        // Clear collections
-        var collections = await db.Collections.ToListAsync(ct);
-        db.Collections.RemoveRange(collections);
-
-        // Clear retrieval entities
-        var retrievalEntities = await db.RetrievalEntities.ToListAsync(ct);
-        db.RetrievalEntities.RemoveRange(retrievalEntities);
-
-        // Clear evidence artifacts
-        var evidence = await db.EvidenceArtifacts.ToListAsync(ct);
-        db.EvidenceArtifacts.RemoveRange(evidence);
-
-        await db.SaveChangesAsync(ct);
+        // Bulk delete using ExecuteDeleteAsync — no entity loading, runs as single SQL DELETE
+        await db.EvidenceArtifacts.ExecuteDeleteAsync(ct);
+        await db.EntityRelationships.ExecuteDeleteAsync(ct);
+        await db.DocumentEntityLinks.ExecuteDeleteAsync(ct);
+        await db.RetrievalEntities.ExecuteDeleteAsync(ct);
+        await db.Entities.ExecuteDeleteAsync(ct);
+        await db.Documents.ExecuteDeleteAsync(ct);
+        await db.Collections.ExecuteDeleteAsync(ct);
 
         logger.LogInformation("Cleared {Count} documents and all related data", count);
         return count;

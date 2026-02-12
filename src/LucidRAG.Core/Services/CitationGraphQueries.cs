@@ -80,9 +80,9 @@ public class CitationGraphQueries
         CancellationToken ct = default)
     {
         // Get all link entities for this document
-        var docLinks = await _db.DocumentEntityLinks
+        var docLinks = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => del.DocumentId == documentId)
-            .Join(_db.Entities.Where(e =>
+            .Join(_db.Entities.AsNoTracking().Where(e =>
                     e.EntityType == "doi_reference" || e.EntityType == "arxiv_reference"),
                 del => del.EntityId, e => e.Id,
                 (del, e) => e.Id)
@@ -91,7 +91,7 @@ public class CitationGraphQueries
         if (docLinks.Count == 0) return [];
 
         // Find other documents that share these link entities
-        var coCitations = await _db.DocumentEntityLinks
+        var coCitations = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => docLinks.Contains(del.EntityId) && del.DocumentId != documentId)
             .GroupBy(del => del.DocumentId)
             .Select(g => new { DocumentId = g.Key, SharedCount = g.Count() })
@@ -112,8 +112,8 @@ public class CitationGraphQueries
         int limit = 20,
         CancellationToken ct = default)
     {
-        var results = await _db.DocumentEntityLinks
-            .Join(_db.Entities.Where(e =>
+        var results = await _db.DocumentEntityLinks.AsNoTracking()
+            .Join(_db.Entities.AsNoTracking().Where(e =>
                     e.EntityType == "doi_reference" || e.EntityType == "arxiv_reference"),
                 del => del.EntityId, e => e.Id,
                 (del, e) => new { del.DocumentId, Entity = e })
@@ -145,7 +145,7 @@ public class CitationGraphQueries
     {
         // Link entities of type doi_reference or arxiv_reference
         // that don't have a corresponding imported document
-        var orphans = await _db.Entities
+        var orphans = await _db.Entities.AsNoTracking()
             .Where(e => e.EntityType == "doi_reference" || e.EntityType == "arxiv_reference")
             .Select(e => new
             {
@@ -194,9 +194,9 @@ public class CitationGraphQueries
         CancellationToken ct = default)
     {
         // Outgoing: what does this document cite?
-        var outgoing = await _db.DocumentEntityLinks
+        var outgoing = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => del.DocumentId == documentId)
-            .Join(_db.Entities.Where(e =>
+            .Join(_db.Entities.AsNoTracking().Where(e =>
                     e.EntityType == "doi_reference" || e.EntityType == "arxiv_reference"),
                 del => del.EntityId, e => e.Id,
                 (del, e) => new CitationNode(e.Id, e.CanonicalName, e.Description ?? ""))
@@ -204,14 +204,14 @@ public class CitationGraphQueries
 
         // Incoming: what documents also cite these same references?
         var outgoingIds = outgoing.Select(o => o.EntityId).ToHashSet();
-        var incoming = await _db.DocumentEntityLinks
+        var incoming = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => outgoingIds.Contains(del.EntityId) && del.DocumentId != documentId)
             .Select(del => del.DocumentId)
             .Distinct()
             .ToListAsync(ct);
 
         // Co-citation clusters: group outgoing by which other docs share them
-        var sharedBy = await _db.DocumentEntityLinks
+        var sharedBy = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => outgoingIds.Contains(del.EntityId) && del.DocumentId != documentId)
             .GroupBy(del => del.EntityId)
             .Select(g => new { EntityId = g.Key, SharedByCount = g.Count() })
@@ -233,13 +233,13 @@ public class CitationGraphQueries
         int limit = 20,
         CancellationToken ct = default)
     {
-        var collectionDocIds = _db.Documents
+        var collectionDocIds = _db.Documents.AsNoTracking()
             .Where(d => d.CollectionId == collectionId)
             .Select(d => d.Id);
 
-        var orphans = await _db.DocumentEntityLinks
+        var orphans = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => collectionDocIds.Contains(del.DocumentId))
-            .Join(_db.Entities.Where(e =>
+            .Join(_db.Entities.AsNoTracking().Where(e =>
                     e.EntityType == "doi_reference" || e.EntityType == "arxiv_reference"),
                 del => del.EntityId, e => e.Id,
                 (del, e) => new { del.DocumentId, Entity = e })
@@ -270,13 +270,13 @@ public class CitationGraphQueries
         int limit = 20,
         CancellationToken ct = default)
     {
-        var collectionDocIds = _db.Documents
+        var collectionDocIds = _db.Documents.AsNoTracking()
             .Where(d => d.CollectionId == collectionId)
             .Select(d => d.Id);
 
-        var results = await _db.DocumentEntityLinks
+        var results = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => collectionDocIds.Contains(del.DocumentId))
-            .Join(_db.Entities.Where(e =>
+            .Join(_db.Entities.AsNoTracking().Where(e =>
                     e.EntityType == "doi_reference" || e.EntityType == "arxiv_reference"),
                 del => del.EntityId, e => e.Id,
                 (del, e) => new { del.DocumentId, Entity = e })
@@ -300,9 +300,9 @@ public class CitationGraphQueries
 
     private async Task<HashSet<Guid>> GetCitationEntityIdsAsync(Guid documentId, CancellationToken ct)
     {
-        var ids = await _db.DocumentEntityLinks
+        var ids = await _db.DocumentEntityLinks.AsNoTracking()
             .Where(del => del.DocumentId == documentId)
-            .Join(_db.Entities.Where(e =>
+            .Join(_db.Entities.AsNoTracking().Where(e =>
                     e.EntityType == "doi_reference" || e.EntityType == "arxiv_reference"),
                 del => del.EntityId, e => e.Id,
                 (del, e) => e.Id)

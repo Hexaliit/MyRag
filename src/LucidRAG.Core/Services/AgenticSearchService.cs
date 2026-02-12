@@ -55,6 +55,7 @@ public class AgenticSearchService(
         if (documentIds is null || documentIds.Length == 0)
         {
             var docs = await db.Documents
+                .AsNoTracking()
                 .Where(d => d.Status == DocumentStatus.Completed)
                 .Where(d => !request.CollectionId.HasValue || d.CollectionId == request.CollectionId)
                 .Select(d => d.Id)
@@ -92,6 +93,7 @@ public class AgenticSearchService(
         // So we need to extract the docHash for matching
         // Scoped by collection and document IDs to avoid full table scan
         var documents = await db.Documents
+            .AsNoTracking()
             .Where(d => d.VectorStoreDocId != null)
             .Where(d => !request.CollectionId.HasValue || d.CollectionId == request.CollectionId)
             .Where(d => request.DocumentIds == null || request.DocumentIds.Contains(d.Id))
@@ -386,7 +388,7 @@ public class AgenticSearchService(
 
         // Resolve system prompt
         var collection = request.CollectionId.HasValue
-            ? await db.Collections.FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct)
+            ? await db.Collections.AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.CollectionId.Value, ct)
             : null;
         var systemPrompt = !string.IsNullOrEmpty(request.SystemPrompt)
             ? _prompts.SystemPrompts.GetValueOrDefault(request.SystemPrompt, _prompts.SystemPrompts["Default"])

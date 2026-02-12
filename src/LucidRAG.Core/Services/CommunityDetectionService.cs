@@ -149,7 +149,7 @@ public class CommunityDetectionService : ICommunityDetectionService
 
         // Create community entities
         // Graph nodes come from DuckDB with different IDs, so look up by name
-        var entityByName = await _db.Entities.ToDictionaryAsync(
+        var entityByName = await _db.Entities.AsNoTracking().ToDictionaryAsync(
             e => e.CanonicalName.ToLowerInvariant(),
             e => e, ct);
 
@@ -252,6 +252,7 @@ public class CommunityDetectionService : ICommunityDetectionService
         CancellationToken ct = default)
     {
         var query = _db.Communities
+            .AsNoTracking()
             .Include(c => c.Members)
             .AsQueryable();
 
@@ -265,6 +266,7 @@ public class CommunityDetectionService : ICommunityDetectionService
     public async Task<CommunityEntity?> GetCommunityAsync(Guid id, CancellationToken ct = default)
     {
         return await _db.Communities
+            .AsNoTracking()
             .Include(c => c.Members)
             .ThenInclude(m => m.Entity)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
@@ -276,7 +278,7 @@ public class CommunityDetectionService : ICommunityDetectionService
         // Embed query and find communities with similar embeddings
         var queryEmbedding = await _embeddingService.EmbedAsync(query, ct);
 
-        var queryable = _db.Communities.Where(c => c.Embedding != null);
+        var queryable = _db.Communities.AsNoTracking().Where(c => c.Embedding != null);
 
         if (collectionId.HasValue) queryable = queryable.Where(c => c.CollectionId == collectionId.Value);
 
@@ -682,6 +684,7 @@ SUMMARY: [descriptive paragraph, max 5 sentences]";
         // Source documents
         var memberIds = members.Select(e => e.Id).ToHashSet();
         var sourceDocIds = await _db.DocumentEntityLinks
+            .AsNoTracking()
             .Where(l => memberIds.Contains(l.EntityId))
             .Select(l => l.DocumentId)
             .Distinct()

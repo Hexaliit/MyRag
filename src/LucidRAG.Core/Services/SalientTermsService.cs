@@ -106,17 +106,28 @@ public class SalientTermsService(
 
     public async Task<SalientTermStats> GetStatsAsync(Guid collectionId, CancellationToken ct = default)
     {
-        var terms = await db.SalientTerms
-            .Where(t => t.CollectionId == collectionId)
+        // Use DB-side aggregation instead of loading all records into memory
+        var query = db.SalientTerms
+            .Where(t => t.CollectionId == collectionId);
+
+        var totalCount = await query.CountAsync(ct);
+        if (totalCount == 0)
+            return new SalientTermStats(collectionId, 0, 0, 0, 0, DateTimeOffset.MinValue);
+
+        var sourceCounts = await query
+            .GroupBy(t => t.Source)
+            .Select(g => new { Source = g.Key, Count = g.Count() })
             .ToListAsync(ct);
+
+        var lastUpdated = await query.MaxAsync(t => t.UpdatedAt, ct);
 
         return new SalientTermStats(
             collectionId,
-            terms.Count,
-            terms.Count(t => t.Source == "tfidf"),
-            terms.Count(t => t.Source == "entity"),
-            terms.Count(t => t.Source == "query"),
-            terms.Any() ? terms.Max(t => t.UpdatedAt) : DateTimeOffset.MinValue
+            totalCount,
+            sourceCounts.FirstOrDefault(s => s.Source == "tfidf")?.Count ?? 0,
+            sourceCounts.FirstOrDefault(s => s.Source == "entity")?.Count ?? 0,
+            sourceCounts.FirstOrDefault(s => s.Source == "query")?.Count ?? 0,
+            lastUpdated
         );
     }
 
@@ -133,23 +144,40 @@ public class SalientTermsService(
         var docTermFreq = new Dictionary<Guid, Dictionary<string, int>>(); // docId -> term -> count
 
         // Get evidence text for documents via entity links
+        // Two-step approach avoids deeply nested subqueries that defeat query optimization
         var documentIds = documents.Select(d => d.Id).ToList();
-        var evidenceTexts = await db.DocumentEntityLinks
+
+        // Step 1: Get entity IDs linked to our documents
+        var entityIds = await db.DocumentEntityLinks
+            .AsNoTracking()
             .Where(del => documentIds.Contains(del.DocumentId))
             .Select(del => del.EntityId)
             .Distinct()
-            .SelectMany(entityId => db.EvidenceArtifacts
-                .Where(e => e.EntityId == entityId && e.ArtifactType == EvidenceTypes.SegmentText)
-                .Select(e => new
-                {
-                    e.EntityId,
-                    e.Content,
-                    DocumentIds = db.DocumentEntityLinks
-                        .Where(del2 => del2.EntityId == entityId && documentIds.Contains(del2.DocumentId))
-                        .Select(del2 => del2.DocumentId)
-                        .ToList()
-                }))
             .ToListAsync(ct);
+
+        // Step 2: Get evidence artifacts for those entities
+        var artifacts = await db.EvidenceArtifacts
+            .AsNoTracking()
+            .Where(e => entityIds.Contains(e.EntityId) && e.ArtifactType == EvidenceTypes.SegmentText)
+            .Select(e => new { e.EntityId, e.Content })
+            .ToListAsync(ct);
+
+        // Step 3: Build entity→document mapping
+        var entityToDocIds = await db.DocumentEntityLinks
+            .AsNoTracking()
+            .Where(del => entityIds.Contains(del.EntityId) && documentIds.Contains(del.DocumentId))
+            .GroupBy(del => del.EntityId)
+            .Select(g => new { EntityId = g.Key, DocIds = g.Select(x => x.DocumentId).ToList() })
+            .ToListAsync(ct);
+        var entityDocMap = entityToDocIds.ToDictionary(x => x.EntityId, x => x.DocIds);
+
+        // Combine into the expected shape
+        var evidenceTexts = artifacts.Select(a => new
+        {
+            a.EntityId,
+            a.Content,
+            DocumentIds = entityDocMap.GetValueOrDefault(a.EntityId, [])
+        }).ToList();
 
         // Count term frequencies from evidence text
         foreach (var evidence in evidenceTexts)

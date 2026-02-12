@@ -29,6 +29,7 @@ public class ConversationService(
     public async Task<ConversationEntity?> GetConversationAsync(Guid conversationId, CancellationToken ct = default)
     {
         return await db.Conversations
+            .AsNoTracking()
             .Include(c => c.Messages.OrderBy(m => m.CreatedAt))
             .Include(c => c.Collection)
             .FirstOrDefaultAsync(c => c.Id == conversationId, ct);
@@ -37,7 +38,7 @@ public class ConversationService(
     public async Task<List<ConversationEntity>> GetConversationsAsync(Guid? collectionId = null,
         CancellationToken ct = default)
     {
-        var query = db.Conversations.Include(c => c.Collection).AsQueryable();
+        var query = db.Conversations.AsNoTracking().Include(c => c.Collection).AsQueryable();
 
         if (collectionId.HasValue) query = query.Where(c => c.CollectionId == collectionId);
 
@@ -92,6 +93,7 @@ public class ConversationService(
         CancellationToken ct = default)
     {
         var messages = await db.ConversationMessages
+            .AsNoTracking()
             .Where(m => m.ConversationId == conversationId)
             .OrderByDescending(m => m.CreatedAt)
             .Take(maxMessages)

@@ -287,14 +287,20 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         var graphEntities = await _graphDb.GetAllEntitiesAsync();
         var graphRelationships = await _graphDb.GetAllRelationshipsAsync();
 
+        // Batch pre-load: all existing entities and document links in 2 queries (not N)
+        var entityLookup = await _db.Entities
+            .ToDictionaryAsync(e => e.CanonicalName.ToLower(), e => e, ct);
+
+        var existingLinks = await _db.DocumentEntityLinks
+            .Where(l => l.DocumentId == documentId)
+            .ToDictionaryAsync(l => l.EntityId, l => l, ct);
+
         foreach (var ge in graphEntities)
         {
-            // Check if entity exists in PostgreSQL
-            var existing = await _db.Entities
-                .FirstOrDefaultAsync(e => e.CanonicalName.ToLower() == ge.Name.ToLower(), ct);
-
+            var nameKey = ge.Name.ToLower();
             Guid entityId;
-            if (existing != null)
+
+            if (entityLookup.TryGetValue(nameKey, out var existing))
             {
                 entityId = existing.Id;
             }
@@ -310,13 +316,12 @@ public class EntityGraphService : IEntityGraphService, IDisposable
                 };
                 _db.Entities.Add(entity);
                 entityId = entity.Id;
+                entityLookup[nameKey] = entity; // Update cache for relationship lookup
             }
 
-            // Create document-entity link
-            var existingLink = await _db.DocumentEntityLinks
-                .FirstOrDefaultAsync(l => l.DocumentId == documentId && l.EntityId == entityId, ct);
-
-            if (existingLink == null)
+            // Create/update document-entity link
+            if (!existingLinks.TryGetValue(entityId, out var existingLink))
+            {
                 _db.DocumentEntityLinks.Add(new DocumentEntityLink
                 {
                     DocumentId = documentId,
@@ -324,26 +329,30 @@ public class EntityGraphService : IEntityGraphService, IDisposable
                     MentionCount = ge.MentionCount,
                     SegmentIds = []
                 });
+            }
             else
+            {
                 existingLink.MentionCount = ge.MentionCount;
+            }
         }
 
-        // Sync relationships
-        var entityLookup = await _db.Entities
-            .ToDictionaryAsync(e => e.CanonicalName.ToLower(), e => e.Id, ct);
+        // Sync relationships — batch pre-load existing relationships
+        var entityIdLookup = entityLookup.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Id);
+        var relevantEntityIds = entityIdLookup.Values.ToHashSet();
+        var existingRels = await _db.EntityRelationships
+            .Where(r => relevantEntityIds.Contains(r.SourceEntityId) && relevantEntityIds.Contains(r.TargetEntityId))
+            .ToListAsync(ct);
+        var relLookup = existingRels
+            .ToDictionary(r => (r.SourceEntityId, r.TargetEntityId, r.RelationshipType), r => r);
 
         foreach (var gr in graphRelationships)
         {
-            if (!entityLookup.TryGetValue(gr.SourceName.ToLower(), out var sourceId) ||
-                !entityLookup.TryGetValue(gr.TargetName.ToLower(), out var targetId))
+            if (!entityIdLookup.TryGetValue(gr.SourceName.ToLower(), out var sourceId) ||
+                !entityIdLookup.TryGetValue(gr.TargetName.ToLower(), out var targetId))
                 continue;
 
-            var existing = await _db.EntityRelationships
-                .FirstOrDefaultAsync(r =>
-                    r.SourceEntityId == sourceId && r.TargetEntityId == targetId &&
-                    r.RelationshipType == gr.RelationshipType, ct);
-
-            if (existing == null)
+            var relKey = (sourceId, targetId, gr.RelationshipType);
+            if (!relLookup.TryGetValue(relKey, out var existingRel))
             {
                 _db.EntityRelationships.Add(new EntityRelationship
                 {
@@ -357,9 +366,9 @@ public class EntityGraphService : IEntityGraphService, IDisposable
             }
             else
             {
-                existing.Strength = Math.Max(existing.Strength, gr.Weight);
-                if (!existing.SourceDocuments.Contains(documentId))
-                    existing.SourceDocuments = [..existing.SourceDocuments, documentId];
+                existingRel.Strength = Math.Max(existingRel.Strength, gr.Weight);
+                if (!existingRel.SourceDocuments.Contains(documentId))
+                    existingRel.SourceDocuments = [..existingRel.SourceDocuments, documentId];
             }
         }
 
@@ -372,6 +381,22 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         CancellationToken ct = default)
     {
         var stored = 0;
+
+        // Batch pre-load: all entities and document links in 2 queries (not 4N)
+        var entityLookup = await _db.Entities
+            .ToDictionaryAsync(e => e.CanonicalName.ToLower(), e => e, ct);
+        var existingDocLinks = await _db.DocumentEntityLinks
+            .Where(l => l.DocumentId == documentId)
+            .ToDictionaryAsync(l => l.EntityId, l => l, ct);
+
+        // Pre-load doc entity and its existing relationships for link_to creation
+        var docEntityName = $"doc:{documentId}";
+        entityLookup.TryGetValue(docEntityName.ToLower(), out var docEntity);
+        var existingLinksToRels = docEntity != null
+            ? await _db.EntityRelationships
+                .Where(r => r.SourceEntityId == docEntity.Id && r.RelationshipType == "links_to")
+                .ToDictionaryAsync(r => r.TargetEntityId, r => r, ct)
+            : new Dictionary<Guid, EntityRelationship>();
 
         foreach (var link in links)
         {
@@ -391,12 +416,10 @@ public class EntityGraphService : IEntityGraphService, IDisposable
                 _ => link.Value
             };
 
-            // Upsert entity — if another document already links to this URL/DOI, reuse the entity
-            var existing = await _db.Entities
-                .FirstOrDefaultAsync(e => e.CanonicalName.ToLower() == canonicalName.ToLower(), ct);
-
+            var nameKey = canonicalName.ToLower();
             Guid entityId;
-            if (existing != null)
+
+            if (entityLookup.TryGetValue(nameKey, out var existing))
             {
                 entityId = existing.Id;
             }
@@ -412,52 +435,41 @@ public class EntityGraphService : IEntityGraphService, IDisposable
                 };
                 _db.Entities.Add(entity);
                 entityId = entity.Id;
+                entityLookup[nameKey] = entity;
             }
 
-            // Create document-entity link
-            var existingLink = await _db.DocumentEntityLinks
-                .FirstOrDefaultAsync(l => l.DocumentId == documentId && l.EntityId == entityId, ct);
-
-            if (existingLink == null)
+            // Create/update document-entity link
+            if (!existingDocLinks.TryGetValue(entityId, out var existingLink))
             {
-                _db.DocumentEntityLinks.Add(new DocumentEntityLink
+                var newLink = new DocumentEntityLink
                 {
                     DocumentId = documentId,
                     EntityId = entityId,
                     MentionCount = 1,
                     SegmentIds = []
-                });
+                };
+                _db.DocumentEntityLinks.Add(newLink);
+                existingDocLinks[entityId] = newLink;
             }
             else
             {
                 existingLink.MentionCount++;
             }
 
-            // Create "links_to" relationship from a virtual document entity to the link entity
-            // This makes the link visible in the knowledge graph
-            var docEntityName = $"doc:{documentId}";
-            var docEntity = await _db.Entities
-                .FirstOrDefaultAsync(e => e.CanonicalName == docEntityName, ct);
-
-            if (docEntity != null)
+            // Create "links_to" relationship from doc entity to link entity
+            if (docEntity != null && !existingLinksToRels.ContainsKey(entityId))
             {
-                var existingRel = await _db.EntityRelationships
-                    .FirstOrDefaultAsync(r =>
-                        r.SourceEntityId == docEntity.Id && r.TargetEntityId == entityId &&
-                        r.RelationshipType == "links_to", ct);
-
-                if (existingRel == null)
+                var rel = new EntityRelationship
                 {
-                    _db.EntityRelationships.Add(new EntityRelationship
-                    {
-                        Id = Guid.NewGuid(),
-                        SourceEntityId = docEntity.Id,
-                        TargetEntityId = entityId,
-                        RelationshipType = "links_to",
-                        Strength = 0.8f,
-                        SourceDocuments = [documentId]
-                    });
-                }
+                    Id = Guid.NewGuid(),
+                    SourceEntityId = docEntity.Id,
+                    TargetEntityId = entityId,
+                    RelationshipType = "links_to",
+                    Strength = 0.8f,
+                    SourceDocuments = [documentId]
+                };
+                _db.EntityRelationships.Add(rel);
+                existingLinksToRels[entityId] = rel;
             }
 
             stored++;
