@@ -4,25 +4,27 @@ using LucidRAG.Entities;
 using LucidRAG.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Testcontainers.PostgreSql;
 
 namespace LucidRAG.Tests.Services;
 
-public class ConversationServiceTests : IDisposable
+public class ConversationServiceTests : IAsyncLifetime
 {
-    private readonly RagDocumentsDbContext _db;
-    private readonly ConversationService _service;
+    private RagDocumentsDbContext _db = null!;
+    private PostgreSqlContainer _container = null!;
+    private ConversationService _service = null!;
 
-    public ConversationServiceTests()
+    public async Task InitializeAsync()
     {
-        _db = TestDbContextFactory.CreateInMemory();
+        (_db, _container) = await TestDbContextFactory.CreatePostgresContainerAsync();
         var logger = Mock.Of<ILogger<ConversationService>>();
         _service = new ConversationService(_db, logger);
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _db.Dispose();
-        GC.SuppressFinalize(this);
+        await _db.DisposeAsync();
+        await _container.DisposeAsync();
     }
 
     [Fact]

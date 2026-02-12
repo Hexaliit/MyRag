@@ -4,42 +4,61 @@ using LucidRAG.Entities;
 using LucidRAG.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.DocSummarizer.Models;
+using Testcontainers.PostgreSql;
 
 namespace LucidRAG.Tests.Services;
 
 /// <summary>
-///     Unit tests for SegmentGraphService.
+///     Integration tests for SegmentGraphService using PostgreSQL via Testcontainers.
 ///     Tests segment graph building, traversal, and expansion.
-///     Requires PostgreSQL database - tests are skipped if database unavailable.
 /// </summary>
 [Collection("Integration")]
 [Trait("Category", "Integration")]
-public class SegmentGraphServiceTests : IDisposable
+public class SegmentGraphServiceTests : IAsyncLifetime
 {
-    private readonly RagDocumentsDbContext? _db;
-    private readonly bool _dbAvailable;
-    private readonly SegmentGraphService? _service;
+    private RagDocumentsDbContext? _db;
+    private PostgreSqlContainer? _container;
+    private bool _dbAvailable;
+    private SegmentGraphService? _service;
+    private readonly Guid _testCollectionId = Guid.NewGuid();
     private readonly Guid _testDocumentId = Guid.NewGuid();
 
-    public SegmentGraphServiceTests()
+    public async Task InitializeAsync()
     {
         try
         {
-            _db = TestDbContextFactory.CreateInMemory();
+            (_db, _container) = await TestDbContextFactory.CreatePostgresContainerAsync();
             _service = new SegmentGraphService(_db, NullLogger<SegmentGraphService>.Instance);
             _dbAvailable = true;
+
+            // Seed required parent entities (Collection → Document)
+            _db.Collections.Add(new CollectionEntity
+            {
+                Id = _testCollectionId,
+                Name = "test-collection"
+            });
+            await _db.SaveChangesAsync();
+
+            _db.Documents.Add(new DocumentEntity
+            {
+                Id = _testDocumentId,
+                Name = "test-document.pdf",
+                ContentHash = "test-hash",
+                CollectionId = _testCollectionId,
+                Status = DocumentStatus.Completed
+            });
+            await _db.SaveChangesAsync();
         }
         catch
         {
-            // Database not available (pgvector dependencies) - tests will skip
             _dbAvailable = false;
         }
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _db?.Dispose();
-        GC.SuppressFinalize(this);
+        if (_db != null) await _db.DisposeAsync();
+        if (_container != null) await _container.DisposeAsync();
     }
 
     private bool SkipIfNoDb()

@@ -14,7 +14,9 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<RagDocumen
         var optionsBuilder = new DbContextOptionsBuilder<RagDocumentsDbContext>();
 
         // Use PostgreSQL for migrations (design-time only - doesn't need real connection)
-        optionsBuilder.UseNpgsql("Host=localhost;Database=design_time;Username=postgres;Password=unused");
+        optionsBuilder.UseNpgsql(
+            "Host=localhost;Database=design_time;Username=postgres;Password=unused",
+            npgsql => npgsql.UseVector());
 
         return new RagDocumentsDbContext(optionsBuilder.Options);
     }

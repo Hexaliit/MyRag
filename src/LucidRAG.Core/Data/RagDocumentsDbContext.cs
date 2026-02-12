@@ -45,6 +45,29 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
     // Intra-document segment graphs
     public DbSet<SegmentLink> SegmentLinks => Set<SegmentLink>();
 
+    // Processing signals (lifecycle tracking)
+    public DbSet<ProcessingSignalEntity> ProcessingSignals => Set<ProcessingSignalEntity>();
+
+    // Messaging platform integration state
+    public DbSet<MessagingTenantConfigEntity> MessagingTenantConfigs => Set<MessagingTenantConfigEntity>();
+    public DbSet<MessagingContextStateEntity> MessagingContextStates => Set<MessagingContextStateEntity>();
+    public DbSet<MessagingInteractionFeedbackEntity> MessagingInteractionFeedback =>
+        Set<MessagingInteractionFeedbackEntity>();
+
+    // SaaS API keys and related entities
+    public DbSet<ApiKeyEntity> ApiKeys => Set<ApiKeyEntity>();
+    public DbSet<ApiKeyReadDomain> ApiKeyReadDomains => Set<ApiKeyReadDomain>();
+    public DbSet<ApiKeyCollectionLink> ApiKeyCollectionLinks => Set<ApiKeyCollectionLink>();
+    public DbSet<ApiKeyIndexingSource> ApiKeyIndexingSources => Set<ApiKeyIndexingSource>();
+    public DbSet<WidgetConfigEntity> WidgetConfigs => Set<WidgetConfigEntity>();
+    public DbSet<CustomDomainEntity> CustomDomains => Set<CustomDomainEntity>();
+    public DbSet<SaasQueryLogEntity> SaasQueryLogs => Set<SaasQueryLogEntity>();
+    public DbSet<SaasUsageRollupEntity> SaasUsageRollups => Set<SaasUsageRollupEntity>();
+
+    // Graph materialized views (keyless, read-only)
+    public DbSet<DocumentGraphEdge> DocumentGraphEdges => Set<DocumentGraphEdge>();
+    public DbSet<EntityCentrality> EntityCentralities => Set<EntityCentrality>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -108,6 +131,8 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             if (!isSqlite) entity.Property(e => e.Metadata).HasColumnType("jsonb");
 
             entity.Property(e => e.SourceUrl).HasMaxLength(2000);
+            entity.Property(e => e.SourcePath).HasMaxLength(2000);
+            entity.Property(e => e.VectorStoreDocId).HasMaxLength(512);
 
             entity.HasIndex(e => e.CollectionId);
             entity.HasIndex(e => e.FolderId);
@@ -168,6 +193,8 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.HasIndex(e => e.SourceEntityId);
             entity.HasIndex(e => e.TargetEntityId);
             entity.HasIndex(e => e.RelationshipType);
+            entity.HasIndex(e => new { e.SourceEntityId, e.RelationshipType }); // Graph traversal pattern
+            entity.HasIndex(e => new { e.SourceEntityId, e.TargetEntityId, e.RelationshipType }).IsUnique();
 
             entity.HasOne(e => e.SourceEntity)
                 .WithMany(e => e.OutgoingRelationships)
@@ -517,6 +544,281 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
                 .HasForeignKey(e => e.DocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // ProcessingSignalEntity - Lifecycle tracking
+        modelBuilder.Entity<ProcessingSignalEntity>(entity =>
+        {
+            entity.ToTable("processing_signals");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SignalType).HasMaxLength(64).IsRequired();
+            entity.Property(e => e.StagingPath).HasMaxLength(2048);
+            entity.Property(e => e.Message).HasMaxLength(4000);
+            if (!isSqlite) entity.Property(e => e.Metadata).HasColumnType("jsonb");
+
+            entity.HasIndex(e => e.CorrelationId);
+            entity.HasIndex(e => e.DocumentId);
+            entity.HasIndex(e => e.CollectionId);
+            entity.HasIndex(e => e.SignalType);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => new { e.CollectionId, e.SignalType, e.CreatedAt }); // Common query pattern
+
+            entity.HasOne(e => e.Document)
+                .WithMany()
+                .HasForeignKey(e => e.DocumentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.Collection)
+                .WithMany()
+                .HasForeignKey(e => e.CollectionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ApiKeyEntity - SaaS API keys
+        modelBuilder.Entity<ApiKeyEntity>(entity =>
+        {
+            entity.ToTable("api_keys");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.KeyPrefix).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.KeyHash).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.UserId).HasMaxLength(450);
+            entity.Property(e => e.NormalizedOwnerEmail).HasMaxLength(256);
+            entity.Property(e => e.Plan).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Slug).HasMaxLength(32);
+            entity.Property(e => e.CustomLlmApiKey).HasMaxLength(1024);
+            entity.Property(e => e.CustomLlmProvider).HasMaxLength(32);
+            entity.Property(e => e.PreferredResponseLength).HasMaxLength(16);
+            entity.Property(e => e.SigningSecret).HasMaxLength(128);
+
+            entity.HasIndex(e => e.KeyHash).IsUnique();
+            entity.HasIndex(e => e.KeyPrefix);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Slug).IsUnique();
+            entity.HasIndex(e => e.NormalizedOwnerEmail);
+
+            entity.HasOne(e => e.Collection)
+                .WithMany()
+                .HasForeignKey(e => e.CollectionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ApiKeyReadDomain
+        modelBuilder.Entity<ApiKeyReadDomain>(entity =>
+        {
+            entity.ToTable("api_key_read_domains");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Domain).HasMaxLength(255).IsRequired();
+
+            entity.HasIndex(e => e.ApiKeyId);
+
+            entity.HasOne(e => e.ApiKey)
+                .WithMany(k => k.ReadDomains)
+                .HasForeignKey(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ApiKeyCollectionLink
+        modelBuilder.Entity<ApiKeyCollectionLink>(entity =>
+        {
+            entity.ToTable("api_key_collection_links");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Label).HasMaxLength(100);
+
+            entity.HasIndex(e => e.ApiKeyId);
+            entity.HasIndex(e => e.CollectionId);
+
+            entity.HasOne(e => e.ApiKey)
+                .WithMany(k => k.CollectionLinks)
+                .HasForeignKey(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Collection)
+                .WithMany()
+                .HasForeignKey(e => e.CollectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ApiKeyIndexingSource
+        modelBuilder.Entity<ApiKeyIndexingSource>(entity =>
+        {
+            entity.ToTable("api_key_indexing_sources");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SourceValue).HasMaxLength(2048).IsRequired();
+            entity.Property(e => e.CrawlStatus).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.LastError).HasMaxLength(2000);
+            entity.Property(e => e.ETag).HasMaxLength(256);
+            entity.Property(e => e.LastModifiedHeader).HasMaxLength(256);
+
+            entity.HasIndex(e => e.ApiKeyId).IsUnique();
+
+            entity.HasOne(e => e.ApiKey)
+                .WithOne(k => k.IndexingSource)
+                .HasForeignKey<ApiKeyIndexingSource>(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Messaging tenant configuration (per tenant + platform)
+        modelBuilder.Entity<MessagingTenantConfigEntity>(entity =>
+        {
+            entity.ToTable("messaging_tenant_configs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.Platform).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.WorkspaceId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.WorkspaceName).HasMaxLength(256);
+            entity.Property(e => e.SigningSecret).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.BotToken).HasMaxLength(1024);
+            entity.Property(e => e.AllowedCollectionIdsJson).HasColumnType(isSqlite ? "TEXT" : "jsonb").IsRequired();
+            entity.Property(e => e.AllowedChannelIdsJson).HasColumnType(isSqlite ? "TEXT" : "jsonb").IsRequired();
+
+            entity.HasIndex(e => new { e.TenantId, e.Platform }).IsUnique();
+            entity.HasIndex(e => new { e.Platform, e.WorkspaceId });
+        });
+
+        // Messaging context state (user / thread / room)
+        modelBuilder.Entity<MessagingContextStateEntity>(entity =>
+        {
+            entity.ToTable("messaging_context_states");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.Platform).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.WorkspaceId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.ScopeType).HasMaxLength(16).IsRequired();
+            entity.Property(e => e.ScopeKey).HasMaxLength(256).IsRequired();
+
+            entity.HasIndex(e => new { e.TenantId, e.Platform, e.WorkspaceId, e.ScopeType, e.ScopeKey }).IsUnique();
+            entity.HasIndex(e => e.ConversationId);
+            entity.HasIndex(e => e.CollectionId);
+        });
+
+        // Messaging feedback signals for learning pipeline
+        modelBuilder.Entity<MessagingInteractionFeedbackEntity>(entity =>
+        {
+            entity.ToTable("messaging_interaction_feedback");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.Platform).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.WorkspaceId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.ChannelId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.UserId).HasMaxLength(128);
+            entity.Property(e => e.ThreadId).HasMaxLength(128);
+            entity.Property(e => e.RoomId).HasMaxLength(128);
+            entity.Property(e => e.MessageId).HasMaxLength(128);
+            entity.Property(e => e.Mode).HasMaxLength(16).IsRequired();
+            entity.Property(e => e.FeedbackType).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.QueryHash).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.EmojiSignalsJson).HasColumnType(isSqlite ? "TEXT" : "jsonb").IsRequired();
+            entity.Property(e => e.ReactionSignalsJson).HasColumnType(isSqlite ? "TEXT" : "jsonb");
+
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => new { e.TenantId, e.Platform, e.WorkspaceId, e.CreatedAt });
+            entity.HasIndex(e => new { e.QueryHash, e.CreatedAt });
+        });
+
+        // WidgetConfigEntity
+        modelBuilder.Entity<WidgetConfigEntity>(entity =>
+        {
+            entity.ToTable("widget_configs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Theme).HasMaxLength(32);
+            entity.Property(e => e.AccentColor).HasMaxLength(32);
+            entity.Property(e => e.FontFamily).HasMaxLength(128);
+            entity.Property(e => e.CustomCss).HasMaxLength(10000);
+            entity.Property(e => e.LogoUrl).HasMaxLength(2048);
+            entity.Property(e => e.Position).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Mode).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.Placeholder).HasMaxLength(256);
+            entity.Property(e => e.CorpusStyle).HasMaxLength(32).IsRequired();
+            entity.Property(e => e.PageTitle).HasMaxLength(256);
+            entity.Property(e => e.PageDescription).HasMaxLength(1000);
+            entity.Property(e => e.FaviconUrl).HasMaxLength(2048);
+            entity.Property(e => e.WelcomeMessage).HasMaxLength(2000);
+
+            entity.HasIndex(e => e.ApiKeyId).IsUnique();
+
+            entity.HasOne(e => e.ApiKey)
+                .WithOne(k => k.WidgetConfig)
+                .HasForeignKey<WidgetConfigEntity>(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CustomDomainEntity
+        modelBuilder.Entity<CustomDomainEntity>(entity =>
+        {
+            entity.ToTable("custom_domains");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Domain).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.VerificationToken).HasMaxLength(128);
+
+            entity.HasIndex(e => e.Domain).IsUnique();
+            entity.HasIndex(e => e.ApiKeyId).IsUnique();
+
+            entity.HasOne(e => e.ApiKey)
+                .WithOne(k => k.CustomDomain)
+                .HasForeignKey<CustomDomainEntity>(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // SaasQueryLogEntity - per-request audit logs
+        modelBuilder.Entity<SaasQueryLogEntity>(entity =>
+        {
+            entity.ToTable("saas_query_logs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.QueryText).HasMaxLength(2000).IsRequired();
+            entity.Property(e => e.QueryType).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.SearchMode).HasMaxLength(20);
+            entity.Property(e => e.ErrorCode).HasMaxLength(100);
+            entity.Property(e => e.RequestDomain).HasMaxLength(253);
+            entity.Property(e => e.CountryCode).HasMaxLength(2);
+            entity.Property(e => e.UserAgent).HasMaxLength(500);
+
+            entity.HasIndex(e => new { e.ApiKeyId, e.CreatedAt });
+            entity.HasIndex(e => new { e.ApiKeyId, e.Success, e.CreatedAt });
+            entity.HasIndex(e => e.QueryType);
+            entity.HasIndex(e => e.CountryCode);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.HasOne(e => e.ApiKey)
+                .WithMany()
+                .HasForeignKey(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // SaasUsageRollupEntity - daily aggregates
+        modelBuilder.Entity<SaasUsageRollupEntity>(entity =>
+        {
+            entity.ToTable("saas_usage_rollups");
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => new { e.ApiKeyId, e.Date }).IsUnique();
+
+            entity.HasOne(e => e.ApiKey)
+                .WithMany()
+                .HasForeignKey(e => e.ApiKeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Graph materialized views (keyless, read-only)
+        if (!isSqlite)
+        {
+            modelBuilder.Entity<DocumentGraphEdge>(entity =>
+            {
+                entity.HasNoKey();
+                entity.ToView("mv_document_graph");
+            });
+
+            modelBuilder.Entity<EntityCentrality>(entity =>
+            {
+                entity.HasNoKey();
+                entity.ToView("mv_entity_centrality");
+            });
+        }
+        else
+        {
+            // SQLite: ignore graph views entirely
+            modelBuilder.Entity<DocumentGraphEdge>().HasNoKey();
+            modelBuilder.Entity<EntityCentrality>().HasNoKey();
+        }
     }
 
     private static void ApplySqliteDateTimeOffsetConverters(ModelBuilder modelBuilder)

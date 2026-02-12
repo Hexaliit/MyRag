@@ -1,40 +1,42 @@
 using LucidRAG.Data;
 using Microsoft.EntityFrameworkCore;
+using Testcontainers.PostgreSql;
 
 namespace LucidRAG.Tests;
 
 /// <summary>
-///     Factory for creating test database contexts
+///     Factory for creating test database contexts using PostgreSQL via Testcontainers.
 /// </summary>
 public static class TestDbContextFactory
 {
     /// <summary>
-    ///     Create an in-memory database context for unit testing.
-    ///     NOTE: Prefer SQLite in-memory over EF InMemory so that provider-specific mappings
-    ///     (e.g. conditional pgvector/SQLite behavior) execute correctly in the model.
+    ///     Create a PostgreSQL database context for testing via Testcontainers.
+    ///     Uses the pgvector-enabled image so vector columns work correctly.
     /// </summary>
-    public static RagDocumentsDbContext CreateInMemory(string? databaseName = null)
+    public static async Task<(RagDocumentsDbContext Context, PostgreSqlContainer Container)> CreatePostgresContainerAsync()
     {
-        _ = databaseName; // Reserved for future use (e.g. shared-cache SQLite DBs)
+        var container = new PostgreSqlBuilder("pgvector/pgvector:pg16")
+            .Build();
+
+        await container.StartAsync();
 
         var options = new DbContextOptionsBuilder<RagDocumentsDbContext>()
-            .UseSqlite("Data Source=:memory:")
+            .UseNpgsql(container.GetConnectionString(), npgsql => npgsql.UseVector())
             .Options;
 
         var context = new RagDocumentsDbContext(options);
-        context.Database.OpenConnection();
-        context.Database.EnsureCreated();
-        return context;
+        await context.Database.EnsureCreatedAsync();
+        return (context, container);
     }
 
     /// <summary>
-    ///     Create a real PostgreSQL database context for integration testing
-    ///     Uses the existing dev database
+    ///     Create a real PostgreSQL database context for integration testing.
+    ///     Uses an existing running database.
     /// </summary>
     public static RagDocumentsDbContext CreatePostgres(string connectionString)
     {
         var options = new DbContextOptionsBuilder<RagDocumentsDbContext>()
-            .UseNpgsql(connectionString)
+            .UseNpgsql(connectionString, npgsql => npgsql.UseVector())
             .Options;
 
         var context = new RagDocumentsDbContext(options);

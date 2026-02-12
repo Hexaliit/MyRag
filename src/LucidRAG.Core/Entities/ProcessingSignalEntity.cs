@@ -30,6 +30,10 @@ public class ProcessingSignalEntity
     /// </summary>
     public Guid? CollectionId { get; set; }
 
+    // Navigation
+    public DocumentEntity? Document { get; set; }
+    public CollectionEntity? Collection { get; set; }
+
     /// <summary>
     ///     S3 staging path (for staging signals).
     /// </summary>

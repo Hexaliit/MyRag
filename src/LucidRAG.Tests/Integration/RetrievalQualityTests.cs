@@ -2,29 +2,47 @@ using FluentAssertions;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using Microsoft.EntityFrameworkCore;
+using Testcontainers.PostgreSql;
 
 namespace LucidRAG.Tests.Integration;
 
 /// <summary>
 ///     Integration tests for retrieval quality across all filtering mechanisms.
 ///     Tests file types, collections, signals, date ranges, and entities.
-///     Requires PostgreSQL database - tests skip if unavailable.
+///     Uses PostgreSQL via Testcontainers.
 /// </summary>
 [Collection("Integration")]
 [Trait("Category", "Integration")]
-public class RetrievalQualityTests : IDisposable
+public class RetrievalQualityTests : IAsyncLifetime
 {
-    private readonly RagDocumentsDbContext? _db;
-    private readonly bool _dbAvailable;
+    private RagDocumentsDbContext? _db;
+    private PostgreSqlContainer? _container;
+    private bool _dbAvailable;
     private readonly Guid _testCollection2Id = Guid.NewGuid();
     private readonly Guid _testCollectionId = Guid.NewGuid();
 
-    public RetrievalQualityTests()
+    public async Task InitializeAsync()
     {
         try
         {
-            _db = TestDbContextFactory.CreateInMemory();
+            (_db, _container) = await TestDbContextFactory.CreatePostgresContainerAsync();
             _dbAvailable = true;
+
+            // Seed required parent collections for FK constraints
+            _db.Collections.Add(new CollectionEntity { Id = _testCollectionId, Name = "test-collection-1" });
+            _db.Collections.Add(new CollectionEntity { Id = _testCollection2Id, Name = "test-collection-2" });
+            await _db.SaveChangesAsync();
+
+            // Seed a parent document for segment link tests
+            _db.Documents.Add(new DocumentEntity
+            {
+                Id = _testDocumentId,
+                Name = "test-document",
+                ContentHash = "test-hash",
+                CollectionId = _testCollectionId,
+                Status = DocumentStatus.Completed
+            });
+            await _db.SaveChangesAsync();
         }
         catch
         {
@@ -32,10 +50,10 @@ public class RetrievalQualityTests : IDisposable
         }
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _db?.Dispose();
-        GC.SuppressFinalize(this);
+        if (_db != null) await _db.DisposeAsync();
+        if (_container != null) await _container.DisposeAsync();
     }
 
     private bool SkipIfNoDb()
