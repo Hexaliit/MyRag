@@ -123,22 +123,13 @@ public class CommunityDetectionService : ICommunityDetectionService
             communities.Values.Distinct().Count(), modularity);
 
         // Clear existing communities for this collection (or all if no collection specified)
-        var existingCommunitiesQuery = _db.Communities.AsQueryable();
-        if (collectionId.HasValue)
-            existingCommunitiesQuery = existingCommunitiesQuery.Where(c => c.CollectionId == collectionId.Value);
-        else
-            existingCommunitiesQuery = existingCommunitiesQuery.Where(c => c.CollectionId == null);
+        // Uses ExecuteDeleteAsync for O(1) SQL DELETE instead of loading all entities into memory.
+        // Memberships are cascade-deleted by the database FK constraint.
+        var existingCommunitiesQuery = collectionId.HasValue
+            ? _db.Communities.Where(c => c.CollectionId == collectionId.Value)
+            : _db.Communities.Where(c => c.CollectionId == null);
 
-        var existingCommunities = await existingCommunitiesQuery.ToListAsync(ct);
-
-        var existingCommunityIds = existingCommunities.Select(c => c.Id).ToList();
-        var existingMemberships = await _db.CommunityMemberships
-            .Where(m => existingCommunityIds.Contains(m.CommunityId))
-            .ToListAsync(ct);
-
-        _db.CommunityMemberships.RemoveRange(existingMemberships);
-        _db.Communities.RemoveRange(existingCommunities);
-        await _db.SaveChangesAsync(ct);
+        var deleted = await existingCommunitiesQuery.ExecuteDeleteAsync(ct);
 
         // Group nodes by community
         var communityGroups = communities

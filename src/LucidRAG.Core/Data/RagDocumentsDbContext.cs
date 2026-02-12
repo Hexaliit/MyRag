@@ -139,6 +139,8 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.ContentHash);
             entity.HasIndex(e => e.SourceUrl);
+            entity.HasIndex(e => e.CreatedAt); // Date-range filters + cleanup cutoff queries
+            entity.HasIndex(e => new { e.CollectionId, e.CreatedAt }); // Admin: list docs in collection sorted by date
 
             entity.HasOne(e => e.Collection)
                 .WithMany(c => c.Documents)
@@ -193,7 +195,8 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.HasIndex(e => e.SourceEntityId);
             entity.HasIndex(e => e.TargetEntityId);
             entity.HasIndex(e => e.RelationshipType);
-            entity.HasIndex(e => new { e.SourceEntityId, e.RelationshipType }); // Graph traversal pattern
+            entity.HasIndex(e => new { e.SourceEntityId, e.RelationshipType }); // Forward graph traversal
+            entity.HasIndex(e => new { e.TargetEntityId, e.RelationshipType }); // Backward graph traversal (GetEntityConnections)
             entity.HasIndex(e => new { e.SourceEntityId, e.TargetEntityId, e.RelationshipType }).IsUnique();
 
             entity.HasOne(e => e.SourceEntity)
@@ -228,6 +231,8 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.Property(e => e.Role).HasMaxLength(20).IsRequired();
             entity.Property(e => e.Content).IsRequired();
             if (!isSqlite) entity.Property(e => e.Metadata).HasColumnType("jsonb");
+
+            entity.HasIndex(e => new { e.ConversationId, e.CreatedAt }); // Message loading: OrderBy(CreatedAt) filtered by ConversationId
 
             entity.HasOne(e => e.Conversation)
                 .WithMany(c => c.Messages)
