@@ -776,12 +776,15 @@ public class RagDocumentsDbContext(DbContextOptions<RagDocumentsDbContext> optio
             entity.Property(e => e.RequestDomain).HasMaxLength(253);
             entity.Property(e => e.CountryCode).HasMaxLength(2);
             entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.BotType).HasMaxLength(50);
+            entity.Property(e => e.ClientIpHash).HasMaxLength(16);
 
             entity.HasIndex(e => new { e.ApiKeyId, e.CreatedAt });
             entity.HasIndex(e => new { e.ApiKeyId, e.Success, e.CreatedAt });
             entity.HasIndex(e => e.QueryType);
             entity.HasIndex(e => e.CountryCode);
             entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => new { e.BotDetected, e.CreatedAt });
 
             entity.HasOne(e => e.ApiKey)
                 .WithMany()

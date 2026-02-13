@@ -45,6 +45,18 @@ public class SaasQueryLogEntity
     /// <summary>Links to ConversationEntity for chat queries.</summary>
     public Guid? ConversationId { get; set; }
 
+    /// <summary>Bot detection confidence score (0.0-1.0). Null if detection not run.</summary>
+    public double? BotConfidence { get; set; }
+
+    /// <summary>Whether the request was classified as a bot.</summary>
+    public bool BotDetected { get; set; }
+
+    /// <summary>Bot type classification (e.g., "Crawler", "Scraper", "Automation").</summary>
+    public string? BotType { get; set; }
+
+    /// <summary>SHA256-truncated client IP hash for privacy-preserving analytics.</summary>
+    public string? ClientIpHash { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
