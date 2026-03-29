@@ -97,7 +97,7 @@ public class InkExtractor
         using var grayF = new Mat();
         gray.ConvertTo(grayF, MatType.CV_32F);
 
-        Cv2.Compare(grayF, threshold, binary, CmpType.LT);
+        Cv2.Compare(grayF, threshold, binary, CmpTypes.LT);
 
         return binary;
     }
