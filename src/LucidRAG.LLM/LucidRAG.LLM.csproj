@@ -40,14 +40,14 @@
         <PackageReference Include="YamlDotNet" Version="16.3.0"/>
 
         <!-- Resilience (Polly) -->
-        <PackageReference Include="Polly.Core" Version="8.6.5"/>
+        <PackageReference Include="Polly.Core" Version="8.6.6" />
 
         <!-- Microsoft Extensions -->
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
     </ItemGroup>
 
     <!-- LLM service implementations (ProjectRef local, PackageRef CI) -->

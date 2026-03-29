@@ -93,8 +93,8 @@
         <PackageReference Include="Microsoft.Playwright" Version="1.58.0"/>
 
         <!-- MCP server for AI agent integration -->
-        <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1"/>
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2"/>
+        <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
     </ItemGroup>
 
     <!-- Complete-only: email delivery, console image display -->
@@ -138,7 +138,9 @@
          These come transitively via LucidRAG.Core → Image/VideoSummarizer but are unused in slim.
          ExcludeAssets=all prevents the ~90 MB of native DLLs from being published. -->
     <ItemGroup Condition="'$(CompleteBuild)' != 'true'">
-        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250507" ExcludeAssets="all" PrivateAssets="all"/>
+        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260302" ExcludeAssets="all" PrivateAssets="all">
+          <IncludeAssets>none</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" ExcludeAssets="all" PrivateAssets="all"/>
     </ItemGroup>
 

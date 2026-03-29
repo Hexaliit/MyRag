@@ -50,9 +50,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="PdfPig" Version="0.1.14-alpha-20251224-7c4f5"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="PdfPig" Version="0.1.14" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     </ItemGroup>
 
     <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->

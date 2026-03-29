@@ -10,7 +10,7 @@
 
     <!-- PostgreSQL-specific packages -->
     <ItemGroup>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
         <PackageReference Include="Pgvector" Version="0.3.2"/>
         <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0"/>
     </ItemGroup>

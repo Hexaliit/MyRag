@@ -26,15 +26,15 @@
 
     <ItemGroup>
         <!-- TUI framework -->
-        <PackageReference Include="XenoAtom.Terminal.UI" Version="1.0.0-preview.6" />
+        <PackageReference Include="XenoAtom.Terminal.UI" Version="1.13.1" />
         <!-- MCP server -->
-        <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
+        <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
         <!-- File logging (stdout owned by TUI) -->
-        <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+        <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
         <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
         <!-- EF Core SQLite for standalone metadata -->
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
     </ItemGroup>
 
     <ItemGroup>
@@ -53,7 +53,9 @@
          ExcludeAssets=all prevents ~90 MB of native DLLs from being published.
          Re-enable if adding ImageSummarizer integration for paper figure analysis. -->
     <ItemGroup>
-        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250507" ExcludeAssets="all" PrivateAssets="all"/>
+        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260302" ExcludeAssets="all" PrivateAssets="all">
+          <IncludeAssets>none</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="Whisper.net.Runtime" Version="1.9.0" ExcludeAssets="all" PrivateAssets="all"/>
         <PackageReference Include="Whisper.net.Runtime.Metal" Version="1.9.0" ExcludeAssets="all" PrivateAssets="all"/>
     </ItemGroup>

@@ -50,9 +50,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="DocumentFormat.OpenXml" Version="3.4.1"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     </ItemGroup>
 
     <!-- Core dependency: ProjectRef local, PackageRef for NuGet builds -->

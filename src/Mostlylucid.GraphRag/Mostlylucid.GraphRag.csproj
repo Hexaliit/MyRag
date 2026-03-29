@@ -19,10 +19,10 @@
     <ItemGroup>
 
         <!-- DuckDB for compact vector + graph storage -->
-        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4"/>
+        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.0" />
 
         <!-- Markdown parsing -->
-        <PackageReference Include="Markdig" Version="0.44.0"/>
+        <PackageReference Include="Markdig" Version="1.1.2" />
 
     </ItemGroup>
 

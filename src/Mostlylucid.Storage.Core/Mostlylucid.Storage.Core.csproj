@@ -29,15 +29,15 @@
         </PackageReference>
 
         <!-- DuckDB for embedded vector storage -->
-        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.4.4"/>
+        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.0" />
 
         <!-- Qdrant for production vector storage -->
-        <PackageReference Include="Qdrant.Client" Version="1.16.1"/>
+        <PackageReference Include="Qdrant.Client" Version="1.17.0" />
 
         <!-- Microsoft Extensions for DI and configuration - match Summarizer.Core versions -->
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2"/>
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     </ItemGroup>
 
     <!-- Summarizer.Core (ProjectRef local, PackageRef CI) -->

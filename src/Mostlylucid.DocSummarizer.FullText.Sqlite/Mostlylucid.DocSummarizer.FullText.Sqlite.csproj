@@ -52,7 +52,7 @@
 
     <!-- SQLite driver -->
     <ItemGroup>
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
     </ItemGroup>
 
     <!-- DocSummarizer dependency (conditional: ProjectRef local, PackageRef CI) -->
