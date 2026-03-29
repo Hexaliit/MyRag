@@ -424,7 +424,50 @@ jobs:
           echo "::error::Timeout waiting for mostlylucid.lucidrag.doomsummarizer.core ${VERSION} on NuGet"
           exit 1
 
-  # ── Tier 3.5: UltraResearch — SKIPPED (depends on LucidRAG.Core which is not a NuGet package)
+  # ── Tier 3.5: LucidRAG.Core ──────────────────────────────────────────
+  publish-lucidrag-core:
+    needs: wait-for-doomsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: ./.github/actions/nuget-pack-publish
+        with:
+          project-path: src/LucidRAG.Core/LucidRAG.Core.csproj
+          tag-prefix: lucidragcorev
+          artifact-name: lucidrag-core
+          version: ${{ github.event.inputs.version }}
+
+  wait-for-lucidrag-core:
+    needs: [publish-summarizer-core, publish-lucidrag-core]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet
+        run: |
+          VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          for i in $(seq 1 45); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.core/${VERSION}/mostlylucid.lucidrag.core.${VERSION}.nupkg")
+            echo "Attempt $i/45: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then exit 0; fi
+            sleep 30
+          done
+          echo "::error::Timeout waiting for mostlylucid.lucidrag.core ${VERSION} on NuGet"
+          exit 1
+
+  # ── Tier 3.5b: UltraResearch (now possible with LucidRAG.Core published)
+  publish-ultraresearch:
+    needs: wait-for-lucidrag-core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: ./.github/actions/nuget-pack-publish
+        with:
+          project-path: src/UltraResearch/UltraResearch.csproj
+          tag-prefix: ultraresearchv
+          artifact-name: ultraresearch
+          version: ${{ github.event.inputs.version }}
 
   # ── Tier 4: Sources + Readers + Plugins (all parallel) ────────────────
   publish-source-hackernews:
@@ -879,7 +922,8 @@ jobs:
           echo "| 2.5 | \`Mostlylucid.LucidRAG.AudioSummarizer\` | ${{ needs.publish-audiosummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2.5 | \`Mostlylucid.LucidRAG.VideoSummarizer\` | ${{ needs.publish-videosummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 3 | \`Mostlylucid.LucidRAG.DoomSummarizer.Core\` | ${{ needs.publish-doomsummarizer.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 3.5 | \`Mostlylucid.LucidRAG.UltraResearch\` | skipped (LucidRAG.Core dep) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3.5 | \`Mostlylucid.LucidRAG.Core\` | ${{ needs.publish-lucidrag-core.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3.5b | \`Mostlylucid.LucidRAG.UltraResearch\` | ${{ needs.publish-ultraresearch.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.HackerNews\` | ${{ needs.publish-source-hackernews.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Reddit\` | ${{ needs.publish-source-reddit.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 4 | \`Mostlylucid.LucidRAG.Sources.Google\` | ${{ needs.publish-source-google.result }} |" >> $GITHUB_STEP_SUMMARY

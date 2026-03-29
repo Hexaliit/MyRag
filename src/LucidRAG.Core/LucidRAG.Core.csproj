@@ -5,7 +5,13 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>LucidRAG</RootNamespace>
+
+        <!-- Package metadata -->
+        <PackageId>Mostlylucid.LucidRAG.Core</PackageId>
         <Description>Core business logic for LucidRAG - shared by web, CLI, and API projects</Description>
+        <Authors>Scott Galloway</Authors>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
     </PropertyGroup>
 
     <!-- Entity Framework Core + PostgreSQL + SQLite -->
@@ -45,8 +51,8 @@
         <PackageReference Include="YamlDotNet" Version="16.3.0"/>
     </ItemGroup>
 
-    <!-- Project references -->
-    <ItemGroup>
+    <!-- Project references (local dev) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
         <ProjectReference Include="..\ImageSummarizer.Core\ImageSummarizer.Core.csproj"/>
         <ProjectReference Include="..\VideoSummarizer.Core\VideoSummarizer.Core.csproj"/>
@@ -57,6 +63,15 @@
         <ProjectReference Include="..\Mostlylucid.RAG\Mostlylucid.RAG.csproj"/>
         <ProjectReference Include="..\DoomSummarizer.Core\DoomSummarizer.Core.csproj"/>
         <ProjectReference Include="..\DomainClassifier.Core\DomainClassifier.Core.csproj"/>
+    </ItemGroup>
+
+    <!-- NuGet packages (CI / NuGet pack) -->
+    <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.Anthropic" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.OpenAI" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DataSummarizer" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
 </Project>
