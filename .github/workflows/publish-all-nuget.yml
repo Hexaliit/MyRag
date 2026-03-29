@@ -897,6 +897,8 @@ jobs:
       - publish-plugin-subtitles
       - publish-plugins-complete
       - publish-doomsummarizer-complete
+      - publish-lucidrag-core
+      - publish-ultraresearch
     if: always()
     steps:
       - name: Summary
