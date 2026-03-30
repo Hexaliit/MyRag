@@ -352,8 +352,26 @@ jobs:
           artifact-name: imagesummarizer
           version: ${{ github.event.inputs.version }}
 
+  # AudioSummarizer depends on GraphRag NuGet — must wait for it to be indexed
+  wait-for-graphrag:
+    needs: [publish-summarizer-core, publish-graphrag]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll NuGet for GraphRag
+        run: |
+          VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
+          for i in $(seq 1 45); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/mostlylucid.lucidrag.graphrag/${VERSION}/mostlylucid.lucidrag.graphrag.${VERSION}.nupkg")
+            echo "Attempt $i/45: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then exit 0; fi
+            sleep 30
+          done
+          echo "::error::Timeout waiting for mostlylucid.lucidrag.graphrag ${VERSION} on NuGet"
+          exit 1
+
   publish-audiosummarizer:
-    needs: wait-for-docsummarizer
+    needs: wait-for-graphrag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
