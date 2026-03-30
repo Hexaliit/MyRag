@@ -9,6 +9,7 @@
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.Sources.Reference</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Reference source plugin for DoomSummarizer. Wikipedia current events and fact-checking.</Description>
@@ -53,6 +54,14 @@
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
     </ItemGroup>
 
 </Project>

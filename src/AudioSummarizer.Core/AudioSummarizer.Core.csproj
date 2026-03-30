@@ -10,6 +10,7 @@
         <Description>AudioSummarizer - Forensic audio characterization library with speech-to-text and speaker analysis</Description>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageId>Mostlylucid.LucidRAG.AudioSummarizer</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageTags>audio;whisper;speech-to-text;transcription;diarization</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -74,6 +75,14 @@
     <ItemGroup>
         <None Include=".\README.md" Pack="true" PackagePath="">
             <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 

@@ -9,6 +9,7 @@
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.Plugins.Audio</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Audio analysis plugin for DoomSummarizer. Speech-to-text transcription and speaker diarization.</Description>
@@ -70,6 +71,14 @@
         </None>
         <None Include=".\release-notes.txt" Pack="true" PackagePath="">
             <Link>Properties\release-notes.txt</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 

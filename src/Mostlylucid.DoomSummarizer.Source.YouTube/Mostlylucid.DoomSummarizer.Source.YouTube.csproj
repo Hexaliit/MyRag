@@ -9,6 +9,7 @@
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.Plugins.YouTube</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>YouTube source plugin for DoomSummarizer. Extracts video metadata and subtitles from YouTube URLs without downloading video. Uses description timestamps and subtitle gaps as chapter markers.</Description>
@@ -58,6 +59,14 @@
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
     </ItemGroup>
 
 </Project>

@@ -14,6 +14,7 @@
 
         <!-- Package metadata -->
         <PackageId>Mostlylucid.LucidRAG.ImageSummarizer</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Description>Core image analysis pipeline with OCR, motion detection, and vision model captioning</Description>
         <Authors>Scott Galloway</Authors>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -111,6 +112,14 @@
     <ItemGroup>
         <None Include=".\README.md" Pack="true" PackagePath="">
             <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 

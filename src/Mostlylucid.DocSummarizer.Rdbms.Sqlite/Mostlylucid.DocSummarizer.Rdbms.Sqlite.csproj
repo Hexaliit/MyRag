@@ -10,6 +10,7 @@
         <!-- NuGet Package Metadata -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.DocSummarizer.Rdbms.Sqlite</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>SQLite-backed resilience services (circuit breaker, API budget tracking) for DocSummarizer. Provides persistent circuit state and usage tracking across restarts.</Description>
@@ -61,6 +62,14 @@
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
     </ItemGroup>
 
 </Project>

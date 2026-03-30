@@ -9,6 +9,7 @@
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.Plugins.Subtitles</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Subtitle processor plugin for DoomSummarizer. Parses SRT, VTT, ASS, and SSA subtitle files into chapter-aware markdown with gap-based chapter detection.</Description>
@@ -60,6 +61,14 @@
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)"/>
         <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
     </ItemGroup>
 
 </Project>

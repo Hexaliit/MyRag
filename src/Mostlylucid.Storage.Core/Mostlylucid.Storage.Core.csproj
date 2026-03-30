@@ -8,6 +8,7 @@
 
         <!-- NuGet package metadata -->
         <PackageId>Mostlylucid.LucidRAG.Storage.Core</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Version>1.0.0</Version>
         <Authors>LucidRAG</Authors>
         <Description>Unified vector storage library with support for InMemory, DuckDB, and Qdrant backends. Used by all LucidRAG pipelines for consistent embedding storage.</Description>
@@ -53,6 +54,14 @@
     <ItemGroup>
         <None Include=".\README.md" Pack="true" PackagePath="">
             <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 

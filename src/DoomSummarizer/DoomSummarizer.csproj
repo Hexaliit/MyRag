@@ -30,6 +30,7 @@
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>doomsummarizer</ToolCommandName>
         <PackageId>Mostlylucid.LucidRAG.DoomSummarizer</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
 
         <!-- Allow unsafe for ONNX -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -153,5 +154,13 @@
         <EmbeddedResource Include="Resources\manual.manifest.yaml"/>
     </ItemGroup>
 
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
+    </ItemGroup>
 
 </Project>

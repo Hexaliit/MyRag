@@ -9,6 +9,7 @@
         <!-- NuGet -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.Readers.Gutenberg</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Project Gutenberg archive reader for the Summarizers pipeline. Handles ZIP archives with HTML/TXT content, header/footer boilerplate stripping, and metadata extraction (title, author, language).</Description>
@@ -73,6 +74,14 @@
         </None>
         <None Include=".\release-notes.txt" Pack="true" PackagePath="">
             <Link>Properties\release-notes.txt</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 

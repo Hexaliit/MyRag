@@ -9,6 +9,7 @@
         <!-- NuGet Package Metadata -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.DoomSummarizer.Core</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Core signal extraction pipeline: embeddings, entities, knowledge graphs, ranking, LLM routing with budget enforcement and circuit-breaking. Builds on Mostlylucid.DocSummarizer for shared NER, content extraction, and RRF scoring.</Description>
@@ -167,6 +168,14 @@
         </None>
         <None Include=".\release-notes.txt" Pack="true" PackagePath="">
             <Link>Properties\release-notes.txt</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 

@@ -10,6 +10,7 @@
         <!-- NuGet Package Metadata -->
         <IsPackable>true</IsPackable>
         <PackageId>Mostlylucid.LucidRAG.CodeSummarizer</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Authors>Scott Galloway</Authors>
         <Company>Mostlylucid</Company>
         <Description>Code block and Mermaid diagram summarization for RAG pipelines. Uses Tree-sitter for AST parsing of 28+ languages and regex-based Mermaid parsing for diagram structure extraction.</Description>
@@ -66,6 +67,14 @@
         </None>
         <None Include=".\README.md" Pack="true" PackagePath="">
             <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 

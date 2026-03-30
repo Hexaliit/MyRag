@@ -11,6 +11,7 @@
 
         <!-- Package metadata -->
         <PackageId>Mostlylucid.LucidRAG.DomainClassifier.Core</PackageId>
+        <PackageIcon>icon.png</PackageIcon>
         <Description>Domain classification plugin infrastructure for content enrichment (financial, legal, medical, scientific)</Description>
         <Authors>Scott Galloway</Authors>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -57,6 +58,14 @@
     <ItemGroup>
         <None Include=".\README.md" Pack="true" PackagePath="">
             <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+
+
+    <!-- Package icon -->
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
         </None>
     </ItemGroup>
 
