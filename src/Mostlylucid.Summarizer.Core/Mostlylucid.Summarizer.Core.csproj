@@ -17,6 +17,7 @@
         <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageTags>summarizer;pipeline;documents;images;data;abstraction</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -56,6 +57,13 @@
     <!-- Embed YAML files as content -->
     <ItemGroup>
         <Content Include="Capabilities\*.yaml" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
     </ItemGroup>
 
 </Project>

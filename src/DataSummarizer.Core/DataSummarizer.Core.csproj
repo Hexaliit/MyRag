@@ -18,6 +18,7 @@
         <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageTags>data;csv;json;excel;parquet;sqlite;database;ingestion;etl</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -73,6 +74,13 @@
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
     </ItemGroup>
 
 </Project>

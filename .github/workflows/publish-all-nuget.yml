@@ -273,7 +273,46 @@ jobs:
             exit 1
           fi
 
-  # ── Tier 2.5: LLM, Decomposer, Image, Audio (parallel) ──────────────
+  # ── Tier 2.5: GraphRag, RAG, DomainClassifier, LLM, Decomposer, Image, Audio (parallel) ──
+  publish-graphrag:
+    needs: wait-for-docsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: ./.github/actions/nuget-pack-publish
+        with:
+          project-path: src/Mostlylucid.GraphRag/Mostlylucid.GraphRag.csproj
+          tag-prefix: graphragv
+          artifact-name: graphrag
+          version: ${{ github.event.inputs.version }}
+
+  publish-rag:
+    needs: wait-for-docsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: ./.github/actions/nuget-pack-publish
+        with:
+          project-path: src/Mostlylucid.RAG/Mostlylucid.RAG.csproj
+          tag-prefix: ragv
+          artifact-name: rag
+          version: ${{ github.event.inputs.version }}
+
+  publish-domainclassifier:
+    needs: wait-for-docsummarizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: ./.github/actions/nuget-pack-publish
+        with:
+          project-path: src/DomainClassifier.Core/DomainClassifier.Core.csproj
+          tag-prefix: domclassv
+          artifact-name: domainclassifier
+          version: ${{ github.event.inputs.version }}
+
   publish-llm:
     needs: wait-for-backends
     runs-on: ubuntu-latest
@@ -330,6 +369,9 @@ jobs:
   wait-for-tier25:
     needs:
       - publish-summarizer-core
+      - publish-graphrag
+      - publish-rag
+      - publish-domainclassifier
       - publish-llm
       - publish-decomposer
       - publish-imagesummarizer
@@ -340,7 +382,7 @@ jobs:
         run: |
           VERSION="${{ needs.publish-summarizer-core.outputs.version }}"
           FAILED=""
-          for pkg in mostlylucid.lucidrag.llm mostlylucid.lucidrag.decomposer mostlylucid.lucidrag.imagesummarizer mostlylucid.lucidrag.audiosummarizer; do
+          for pkg in mostlylucid.lucidrag.graphrag mostlylucid.lucidrag.rag mostlylucid.lucidrag.domainclassifier.core mostlylucid.lucidrag.llm mostlylucid.lucidrag.decomposer mostlylucid.lucidrag.imagesummarizer mostlylucid.lucidrag.audiosummarizer; do
             echo "Waiting for $pkg ${VERSION}..."
             FOUND=false
             for i in $(seq 1 45); do
@@ -867,6 +909,9 @@ jobs:
       - publish-fts-sqlite
       - publish-docsummarizer-anthropic
       - publish-docsummarizer-openai
+      - publish-graphrag
+      - publish-rag
+      - publish-domainclassifier
       - publish-llm
       - publish-decomposer
       - publish-imagesummarizer
@@ -918,6 +963,9 @@ jobs:
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.FullText.Sqlite\` | ${{ needs.publish-fts-sqlite.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.Anthropic\` | ${{ needs.publish-docsummarizer-anthropic.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2 | \`Mostlylucid.LucidRAG.DocSummarizer.OpenAI\` | ${{ needs.publish-docsummarizer-openai.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.GraphRag\` | ${{ needs.publish-graphrag.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.RAG\` | ${{ needs.publish-rag.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2.5 | \`Mostlylucid.LucidRAG.DomainClassifier.Core\` | ${{ needs.publish-domainclassifier.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2.5 | \`Mostlylucid.LucidRAG.LLM\` | ${{ needs.publish-llm.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2.5 | \`Mostlylucid.LucidRAG.Decomposer\` | ${{ needs.publish-decomposer.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 2.5 | \`Mostlylucid.LucidRAG.ImageSummarizer\` | ${{ needs.publish-imagesummarizer.result }} |" >> $GITHUB_STEP_SUMMARY

@@ -1,7 +1,19 @@
-# DomainClassifier.Core
+# Mostlylucid.LucidRAG.DomainClassifier.Core
 
-> **COMING IN V2.0** — Domain classification is under active development and will be available in lucidRAG v2.0.
+Domain classification plugin infrastructure for content enrichment (financial, legal, medical, scientific).
 
-Domain classification plugin infrastructure for LucidRAG. Provides the base interfaces, plugin registry, and shared abstractions used by all domain-specific classifiers (Financial, Technical, Narrative).
+## Install
 
-Enables content enrichment with domain-specific entity extraction (financial tickers, academic citations, narrative characters, etc.) during document ingestion, powering domain-aware search ranking in the RRF pipeline.
+```bash
+dotnet add package Mostlylucid.LucidRAG.DomainClassifier.Core
+```
+
+## Overview
+
+Provides the base interfaces, plugin registry, and shared abstractions used by all domain-specific classifiers (Financial, Technical, Narrative). Enables content enrichment with domain-specific entity extraction during document ingestion, powering domain-aware search ranking in the RRF pipeline.
+
+> **Note:** Domain classification is under active development.
+
+## Links
+
+- [Repository](https://github.com/scottgal/lucidrag)

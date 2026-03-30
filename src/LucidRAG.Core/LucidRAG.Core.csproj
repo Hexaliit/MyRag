@@ -12,6 +12,7 @@
         <Authors>Scott Galloway</Authors>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <!-- Entity Framework Core + PostgreSQL + SQLite -->
@@ -72,6 +73,18 @@
         <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer.OpenAI" Version="$(CorePackageVersion)"/>
         <PackageReference Include="Mostlylucid.LucidRAG.DoomSummarizer.Core" Version="$(CorePackageVersion)"/>
         <PackageReference Include="Mostlylucid.LucidRAG.DataSummarizer" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.GraphRag" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.RAG" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.DomainClassifier.Core" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.ImageSummarizer" Version="$(CorePackageVersion)"/>
+        <PackageReference Include="Mostlylucid.LucidRAG.VideoSummarizer" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
     </ItemGroup>
 
 </Project>

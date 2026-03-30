@@ -17,6 +17,7 @@
         <PackageTags>rag;query-decomposition;agentic;orchestration;sub-queries</PackageTags>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
 
         <!-- Deterministic builds for NuGet -->
         <Deterministic>true</Deterministic>
@@ -70,6 +71,13 @@
     <!-- Embed glossary files -->
     <ItemGroup>
         <EmbeddedResource Include="Glossary\glossary.yaml"/>
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
     </ItemGroup>
 
 </Project>

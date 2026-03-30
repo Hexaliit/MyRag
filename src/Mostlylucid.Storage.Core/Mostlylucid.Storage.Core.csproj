@@ -13,6 +13,7 @@
         <Description>Unified vector storage library with support for InMemory, DuckDB, and Qdrant backends. Used by all LucidRAG pipelines for consistent embedding storage.</Description>
         <PackageTags>vector-store;embeddings;rag;duckdb;qdrant;semantic-search</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -46,6 +47,13 @@
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
         <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
     </ItemGroup>
 
 </Project>

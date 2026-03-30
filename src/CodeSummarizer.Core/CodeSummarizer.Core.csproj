@@ -25,6 +25,7 @@
         <Deterministic>true</Deterministic>
         <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -62,6 +63,9 @@
     <ItemGroup>
         <None Include=".\release-notes.txt" Pack="true" PackagePath="">
             <Link>Properties\release-notes.txt</Link>
+        </None>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
         </None>
     </ItemGroup>
 

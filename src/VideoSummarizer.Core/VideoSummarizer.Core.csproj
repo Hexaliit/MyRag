@@ -19,6 +19,7 @@
         <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageTags>video;shot-detection;scene-segmentation;ocr;whisper;clip;onnx;ffmpeg</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -75,6 +76,13 @@
     <ItemGroup>
         <None Include="Config\waves.yaml">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
         </None>
     </ItemGroup>
 

@@ -12,6 +12,7 @@
         <PackageId>Mostlylucid.LucidRAG.AudioSummarizer</PackageId>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageTags>audio;whisper;speech-to-text;transcription;diarization</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>$(NoWarn);1591;NU1605</NoWarn>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -30,20 +31,15 @@
         </PackageReference>
     </ItemGroup>
 
-    <!-- GraphRag: used for OnnxNerService (transcript entity extraction).
-         PrivateAssets=all embeds it in our package without declaring a NuGet dependency
-         (GraphRag is not published as a standalone NuGet package). -->
-    <ItemGroup>
-        <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj" PrivateAssets="all"/>
-    </ItemGroup>
-
     <!-- Core dependencies (ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
+        <ProjectReference Include="..\Mostlylucid.GraphRag\Mostlylucid.GraphRag.csproj"/>
         <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
         <ProjectReference Include="..\Mostlylucid.DocSummarizer.Core\Mostlylucid.DocSummarizer.Core.csproj"/>
         <ProjectReference Include="..\Mostlylucid.Storage.Core\Mostlylucid.Storage.Core.csproj"/>
     </ItemGroup>
     <ItemGroup Condition="'$(UseNuGetDependency)' == 'true'">
+        <PackageReference Include="Mostlylucid.LucidRAG.GraphRag" Version="$(CorePackageVersion)"/>
         <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
         <PackageReference Include="Mostlylucid.LucidRAG.DocSummarizer" Version="$(CorePackageVersion)"/>
         <PackageReference Include="Mostlylucid.LucidRAG.Storage.Core" Version="$(CorePackageVersion)"/>
@@ -72,6 +68,13 @@
         <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.5" />
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
     </ItemGroup>
 
 </Project>

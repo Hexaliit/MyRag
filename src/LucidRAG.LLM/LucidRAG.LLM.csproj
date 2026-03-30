@@ -14,6 +14,7 @@
         <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
         <RepositoryUrl>https://github.com/scottgal/lucidrag</RepositoryUrl>
         <PackageTags>llm;ai;openai;anthropic;ollama;lmstudio;yaml;configuration</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <!-- MinVer -->
@@ -67,6 +68,13 @@
         <InternalsVisibleTo Include="DoomSummarizer.Tests"/>
         <InternalsVisibleTo Include="doomsummarizer"/>
         <InternalsVisibleTo Include="DoomWriter"/>
+    </ItemGroup>
+
+    <!-- README for NuGet -->
+    <ItemGroup>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
     </ItemGroup>
 
 </Project>
