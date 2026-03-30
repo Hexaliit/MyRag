@@ -524,8 +524,8 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: ./.github/actions/nuget-pack-publish
         with:
-          project-path: src/UltraResearch/UltraResearch.csproj
-          tag-prefix: ultraresearchv
+          project-path: src/Mostlylucid.LucidRAG.UltraResearch/Mostlylucid.LucidRAG.UltraResearch.csproj
+          tag-prefix: ultraresv
           artifact-name: ultraresearch
           version: ${{ github.event.inputs.version }}
 
