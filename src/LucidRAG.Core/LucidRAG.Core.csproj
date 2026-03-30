@@ -14,7 +14,18 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/scottgal/lucidrag</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- MinVer -->
+        <MinVerTagPrefix>lucidragcorev</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
     </PropertyGroup>
+
+    <ItemGroup Condition="'$(Configuration)' == 'Release'">
+        <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
     <!-- Entity Framework Core + PostgreSQL + SQLite -->
     <ItemGroup>
