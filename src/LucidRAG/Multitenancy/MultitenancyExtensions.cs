@@ -1,4 +1,8 @@
+using LucidRAG.Multitenancy.Providers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace LucidRAG.Multitenancy;
 
@@ -18,6 +22,9 @@ public static class MultitenancyExtensions
         services.Configure<MultitenancyOptions>(
             configuration.GetSection(MultitenancyOptions.SectionName));
 
+        services.Configure<TenantDatabaseOptions>(
+            configuration.GetSection(TenantDatabaseOptions.SectionName));
+
         // Memory cache for tenant resolution
         services.AddMemoryCache();
 
@@ -27,13 +34,18 @@ public static class MultitenancyExtensions
         // Tenant resolver
         services.AddScoped<ITenantResolver, SubdomainTenantResolver>();
 
-        // Tenant DbContext (for tenant management table)
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        services.AddDbContext<TenantDbContext>(options =>
-            options.UseNpgsql(connectionString));
+        // Register tenant database providers
+        services.AddScoped<PostgresTenantDatabaseProvider>();
+        services.AddScoped<SqliteTenantDatabaseProvider>();
+        services.AddScoped<SqlServerTenantDatabaseProvider>();
+        services.AddScoped<OracleTenantDatabaseProvider>();
 
-        // Tenant-aware DbContext factory
-        services.AddScoped<ITenantDbContextFactory, PostgresTenantDbContextFactory>();
+        // Factory for resolving the correct provider
+        services.AddSingleton<ITenantDatabaseProviderFactory, TenantDatabaseProviderFactory>();
+
+        // Scoped provider accessor - resolves the configured provider per scope
+        services.AddScoped<ITenantDatabaseProvider>(sp =>
+            sp.GetRequiredService<ITenantDatabaseProviderFactory>().GetProvider());
 
         // Provisioning service
         services.AddScoped<ITenantProvisioningService, TenantProvisioningService>();
@@ -42,38 +54,24 @@ public static class MultitenancyExtensions
     }
 
     /// <summary>
-    ///     Ensure tenant management tables are created/migrated.
+    ///     Ensure tenant management tables are created and seeded.
+    ///     Uses the configured provider abstraction for database-agnostic operation.
     /// </summary>
     public static async Task EnsureTenantTablesAsync(this IServiceProvider services)
     {
         using var scope = services.CreateScope();
-        var tenantDb = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TenantDbContext>>();
+        var factory = scope.ServiceProvider.GetRequiredService<ITenantDatabaseProviderFactory>();
+        var provider = factory.GetProvider();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<ITenantDatabaseProviderFactory>>();
+        var options = scope.ServiceProvider.GetRequiredService<IOptions<TenantDatabaseOptions>>().Value;
 
-        // Check if tenants table already exists
-        var conn = tenantDb.Database.GetDbConnection();
-        await conn.OpenAsync();
-        try
+        logger.LogInformation("Ensuring tenant tables for provider: {Provider}", provider.ProviderName);
+
+        await provider.EnsureTenantTablesAsync();
+
+        if (options.SeedOnStartup)
         {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText =
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants'";
-            var tableExists = Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
-
-            if (tableExists)
-            {
-                logger.LogInformation("Tenant management tables already exist");
-                return;
-            }
-
-            // Table doesn't exist, use EnsureCreated to create it
-            logger.LogInformation("Creating tenant management tables...");
-            await tenantDb.Database.EnsureCreatedAsync();
-            logger.LogInformation("Tenant management tables created");
-        }
-        finally
-        {
-            await conn.CloseAsync();
+            await provider.SeedAsync(options.DefaultTenantId, options.DefaultTenantName);
         }
     }
 }

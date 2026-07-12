@@ -155,7 +155,7 @@ public class SystemAdminController(
             DisplayName = tenant.DisplayName,
             ContactEmail = tenant.ContactEmail,
             SchemaName = tenant.SchemaName,
-            QdrantCollection = tenant.QdrantCollection,
+           // QdrantCollection = tenant.QdrantCollection,
             Plan = tenant.Plan,
             IsActive = tenant.IsActive,
             IsProvisioned = tenant.IsProvisioned,

@@ -36,6 +36,13 @@
         <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.3.0"/>
     </ItemGroup>
 
+    <!-- SQL Server & Oracle providers for tenant database -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.6.1" />
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
+    </ItemGroup>
+
     <!-- Identity (for ApplicationUser, no ASP.NET-specific) -->
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />

@@ -26,7 +26,7 @@ public class TenantDbContext : DbContext
 
             entity.Property(e => e.TenantId).HasMaxLength(64).IsRequired();
             entity.Property(e => e.SchemaName).HasMaxLength(128).IsRequired();
-            entity.Property(e => e.QdrantCollection).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.CollectionName).HasMaxLength(128).IsRequired();
             entity.Property(e => e.DisplayName).HasMaxLength(256);
             entity.Property(e => e.ContactEmail).HasMaxLength(256);
             entity.Property(e => e.Plan).HasMaxLength(32);

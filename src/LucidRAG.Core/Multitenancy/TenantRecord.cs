@@ -1,16 +1,18 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LucidRAG.Multitenancy;
 
 /// <summary>
 ///     Database entity for tenant registration.
-///     Stored in the public schema, shared across all tenants.
+///     Stored in the shared tenant management schema/table.
 /// </summary>
-public class TenantEntity
+public class TenantRecord
 {
+    /// <summary>
+    ///     Unique identifier for the tenant record.
+    /// </summary>
     [Key]
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     /// <summary>
     ///     Unique tenant identifier (e.g., "acme").
@@ -21,8 +23,8 @@ public class TenantEntity
     public required string TenantId { get; set; }
 
     /// <summary>
-    ///     PostgreSQL schema name for this tenant.
-    ///     Format: "tenant_{tenantId}"
+    ///     Database schema name for this tenant.
+    ///     Format: "tenant_{tenantId}" (PostgreSQL/Oracle)
     /// </summary>
     [Required]
     [MaxLength(128)]
@@ -34,7 +36,6 @@ public class TenantEntity
     /// </summary>
     [Required]
     [MaxLength(128)]
-    [Column("qdrant_collection")]
     public required string CollectionName { get; set; }
 
     /// <summary>
@@ -62,7 +63,6 @@ public class TenantEntity
     /// <summary>
     ///     Tenant-specific settings (JSON).
     /// </summary>
-    [Column("settings", TypeName = "jsonb")]
     public string? Settings { get; set; }
 
     /// <summary>
@@ -71,19 +71,23 @@ public class TenantEntity
     [MaxLength(32)]
     public string? Plan { get; set; }
 
+    /// <summary>
+    ///     When this tenant was created.
+    /// </summary>
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset? ProvisionedAt { get; set; }
-    public DateTimeOffset? LastAccessedAt { get; set; }
-}
 
-/// <summary>
-///     Subscription plans for tenants.
-/// </summary>
-public static class TenantPlans
-{
-    public const string Free = "free";
-    public const string Starter = "starter";
-    public const string Pro = "pro";
-    public const string Enterprise = "enterprise";
+    /// <summary>
+    ///     When this tenant was last updated.
+    /// </summary>
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    ///     When this tenant was provisioned.
+    /// </summary>
+    public DateTimeOffset? ProvisionedAt { get; set; }
+
+    /// <summary>
+    ///     When this tenant was last accessed.
+    /// </summary>
+    public DateTimeOffset? LastAccessedAt { get; set; }
 }

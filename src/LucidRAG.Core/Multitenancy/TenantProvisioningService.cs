@@ -1,3 +1,5 @@
+using LucidRAG.Multitenancy.Providers;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace LucidRAG.Multitenancy;
@@ -5,6 +7,7 @@ namespace LucidRAG.Multitenancy;
 /// <summary>
 ///     Service for provisioning and deprovisioning tenant resources.
 ///     Creates PostgreSQL schemas, runs migrations, and sets up Qdrant collections.
+///     Uses ITenantDatabaseProvider for tenant metadata operations (provider-agnostic).
 /// </summary>
 public interface ITenantProvisioningService
 {
@@ -33,12 +36,12 @@ public interface ITenantProvisioningService
     /// <summary>
     ///     Get tenant information.
     /// </summary>
-    Task<TenantEntity?> GetTenantAsync(string tenantId, CancellationToken ct = default);
+    Task<TenantRecord?> GetTenantAsync(string tenantId, CancellationToken ct = default);
 
     /// <summary>
     ///     List all tenants.
     /// </summary>
-    Task<IReadOnlyList<TenantEntity>> ListTenantsAsync(bool? isActive = null, CancellationToken ct = default);
+    Task<IReadOnlyList<TenantRecord>> ListTenantsAsync(bool? isActive = null, CancellationToken ct = default);
 
     /// <summary>
     ///     Update tenant status.
@@ -55,16 +58,16 @@ public class TenantProvisioningService : ITenantProvisioningService
 {
     private readonly IConfiguration _configuration;
     private readonly ITenantDbContextFactory _dbFactory;
+    private readonly ITenantDatabaseProvider _tenantDbProvider;
     private readonly ILogger<TenantProvisioningService> _logger;
-    private readonly TenantDbContext _tenantDb;
 
     public TenantProvisioningService(
-        TenantDbContext tenantDb,
+        ITenantDatabaseProvider tenantDbProvider,
         ITenantDbContextFactory dbFactory,
         IConfiguration configuration,
         ILogger<TenantProvisioningService> logger)
     {
-        _tenantDb = tenantDb;
+        _tenantDbProvider = tenantDbProvider;
         _dbFactory = dbFactory;
         _configuration = configuration;
         _logger = logger;
@@ -83,8 +86,7 @@ public class TenantProvisioningService : ITenantProvisioningService
         var context = TenantContext.FromTenantId(tenantId, displayName);
 
         // Check if tenant already exists
-        var existing = await _tenantDb.Tenants
-            .FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
+        var existing = await _tenantDbProvider.GetTenantAsync(tenantId, ct);
 
         if (existing != null)
         {
@@ -99,13 +101,12 @@ public class TenantProvisioningService : ITenantProvisioningService
         }
         else
         {
-            // Create tenant record
-            var tenant = new TenantEntity
+            // Create tenant record using provider abstraction
+            var tenant = new TenantRecord
             {
-                Id = Guid.NewGuid(),
                 TenantId = tenantId,
                 SchemaName = context.SchemaName,
-                QdrantCollection = context.QdrantCollection,
+                CollectionName = context.QdrantCollection,
                 DisplayName = displayName ?? tenantId,
                 ContactEmail = contactEmail,
                 Plan = plan ?? TenantPlans.Free,
@@ -113,17 +114,16 @@ public class TenantProvisioningService : ITenantProvisioningService
                 IsProvisioned = false
             };
 
-            _tenantDb.Tenants.Add(tenant);
-            await _tenantDb.SaveChangesAsync(ct);
+            await _tenantDbProvider.CreateTenantAsync(tenant, ct);
         }
 
         try
         {
-            // Step 1: Create PostgreSQL schema
+            // Step 1: Create PostgreSQL schema (PostgreSQL-specific)
             await CreateSchemaAsync(context.SchemaName, ct);
             _logger.LogInformation("Created schema: {Schema}", context.SchemaName);
 
-            // Step 2: Run migrations for the tenant schema
+            // Step 2: Run migrations for the tenant schema (PostgreSQL-specific)
             await MigrateTenantSchemaAsync(context.SchemaName, ct);
             _logger.LogInformation("Migrated schema: {Schema}", context.SchemaName);
 
@@ -132,10 +132,13 @@ public class TenantProvisioningService : ITenantProvisioningService
             _logger.LogInformation("Created Qdrant collection: {Collection}", context.QdrantCollection);
 
             // Mark tenant as provisioned
-            var tenantEntity = await _tenantDb.Tenants.FirstAsync(t => t.TenantId == tenantId, ct);
-            tenantEntity.IsProvisioned = true;
-            tenantEntity.ProvisionedAt = DateTimeOffset.UtcNow;
-            await _tenantDb.SaveChangesAsync(ct);
+            var tenantEntity = await _tenantDbProvider.GetTenantAsync(tenantId, ct);
+            if (tenantEntity != null)
+            {
+                tenantEntity.IsProvisioned = true;
+                tenantEntity.ProvisionedAt = DateTimeOffset.UtcNow;
+                await _tenantDbProvider.UpdateTenantAsync(tenantEntity, ct);
+            }
 
             _logger.LogInformation("Tenant provisioned successfully: {TenantId}", tenantId);
             return context;
@@ -151,24 +154,22 @@ public class TenantProvisioningService : ITenantProvisioningService
     {
         _logger.LogInformation("Deprovisioning tenant: {TenantId}", tenantId);
 
-        var tenant = await _tenantDb.Tenants
-            .FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
+        var tenant = await _tenantDbProvider.GetTenantAsync(tenantId, ct);
 
         if (tenant == null) throw new InvalidOperationException($"Tenant '{tenantId}' not found");
 
         try
         {
             // Step 1: Drop Qdrant collection
-            await DropQdrantCollectionAsync(tenant.QdrantCollection, ct);
-            _logger.LogInformation("Dropped Qdrant collection: {Collection}", tenant.QdrantCollection);
+            await DropQdrantCollectionAsync(tenant.CollectionName, ct);
+            _logger.LogInformation("Dropped Qdrant collection: {Collection}", tenant.CollectionName);
 
             // Step 2: Drop PostgreSQL schema (CASCADE to drop all objects)
             await DropSchemaAsync(tenant.SchemaName, ct);
             _logger.LogInformation("Dropped schema: {Schema}", tenant.SchemaName);
 
             // Step 3: Remove tenant record
-            _tenantDb.Tenants.Remove(tenant);
-            await _tenantDb.SaveChangesAsync(ct);
+            await _tenantDbProvider.DeleteTenantAsync(tenantId, ct);
 
             _logger.LogInformation("Tenant deprovisioned successfully: {TenantId}", tenantId);
         }
@@ -181,43 +182,35 @@ public class TenantProvisioningService : ITenantProvisioningService
 
     public async Task<bool> ExistsAsync(string tenantId, CancellationToken ct = default)
     {
-        return await _tenantDb.Tenants.AnyAsync(t => t.TenantId == tenantId, ct);
+        return await _tenantDbProvider.TenantExistsAsync(tenantId, ct);
     }
 
-    public async Task<TenantEntity?> GetTenantAsync(string tenantId, CancellationToken ct = default)
+    public async Task<TenantRecord?> GetTenantAsync(string tenantId, CancellationToken ct = default)
     {
-        return await _tenantDb.Tenants
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
+        return await _tenantDbProvider.GetTenantAsync(tenantId, ct);
     }
 
-    public async Task<IReadOnlyList<TenantEntity>> ListTenantsAsync(bool? isActive = null,
+    public async Task<IReadOnlyList<TenantRecord>> ListTenantsAsync(bool? isActive = null,
         CancellationToken ct = default)
     {
-        var query = _tenantDb.Tenants.AsNoTracking();
-
-        if (isActive.HasValue) query = query.Where(t => t.IsActive == isActive.Value);
-
-        return await query
-            .OrderBy(t => t.TenantId)
-            .ToListAsync(ct);
+        return await _tenantDbProvider.GetTenantsAsync(isActive, ct);
     }
 
     public async Task UpdateStatusAsync(string tenantId, bool isActive, CancellationToken ct = default)
     {
-        var tenant = await _tenantDb.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
+        var tenant = await _tenantDbProvider.GetTenantAsync(tenantId, ct);
         if (tenant == null) throw new InvalidOperationException($"Tenant '{tenantId}' not found");
 
         tenant.IsActive = isActive;
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
-        await _tenantDb.SaveChangesAsync(ct);
+        await _tenantDbProvider.UpdateTenantAsync(tenant, ct);
 
         _logger.LogInformation("Updated tenant {TenantId} status to: {IsActive}", tenantId, isActive);
     }
 
     public async Task MigrateTenantAsync(string tenantId, CancellationToken ct = default)
     {
-        var tenant = await _tenantDb.Tenants.FirstOrDefaultAsync(t => t.TenantId == tenantId, ct);
+        var tenant = await _tenantDbProvider.GetTenantAsync(tenantId, ct);
         if (tenant == null) throw new InvalidOperationException($"Tenant '{tenantId}' not found");
 
         await MigrateTenantSchemaAsync(tenant.SchemaName, ct);

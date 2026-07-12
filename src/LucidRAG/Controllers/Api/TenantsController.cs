@@ -145,7 +145,7 @@ public class TenantsController(
             Id = entity.Id,
             TenantId = entity.TenantId,
             SchemaName = entity.SchemaName,
-            QdrantCollection = entity.QdrantCollection,
+           // QdrantCollection = entity.QdrantCollection,
             DisplayName = entity.DisplayName,
             ContactEmail = entity.ContactEmail,
             Plan = entity.Plan,
