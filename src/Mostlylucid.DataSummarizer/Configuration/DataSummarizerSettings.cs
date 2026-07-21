@@ -110,7 +110,7 @@ public class OllamaSettings
     /// <summary>
     ///     Model name for LLM inference (e.g., llama3.2:3b, mistral, codellama)
     /// </summary>
-    public string Model { get; set; } = "llama3.2:3b";
+    public string Model { get; set; } = "qwen3.5:latest";
 
     /// <summary>
     ///     Ollama API base URL
