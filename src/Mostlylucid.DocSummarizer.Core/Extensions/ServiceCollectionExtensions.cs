@@ -10,7 +10,10 @@ using Mostlylucid.DocSummarizer.Scanning;
 using Mostlylucid.DocSummarizer.Scanning.Waves;
 using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Deduplication;
+using Mostlylucid.DocSummarizer.Services.Embeddings;
+using Mostlylucid.DocSummarizer.Services.LmStudio;
 using Mostlylucid.DocSummarizer.Services.Onnx;
+using Mostlylucid.DocSummarizer.Services.Providers;
 using Mostlylucid.Summarizer.Core.Pipeline;
 
 namespace Mostlylucid.DocSummarizer.Extensions;
@@ -84,6 +87,17 @@ public static class ServiceCollectionExtensions
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
             var logger = sp.GetService<ILogger<IEmbeddingService>>();
 
+            // Check if unified embedding config is available (new provider system)
+            var unifiedConfig = sp.GetService<IOptions<UnifiedEmbeddingConfig>>();
+            if (unifiedConfig?.Value != null && !string.IsNullOrEmpty(unifiedConfig.Value.Provider))
+            {
+                // Use new unified provider system
+                var factory = sp.GetRequiredService<IProviderFactory>();
+                var client = factory.GetEmbeddingClient();
+                return new EmbeddingClientAdapter(client);
+            }
+
+            // Legacy configuration
             return config.EmbeddingBackend == EmbeddingBackend.Onnx
                 ? CreateOnnxEmbeddingService(config.Onnx, config.Output.Verbose)
                 : CreateOllamaEmbeddingService(config.Ollama);
@@ -99,6 +113,18 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ILlmService>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+
+            // Check if unified LLM config is available (new provider system)
+            var unifiedConfig = sp.GetService<IOptions<LlmProviderConfig>>();
+            if (unifiedConfig?.Value != null && !string.IsNullOrEmpty(unifiedConfig.Value.Provider))
+            {
+                // Use new unified provider system
+                var factory = sp.GetRequiredService<IProviderFactory>();
+                var client = factory.GetLlmClient();
+                return new LlmClientAdapter(client);
+            }
+
+            // Legacy configuration
             return CreateLlmService(config);
         });
 
@@ -372,7 +398,7 @@ public static class ServiceCollectionExtensions
         return new OnnxEmbeddingService(config, verbose);
     }
 
-    private static IEmbeddingService CreateOllamaEmbeddingService(OllamaConfig config)
+    private static IEmbeddingService CreateOllamaEmbeddingService(Mostlylucid.DocSummarizer.Config.OllamaConfig config)
     {
         var ollamaService = new OllamaService(
             config.Model,
@@ -388,32 +414,25 @@ public static class ServiceCollectionExtensions
     {
         return config.BertRag.VectorStore switch
         {
-            VectorStoreBackend.InMemory => new InMemoryVectorStore(),
-            VectorStoreBackend.DuckDB => CreateDuckDbAdapter(config, sp),
-            VectorStoreBackend.Qdrant => CreateQdrantStore(config),
-            _ => new InMemoryVectorStore()
+            VectorStoreBackend.InMemory => new InMemoryVectorStore(config.Output.Verbose),
+            VectorStoreBackend.SqliteVec => CreateSqliteVecAdapter(config, sp),
+            _ => new InMemoryVectorStore(config.Output.Verbose)
         };
     }
 
-    private static IVectorStore CreateDuckDbAdapter(DocSummarizerConfig config, IServiceProvider sp)
+    private static IVectorStore CreateSqliteVecAdapter(DocSummarizerConfig config, IServiceProvider sp)
     {
-        // Try to resolve an existing Storage.Core IVectorStore (e.g., registered by AddVectorStoreForStandaloneMode)
         var storageStore = sp.GetService<Storage.Core.Abstractions.IVectorStore>();
         if (storageStore != null)
             return new DuckDBVectorStoreAdapter(storageStore);
 
-        // Fallback: create a DuckDB store directly
         var options = Storage.Core.Config.VectorStoreOptions.ForStandaloneMode(
             config.DuckDbDataDirectory ?? "./data");
-        var logger = sp.GetService<ILogger<Storage.Core.Implementations.DuckDBVectorStore>>();
+        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger<Storage.Core.Implementations.SqliteVecVectorStore>();
         var wrappedOptions = Options.Create(options);
-        var duckDbStore = new Storage.Core.Implementations.DuckDBVectorStore(wrappedOptions, logger!);
-        return new DuckDBVectorStoreAdapter(duckDbStore);
-    }
-
-    private static IVectorStore CreateQdrantStore(DocSummarizerConfig config)
-    {
-        return new QdrantVectorStore(config.Qdrant, config.Output.Verbose);
+        var sqliteVecStore = new Storage.Core.Implementations.SqliteVecVectorStore(wrappedOptions, logger);
+        return new DuckDBVectorStoreAdapter(sqliteVecStore);
     }
 
     private static ILlmService CreateLlmService(DocSummarizerConfig config)

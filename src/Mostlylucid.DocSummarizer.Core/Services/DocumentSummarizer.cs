@@ -137,24 +137,16 @@ public class DocumentSummarizer
     /// </summary>
     private static IVectorStore? CreateVectorStore(
         BertRagConfig bertRagConfig,
+#pragma warning disable CS0618
         QdrantConfig? qdrantConfig,
+#pragma warning restore CS0618
         string qdrantHost,
         bool verbose)
     {
-        switch (bertRagConfig.VectorStore)
-        {
-            case VectorStoreBackend.Qdrant:
-                return new QdrantVectorStore(
-                    qdrantConfig ?? new QdrantConfig { Host = qdrantHost },
-                    verbose,
-                    !bertRagConfig.PersistVectors);
+        if (bertRagConfig.VectorStore == VectorStoreBackend.InMemory && bertRagConfig.PersistVectors)
+            return new InMemoryVectorStore(verbose);
 
-            case VectorStoreBackend.InMemory when bertRagConfig.PersistVectors:
-                return new InMemoryVectorStore(verbose);
-
-            default:
-                return null;
-        }
+        return null;
     }
 
     /// <summary>

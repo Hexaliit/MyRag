@@ -26,29 +26,33 @@
 
     <!-- FilePond for file uploads -->
     <link href="https://unpkg.com/filepond/dist/filepond.min.css" rel="stylesheet"/>
-    <link href="https://unpkg.com/filepond-plugin-file-poster/dist/filepond-plugin-file-poster.min.css"
-          rel="stylesheet"/>
-    <script
-        src="https://unpkg.com/filepond-plugin-file-validate-type/dist/filepond-plugin-file-validate-type.min.js"></script>
-    <script
-        src="https://unpkg.com/filepond-plugin-file-validate-size/dist/filepond-plugin-file-validate-size.min.js"></script>
+    @* <link href="https://unpkg.com/filepond-plugin-file-poster/dist/filepond-plugin-file-poster.min.css" *@
+    @* <link href="~/css/filepond-plugin-file-poster.min.css" rel="stylesheet"/> *@
     <script src="https://unpkg.com/filepond/dist/filepond.min.js"></script>
+    <script src="https://unpkg.com/filepond-plugin-file-validate-type/dist/filepond-plugin-file-validate-type.min.js"></script>
+    <script src="https://unpkg.com/filepond-plugin-file-validate-size/dist/filepond-plugin-file-validate-size.min.js"></script>
 
     <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    @* <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script> *@
+    <script defer src="~/js/cdn.min.js"></script>
 
     <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
-    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+    @* <script src="https://unpkg.com/htmx.org@2.0.3"></script> *@
+    <script src="~/js/htmx.min.js"></script>
+    @* <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script> *@
+    <script src="~/js/sse.js"></script>
 
     <!-- D3.js for graph visualization -->
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    @* <script src="https://d3js.org/d3.v7.min.js"></script> *@
+    <script src="~/js/d3.v7.min.js"></script>
 
     <!-- SignalR for real-time updates -->
-    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+    @* <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script> *@
+    <script src="~/js/signalr.min.js"></script>
 
     <!-- Marked.js for markdown rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    @* <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> *@
+    <script src="~/js/marked.min.js"></script>
     <script>
         // Configure marked for safe rendering
         marked.setOptions({

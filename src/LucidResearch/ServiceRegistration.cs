@@ -55,10 +55,9 @@ public static class ServiceRegistration
         {
             opt.EmbeddingBackend = EmbeddingBackend.Onnx;
             opt.Onnx.EmbeddingModel = OnnxEmbeddingModel.AllMiniLmL6V2;
-            opt.BertRag.VectorStore = VectorStoreBackend.DuckDB;
+            opt.BertRag.VectorStore = VectorStoreBackend.InMemory;
             opt.BertRag.CollectionName = "ragdocuments";
             opt.BertRag.ReindexOnStartup = false;
-            opt.DuckDbDataDirectory = dataDir;
         });
         services.AddPipelineRegistry();
 

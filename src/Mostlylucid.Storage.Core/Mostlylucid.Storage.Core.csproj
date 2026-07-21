@@ -5,44 +5,32 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-
-        <!-- NuGet package metadata -->
         <PackageId>Mostlylucid.LucidRAG.Storage.Core</PackageId>
         <PackageIcon>icon.png</PackageIcon>
         <Version>1.0.0</Version>
         <Authors>LucidRAG</Authors>
-        <Description>Unified vector storage library with support for InMemory, DuckDB, and Qdrant backends. Used by all LucidRAG pipelines for consistent embedding storage.</Description>
-        <PackageTags>vector-store;embeddings;rag;duckdb;qdrant;semantic-search</PackageTags>
+        <Description>Unified vector storage library with SQLite (sqlite-vec) backend and embedded FTS5 hybrid search. Used by all LucidRAG pipelines.</Description>
+        <PackageTags>vector-store;embeddings;rag;sqlite;fts5;semantic-search;hybrid-search</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
-    <!-- MinVer -->
     <PropertyGroup>
         <MinVerTagPrefix>storcorev</MinVerTagPrefix>
         <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- MinVer -->
         <PackageReference Include="MinVer" Version="8.0.0-alpha.1">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-
-        <!-- DuckDB for embedded vector storage -->
-        <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.0" />
-
-        <!-- Qdrant for production vector storage -->
-        <PackageReference Include="Qdrant.Client" Version="1.17.0" />
-
-        <!-- Microsoft Extensions for DI and configuration - match Summarizer.Core versions -->
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     </ItemGroup>
 
-    <!-- Summarizer.Core (ProjectRef local, PackageRef CI) -->
     <ItemGroup Condition="'$(UseNuGetDependency)' != 'true'">
         <ProjectReference Include="..\Mostlylucid.Summarizer.Core\Mostlylucid.Summarizer.Core.csproj"/>
     </ItemGroup>
@@ -50,15 +38,12 @@
         <PackageReference Include="Mostlylucid.LucidRAG.Summarizer.Core" Version="$(CorePackageVersion)"/>
     </ItemGroup>
 
-    <!-- README for NuGet -->
     <ItemGroup>
         <None Include=".\README.md" Pack="true" PackagePath="">
             <Link>Properties\README.md</Link>
         </None>
     </ItemGroup>
 
-
-    <!-- Package icon -->
     <ItemGroup>
         <None Include="icon.png" Pack="true" PackagePath="">
             <Link>Properties\icon.png</Link>

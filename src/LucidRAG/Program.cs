@@ -28,6 +28,7 @@ using Mostlylucid.DocSummarizer.Data.Extensions;
 using Mostlylucid.DocSummarizer.Extensions;
 using Mostlylucid.DocSummarizer.FullText.Lucene;
 using Mostlylucid.DocSummarizer.Images.Extensions;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.OpenAI.Extensions;
 using Mostlylucid.DocSummarizer.Search;
 using Mostlylucid.Summarizer.Core.Extensions;
@@ -37,9 +38,12 @@ using DomainClassifier.Financial.Extensions;
 using DomainClassifier.Narrative.Extensions;
 using DomainClassifier.Technical.Extensions;
 using VideoSummarizer.Core.Extensions;
+using Mostlylucid.DocSummarizer.Config;
 
 // Parse command line arguments for standalone mode
 var standaloneMode = args.Contains("--standalone") || args.Contains("-s");
+// By Nazemi
+standaloneMode = true;
 var port = 5080;
 var portArg = args.FirstOrDefault(a => a.StartsWith("--port="));
 if (portArg != null && int.TryParse(portArg.Split('=')[1], out var parsedPort))
@@ -78,6 +82,14 @@ builder.Services.Configure<PromptsConfig>(
     builder.Configuration.GetSection(PromptsConfig.SectionName));
 builder.Services.Configure<RrfWeightsConfig>(
     builder.Configuration.GetSection(RrfWeightsConfig.SectionName));
+
+// New unified provider configurations
+builder.Services.Configure<UnifiedEmbeddingConfig>(
+    builder.Configuration.GetSection("Embedding"));
+builder.Services.Configure<LlmProviderConfig>(
+    builder.Configuration.GetSection("LlmProvider"));
+builder.Services.Configure<LmStudioConfig>(
+    builder.Configuration.GetSection("LmStudio"));
 
 var ragConfig = builder.Configuration
     .GetSection(RagDocumentsConfig.SectionName)
@@ -140,6 +152,9 @@ else
 
 // DocSummarizer.Core
 builder.Services.AddDocSummarizer(builder.Configuration.GetSection("DocSummarizer"));
+
+// Register new unified providers (LLM & Embedding)
+builder.Services.AddDocSummarizerProviders(builder.Configuration);
 
 // DocSummarizer.Images - always add for image handling
 builder.Services.AddDocSummarizerImages(builder.Configuration.GetSection("Images"));

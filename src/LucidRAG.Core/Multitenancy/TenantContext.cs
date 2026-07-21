@@ -18,10 +18,10 @@ public class TenantContext
     public required string SchemaName { get; init; }
 
     /// <summary>
-    ///     Qdrant collection name for this tenant's vectors.
+    ///     Vector store collection name for this tenant's vectors.
     ///     Format: "tenant_{tenantId}_vectors"
     /// </summary>
-    public required string QdrantCollection { get; init; }
+    public required string CollectionName { get; init; }
 
     /// <summary>
     ///     Display name for the tenant.
@@ -53,7 +53,7 @@ public class TenantContext
         {
             TenantId = sanitizedId,
             SchemaName = $"tenant_{sanitizedId}",
-            QdrantCollection = $"tenant_{sanitizedId}_vectors",
+            CollectionName = $"tenant_{sanitizedId}_vectors",
             DisplayName = displayName ?? tenantId,
             CreatedAt = DateTimeOffset.UtcNow
         };

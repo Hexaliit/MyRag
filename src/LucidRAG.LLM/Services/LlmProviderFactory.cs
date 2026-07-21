@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Services;
+using LLMProviderConfig = LucidRAG.LLM.Config.LlmProviderConfig;
 
 namespace LucidRAG.LLM.Services;
 
@@ -15,14 +16,14 @@ namespace LucidRAG.LLM.Services;
 /// </summary>
 public class LlmProviderFactory : ILlmProviderFactory
 {
-    private readonly LlmProviderConfig _config;
+    private readonly LLMProviderConfig _config;
     private readonly ILogger<LlmProviderFactory> _logger;
     private readonly IPromptService _promptService;
     private readonly ConcurrentDictionary<string, INamedLlmProvider> _providers = new();
     private readonly IServiceProvider _serviceProvider;
 
     public LlmProviderFactory(
-        IOptions<LlmProviderConfig> config,
+        IOptions<LLMProviderConfig> config,
         IServiceProvider serviceProvider,
         IPromptService promptService,
         ILogger<LlmProviderFactory> logger)

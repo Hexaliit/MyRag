@@ -98,6 +98,7 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
         <PackageReference Include="Polly.Core" Version="8.6.6" />
 
         <!-- OpenTelemetry for observability -->
@@ -119,18 +120,12 @@
         <!-- Web Fetching (for URL processing with JS-rendered pages) -->
         <PackageReference Include="Microsoft.Playwright" Version="1.58.0"/>
 
-        <!-- Vector Storage -->
-        <PackageReference Include="Qdrant.Client" Version="1.17.0" />
-
         <!-- Utilities -->
         <PackageReference Include="System.IO.Hashing" Version="10.0.5" />
         <PackageReference Include="dotnet-stop-words" Version="1.1.0"/>
 
         <!-- YAML parsing for wave manifests -->
         <PackageReference Include="YamlDotNet" Version="16.3.0"/>
-
-        <!-- Override vulnerable transitive dependency from Qdrant.Client -->
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1"/>
     </ItemGroup>
 
     <!-- DOCX support: included in ALL builds (small dependency, high value) -->

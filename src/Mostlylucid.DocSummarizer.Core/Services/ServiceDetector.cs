@@ -16,7 +16,7 @@ public class DetectedServices
     public bool DoclingHasGpu { get; set; }
     public string? DoclingAccelerator { get; set; }
 
-    public bool QdrantAvailable { get; set; }
+    public bool VectorStoreAvailable { get; set; } = true; // Always available (SqliteVec local)
 
     public bool OnnxAvailable { get; set; } = true; // Always available (embedded)
 
@@ -47,10 +47,10 @@ public class DetectedServices
             parts.Add("Docling[yellow]○[/]");
         }
 
-        if (QdrantAvailable)
-            parts.Add("Qdrant[green]✓[/]");
+        if (VectorStoreAvailable)
+            parts.Add("Vectors[green]✓[/]");
         else
-            parts.Add("Qdrant[dim]○[/]");
+            parts.Add("Vectors[dim]○[/]");
 
         parts.Add("ONNX[green]✓[/]");
 
@@ -99,7 +99,7 @@ public class DetectedServices
             return requested;
 
         // Auto mode selection based on what's available
-        if (OllamaAvailable && QdrantAvailable)
+        if (OllamaAvailable && VectorStoreAvailable)
             return SummarizationMode.BertRag; // Full pipeline with persistence
 
         if (OllamaAvailable)
@@ -135,13 +135,13 @@ public class ServiceFeatures
     public bool BertSummarization => _services.OnnxAvailable; // Always true
 
     /// <summary>Persistent vector storage for document caching</summary>
-    public bool VectorPersistence => _services.QdrantAvailable;
+    public bool VectorPersistence => _services.VectorStoreAvailable;
 
     /// <summary>Cross-session document cache (avoid re-embedding)</summary>
-    public bool CrossSessionCache => _services.QdrantAvailable;
+    public bool CrossSessionCache => _services.VectorStoreAvailable;
 
     /// <summary>Semantic search across documents</summary>
-    public bool SemanticSearch => _services.OnnxAvailable && _services.QdrantAvailable;
+    public bool SemanticSearch => _services.OnnxAvailable && _services.VectorStoreAvailable;
 
     /// <summary>Document QA with RAG</summary>
     public bool DocumentQA => _services.OllamaAvailable && _services.OnnxAvailable;
@@ -174,10 +174,10 @@ public class ServiceFeatures
         {
             if (VectorPersistence)
                 reasons.Add(
-                    $"Summarization: BertRag - Ollama detected at {_services.OllamaModel ?? "default"}, Qdrant available for caching");
+                    $"Summarization: BertRag - Ollama detected at {_services.OllamaModel ?? "default"}, vectors available for caching");
             else
                 reasons.Add(
-                    $"Summarization: BertHybrid - Ollama detected ({_services.OllamaModel ?? "default"}), no Qdrant (in-memory vectors)");
+                    $"Summarization: BertHybrid - Ollama detected ({_services.OllamaModel ?? "default"}), no vectors (in-memory)");
         }
         else
         {
@@ -213,12 +213,11 @@ public static class ServiceDetector
 
         // Run all checks in parallel
         var ollamaTask = CheckOllamaAsync(config.Ollama);
-        var qdrantTask = CheckQdrantAsync(config.Qdrant);
 #if !SLIM_BUILD
         var doclingTask = CheckDoclingAsync(config.Docling);
-        await Task.WhenAll(ollamaTask, doclingTask, qdrantTask);
+        await Task.WhenAll(ollamaTask, doclingTask);
 #else
-        await Task.WhenAll(ollamaTask, qdrantTask);
+        await Task.WhenAll(ollamaTask);
 #endif
 
         // Ollama
@@ -234,9 +233,6 @@ public static class ServiceDetector
         result.DoclingHasGpu = hasGpu;
         result.DoclingAccelerator = accelerator;
 #endif
-
-        // Qdrant
-        result.QdrantAvailable = await qdrantTask;
 
         return result;
     }
@@ -276,9 +272,9 @@ public static class ServiceDetector
             if (verbose)
                 tips.Add("Docling running on CPU - use --docling-gpu if you have CUDA");
 
-        if (!result.QdrantAvailable)
-            if (config.BertRag.PersistVectors || config.BertRag.VectorStore == VectorStoreBackend.Qdrant)
-                tips.Add("Tip: Start Qdrant for vector caching: docker run -p 6333:6333 qdrant/qdrant");
+        if (!result.VectorStoreAvailable)
+            if (config.BertRag.PersistVectors || config.BertRag.VectorStore == VectorStoreBackend.SqliteVec)
+                tips.Add("Tip: SqliteVec is always available - vectors are stored locally in ./data/rag.db");
 
         // Show tips
         foreach (var tip in tips) VerboseHelper.Log($"  {tip}");
@@ -313,12 +309,12 @@ public static class ServiceDetector
         // Summarization mode reasoning
         if (services.OllamaAvailable)
         {
-            if (services.QdrantAvailable)
+            if (services.VectorStoreAvailable)
                 VerboseHelper.Log(
-                    "  [green]Summarization:[/] BertRag [dim](Ollama + Qdrant detected = full pipeline with caching)[/]");
+                    "  [green]Summarization:[/] BertRag [dim](Ollama + vector store = full pipeline with caching)[/]");
             else
                 VerboseHelper.Log(
-                    "  [green]Summarization:[/] BertHybrid [dim](Ollama detected, no Qdrant = BERT extraction + LLM polish)[/]");
+                    "  [green]Summarization:[/] BertHybrid [dim](Ollama detected, no vector store = BERT extraction + LLM polish)[/]");
             VerboseHelper.Log($"  [green]LLM Model:[/] {VerboseHelper.Escape(services.OllamaModel ?? "default")}");
         }
         else
@@ -339,8 +335,8 @@ public static class ServiceDetector
         }
 
         // Vector storage reasoning
-        if (services.QdrantAvailable)
-            VerboseHelper.Log("  [green]Vectors:[/] Qdrant [dim](persistent, cross-session caching)[/]");
+        if (services.VectorStoreAvailable)
+            VerboseHelper.Log("  [green]Vectors:[/] SqliteVec [dim](persistent, local file-based)[/]");
         else
             VerboseHelper.Log("  [dim]Vectors:[/] In-memory [dim](no persistence between runs)[/]");
     }
@@ -396,17 +392,4 @@ public static class ServiceDetector
     }
 #endif
 
-    private static async Task<bool> CheckQdrantAsync(QdrantConfig config)
-    {
-        try
-        {
-            var qdrant = new QdrantHttpClient(config.Host, config.Port, config.ApiKey);
-            await qdrant.ListCollectionsAsync();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

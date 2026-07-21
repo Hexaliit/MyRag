@@ -36,12 +36,12 @@ public interface ITenantProvisioningService
     /// <summary>
     ///     Get tenant information.
     /// </summary>
-    Task<TenantRecord?> GetTenantAsync(string tenantId, CancellationToken ct = default);
+    Task<TenantEntity?> GetTenantAsync(string tenantId, CancellationToken ct = default);
 
     /// <summary>
     ///     List all tenants.
     /// </summary>
-    Task<IReadOnlyList<TenantRecord>> ListTenantsAsync(bool? isActive = null, CancellationToken ct = default);
+    Task<IReadOnlyList<TenantEntity>> ListTenantsAsync(bool? isActive = null, CancellationToken ct = default);
 
     /// <summary>
     ///     Update tenant status.
@@ -100,22 +100,22 @@ public class TenantProvisioningService : ITenantProvisioningService
             _logger.LogInformation("Resuming provisioning for tenant: {TenantId}", tenantId);
         }
         else
-        {
-            // Create tenant record using provider abstraction
-            var tenant = new TenantRecord
-            {
-                TenantId = tenantId,
-                SchemaName = context.SchemaName,
-                CollectionName = context.QdrantCollection,
-                DisplayName = displayName ?? tenantId,
-                ContactEmail = contactEmail,
-                Plan = plan ?? TenantPlans.Free,
-                IsActive = true,
-                IsProvisioned = false
-            };
+{
+    // Create tenant record using provider abstraction
+    var tenant = new TenantRecord
+    {
+        TenantId = tenantId,
+        SchemaName = context.SchemaName,
+        CollectionName = context.CollectionName,
+        DisplayName = displayName ?? tenantId,
+        ContactEmail = contactEmail,
+        Plan = plan ?? TenantPlans.Free,
+        IsActive = true,
+        IsProvisioned = false
+    };
 
-            await _tenantDbProvider.CreateTenantAsync(tenant, ct);
-        }
+    await _tenantDbProvider.CreateTenantAsync(tenant, ct);
+}
 
         try
         {
@@ -128,8 +128,8 @@ public class TenantProvisioningService : ITenantProvisioningService
             _logger.LogInformation("Migrated schema: {Schema}", context.SchemaName);
 
             // Step 3: Create Qdrant collection (if Qdrant is configured)
-            await CreateQdrantCollectionAsync(context.QdrantCollection, ct);
-            _logger.LogInformation("Created Qdrant collection: {Collection}", context.QdrantCollection);
+            await CreateQdrantCollectionAsync(context.CollectionName, ct);
+            _logger.LogInformation("Created Qdrant collection: {Collection}", context.CollectionName);
 
             // Mark tenant as provisioned
             var tenantEntity = await _tenantDbProvider.GetTenantAsync(tenantId, ct);
@@ -185,15 +185,17 @@ public class TenantProvisioningService : ITenantProvisioningService
         return await _tenantDbProvider.TenantExistsAsync(tenantId, ct);
     }
 
-    public async Task<TenantRecord?> GetTenantAsync(string tenantId, CancellationToken ct = default)
+    public async Task<TenantEntity?> GetTenantAsync(string tenantId, CancellationToken ct = default)
     {
-        return await _tenantDbProvider.GetTenantAsync(tenantId, ct);
+        var record = await _tenantDbProvider.GetTenantAsync(tenantId, ct);
+        return record == null ? null : MapToEntity(record);
     }
 
-    public async Task<IReadOnlyList<TenantRecord>> ListTenantsAsync(bool? isActive = null,
+    public async Task<IReadOnlyList<TenantEntity>> ListTenantsAsync(bool? isActive = null,
         CancellationToken ct = default)
     {
-        return await _tenantDbProvider.GetTenantsAsync(isActive, ct);
+        var records = await _tenantDbProvider.GetTenantsAsync(isActive, ct);
+        return records.Select(MapToEntity).ToList();
     }
 
     public async Task UpdateStatusAsync(string tenantId, bool isActive, CancellationToken ct = default)
@@ -290,5 +292,26 @@ public class TenantProvisioningService : ITenantProvisioningService
         _logger.LogInformation("Would drop Qdrant collection: {Collection}", collectionName);
 
         await Task.CompletedTask;
+    }
+
+    private static TenantEntity MapToEntity(TenantRecord record)
+    {
+        return new TenantEntity
+        {
+            Id = record.Id,
+            TenantId = record.TenantId,
+            SchemaName = record.SchemaName,
+            CollectionName = record.CollectionName,
+            DisplayName = record.DisplayName,
+            ContactEmail = record.ContactEmail,
+            IsActive = record.IsActive,
+            IsProvisioned = record.IsProvisioned,
+            Settings = record.Settings,
+            Plan = record.Plan,
+            CreatedAt = record.CreatedAt,
+            UpdatedAt = record.UpdatedAt,
+            ProvisionedAt = record.ProvisionedAt,
+            LastAccessedAt = record.LastAccessedAt
+        };
     }
 }

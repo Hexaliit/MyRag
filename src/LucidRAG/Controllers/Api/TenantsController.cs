@@ -50,7 +50,7 @@ public class TenantsController(
         {
             TenantId = current.TenantId,
             SchemaName = current.SchemaName,
-            QdrantCollection = current.QdrantCollection,
+            CollectionName = current.CollectionName,
             DisplayName = current.DisplayName,
             IsActive = current.IsActive
         });
@@ -145,7 +145,7 @@ public class TenantsController(
             Id = entity.Id,
             TenantId = entity.TenantId,
             SchemaName = entity.SchemaName,
-           // QdrantCollection = entity.QdrantCollection,
+            CollectionName = entity.CollectionName,
             DisplayName = entity.DisplayName,
             ContactEmail = entity.ContactEmail,
             Plan = entity.Plan,
@@ -193,31 +193,31 @@ public record UpdateTenantStatusRequest
 }
 
 /// <summary>
-///     DTO for tenant responses.
-/// </summary>
-public record TenantDto
-{
-    public Guid Id { get; init; }
-    public required string TenantId { get; init; }
-    public required string SchemaName { get; init; }
-    public required string QdrantCollection { get; init; }
-    public string? DisplayName { get; init; }
-    public string? ContactEmail { get; init; }
-    public string? Plan { get; init; }
-    public bool IsActive { get; init; }
-    public bool IsProvisioned { get; init; }
-    public DateTimeOffset CreatedAt { get; init; }
-    public DateTimeOffset? ProvisionedAt { get; init; }
-}
+    ///     DTO for tenant responses.
+    /// </summary>
+    public record TenantDto
+    {
+        public Guid Id { get; init; }
+        public required string TenantId { get; init; }
+        public required string SchemaName { get; init; }
+        public required string CollectionName { get; init; }
+        public string? DisplayName { get; init; }
+        public string? ContactEmail { get; init; }
+        public string? Plan { get; init; }
+        public bool IsActive { get; init; }
+        public bool IsProvisioned { get; init; }
+        public DateTimeOffset CreatedAt { get; init; }
+        public DateTimeOffset? ProvisionedAt { get; init; }
+    }
 
-/// <summary>
-///     DTO for current tenant context.
-/// </summary>
-public record TenantContextDto
-{
-    public required string TenantId { get; init; }
-    public required string SchemaName { get; init; }
-    public required string QdrantCollection { get; init; }
-    public string? DisplayName { get; init; }
-    public bool IsActive { get; init; }
-}
+    /// <summary>
+    ///     DTO for current tenant context.
+    /// </summary>
+    public record TenantContextDto
+    {
+        public required string TenantId { get; init; }
+        public required string SchemaName { get; init; }
+        public required string CollectionName { get; init; }
+        public string? DisplayName { get; init; }
+        public bool IsActive { get; init; }
+    }

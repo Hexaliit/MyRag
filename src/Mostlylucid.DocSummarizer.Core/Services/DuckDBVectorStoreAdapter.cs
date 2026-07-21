@@ -5,10 +5,6 @@ using Mostlylucid.Storage.Core.Abstractions.Models;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
-/// <summary>
-///     Adapter wrapping Storage.Core's DuckDBVectorStore (IVectorStore) to implement
-///     DocSummarizer.Core's IVectorStore interface. Maps Segment ↔ VectorDocument models.
-/// </summary>
 public class DuckDBVectorStoreAdapter : IVectorStore
 {
     private readonly Storage.Core.Abstractions.IVectorStore _inner;
@@ -22,59 +18,41 @@ public class DuckDBVectorStoreAdapter : IVectorStore
 
     public async Task InitializeAsync(string collectionName, int vectorSize, CancellationToken ct = default)
     {
-        var schema = new VectorStoreSchema
-        {
-            VectorDimension = vectorSize,
-            DistanceMetric = VectorDistance.Cosine,
-            StoreText = false, // Privacy: text stays in evidence repo
-            MetadataFields =
-            [
-                new MetadataField { Name = "type", Type = MetadataFieldType.String },
-                new MetadataField { Name = "index", Type = MetadataFieldType.Integer },
-                new MetadataField { Name = "salience", Type = MetadataFieldType.Float },
-                new MetadataField { Name = "section", Type = MetadataFieldType.String }
-            ]
-        };
-        await _inner.InitializeAsync(collectionName, schema, ct);
+        await _inner.CreateCollectionAsync(collectionName, vectorSize, ct);
     }
 
     public async Task<bool> HasDocumentAsync(string collectionName, string docId, CancellationToken ct = default)
     {
-        // DocSummarizer uses sanitized doc ID as prefix for segment IDs
-        // Check by looking for any document with this parent ID
-        var docs = await _inner.GetAllDocumentsAsync(collectionName, SanitizeDocId(docId), ct);
+        var docs = await _inner.GetAllAsync(collectionName, SanitizeDocId(docId), ct);
         return docs.Count > 0;
     }
 
     public async Task UpsertSegmentsAsync(string collectionName, IEnumerable<Segment> segments,
         CancellationToken ct = default)
     {
-        var docs = segments.Where(s => s.Embedding != null).Select(SegmentToDocument).ToList();
-        if (docs.Count > 0)
-            await _inner.UpsertDocumentsAsync(collectionName, docs, ct);
+        var records = segments.Where(s => s.Embedding != null).Select(SegmentToRecord).ToList();
+        if (records.Count > 0)
+            await _inner.UpsertBatchAsync(collectionName, records, ct);
     }
 
     public async Task<List<Segment>> SearchAsync(string collectionName, float[] queryEmbedding, int topK,
         string? docId = null, CancellationToken ct = default)
     {
-        var query = new VectorSearchQuery
+        var filter = new SearchFilter
         {
-            QueryEmbedding = queryEmbedding,
             TopK = topK,
-            IncludeDocument = true,
-            IncludeEmbedding = true,
-            ParentId = docId != null ? SanitizeDocId(docId) : null
+            DocumentId = docId != null ? SanitizeDocId(docId) : null
         };
 
-        var results = await _inner.SearchAsync(collectionName, query, ct);
+        var results = await _inner.SearchAsync(collectionName, queryEmbedding, filter, ct);
         return results.Select(r => ResultToSegment(r, r.Score)).ToList();
     }
 
     public async Task<List<Segment>> GetDocumentSegmentsAsync(string collectionName, string docId,
         CancellationToken ct = default)
     {
-        var docs = await _inner.GetAllDocumentsAsync(collectionName, SanitizeDocId(docId), ct);
-        return docs.Select(d => DocumentToSegment(d)).ToList();
+        var records = await _inner.GetAllAsync(collectionName, SanitizeDocId(docId), ct);
+        return records.Select(RecordToSegment).ToList();
     }
 
     public Task DeleteCollectionAsync(string collectionName, CancellationToken ct = default)
@@ -84,11 +62,10 @@ public class DuckDBVectorStoreAdapter : IVectorStore
 
     public async Task DeleteDocumentAsync(string collectionName, string docId, CancellationToken ct = default)
     {
-        // Delete all segments for this parent document
         var sanitized = SanitizeDocId(docId);
-        var docs = await _inner.GetAllDocumentsAsync(collectionName, sanitized, ct);
-        foreach (var doc in docs)
-            await _inner.DeleteDocumentAsync(collectionName, doc.Id, ct);
+        var records = await _inner.GetAllAsync(collectionName, sanitized, ct);
+        foreach (var record in records)
+            await _inner.DeleteAsync(collectionName, record.Id, ct);
     }
 
     public async Task<Dictionary<string, Segment>> GetSegmentsByHashAsync(string collectionName,
@@ -98,36 +75,34 @@ public class DuckDBVectorStoreAdapter : IVectorStore
         if (hashList.Count == 0)
             return new Dictionary<string, Segment>();
 
-        var docsByHash = await _inner.GetDocumentsByHashAsync(collectionName, hashList, ct);
-        return docsByHash.ToDictionary(
+        var recordsByHash = await _inner.GetByHashAsync(collectionName, hashList, ct);
+        return recordsByHash.ToDictionary(
             kvp => kvp.Key,
-            kvp => DocumentToSegment(kvp.Value));
+            kvp => RecordToSegment(kvp.Value));
     }
 
     public async Task RemoveStaleSegmentsAsync(string collectionName, string docId,
         IEnumerable<string> validContentHashes, CancellationToken ct = default)
     {
-        await _inner.RemoveStaleDocumentsAsync(collectionName, SanitizeDocId(docId), validContentHashes, ct);
+        await _inner.RemoveStaleAsync(collectionName, SanitizeDocId(docId), validContentHashes, ct);
     }
 
     public async Task UpdateDomainMetadataAsync(string collectionName, IEnumerable<Segment> segments,
         CancellationToken ct = default)
     {
-        // Re-upsert segments with updated metadata (DuckDB replaces on same ID)
-        var docs = segments.Where(s => s.Embedding != null).Select(SegmentToDocument).ToList();
-        if (docs.Count > 0)
-            await _inner.UpsertDocumentsAsync(collectionName, docs, ct);
+        var records = segments.Where(s => s.Embedding != null).Select(SegmentToRecord).ToList();
+        if (records.Count > 0)
+            await _inner.UpsertBatchAsync(collectionName, records, ct);
     }
 
     public async Task<DocumentSummary?> GetCachedSummaryAsync(string collectionName, string evidenceHash,
         CancellationToken ct = default)
     {
-        var cached = await _inner.GetCachedSummaryAsync(collectionName, evidenceHash, ct);
-        if (cached == null) return null;
-
+        var record = await _inner.GetByIdAsync(collectionName, evidenceHash, ct);
+        if (record?.Text == null) return null;
         try
         {
-            return JsonSerializer.Deserialize<DocumentSummary>(cached.Summary);
+            return JsonSerializer.Deserialize<DocumentSummary>(record.Text);
         }
         catch
         {
@@ -138,18 +113,21 @@ public class DuckDBVectorStoreAdapter : IVectorStore
     public async Task CacheSummaryAsync(string collectionName, string evidenceHash, DocumentSummary summary,
         CancellationToken ct = default)
     {
-        var cached = new CachedSummary
+        var record = new VectorStoreRecord
         {
+            Id = $"sum_{evidenceHash}",
             DocumentId = evidenceHash,
-            Summary = JsonSerializer.Serialize(summary),
-            CachedAt = DateTimeOffset.UtcNow
+            ChunkId = evidenceHash,
+            Embedding = [],
+            Text = JsonSerializer.Serialize(summary)
         };
-        await _inner.CacheSummaryAsync(collectionName, cached, ct);
+        await _inner.UpsertAsync(collectionName, record, ct);
     }
 
     public ValueTask DisposeAsync()
     {
-        return _inner.DisposeAsync();
+        _inner.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     public void Dispose()
@@ -159,7 +137,7 @@ public class DuckDBVectorStoreAdapter : IVectorStore
 
     // === Mapping helpers ===
 
-    private static VectorDocument SegmentToDocument(Segment segment)
+    private static VectorStoreRecord SegmentToRecord(Segment segment)
     {
         var metadata = new Dictionary<string, object>
         {
@@ -190,23 +168,24 @@ public class DuckDBVectorStoreAdapter : IVectorStore
         if (!string.IsNullOrEmpty(segment.DomainSignalsJson))
             metadata["domainSignalsJson"] = segment.DomainSignalsJson;
 
-        // Extract sanitized doc ID from segment ID (format: {docId}_{typePrefix}_{index})
         var parentId = ExtractParentId(segment.Id);
 
-        return new VectorDocument
+        return new VectorStoreRecord
         {
             Id = segment.Id,
+            DocumentId = parentId ?? segment.Id,
+            ChunkId = segment.Id,
             Embedding = segment.Embedding!,
             ParentId = parentId,
             ContentHash = segment.ContentHash,
-            Text = null, // Privacy: no text in vector store
+            Text = null,
             Metadata = metadata
         };
     }
 
-    private static Segment DocumentToSegment(VectorDocument doc)
+    private static Segment RecordToSegment(VectorStoreRecord record)
     {
-        var meta = doc.Metadata;
+        var meta = record.Metadata;
 
         var typeStr = meta.TryGetValue("type", out var t) ? t.ToString() ?? "Sentence" : "Sentence";
         var segType = Enum.TryParse<SegmentType>(typeStr, true, out var parsed) ? parsed : SegmentType.Sentence;
@@ -215,13 +194,13 @@ public class DuckDBVectorStoreAdapter : IVectorStore
         var endChar = GetMetadataInt(meta, "endChar");
 
         var segment = new Segment(
-            doc.ParentId ?? "",
-            doc.Text ?? "", // Text will be hydrated from evidence repo
+            record.ParentId ?? "",
+            record.Text ?? "",
             segType,
             index,
             startChar,
             endChar,
-            doc.ContentHash)
+            record.ContentHash)
         {
             SectionTitle = meta.TryGetValue("section", out var sec) ? sec.ToString() ?? "" : "",
             HeadingPath = meta.TryGetValue("headingPath", out var hp) ? hp.ToString() ?? "" : "",
@@ -229,7 +208,7 @@ public class DuckDBVectorStoreAdapter : IVectorStore
             PageNumber = meta.ContainsKey("pageNumber") ? GetMetadataInt(meta, "pageNumber") : null,
             LineNumber = meta.ContainsKey("lineNumber") ? GetMetadataInt(meta, "lineNumber") : null,
             SalienceScore = GetMetadataDouble(meta, "salience"),
-            Embedding = doc.Embedding,
+            Embedding = record.Embedding,
             DomainDetected = meta.TryGetValue("domainDetected", out var dd) ? dd.ToString() : null,
             DomainConfidence = GetMetadataDouble(meta, "domainConfidence"),
             DomainEntities = meta.TryGetValue("domainEntities", out var de)
@@ -241,10 +220,10 @@ public class DuckDBVectorStoreAdapter : IVectorStore
         return segment;
     }
 
-    private static Segment ResultToSegment(VectorSearchResult result, double score)
+    private static Segment ResultToSegment(SearchResult result, double score)
     {
-        var segment = result.Document != null
-            ? DocumentToSegment(result.Document)
+        var segment = result.Record != null
+            ? RecordToSegment(result.Record)
             : new Segment("", "", SegmentType.Sentence, 0, 0, 0);
 
         segment.QuerySimilarity = score;
@@ -253,8 +232,6 @@ public class DuckDBVectorStoreAdapter : IVectorStore
 
     private static string ExtractParentId(string segmentId)
     {
-        // Segment ID format: {sanitizedDocId}_{typePrefix}_{index}
-        // Find the last two underscore-separated parts and strip them
         var lastUnderscore = segmentId.LastIndexOf('_');
         if (lastUnderscore <= 0) return segmentId;
 

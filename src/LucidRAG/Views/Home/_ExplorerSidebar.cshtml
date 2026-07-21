@@ -156,7 +156,7 @@
         </button>
         <input type="file" x-ref="fileInput" multiple
                accept=".pdf,.docx,.doc,.md,.html,.txt,.png,.jpg,.jpeg,.gif,.mp3,.wav,.m4a"
-               class="hidden" @@change="uploadFiles($event.target.files); $event.target.value = ''"/>
+               class="hidden" @@change="uploadFiles($event); $event.target.value = ''"/>
     </div>
 
     <!-- Stats Footer -->

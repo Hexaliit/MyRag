@@ -201,7 +201,7 @@ public class SubdomainTenantResolver : ITenantResolver
         {
             TenantId = tenant.TenantId,
             SchemaName = tenant.SchemaName,
-            QdrantCollection = tenant.QdrantCollection,
+            CollectionName = tenant.CollectionName,
             DisplayName = tenant.DisplayName,
             IsActive = tenant.IsActive,
             Settings = tenant.Settings,

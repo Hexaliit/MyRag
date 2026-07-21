@@ -76,7 +76,7 @@ public class ConfigController(
             {
                 ollama = new { available = services.OllamaAvailable, model = services.OllamaModel },
                 docling = new { available = services.DoclingAvailable, hasGpu = services.DoclingHasGpu },
-                qdrant = new { available = services.QdrantAvailable },
+                qdrant = new { available = services.VectorStoreAvailable },
                 onnx = new { available = services.OnnxAvailable }
             },
             extractionModes,
@@ -86,7 +86,7 @@ public class ConfigController(
             {
                 pdfConversion = services.DoclingAvailable,
                 llmSummarization = services.OllamaAvailable,
-                vectorPersistence = services.QdrantAvailable,
+                vectorPersistence = services.VectorStoreAvailable,
                 graphVisualization = true,
                 streamingResponses = services.OllamaAvailable
             }

@@ -34,6 +34,17 @@ public static class MultitenancyExtensions
         // Tenant resolver
         services.AddScoped<ITenantResolver, SubdomainTenantResolver>();
 
+        // Tenant management DbContext (for tenant metadata table)
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        services.AddDbContext<TenantDbContext>(options =>
+            options.UseNpgsql(connectionString, npgsql =>
+            {
+                npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Tenants", "public");
+            }));
+
+        // Tenant DbContext factory for provisioning
+        services.AddScoped<ITenantDbContextFactory, PostgresTenantDbContextFactory>();
+
         // Register tenant database providers
         services.AddScoped<PostgresTenantDatabaseProvider>();
         services.AddScoped<SqliteTenantDatabaseProvider>();
@@ -50,6 +61,7 @@ public static class MultitenancyExtensions
         // Provisioning service
         services.AddScoped<ITenantProvisioningService, TenantProvisioningService>();
 
+        
         return services;
     }
 

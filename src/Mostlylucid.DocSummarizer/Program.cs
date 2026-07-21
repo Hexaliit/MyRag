@@ -707,8 +707,8 @@ internal static class Program
                     : "PDF/DOCX disabled");
             statusTable.AddRow(
                 "[cyan]Qdrant[/]",
-                detected.QdrantAvailable ? "[green]OK[/]" : "[yellow]Optional[/]",
-                detected.QdrantAvailable ? "Vector persistence enabled" : "Using in-memory vectors");
+                detected.VectorStoreAvailable ? "[green]OK[/]" : "[yellow]Optional[/]",
+                detected.VectorStoreAvailable ? "Vector persistence enabled" : "Using in-memory vectors");
             statusTable.AddRow(
                 "[cyan]ONNX[/]",
                 "[green]OK[/]",
@@ -1419,7 +1419,7 @@ internal static class Program
             SpectreProgressService.WriteHeader("DocSummarizer", "Cache Statistics");
 
             var detected = await ServiceDetector.DetectSilentAsync(config);
-            if (!detected.QdrantAvailable)
+            if (!detected.VectorStoreAvailable)
             {
                 AnsiConsole.MarkupLine("[yellow]Qdrant not available[/] - no persistent cache");
                 return 0;
@@ -1472,7 +1472,7 @@ internal static class Program
             var config = ConfigurationLoader.Load(configPath);
 
             var detected = await ServiceDetector.DetectSilentAsync(config);
-            if (!detected.QdrantAvailable)
+            if (!detected.VectorStoreAvailable)
             {
                 AnsiConsole.MarkupLine("[yellow]Qdrant not available[/]");
                 return 0;
@@ -1510,7 +1510,7 @@ internal static class Program
 
             var config = ConfigurationLoader.Load(configPath);
             var detected = await ServiceDetector.DetectSilentAsync(config);
-            if (!detected.QdrantAvailable)
+            if (!detected.VectorStoreAvailable)
             {
                 AnsiConsole.MarkupLine("[yellow]Qdrant not available[/]");
                 return 0;

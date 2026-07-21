@@ -2,32 +2,27 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.RAG.Config;
 using Mostlylucid.RAG.Services;
+using Mostlylucid.Storage.Core.Abstractions;
 
 namespace Mostlylucid.RAG.Extensions;
 
-/// <summary>
-///     Extension methods for registering semantic search services
-/// </summary>
 public static class ServiceCollectionExtensions
 {
-    /// <summary>
-    ///     Add semantic search services to the DI container
-    /// </summary>
     public static void AddSemanticSearch(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Bind configuration
         var config = configuration.GetSection(SemanticSearchConfig.Section).Get<SemanticSearchConfig>()
                      ?? new SemanticSearchConfig();
 
         services.AddSingleton(config);
-
-        // Register services based on configured backend
-        // Qdrant backend - requires external Qdrant server
         services.AddSingleton<IEmbeddingService, OnnxEmbeddingService>();
-        services.AddSingleton<IVectorStoreService, QdrantVectorStoreService>();
-
+        services.AddSingleton<IVectorStoreService>(sp =>
+        {
+            var store = sp.GetRequiredService<IVectorStore>();
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SqliteVecVectorStoreService>>();
+            return new SqliteVecVectorStoreService(logger, config, store);
+        });
         services.AddSingleton<ISemanticSearchService, SemanticSearchService>();
     }
 }

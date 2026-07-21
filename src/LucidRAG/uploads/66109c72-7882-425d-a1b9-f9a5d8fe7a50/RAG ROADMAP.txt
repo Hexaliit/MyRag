@@ -1,0 +1,112 @@
+آیا Tokenizer می‌نویسیم؟
+
+نه.
+
+فعلاً نه.
+
+برای نسخه اول
+
+Word Count
+
+کافی است.
+
+بعداً اگر خواستیم
+
+SharpToken
+
+یا
+
+Microsoft.ML.Tokenizers
+
+را اضافه می‌کنیم.
+
+
+ساختار RAG
+                INGESTION
+
+PDF
+DOCX
+TXT
+           │
+           ▼
+      DocumentReader
+           │
+           ▼
+      TextNormalizer
+           │
+           ▼
+         Chunker
+           │
+           ▼
+    EmbeddingService
+           │
+           ▼
+      VectorStore
+
+
+==============================
+
+
+            QUERY
+
+Question
+     │
+     ▼
+EmbeddingService
+     │
+     ▼
+ VectorSearch
+     │
+     ▼
+PromptBuilder
+     │
+     ▼
+ ChatService
+     │
+     ▼
+ Answer
+
+
+
+
+Ingestion
+
+Workflow
+
+Read
+
+↓
+
+Normalize
+
+↓
+
+Chunk
+
+↓
+
+Embedding
+
+↓
+
+Store
+Query
+
+Workflow
+
+Question
+
+↓
+
+Embedding
+
+↓
+
+Similarity
+
+↓
+
+Prompt
+
+↓
+

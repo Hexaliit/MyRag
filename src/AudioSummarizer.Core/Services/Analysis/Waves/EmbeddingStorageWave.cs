@@ -58,13 +58,7 @@ public class EmbeddingStorageWave : IAudioWave
             // Initialize collection on first use
             if (!_collectionInitialized)
             {
-                await _vectorStore!.InitializeAsync(collectionName, new VectorStoreSchema
-                {
-                    VectorDimension = dimension,
-                    DistanceMetric = VectorDistance.Cosine,
-                    StoreText = false
-                }, cancellationToken);
-
+                await _vectorStore!.CreateCollectionAsync(collectionName, dimension, cancellationToken);
                 _collectionInitialized = true;
             }
 
@@ -86,9 +80,11 @@ public class EmbeddingStorageWave : IAudioWave
             var model = context.GetValue<string>("speaker.embedding_model") ?? "ecapa-tdnn";
             var fileHash = context.GetValue<string>("audio.hash.sha256") ?? "";
 
-            var document = new VectorDocument
+            var record = new VectorStoreRecord
             {
                 Id = voiceprintId,
+                DocumentId = voiceprintId,
+                ChunkId = voiceprintId,
                 Embedding = embedding,
                 ParentId = fileHash,
                 ContentHash = voiceprintId,
@@ -101,7 +97,7 @@ public class EmbeddingStorageWave : IAudioWave
                 }
             };
 
-            await _vectorStore!.UpsertDocumentsAsync(collectionName, [document], cancellationToken);
+            await _vectorStore!.UpsertAsync(collectionName, record, cancellationToken);
 
             signals.Add(new Signal
             {

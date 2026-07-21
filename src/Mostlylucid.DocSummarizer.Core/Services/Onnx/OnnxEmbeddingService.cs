@@ -2,6 +2,8 @@ using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Mostlylucid.DocSummarizer.Config;
+using Mostlylucid.DocSummarizer.Services.Embeddings;
+using Mostlylucid.DocSummarizer.Services.LmStudio;
 using Mostlylucid.Summarizer.Core.Tokenizer;
 
 namespace Mostlylucid.DocSummarizer.Services.Onnx;
@@ -9,7 +11,7 @@ namespace Mostlylucid.DocSummarizer.Services.Onnx;
 /// <summary>
 ///     ONNX-based embedding service - no external dependencies required
 /// </summary>
-public class OnnxEmbeddingService : IEmbeddingService, IDisposable
+public class OnnxEmbeddingService : IEmbeddingService, IEmbeddingClient, IDisposable
 {
     private readonly OnnxConfig _config;
     private readonly OnnxModelDownloader _downloader;
@@ -43,6 +45,21 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
     ///     Embedding dimension for this model
     /// </summary>
     public int EmbeddingDimension => _modelInfo.EmbeddingDimension;
+
+    /// <summary>
+    ///     Model name being used
+    /// </summary>
+    public string ModelName => _config.EmbeddingModel.ToString();
+
+    /// <summary>
+    ///     Maximum sequence length for this model
+    /// </summary>
+    public int MaxLength => _maxSequenceLength;
+
+    /// <summary>
+    ///     Provider name for logging/diagnostics
+    /// </summary>
+    public string ProviderName => "ONNX Runtime";
 
     /// <summary>
     ///     Initialize the model (downloads if needed)
@@ -526,5 +543,13 @@ public class OnnxEmbeddingService : IEmbeddingService, IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Get the maximum context window (tokens) for the embedding model
+    /// </summary>
+    public Task<int> GetContextWindowAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult(_maxSequenceLength);
     }
 }

@@ -155,7 +155,7 @@ public class SystemAdminController(
             DisplayName = tenant.DisplayName,
             ContactEmail = tenant.ContactEmail,
             SchemaName = tenant.SchemaName,
-           // QdrantCollection = tenant.QdrantCollection,
+            CollectionName = tenant.CollectionName,
             Plan = tenant.Plan,
             IsActive = tenant.IsActive,
             IsProvisioned = tenant.IsProvisioned,
@@ -398,7 +398,7 @@ public class TenantDetailsViewModel
     public string? DisplayName { get; set; }
     public string? ContactEmail { get; set; }
     public string SchemaName { get; set; } = "";
-    public string QdrantCollection { get; set; } = "";
+    public string CollectionName { get; set; } = "";
     public string? Plan { get; set; }
     public bool IsActive { get; set; }
     public bool IsProvisioned { get; set; }

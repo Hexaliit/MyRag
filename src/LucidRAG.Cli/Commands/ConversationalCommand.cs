@@ -155,7 +155,7 @@ public static class ConversationalCommand
         }
 
         // Qdrant (optional)
-        if (services.QdrantAvailable)
+        if (services.VectorStoreAvailable)
             table.AddRow("Qdrant", "[green]✓ Available[/]",
                 "[dim]Persistent vector storage[/]");
         else
