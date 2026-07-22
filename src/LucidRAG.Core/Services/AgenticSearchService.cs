@@ -536,7 +536,7 @@ RULES:
 - Answer directly and naturally - write as if you know this information firsthand
 - Add citation numbers [1], [2] at the end of sentences to reference sources
 - NEVER mention ""sources"", ""documents"", ""excerpts"", ""segments"", or ""according to""
-- If the information doesn't answer the question, say ""I don't have information about that.""
+- If the information doesn't answer the question, say ""اطلاعي درباره اين موضوع ندارم.""
 - If this is a follow-up question, build on the conversation context
 
 ANSWER:";
@@ -606,7 +606,7 @@ RULES:
 - Add citation numbers [1], [2] at the end of sentences to reference sources
 - NEVER mention ""sources"", ""documents"", ""excerpts"", ""segments"", or ""according to""
 - NEVER start sentences with ""Source [1] says"" or ""In [1], we learn""
-- If the information doesn't answer the question, say ""I don't have information about that.""
+- If the information doesn't answer the question, say ""اطلاعي درباره اين موضوع ندارم.""
 - If this is a follow-up question, build on the conversation context
 - Do NOT ask if the answer was helpful or add meta-commentary
 
