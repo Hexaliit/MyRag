@@ -139,8 +139,6 @@
         <Content Remove="screenshots\**" />
         <None Remove="data\**" />
         <Content Remove="data\**" />
-        <None Remove="uploads\**" />
-        <Content Remove="uploads\**" />
         <None Remove="*.duckdb*" />
         <None Remove="wwwroot\js\**" />
         <Content Remove="*.duckdb*" />

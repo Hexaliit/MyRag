@@ -34,40 +34,37 @@ public static class ProviderServiceCollectionExtensions
         services.AddHttpClient<LmStudioHttpClient>();
 
         // Register LM Studio client
-        services.AddScoped<ILMStudioClient, LmStudioHttpClient>();
+        services.AddSingleton<ILMStudioClient, LmStudioHttpClient>();
 
         // Register ONNX embedding service
         services.AddSingleton<OnnxEmbeddingService>();
 
         // Register LLM clients
-        services.AddScoped<LMStudioLlmClient>();
+        services.AddSingleton<LMStudioLlmClient>();
 
         // Register embedding providers
-        services.AddScoped<LmStudioEmbeddingProvider>();
-        services.AddScoped<OnnxEmbeddingProvider>();
+        services.AddSingleton<LmStudioEmbeddingProvider>();
+        services.AddSingleton<LmStudioEmbeddingClient>();
+        services.AddSingleton<OnnxEmbeddingProvider>();
 
         // Register provider factory
         services.AddSingleton<IProviderFactory, ProviderFactory>();
 
         // Register interface aliases for the active provider (based on config)
-        services.AddScoped<ILlmClient>(sp =>
+        services.AddSingleton<ILlmClient>(sp =>
         {
             var factory = sp.GetRequiredService<IProviderFactory>();
             return factory.GetLlmClient();
         });
 
-        services.AddScoped<IEmbeddingClient>(sp =>
+        services.AddSingleton<IEmbeddingClient>(sp =>
         {
             var factory = sp.GetRequiredService<IProviderFactory>();
             return factory.GetEmbeddingClient();
         });
 
         // Register LM Studio specific client
-        services.AddScoped<ILMStudioClient>(sp =>
-        {
-            var factory = sp.GetRequiredService<IProviderFactory>();
-            return factory.GetLmStudioClient() ?? sp.GetRequiredService<ILMStudioClient>();
-        });
+        // (LmStudioHttpClient is already registered via AddHttpClient + AddSingleton ILMStudioClient)
 
         return services;
     }

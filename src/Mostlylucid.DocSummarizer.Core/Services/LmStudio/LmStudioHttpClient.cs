@@ -57,12 +57,9 @@ public class LmStudioHttpClient : ILMStudioClient, IAsyncDisposable
 
         _timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds > 0 ? _config.TimeoutSeconds : 300);
 
-        var handler = CreateHttpHandler();
-        _httpClient = httpClientFactory?.CreateClient() ?? new HttpClient(handler, disposeHandler: httpClientFactory == null)
-        {
-            BaseAddress = new Uri(_config.BaseUrl.TrimEnd('/') + "/"),
-            Timeout = _timeout + TimeSpan.FromSeconds(30)
-        };
+        _httpClient = httpClientFactory?.CreateClient() ?? new HttpClient(CreateHttpHandler(), disposeHandler: httpClientFactory == null);
+        _httpClient.BaseAddress = new Uri(_config.BaseUrl.TrimEnd('/') + "/");
+        _httpClient.Timeout = _timeout + TimeSpan.FromSeconds(30);
 
         // Default headers
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));

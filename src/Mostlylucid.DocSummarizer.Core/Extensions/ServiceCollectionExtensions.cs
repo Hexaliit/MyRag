@@ -238,6 +238,18 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IEmbeddingService>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+
+            // Check if unified embedding config is available (new provider system)
+            var unifiedConfig = sp.GetService<IOptions<UnifiedEmbeddingConfig>>();
+            if (unifiedConfig?.Value != null && !string.IsNullOrEmpty(unifiedConfig.Value.Provider))
+            {
+                // Use new unified provider system
+                var factory = sp.GetRequiredService<IProviderFactory>();
+                var client = factory.GetEmbeddingClient();
+                return new EmbeddingClientAdapter(client);
+            }
+
+            // Legacy configuration
             return config.EmbeddingBackend == EmbeddingBackend.Onnx
                 ? CreateOnnxEmbeddingService(config.Onnx, config.Output.Verbose)
                 : CreateOllamaEmbeddingService(config.Ollama);
@@ -253,6 +265,18 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ILlmService>(sp =>
         {
             var config = sp.GetRequiredService<IOptions<DocSummarizerConfig>>().Value;
+
+            // Check if unified LLM config is available (new provider system)
+            var unifiedConfig = sp.GetService<IOptions<LlmProviderConfig>>();
+            if (unifiedConfig?.Value != null && !string.IsNullOrEmpty(unifiedConfig.Value.Provider))
+            {
+                // Use new unified provider system
+                var factory = sp.GetRequiredService<IProviderFactory>();
+                var client = factory.GetLlmClient();
+                return new LlmClientAdapter(client);
+            }
+
+            // Legacy configuration
             return CreateLlmService(config);
         });
 

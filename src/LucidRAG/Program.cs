@@ -150,11 +150,11 @@ else
         }));
 }
 
-// DocSummarizer.Core
-builder.Services.AddDocSummarizer(builder.Configuration.GetSection("DocSummarizer"));
-
-// Register new unified providers (LLM & Embedding)
+// Register new unified providers (LLM & Embedding) - MUST come BEFORE DocSummarizer
 builder.Services.AddDocSummarizerProviders(builder.Configuration);
+
+// DocSummarizer.Core  
+builder.Services.AddDocSummarizer(builder.Configuration.GetSection("DocSummarizer"));
 
 // DocSummarizer.Images - always add for image handling
 builder.Services.AddDocSummarizerImages(builder.Configuration.GetSection("Images"));
