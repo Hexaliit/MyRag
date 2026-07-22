@@ -23,7 +23,9 @@ public class HomeController(
 
         ViewBag.Documents = documents;
         ViewBag.TotalSegments = documents.Sum(d => d.SegmentCount);
+        ViewBag.UserId = User.Identity?.IsAuthenticated == true ? User.Identity.Name : null;
 
+        //return View("~/Views/PersianChat/Index.cshtml");
         return View();
     }
 

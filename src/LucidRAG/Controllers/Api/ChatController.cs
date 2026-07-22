@@ -107,8 +107,9 @@ public class ChatController(
 
         await foreach (var chunk in searchService.ChatStreamAsync(chatRequest, ct))
         {
-            var data = JsonSerializer.Serialize(new { text = chunk });
-            await Response.WriteAsync($"data: {data}\n\n", ct);
+           // var data = JsonSerializer.Serialize(new { text = chunk });
+          //  await Response.WriteAsync($"data: {data}\n\n", ct);
+            await Response.WriteAsync($"data: {chunk}\n\n", ct);
             await Response.Body.FlushAsync(ct);
         }
 

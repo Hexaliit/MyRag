@@ -1,0 +1,157 @@
+@{
+    Layout = null;
+    var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0";
+}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>لوسیدراگ | هوش مصنوعی مکالمه با اسناد</title>
+    <meta name="description" content="پلتفرم هوش مصنوعی مکالمه با اسناد سازمانی" />
+    <meta name="theme-color" content="#ffffff" />
+
+    <link rel="icon" type="image/svg+xml" href="~/img/logo.svg" />
+    <link rel="icon" type="image/png" href="~/img/icon.png" />
+
+    <link href="~/css/chat-persian.css?v=@version" rel="stylesheet" />
+</head>
+<body>
+    <!-- ========== نوار بالایی ========== -->
+    <header class="chat-header" role="banner">
+        <div class="header-inner">
+            <div class="header-start">
+                <a href="/" class="brand-link" aria-label="صفحه اصلی">
+                    <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                    <span class="brand-text">چت اسيكو</span>
+                </a>
+                <span class="brand-badge">هوش مصنوعی اسناد</span>
+            </div>
+            <div class="header-end">
+                <button id="themeToggle" class="icon-btn" aria-label="تغییر تم" title="تغییر تم">
+                    <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5" />
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                    <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+                <button id="newChatBtn" class="icon-btn" aria-label="مکالمه جدید" title="مکالمه جدید">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========== محتوای اصلی ========== -->
+    <main class="chat-main" role="main">
+        <!-- حالت خوش‌آمدگویی -->
+        <div id="welcomeScreen" class="welcome-screen">
+            <div class="welcome-content">
+                <div class="welcome-logo">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                </div>
+                <h1 class="welcome-title">به لوسیدراگ خوش آمدید</h1>
+                <p class="welcome-subtitle">هوش مصنوعی مکالمه با اسناد سازمانی</p>
+                <div class="welcome-suggestions">
+                    <button class="suggestion-chip" data-prompt="خلاصه‌ای از اسناد موجود ارائه بده">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                        خلاصه اسناد
+                    </button>
+                    <button class="suggestion-chip" data-prompt="مهم‌ترین موضوعات مطرح شده در اسناد چیست؟">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                        موضوعات کلیدی
+                    </button>
+                    <button class="suggestion-chip" data-prompt="چه اسنادی در سیستم وجود دارد؟">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+                        لیست اسناد
+                    </button>
+                    <button class="suggestion-chip" data-prompt="اطلاعات فنی استخراج شده از اسناد را تحلیل کن">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                        تحلیل فنی
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ناحیه پیام‌ها -->
+        <div id="chatMessages" class="chat-messages" role="log" aria-label="پیام‌های مکالمه" aria-live="polite" tabindex="0">
+        </div>
+
+        <!-- نشانگر در حال تایپ -->
+        <div id="typingIndicator" class="typing-indicator" hidden>
+            <div class="typing-dots">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
+            <span class="typing-text">در حال تحلیل اسناد...</span>
+        </div>
+    </main>
+
+    <!-- ========== ناحیه ورودی ========== -->
+    <footer class="chat-footer" role="contentinfo">
+        <div class="input-container">
+            <div class="input-wrapper">
+                <textarea
+                    id="messageInput"
+                    class="message-input"
+                    placeholder="پیام خود را بنویسید..."
+                    rows="1"
+                    aria-label="متن پیام"
+                    enterkeyhint="send"
+                ></textarea>
+                <button
+                    id="sendButton"
+                    class="send-btn"
+                    aria-label="ارسال پیام"
+                    title="ارسال"
+                    disabled
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                </button>
+                <button
+                    id="stopButton"
+                    class="stop-btn"
+                    aria-label="توقف تولید پاسخ"
+                    title="توقف"
+                    hidden
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="6" width="12" height="12" rx="2" />
+                    </svg>
+                </button>
+            </div>
+            <p class="input-footer-note">
+                لوسیدراگ ممکن است پاسخ‌های نادرست تولید کند. اطلاعات مهم را بررسی کنید.
+            </p>
+        </div>
+    </footer>
+
+    <!-- ========== خطا ========== -->
+    <div id="errorToast" class="error-toast" role="alert" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+        </svg>
+        <span id="errorMessage"></span>
+    </div>
+
+    <script src="~/js/marked.min.js"></script>
+    <script src="~/js/chat-persian.js?v=@version"></script>
+</body>
+</html>
