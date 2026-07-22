@@ -151,6 +151,231 @@
         <span id="errorMessage"></span>
     </div>
 
+    <!-- Chat Container -->
+    <div class="chat-container">
+        <!-- Sidebar راست - تاریخچه chat -->
+        <aside class="chat-sidebar sidebar-enter" id="chatSidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    تاریخچه مکالمات
+                </h2>
+            </div>
+
+            <div class="sidebar-content">
+                <button class="new-chat-btn-sidebar" id="newChatBtnSidebar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    مکالمه جدید
+                </button>
+
+                <div class="chat-history-list" id="chatHistoryList">
+                    <!-- جاگذین‌شده توسط JavaScript -->
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                    <div class="sidebar-settings">
+                        <div class="sidebar-setting-item" id="themeToggleSidebar">
+                            <span class="sidebar-setting-title">تم</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="5" />
+                                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="sidebar-setting-item" id="clearChatHistory">
+                            <span class="sidebar-setting-title">پاک کردن تاریخچه</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                            </div>
+                        </div>
+                        <a class="sidebar-setting-item" href="/admin" title="پنل ادمین">
+                            <span class="sidebar-setting-title">ادمین</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2.5a2.5 2.5 0 0 1 2.5 2.5v1.5a2.5 2.5 0 0 0 2.5 2.5h1.5a2.5 2.5 0 0 1 2.5 2.5v1.5a2.5 2.5 0 0 1-2.5 2.5h-1.5a2.5 2.5 0 0 0-2.5 2.5v1.5a2.5 2.5 0 0 1-2.5 2.5H6.5a2.5 2.5 0 0 1-2.5-2.5v-1.5a2.5 2.5 0 0 0-2.5-2.5h-1.5a2.5 2.5 0 0 1-2.5-2.5V6.5a2.5 2.5 0 0 1 2.5-2.5h1.5a2.5 2.5 0 0 0 2.5-2.5V2.5a2.5 2.5 0 0 1 2.5-2.5h4.5z" />
+                                </svg>
+                            </div>
+                        </a>
+                        <div class="sidebar-setting-item" id="showAllChats" title="نمایش تمام مکالمات کاربران">
+                            <span class="sidebar-setting-title">تمام مکالمات</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1.707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="sidebar-setting-item" id="exportChats" title="خروجی‌گیری از مکالمات">
+                            <span class="sidebar-setting-title">خروجی‌گیری</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="sidebar-setting-item" id="chatSettings" title="تنظیمات چت">
+                            <span class="sidebar-setting-title">تنظیمات چت</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="3" />
+                                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="sidebar-setting-item" id="chatStats" title="آمار چت">
+                            <span class="sidebar-setting-title">آمار چت</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 3v18h18M9 9h10M9 13h10M9 17h6" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="sidebar-setting-item" id="favoriteChats" title="ذخیره‌سازی مکالمات به عنوان مورد علاقه">
+                            <span class="sidebar-setting-title">مکالمات مورد علاقه</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="sidebar-setting-item" id="exportChatHistory" title="خروجی‌گیری از تمام مکالمات">
+                            <span class="sidebar-setting-title">خروجی‌گیری تمام مکالمات</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                                    <path d="M7 7h5l2 2h5M8 11v6h8" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="sidebar-setting-item" id="clearAllData" title="پاک کردن تمام داده‌های چت">
+                            <span class="sidebar-setting-title">پاک کردن تمام داده‌ها</span>
+                            <div class="sidebar-setting-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+            </div>
+        </aside>
+
+        <!-- ناحیه اصلی چت -->
+        <main class="chat-main-area" id="chatMainArea">
+            <!-- Header بالایی ثابت -->
+            <header class="chat-header" role="banner">
+                <div class="header-left">
+                    <button id="toggleSidebar" class="header-action-btn" title="نمایش/مخفی کردن تاریخچه">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <div class="header-title">
+                        <div class="header-logo">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3" />
+                                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                            </svg>
+                        </div>
+                        چت اسيكو
+                    </div>
+                    <span class="header-badge">هوش مصنوعی اسناد</span>
+                </div>
+
+                <div class="header-right">
+                    <button id="themeToggleMain" class="header-action-btn" title="تغییر تم">
+                        <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5" />
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                        </svg>
+                        <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                        </svg>
+                    </button>
+                    <button id="newChatBtnMain" class="header-action-btn" title="مکالمه جدید">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- ناحیه پیام‌ها -->
+            <div class="chat-messages-wrapper">
+                <div id="chatMessages" class="chat-messages" role="log" aria-label="پیام‌های مکالمه" aria-live="polite" tabindex="0">
+                </div>
+
+                <!-- نشانگر در حال تایپ -->
+                <div id="typingIndicator" class="typing-indicator" hidden>
+                    <div class="typing-dots">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                    <span class="typing-text">در حال تحلیل اسناد...</span>
+                </div>
+            </div>
+
+            <!-- ناحیه ورودی ثابت پایین -->
+            <div class="chat-input-container">
+                <div class="chat-input-wrapper">
+                    <textarea
+                        id="messageInput"
+                        class="chat-textarea"
+                        placeholder="پیام خود را بنویسید..."
+                        rows="1"
+                        aria-label="متن پیام"
+                        enterkeyhint="send">
+                    </textarea>
+                    <button
+                        id="sendButton"
+                        class="chat-send-btn"
+                        aria-label="ارسال پیام"
+                        title="ارسال"
+                        disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                    </button>
+                    <button
+                        id="stopButton"
+                        class="chat-stop-btn"
+                        aria-label="توقف تولید پاسخ"
+                        title="توقف"
+                        hidden>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12" rx="2" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="chat-input-footer">
+                    <p class="chat-input-note">
+                        لوسیدراگ ممکن است پاسخ‌های نادرست تولید کند. اطلاعات مهم را بررسی کنید.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ========== خطا ========== -->
+    <div id="errorToast" class="error-toast" role="alert" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+        </svg>
+        <span id="errorMessage"></span>
+    </div>
+
     <script src="~/js/marked.min.js"></script>
     <script src="~/js/chat-persian.js?v=@version"></script>
 </body>

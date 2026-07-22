@@ -215,10 +215,10 @@
         scrollToBottom(true);
 
         // Create assistant message placeholder
-        const assistant = createAssistantMessage();
-        dom.chatMessages.appendChild(assistant);
-        state.currentAssistantMsg = assistant;
-        state.currentAssistantBubble = assistant.bubble;
+        const assistantMsg = createAssistantMessage();
+        dom.chatMessages.appendChild(assistantMsg.container);
+        state.currentAssistantMsg = assistantMsg;
+        state.currentAssistantBubble = assistantMsg.bubble;
 
         // Show typing
         showTyping();

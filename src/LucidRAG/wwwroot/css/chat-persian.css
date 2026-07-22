@@ -6,64 +6,43 @@
 /* --- فونت فارسی وزیرمتن --- */
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-Thin.woff2') format('woff2');
+    src: url('/assets/vazirmatn/fonts/Vazirmatn-Thin.woff2') format('woff2');
     font-weight: 100;
     font-style: normal;
     font-display: swap;
 }
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-ExtraLight.woff2') format('woff2');
-    font-weight: 200;
-    font-style: normal;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-Light.woff2') format('woff2');
+    src: url('/assets/vazirmatn/fonts/Vazirmatn-Light.woff2') format('woff2');
     font-weight: 300;
     font-style: normal;
     font-display: swap;
 }
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-Regular.woff2') format('woff2');
+    src: url('/assets/vazirmatn/fonts/Vazirmatn-Regular.woff2') format('woff2');
     font-weight: 400;
     font-style: normal;
     font-display: swap;
 }
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-Medium.woff2') format('woff2');
+    src: url('/assets/vazirmatn/fonts/Vazirmatn-Medium.woff2') format('woff2');
     font-weight: 500;
     font-style: normal;
     font-display: swap;
 }
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-SemiBold.woff2') format('woff2');
+    src: url('/assets/fonts/Vazirmatn-600.woff2') format('woff2');
     font-weight: 600;
     font-style: normal;
     font-display: swap;
 }
 @font-face {
     font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-Bold.woff2') format('woff2');
+    src: url('/assets/vazirmatn/fonts/Vazirmatn-Bold.woff2') format('woff2');
     font-weight: 700;
-    font-style: normal;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-ExtraBold.woff2') format('woff2');
-    font-weight: 800;
-    font-style: normal;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'Vazirmatn';
-    src: url('/assets/fonts/Vazirmatn/Vazirmatn-Black.woff2') format('woff2');
-    font-weight: 900;
     font-style: normal;
     font-display: swap;
 }
@@ -206,6 +185,467 @@ body {
     text-align: right;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   Container اصلی
+   ============================================ */
+.chat-container {
+    display: flex;
+    flex: 1;
+    position: relative;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ============================================
+   سایدبار راست - تاریخچه chat
+   ============================================ */
+.chat-sidebar {
+    width: 260px;
+    background: var(--color-bg-secondary);
+    border-left: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100vh;
+    z-index: var(--z-header);
+    transition: all var(--transition-normal);
+    animation: slideInRight 0.3s ease;
+}
+
+.sidebar-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sidebar-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.new-chat-btn-sidebar {
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.chat-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.chat-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.chat-history-item:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-accent);
+}
+
+.chat-history-item.active {
+    background: var(--color-accent-light);
+    border-color: var(--color-accent);
+}
+
+.chat-history-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.chat-history-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-history-date {
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary);
+}
+
+/* ============================================
+   سایدبار پایین - تنظیمات
+   ============================================ */
+.sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--color-border);
+}
+
+.sidebar-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sidebar-setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.sidebar-setting-item:hover {
+    background: var(--color-surface-hover);
+}
+
+.sidebar-setting-title {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+
+.sidebar-setting-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ============================================
+   ناحیه اصلی چت - مینیمال
+   ============================================ */
+.chat-main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    margin-right: 260px;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.chat-messages-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px 0;
+    position: relative;
+    scroll-behavior: smooth;
+}
+
+.chat-messages {
+    max-width: var(--max-chat-width);
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* ============================================
+   Header - توکن بالایی ثابت
+   ============================================ */
+.chat-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--header-height);
+    background: var(--color-header-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-header-border);
+    z-index: var(--z-header);
+    transition: background var(--transition-normal);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-logo {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    color: var(--color-text-secondary);
+    background: var(--color-surface-hover);
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border-light);
+    white-space: nowrap;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.header-action-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header-action-btn:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+}
+
+/* ============================================
+   ناحیه ورودی - توکن پایینی ثابت
+   ============================================ */
+.chat-input-container {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border-light);
+    padding: 12px 20px 20px;
+    z-index: var(--z-header);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.chat-input-wrapper {
+    max-width: var(--max-chat-width);
+    margin: 0 auto;
+}
+
+.message-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 8px 12px;
+    transition: all var(--transition-fast);
+    box-shadow: var(--shadow-sm);
+}
+
+.message-input-wrapper:focus-within {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+.chat-textarea {
+    flex: 1;
+    min-height: 24px;
+    max-height: 200px;
+    padding: 4px 0;
+    background: transparent;
+    color: var(--color-text-primary);
+    line-height: 1.5;
+    font-family: inherit;
+    font-size: inherit;
+    border: none;
+    resize: none;
+    outline: none;
+}
+
+.chat-textarea::placeholder {
+    color: var(--color-text-tertiary);
+}
+
+.chat-send-btn, .chat-stop-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.chat-send-btn {
+    background: var(--color-accent);
+    color: #ffffff;
+}
+
+.chat-send-btn:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.chat-stop-btn {
+    background: var(--color-surface-hover);
+    color: var(--color-danger);
+    border: 1px solid var(--color-border);
+}
+
+.chat-stop-btn:hover {
+    background: var(--color-danger);
+    color: #ffffff;
+}
+
+.chat-input-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+}
+
+.chat-input-note {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--color-text-tertiary);
+    padding: 0 8px;
+}
+
+/* ============================================
+   حالت تم تاریک
+   ============================================ */
+[data-theme="dark"] .chat-sidebar {
+    background: var(--color-bg-secondary);
+}
+
+[data-theme="dark"] .chat-history-item {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+}
+
+[data-theme="dark"] .chat-history-item:hover {
+    background: var(--color-surface-hover);
+}
+
+[data-theme="dark"] .chat-history-item.active {
+    background: var(--color-accent-light);
+}
+
+/* ============================================
+   کدهای انیمیشن
+   ============================================ */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.sidebar-enter {
+    animation: slideInRight 0.3s ease;
+}
+
+/* ============================================
+   ریسپانسیو برای موبایل
+   ============================================ */
+@media (max-width: 639px) {
+    .chat-sidebar {
+        width: 100%;
+        transform: translateX(100%);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .chat-sidebar.open {
+        transform: translateX(0);
+    }
+
+    .chat-main-area {
+        margin-right: 0;
+        margin-bottom: 60px;
+    }
+
+    .chat-header {
+        padding: 0 12px;
+    }
+
+    .chat-input-container {
+        padding: 8px 12px 16px;
+    }
+
+    .sidebar-title {
+        font-size: 1rem;
+    }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+    .chat-sidebar {
+        width: 280px;
+    }
+
+    .chat-main-area {
+        margin-right: 280px;
+    }
 }
 
 a {
@@ -481,7 +921,7 @@ textarea {
 }
 
 .message.user {
-    align-items: flex-start;
+    align-items: flex-end;
 }
 
 .message.assistant {
@@ -501,25 +941,38 @@ textarea {
 .message.user .message-bubble {
     background: var(--color-user-bubble);
     color: var(--color-user-bubble-text);
-    border-bottom-right-radius: var(--radius-sm);
+    border-bottom-left-radius: var(--radius-sm);
+    border-bottom-right-radius: var(--radius-lg);
     width: fit-content;
     max-width: 85%;
     align-self: flex-end;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: all var(--transition-fast);
+}
+
+.message.user .message-bubble:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .message.assistant .message-bubble {
     background: var(--color-assistant-bubble);
     color: var(--color-text-primary);
     border: 1px solid var(--color-assistant-bubble-border);
-    box-shadow: var(--shadow-bubble);
-    border-bottom-left-radius: var(--radius-sm);
+    border-bottom-left-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-sm);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all var(--transition-fast);
+}
+
+.message.assistant .message-bubble:hover {
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
 }
 
 .message-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 4px 0;
+    gap: 6px;
+    padding: 6px 6px 0;
     opacity: 0;
     transition: opacity var(--transition-fast);
 }
@@ -532,16 +985,19 @@ textarea {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius-sm);
     color: var(--color-text-tertiary);
     transition: all var(--transition-fast);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
 }
 
 .message-action-btn:hover {
     background: var(--color-surface-hover);
-    color: var(--color-text-primary);
+    color: var(--color-accent);
+    border-color: var(--color-accent);
 }
 
 /* ============================================
@@ -549,10 +1005,36 @@ textarea {
    ============================================ */
 .message-bubble p {
     margin-bottom: 12px;
+    line-height: 1.8;
 }
 
 .message-bubble p:last-child {
     margin-bottom: 0;
+}
+
+.message.assistant .message-bubble p {
+    color: var(--color-text-primary);
+}
+
+.message.user .message-bubble p {
+    color: var(--color-user-bubble-text);
+}
+
+.message.assistant .message-bubble p a {
+    color: var(--color-link);
+}
+
+.message.assistant .message-bubble p a:hover {
+    color: var(--color-link-hover);
+}
+
+.message.assistant .message-bubble p strong {
+    font-weight: 600;
+}
+
+.message.assistant .message-bubble p em {
+    font-style: italic;
+    color: var(--color-text-secondary);
 }
 
 .message-bubble h1,
@@ -565,10 +1047,10 @@ textarea {
     line-height: 1.4;
 }
 
-.message-bubble h1 { font-size: 1.35rem; }
-.message-bubble h2 { font-size: 1.2rem; }
-.message-bubble h3 { font-size: 1.1rem; }
-.message-bubble h4 { font-size: 1rem; }
+.message-bubble h1 { font-size: 1.35rem; margin-top: 20px; margin-bottom: 10px; }
+.message-bubble h2 { font-size: 1.2rem; margin-top: 18px; margin-bottom: 8px; }
+.message-bubble h3 { font-size: 1.1rem; margin-top: 16px; margin-bottom: 8px; }
+.message-bubble h4 { font-size: 1rem; margin-top: 14px; margin-bottom: 6px; }
 
 .message-bubble ul,
 .message-bubble ol {
@@ -587,6 +1069,7 @@ textarea {
     background: var(--color-surface-hover);
     border-radius: var(--radius-sm);
     color: var(--color-text-secondary);
+    font-style: italic;
 }
 
 .message-bubble table {
@@ -694,7 +1177,7 @@ textarea {
 .typing-indicator {
     max-width: var(--max-chat-width);
     margin: 0 auto;
-    padding: 8px 16px;
+    padding: 8px 20px;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -860,6 +1343,17 @@ textarea {
     }
 }
 
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
 @keyframes slideUp {
     from {
         opacity: 0;
@@ -896,6 +1390,11 @@ textarea {
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* ============================================
@@ -952,17 +1451,50 @@ textarea {
     .input-wrapper {
         padding: 6px 10px;
     }
+
+    .chat-stats-panel,
+    .chat-settings-panel,
+    .all-chats-panel {
+        min-width: 90vw;
+        max-width: 95vw;
+        padding: 16px;
+    }
+
+    .chat-stats-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (min-width: 640px) and (max-width: 1023px) {
     .chat-messages {
         padding: 16px 24px;
     }
+
+    .chat-stats-panel,
+    .chat-settings-panel {
+        min-width: 400px;
+    }
+
+    .all-chats-panel {
+        min-width: 480px;
+    }
 }
 
 @media (min-width: 1024px) {
     .chat-messages {
         padding: 16px 32px;
+    }
+
+    .chat-stats-panel {
+        min-width: 420px;
+    }
+
+    .chat-settings-panel {
+        min-width: 440px;
+    }
+
+    .all-chats-panel {
+        min-width: 560px;
     }
 }
 
@@ -977,6 +1509,264 @@ textarea {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* ============================================
+   FAVORITE CHATS - مکالمات مورد علاقه
+   ============================================ */
+.chat-history-item.favorited {
+    border-color: var(--color-warning);
+}
+
+.chat-history-item.favorited .chat-history-title::before {
+    content: '❤️ ';
+    font-size: 0.8em;
+}
+
+/* ============================================
+   CHAT STATS PANEL - پنل آمار چت
+   ============================================ */
+.chat-stats-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    z-index: var(--z-toast);
+    box-shadow: var(--shadow-lg);
+    min-width: 320px;
+    animation: fadeInScale 0.2s ease;
+}
+
+.chat-stats-panel h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--color-text-primary);
+    text-align: center;
+}
+
+.chat-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.chat-stat-item {
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+}
+
+.chat-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.chat-stat-label {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+}
+
+/* ============================================
+   CHAT SETTINGS PANEL - پنل تنظیمات چت
+   ============================================ */
+.chat-settings-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    z-index: var(--z-toast);
+    box-shadow: var(--shadow-lg);
+    min-width: 360px;
+    animation: fadeInScale 0.2s ease;
+}
+
+.chat-settings-panel h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--color-text-primary);
+    text-align: center;
+}
+
+.chat-settings-group {
+    margin-bottom: 16px;
+}
+
+.chat-settings-label {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 8px;
+    display: block;
+}
+
+.chat-settings-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-size: 0.9rem;
+}
+
+.chat-settings-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+
+/* ============================================
+   ALL CHATS PANEL - پنل تمام مکالمات
+   ============================================ */
+.all-chats-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    z-index: var(--z-toast);
+    box-shadow: var(--shadow-lg);
+    min-width: 500px;
+    max-height: 70vh;
+    overflow-y: auto;
+    animation: fadeInScale 0.2s ease;
+}
+
+.all-chats-panel h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--color-text-primary);
+    text-align: center;
+}
+
+.all-chats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.all-chats-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.all-chats-item:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-accent);
+}
+
+.all-chats-item-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.all-chats-item-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.all-chats-item-date {
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary);
+}
+
+.all-chats-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ============================================
+   OVERLAY - پوشش
+   ============================================ */
+.panel-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: calc(var(--z-toast) - 1);
+    animation: fadeIn 0.2s ease;
+}
+
+/* ============================================
+   BUTTONS - دکمه‌ها
+   ============================================ */
+.btn-primary {
+    background: var(--color-accent);
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    border: none;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background: var(--color-accent-hover);
+}
+
+.btn-secondary {
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+}
+
+.btn-secondary:hover {
+    background: var(--color-surface);
+    border-color: var(--color-accent);
+}
+
+.btn-danger {
+    background: var(--color-danger);
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    border: none;
+    cursor: pointer;
+}
+
+.btn-danger:hover {
+    background: var(--color-danger-hover);
 }
 
 .sr-only {
@@ -998,12 +1788,139 @@ textarea {
 }
 
 /* ============================================
+   SELECTION - انتخاب متن
+   ============================================ */
+::selection {
+    background: var(--color-accent-light);
+    color: var(--color-text-primary);
+}
+
+/* ============================================
+   HORIZONTAL RULE - خط افقی
+   ============================================ */
+hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 16px 0;
+}
+
+/* ============================================
+   LISTS IN MESSAGES - لیست‌ها در پیام‌ها
+   ============================================ */
+.message-bubble ul {
+    list-style-type: disc;
+}
+
+.message-bubble ol {
+    list-style-type: decimal;
+}
+
+.message-bubble ul ul,
+.message-bubble ol ol,
+.message-bubble ul ol,
+.message-bubble ol ul {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+/* ============================================
+   TABLES IN MESSAGES - جداول در پیام‌ها
+   ============================================ */
+.message-bubble table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 0.9rem;
+}
+
+.message-bubble th,
+.message-bubble td {
+    border: 1px solid var(--color-border);
+    padding: 8px 12px;
+    text-align: right;
+}
+
+.message-bubble th {
+    background: var(--color-surface-hover);
+    font-weight: 600;
+}
+
+.message-bubble tr:hover td {
+    background: var(--color-surface-hover);
+}
+
+/* ============================================
+   HIGHLIGHTED CODE - کد هایلایت شده
+   ============================================ */
+.message-bubble mark {
+    background: var(--color-warning);
+    color: var(--color-text-primary);
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+}
+
+/* ============================================
+   ABBREVIATIONS - اختصارات
+   ============================================ */
+.message-bubble abbr[title] {
+    text-decoration: underline dotted;
+    cursor: help;
+}
+
+/* ============================================
+   IMAGES IN MESSAGES - تصاویر در پیام‌ها
+   ============================================ */
+.message-bubble img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-md);
+    margin: 8px 0;
+}
+
+/* ============================================
+   DETAILS/SUMMARY - جزئیات
+   ============================================ */
+.message-bubble details {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: var(--color-surface-hover);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-light);
+}
+
+.message-bubble details summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--color-accent);
+    margin-bottom: 8px;
+}
+
+.message-bubble details[open] summary {
+    margin-bottom: 12px;
+}
+
+/* ============================================
+   KBD ELEMENT - کلید صفحه‌کلید
+   ============================================ */
+.message-bubble kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 0.85em;
+    font-family: var(--font-mono);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
    PRINT - چاپ
    ============================================ */
 @media print {
     .chat-header,
     .chat-footer,
-    .message-actions {
+    .message-actions,
+    .chat-sidebar {
         display: none;
     }
 
@@ -1013,8 +1930,25 @@ textarea {
         height: auto;
     }
 
+    .chat-main-area {
+        margin-right: 0;
+    }
+
     body {
         height: auto;
         overflow: visible;
+    }
+
+    .chat-messages-wrapper {
+        overflow: visible;
+    }
+
+    .message {
+        break-inside: avoid;
+    }
+
+    .message-bubble {
+        box-shadow: none;
+        border: 1px solid #ccc;
     }
 }

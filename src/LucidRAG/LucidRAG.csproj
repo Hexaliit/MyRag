@@ -115,6 +115,39 @@
         <Content Update="Views\Shared\_Layout.cshtml">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+        <Content Update="wwwroot\assets\fonts\bootstrap-icons.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\fonts\Vazirmatn-300.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\fonts\Vazirmatn-400.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\fonts\Vazirmatn-600.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\fonts\Vazirmatn-700.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\vazirmatn\fonts\Vazirmatn-Bold.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\vazirmatn\fonts\Vazirmatn-Light.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\vazirmatn\fonts\Vazirmatn-Medium.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\vazirmatn\fonts\Vazirmatn-Regular.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\vazirmatn\fonts\Vazirmatn-Thin.woff2">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Update="wwwroot\assets\vazirmatn\vazirmatn.css">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
         <Content Update="wwwroot\css\filepond-plugin-file-poster.min.css">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
@@ -165,6 +198,9 @@
         <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\tr\System.CommandLine.resources.dll" />
         <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\zh-Hans\System.CommandLine.resources.dll" />
         <_ContentIncludedByDefault Remove="C:\Users\scott\.nuget\packages\microsoft.codeanalysis.workspaces.msbuild\4.14.0\contentFiles\any\any\BuildHost-net472\zh-Hant\System.CommandLine.resources.dll" />
+    </ItemGroup>
+    <ItemGroup>
+      <Folder Include="wwwroot\assets\" />
     </ItemGroup>
 
 </Project>
