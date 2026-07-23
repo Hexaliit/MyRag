@@ -33,8 +33,10 @@ public static class EntityTypeProfiles
             new EntityTypeDefinition("service", "Services and cloud resources", ["cloud", "saas"])
         ],
         StructuralSignals = ["inline_code", "heading", "link_text"],
-        MinIdfThreshold = 3.5,
-        MinMentionCount = 3
+       // MinIdfThreshold = 3.5,
+       // MinMentionCount = 3
+        MinIdfThreshold = 1.5,
+        MinMentionCount = 2
     };
 
     /// <summary>
@@ -58,7 +60,7 @@ public static class EntityTypeProfiles
             new EntityTypeDefinition("error", "Error types and exceptions", ["exception"])
         ],
         StructuralSignals = ["inline_code", "code_block"],
-        MinIdfThreshold = 3.0,
+        MinIdfThreshold = 1.5,
         MinMentionCount = 2
     };
 
@@ -83,7 +85,7 @@ public static class EntityTypeProfiles
             new EntityTypeDefinition("jurisdiction", "Jurisdictions and governing law", ["venue", "law"])
         ],
         StructuralSignals = ["heading", "bold", "numbered_item"],
-        MinIdfThreshold = 2.5,
+        MinIdfThreshold = 1.0,
         MinMentionCount = 1
     };
 
@@ -108,7 +110,7 @@ public static class EntityTypeProfiles
             new EntityTypeDefinition("amount", "Financial figures", ["budget", "cost", "revenue"])
         ],
         StructuralSignals = ["heading", "table_cell", "bold"],
-        MinIdfThreshold = 3.0,
+        MinIdfThreshold = 1.5,
         MinMentionCount = 2
     };
 
@@ -130,7 +132,7 @@ public static class EntityTypeProfiles
             new EntityTypeDefinition("entity", "Business entities in data", ["record", "row"])
         ],
         StructuralSignals = ["table_header", "column_name"],
-        MinIdfThreshold = 2.0,
+        MinIdfThreshold = 1.0,
         MinMentionCount = 1
     };
 
@@ -154,8 +156,8 @@ public static class EntityTypeProfiles
             new EntityTypeDefinition("technology", "Technologies mentioned", ["tool", "platform"])
         ],
         StructuralSignals = ["heading", "bold", "link_text"],
-        MinIdfThreshold = 3.5,
-        MinMentionCount = 3
+        MinIdfThreshold = 1.5,
+        MinMentionCount = 2
     };
 
     /// <summary>

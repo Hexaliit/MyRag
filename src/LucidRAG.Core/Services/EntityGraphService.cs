@@ -131,10 +131,12 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         // Store document reference in GraphRag
         await _graphDb.UpsertDocumentAsync(docIdStr, $"doc:{documentId}", "", "");
 
+        // Keep ALL chunks in DuckDB for cross-document IDF computation.
+        // Removing ClearAllChunksAsync enables entity extraction to consider
         // Clear ALL chunks before processing this document
         // This ensures the entity extractor only processes this document's chunks,
         // not old demo data or chunks from other documents
-        await _graphDb.ClearAllChunksAsync();
+       // await _graphDb.ClearAllChunksAsync();// all previously processed documents, building a richer knowledge graph.
 
         // Store chunks with embeddings
         foreach (var chunk in chunks)

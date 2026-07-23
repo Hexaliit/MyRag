@@ -175,7 +175,7 @@
                                 Evidence
                             </button>
                             <button class="btn btn-sm" :class="viewMode === 'graph' ? 'btn-active' : ''"
-                                    @@click="viewMode = 'graph'">
+                                    @@click="viewMode = 'graph'; loadGraphData()">
                                 Graph
                             </button>
                             <template x-if="documentDetails">
@@ -383,13 +383,24 @@
                                 <h3 class="font-semibold mb-3 flex items-center gap-2">
                                     <span>🕸️</span> Knowledge Graph
                                     <span class="badge badge-sm badge-ghost">Click nodes to explore</span>
+                                    <span x-show="graphData" class="ml-auto flex items-center gap-3 text-xs opacity-60">
+                                        <span><span x-text="graphData?.nodes?.length || 0"></span> nodes</span>
+                                        <span>•</span>
+                                        <span><span x-text="graphData?.links?.length || 0"></span> edges</span>
+                                    </span>
                                 </h3>
                                 <div class="bg-base-200 rounded-lg h-96 flex items-center justify-center relative"
                                      id="graph-container">
-                                    <template x-if="!graphData">
+                                    <template x-if="graphLoading">
+                                        <div class="flex flex-col items-center gap-2">
+                                            <span class="loading loading-spinner loading-md text-primary"></span>
+                                            <span class="text-sm text-base-content/50">Loading graph...</span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!graphData && !graphLoading">
                                         <p class="text-base-content/50">Ask a question to see the graph</p>
                                     </template>
-                                    <template x-if="graphData">
+                                    <template x-if="graphData && !graphLoading">
                                         <div class="w-full h-full" x-ref="graphCanvas">
                                             <!-- D3.js graph will be rendered here -->
                                         </div>
@@ -841,12 +852,12 @@
                         <div class="grid grid-cols-3 gap-4 text-xs">
                             <div>
                                 <span class="opacity-60">Query entities detected:</span>
-                                <div class="font-mono mt-1" x-text="debugInfo.queryEntities.join(', ') || 'None'"></div>
+                                <div class="font-mono mt-1" x-text="(debugInfo.queryEntities || []).join(', ') || 'None'"></div>
                             </div>
                             <div>
                                 <span class="opacity-60">Missing from graph:</span>
                                 <div class="font-mono mt-1 text-warning"
-                                     x-text="debugInfo.missingEntities.join(', ') || 'None'"></div>
+                                     x-text="(debugInfo.missingEntities || []).join(', ') || 'None'"></div>
                             </div>
                             <div>
                                 <span class="opacity-60">Suggestions:</span>
@@ -1326,6 +1337,7 @@
 
                 // Graph view state
                 graphData: null,
+                graphLoading: false,
                 selectedEntity: null,
                 graphSettings: {
                     maxHops: 2,
@@ -1380,6 +1392,13 @@
                             if (searchInput) searchInput.focus();
                         }
                     });
+
+                    // Watch graph settings changes to re-render graph
+                    this.$watch('graphSettings', () => {
+                        if (this.viewMode === 'graph' && this.graphData) {
+                            this.$nextTick(() => this.renderGraph());
+                        }
+                    }, { deep: true });
 
                     // Select all completed documents by default
                     await this.selectAllDocuments();
@@ -2080,6 +2099,277 @@
                     }
                 },
 
+                async loadGraphData() {
+                    if (this.graphLoading) return;
+                    this.graphLoading = true;
+                    try {
+                        const response = await fetch('/api/graph?maxNodes=100');
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Normalize API response to graphData format
+                            this.graphData = {
+                                nodes: data.nodes || [],
+                                links: data.links || [],
+                                entities: (data.nodes || []).map(n => ({
+                                    id: n.id,
+                                    name: n.name,
+                                    type: n.type,
+                                    description: n.description,
+                                    score: n.mentionCount ? n.mentionCount / 100 : 0
+                                })),
+                                paths: []
+                            };
+                            this.$nextTick(() => this.renderGraph());
+                        }
+                    } catch (e) {
+                        console.warn('Could not load graph data:', e);
+                    } finally {
+                        this.graphLoading = false;
+                    }
+                },
+
+                async loadSubgraph(entityId) {
+                    if (!entityId || this.graphLoading) return;
+                    this.graphLoading = true;
+                    try {
+                        const params = new URLSearchParams({
+                            maxHops: this.graphSettings.maxHops || 2,
+                            edgeFilter: this.graphSettings.edgeFilter || 'all'
+                        });
+                        const response = await fetch(`/api/graph/subgraph/${entityId}?${params}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.graphData = {
+                                nodes: data.nodes || [],
+                                links: (data.links || []).map(l => ({
+                                    source: l.source,
+                                    target: l.target,
+                                    type: l.type,
+                                    strength: l.strength
+                                })),
+                                entities: (data.nodes || []).map(n => ({
+                                    id: n.id,
+                                    name: n.name,
+                                    type: n.type,
+                                    description: n.description,
+                                    score: n.isCenter ? 1 : 0.5
+                                })),
+                                paths: []
+                            };
+                            this.$nextTick(() => this.renderGraph());
+                        }
+                    } catch (e) {
+                        console.warn('Could not load subgraph:', e);
+                    } finally {
+                        this.graphLoading = false;
+                    }
+                },
+
+                renderGraph() {
+                    const container = this.$refs.graphCanvas;
+                    if (!container || !this.graphData) return;
+
+                    const width = container.clientWidth;
+                    const height = container.clientHeight || 384;
+
+                    // Clear previous graph
+                    container.innerHTML = '';
+
+                    const { nodes, links } = this.graphData;
+                    if (!nodes || nodes.length === 0) return;
+
+                    // Colors by entity type
+                    const typeColors = {
+                        person: '#3b82f6',
+                        organization: '#10b981',
+                        location: '#ef4444',
+                        concept: '#8b5cf6',
+                        event: '#f59e0b',
+                        date: '#6b7280',
+                        class: '#3b82f6',
+                        function: '#10b981',
+                        method: '#8b5cf6',
+                        property: '#f59e0b',
+                        default: '#6b7280'
+                    };
+
+                    const getColor = (type) => typeColors[type?.toLowerCase()] || typeColors.default;
+
+                    // Create SVG
+                    const svg = d3.select(container)
+                        .append('svg')
+                        .attr('width', width)
+                        .attr('height', height)
+                        .style('cursor', 'grab');
+
+                    // Define arrow marker for links
+                    svg.append('defs').append('marker')
+                        .attr('id', 'arrow')
+                        .attr('viewBox', '0 -5 10 10')
+                        .attr('refX', 20)
+                        .attr('refY', 0)
+                        .attr('markerWidth', 6)
+                        .attr('markerHeight', 6)
+                        .attr('orient', 'auto')
+                        .append('path')
+                        .attr('d', 'M0,-5L10,0L0,5')
+                        .attr('fill', '#999');
+
+                    // Filter links based on edgeFilter
+                    const edgeFilter = this.graphSettings.edgeFilter || 'all';
+                    const activeLinks = edgeFilter === 'all'
+                        ? links
+                        : links.filter(l => l.type === edgeFilter);
+
+                    // Collect node IDs that are part of active links (plus all nodes)
+                    const activeNodeIds = new Set(nodes.map(n => n.id));
+                    activeLinks.forEach(l => {
+                        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                        activeNodeIds.add(sId);
+                        activeNodeIds.add(tId);
+                    });
+
+                    const activeNodes = nodes.filter(n => activeNodeIds.has(n.id));
+
+                    // Create zoom behavior
+                    const zoom = d3.zoom()
+                        .scaleExtent([0.1, 4])
+                        .on('zoom', (event) => {
+                            g.attr('transform', event.transform);
+                        });
+
+                    svg.call(zoom);
+
+                    // Main group for zoom/pan
+                    const g = svg.append('g');
+
+                    // Create links
+                    const linkGroup = g.append('g').attr('class', 'links');
+                    const linkElements = linkGroup.selectAll('g.link-group')
+                        .data(activeLinks)
+                        .enter()
+                        .append('g')
+                        .attr('class', 'link-group');
+
+                    const linkLines = linkElements.append('line')
+                        .attr('stroke', '#999')
+                        .attr('stroke-opacity', 0.6)
+                        .attr('stroke-width', d => Math.max(0.5, Math.min(3, (d.strength || 0.5) * 3)))
+                        .attr('marker-end', 'url(#arrow)');
+
+                    // Link labels
+                    const linkLabels = linkElements.append('text')
+                        .attr('font-size', '8px')
+                        .attr('fill', '#999')
+                        .attr('text-anchor', 'middle')
+                        .attr('dy', '-4')
+                        .text(d => d.type || '');
+
+                    // Create nodes
+                    const nodeGroup = g.append('g').attr('class', 'nodes');
+                    const nodeElements = nodeGroup.selectAll('g.node-group')
+                        .data(activeNodes)
+                        .enter()
+                        .append('g')
+                        .attr('class', 'node-group')
+                        .style('cursor', 'pointer')
+                        .on('click', (event, d) => {
+                            event.stopPropagation();
+                            this.loadSubgraph(d.id);
+                        })
+                        .call(d3.drag()
+                            .on('start', (event, d) => {
+                                if (!event.active) simulation.alphaTarget(0.3).restart();
+                                d.fx = d.x;
+                                d.fy = d.y;
+                            })
+                            .on('drag', (event, d) => {
+                                d.fx = event.x;
+                                d.fy = event.y;
+                            })
+                            .on('end', (event, d) => {
+                                if (!event.active) simulation.alphaTarget(0);
+                                d.fx = null;
+                                d.fy = null;
+                            })
+                        );
+
+                    // Node circles
+                    nodeElements.append('circle')
+                        .attr('r', d => Math.max(5, Math.min(15, (d.mentionCount || 1) * 0.5)))
+                        .attr('fill', d => getColor(d.type))
+                        .attr('stroke', '#fff')
+                        .attr('stroke-width', 1.5);
+
+                    // Node labels
+                    nodeElements.append('text')
+                        .attr('dx', d => Math.max(5, Math.min(15, (d.mentionCount || 1) * 0.5)) + 4)
+                        .attr('dy', 4)
+                        .attr('font-size', '10px')
+                        .attr('fill', '#333')
+                        .text(d => d.name || '');
+
+                    // Node type badges (small text below label)
+                    nodeElements.append('text')
+                        .attr('dx', d => Math.max(5, Math.min(15, (d.mentionCount || 1) * 0.5)) + 4)
+                        .attr('dy', 14)
+                        .attr('font-size', '7px')
+                        .attr('fill', '#999')
+                        .text(d => d.type || '');
+
+                    // Force simulation
+                    const simulation = d3.forceSimulation(activeNodes)
+                        .force('link', d3.forceLink(activeLinks)
+                            .id(d => d.id)
+                            .distance(100)
+                        )
+                        .force('charge', d3.forceManyBody().strength(-300))
+                        .force('center', d3.forceCenter(width / 2, height / 2))
+                        .force('collision', d3.forceCollide().radius(30))
+                        .on('tick', () => {
+                            linkLines
+                                .attr('x1', d => d.source.x)
+                                .attr('y1', d => d.source.y)
+                                .attr('x2', d => d.target.x)
+                                .attr('y2', d => d.target.y);
+
+                            linkLabels
+                                .attr('x', d => (d.source.x + d.target.x) / 2)
+                                .attr('y', d => (d.source.y + d.target.y) / 2);
+
+                            nodeElements
+                                .attr('transform', d => `translate(${d.x},${d.y})`);
+                        });
+
+                    // Legend
+                    const types = [...new Set(activeNodes.map(n => n.type?.toLowerCase()).filter(Boolean))];
+                    const legend = svg.append('g')
+                        .attr('transform', `translate(${width - 120}, 10)`);
+
+                    types.slice(0, 8).forEach((type, i) => {
+                        const row = legend.append('g')
+                            .attr('transform', `translate(0, ${i * 18})`);
+
+                        row.append('circle')
+                            .attr('r', 4)
+                            .attr('fill', getColor(type));
+
+                        row.append('text')
+                            .attr('x', 10)
+                            .attr('y', 4)
+                            .attr('font-size', '9px')
+                            .attr('fill', '#666')
+                            .text(type.charAt(0).toUpperCase() + type.slice(1));
+                    });
+
+                    // Double-click to reset zoom
+                    svg.on('dblclick.zoom', null);
+                    svg.on('dblclick', () => {
+                        svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+                    });
+                },
+
                 async uploadFiles(event) {
                     const files = event.target.files;
                     if (!files.length) return;
@@ -2381,9 +2671,16 @@
 
                                         // Store debug info
                                         this.debugInfo = {
+                                            queryEntities: [],
+                                            missingEntities: [],
+                                            suggestion: null,
                                             latencyMs: Date.now() - startTime,
-                                            retrievalHits: sources.length
+                                            retrievalHits: sources.length,
+                                            graphExpansions: 0
                                         };
+
+                                        // Pre-load graph data for Graph view
+                                        this.loadGraphData();
                                     }
                                 } catch (parseErr) {
                                     console.warn('Failed to parse SSE chunk:', parseErr);

@@ -23,6 +23,21 @@
         stopButton: $('#stopButton'),
         errorToast: $('#errorToast'),
         errorMessage: $('#errorMessage'),
+        chatSidebar: null,
+        toggleSidebar: null,
+        themeToggleSidebar: null,
+        themeToggleMain: null,
+        newChatBtnSidebar: null,
+        newChatBtnMain: null,
+        clearChatHistory: null,
+        showAllChats: null,
+        exportChats: null,
+        chatSettings: null,
+        chatStats: null,
+        favoriteChats: null,
+        exportChatHistory: null,
+        clearAllData: null,
+        chatHistoryList: null,
     };
 
     // ============================================================
@@ -56,10 +71,11 @@
     // Textarea Auto-resize
     // ============================================================
     function autoResizeTextarea() {
-        const ta = dom.messageInput;
+        if (!dom.messageInput) return;
+        var ta = dom.messageInput;
         ta.style.height = 'auto';
-        const maxH = 200;
-        const newH = Math.min(ta.scrollHeight, maxH);
+        var maxH = 200;
+        var newH = Math.min(ta.scrollHeight, maxH);
         ta.style.height = newH + 'px';
     }
 
@@ -174,29 +190,31 @@
     // Show / Hide
     // ============================================================
     function showWelcome() {
-        dom.welcomeScreen.hidden = false;
-        dom.chatMessages.innerHTML = '';
+        if (dom.welcomeScreen) dom.welcomeScreen.hidden = false;
+        if (dom.chatMessages) dom.chatMessages.innerHTML = '';
         state.hasConversation = false;
     }
 
     function hideWelcome() {
-        dom.welcomeScreen.hidden = true;
+        if (dom.welcomeScreen) dom.welcomeScreen.hidden = true;
         state.hasConversation = true;
     }
 
     function showError(message) {
-        dom.errorMessage.textContent = message;
-        dom.errorToast.hidden = false;
-        setTimeout(function () { dom.errorToast.hidden = true; }, 5000);
+        if (dom.errorMessage) dom.errorMessage.textContent = message;
+        if (dom.errorToast) dom.errorToast.hidden = false;
+        setTimeout(function () {
+            if (dom.errorToast) dom.errorToast.hidden = true;
+        }, 5000);
     }
 
     function showTyping() {
-        dom.typingIndicator.hidden = false;
+        if (dom.typingIndicator) dom.typingIndicator.hidden = false;
         scrollToBottom(true);
     }
 
     function hideTyping() {
-        dom.typingIndicator.hidden = true;
+        if (dom.typingIndicator) dom.typingIndicator.hidden = true;
     }
 
     // ============================================================
@@ -313,16 +331,28 @@
         state.isStreaming = false;
         state.abortController = null;
 
-        dom.sendButton.hidden = false;
-        dom.stopButton.hidden = true;
-        dom.messageInput.disabled = false;
-        dom.messageInput.focus();
+        if (dom.sendButton) dom.sendButton.hidden = false;
+        if (dom.stopButton) dom.stopButton.hidden = true;
+        if (dom.messageInput) {
+            dom.messageInput.disabled = false;
+            dom.messageInput.focus();
+        }
 
         hideTyping();
 
         if (state.currentAssistantBubble && text) {
             state.currentAssistantBubble.innerHTML = renderMarkdown(text);
             addCodeCopyButtons(state.currentAssistantBubble);
+        }
+
+        // Save to history
+        if (text && state.hasConversation) {
+            var userMessages = dom.chatMessages.querySelectorAll('.message.user .message-bubble');
+            var lastUserMsg = userMessages.length > 0 ? userMessages[userMessages.length - 1].textContent : 'مکالمه جدید';
+            saveChatToHistory(lastUserMsg.substring(0, 50), [
+                { role: 'user', content: lastUserMsg },
+                { role: 'assistant', content: text }
+            ]);
         }
 
         state.currentAssistantMsg = null;
@@ -337,9 +367,9 @@
         state.isStreaming = false;
         state.abortController = null;
 
-        dom.sendButton.hidden = false;
-        dom.stopButton.hidden = true;
-        dom.messageInput.disabled = false;
+        if (dom.sendButton) dom.sendButton.hidden = false;
+        if (dom.stopButton) dom.stopButton.hidden = true;
+        if (dom.messageInput) dom.messageInput.disabled = false;
 
         hideTyping();
     }
@@ -370,10 +400,12 @@
             cancelStream();
         }
         showWelcome();
-        dom.messageInput.value = '';
-        autoResizeTextarea();
-        dom.sendButton.disabled = true;
-        dom.messageInput.focus();
+        if (dom.messageInput) {
+            dom.messageInput.value = '';
+            autoResizeTextarea();
+            dom.sendButton.disabled = true;
+            dom.messageInput.focus();
+        }
     }
 
     // ============================================================
@@ -384,10 +416,12 @@
         if (!chip) return;
         var prompt = chip.getAttribute('data-prompt');
         if (prompt) {
-            dom.messageInput.value = prompt;
-            autoResizeTextarea();
-            dom.sendButton.disabled = false;
-            dom.messageInput.focus();
+            if (dom.messageInput) {
+                dom.messageInput.value = prompt;
+                autoResizeTextarea();
+                dom.sendButton.disabled = false;
+                dom.messageInput.focus();
+            }
             sendMessage(prompt);
         }
     }
@@ -396,14 +430,16 @@
     // Input Management
     // ============================================================
     function updateSendButton() {
-        var text = dom.messageInput.value.trim();
-        dom.sendButton.disabled = !text || state.isStreaming;
+        if (dom.messageInput && dom.sendButton) {
+            var text = dom.messageInput.value.trim();
+            dom.sendButton.disabled = !text || state.isStreaming;
+        }
     }
 
     function handleKeydown(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (!dom.sendButton.disabled) {
+            if (dom.sendButton && !dom.sendButton.disabled) {
                 sendMessage(dom.messageInput.value);
                 dom.messageInput.value = '';
                 autoResizeTextarea();
@@ -690,79 +726,85 @@
     function init() {
         initTheme();
 
+        // DOM References for new elements
+        dom.chatSidebar = document.getElementById('chatSidebar');
+        dom.toggleSidebar = document.getElementById('toggleSidebar');
+        dom.themeToggleSidebar = document.getElementById('themeToggleSidebar');
+        dom.themeToggleMain = document.getElementById('themeToggleMain');
+        dom.newChatBtnSidebar = document.getElementById('newChatBtnSidebar');
+        dom.newChatBtnMain = document.getElementById('newChatBtnMain');
+        dom.clearChatHistory = document.getElementById('clearChatHistory');
+        dom.showAllChats = document.getElementById('showAllChats');
+        dom.exportChats = document.getElementById('exportChats');
+        dom.chatSettings = document.getElementById('chatSettings');
+        dom.chatStats = document.getElementById('chatStats');
+        dom.favoriteChats = document.getElementById('favoriteChats');
+        dom.exportChatHistory = document.getElementById('exportChatHistory');
+        dom.clearAllData = document.getElementById('clearAllData');
+        dom.chatHistoryList = document.getElementById('chatHistoryList');
+
         // Theme toggle
-        dom.themeToggle.addEventListener('click', toggleTheme);
+        if (dom.themeToggle) dom.themeToggle.addEventListener('click', toggleTheme);
 
         // New chat
-        dom.newChatBtn.addEventListener('click', newChat);
+        if (dom.newChatBtn) dom.newChatBtn.addEventListener('click', newChat);
 
         // Message input
-        dom.messageInput.addEventListener('input', function () {
-            autoResizeTextarea();
-            updateSendButton();
-        });
-        dom.messageInput.addEventListener('keydown', handleKeydown);
+        if (dom.messageInput) {
+            dom.messageInput.addEventListener('input', function () {
+                autoResizeTextarea();
+                updateSendButton();
+            });
+            dom.messageInput.addEventListener('keydown', handleKeydown);
+        }
 
         // Send button
-        dom.sendButton.addEventListener('click', function () {
-            var text = dom.messageInput.value;
-            if (text.trim()) {
-                sendMessage(text);
-                dom.messageInput.value = '';
-                autoResizeTextarea();
-                dom.sendButton.disabled = true;
-            }
-        });
-
-        // Stop button
-        dom.stopButton.addEventListener('click', cancelStream);
-
-        // Suggestion chips
-        dom.welcomeScreen.addEventListener('click', handleSuggestionClick);
-
-        // Message action buttons (copy)
-        dom.chatMessages.addEventListener('click', handleMessageActionClick);
-
-        // Sidebar admin buttons
-        var toggleSidebar = document.getElementById('toggleSidebar');
-        var themeToggleSidebar = document.getElementById('themeToggleSidebar');
-        var themeToggleMain = document.getElementById('themeToggleMain');
-        var newChatBtnSidebar = document.getElementById('newChatBtnSidebar');
-        var newChatBtnMain = document.getElementById('newChatBtnMain');
-        var clearChatHistory = document.getElementById('clearChatHistory');
-        var showAllChatsBtn = document.getElementById('showAllChats');
-        var exportChatsBtn = document.getElementById('exportChats');
-        var chatSettingsBtn = document.getElementById('chatSettings');
-        var chatStatsBtn = document.getElementById('chatStats');
-        var favoriteChatsBtn = document.getElementById('favoriteChats');
-        var exportChatHistoryBtn = document.getElementById('exportChatHistory');
-        var clearAllDataBtn = document.getElementById('clearAllData');
-        var chatSidebar = document.getElementById('chatSidebar');
-
-        if (toggleSidebar && chatSidebar) {
-            toggleSidebar.addEventListener('click', function() {
-                chatSidebar.classList.toggle('open');
+        if (dom.sendButton) {
+            dom.sendButton.addEventListener('click', function () {
+                var text = dom.messageInput.value;
+                if (text.trim()) {
+                    sendMessage(text);
+                    dom.messageInput.value = '';
+                    autoResizeTextarea();
+                    dom.sendButton.disabled = true;
+                }
             });
         }
 
-        if (themeToggleSidebar) {
-            themeToggleSidebar.addEventListener('click', toggleTheme);
+        // Stop button
+        if (dom.stopButton) dom.stopButton.addEventListener('click', cancelStream);
+
+        // Suggestion chips
+        if (dom.welcomeScreen) dom.welcomeScreen.addEventListener('click', handleSuggestionClick);
+
+        // Message action buttons (copy)
+        if (dom.chatMessages) dom.chatMessages.addEventListener('click', handleMessageActionClick);
+
+        // Sidebar admin buttons
+        if (dom.toggleSidebar) {
+            dom.toggleSidebar.addEventListener('click', function() {
+                dom.chatSidebar.classList.toggle('open');
+            });
         }
 
-        if (themeToggleMain) {
-            themeToggleMain.addEventListener('click', toggleTheme);
+        if (dom.themeToggleSidebar) {
+            dom.themeToggleSidebar.addEventListener('click', toggleTheme);
         }
 
-        if (newChatBtnSidebar) {
-            newChatBtnSidebar.addEventListener('click', newChat);
+        if (dom.themeToggleMain) {
+            dom.themeToggleMain.addEventListener('click', toggleTheme);
         }
 
-        if (newChatBtnMain) {
-            newChatBtnMain.addEventListener('click', newChat);
+        if (dom.newChatBtnSidebar) {
+            dom.newChatBtnSidebar.addEventListener('click', newChat);
         }
 
-        if (clearChatHistory) {
-            clearChatHistory.addEventListener('click', function() {
+        if (dom.newChatBtnMain) {
+            dom.newChatBtnMain.addEventListener('click', newChat);
+        }
+
+        if (dom.clearChatHistory) {
+            dom.clearChatHistory.addEventListener('click', function() {
                 if (confirm('آیا از پاک کردن تاریخچه مکالمات اطمینان دارید؟')) {
                     localStorage.removeItem('chatHistory');
                     renderChatHistory();
@@ -771,38 +813,44 @@
             });
         }
 
-        if (showAllChatsBtn) {
-            showAllChatsBtn.addEventListener('click', showAllChats);
+        if (dom.showAllChats) {
+            dom.showAllChats.addEventListener('click', showAllChats);
         }
 
-        if (exportChatsBtn) {
-            exportChatsBtn.addEventListener('click', exportChatHistory);
+        if (dom.exportChats) {
+            dom.exportChats.addEventListener('click', exportChatHistory);
         }
 
-        if (chatSettingsBtn) {
-            chatSettingsBtn.addEventListener('click', showChatSettings);
+        if (dom.chatSettings) {
+            dom.chatSettings.addEventListener('click', showChatSettings);
         }
 
-        if (chatStatsBtn) {
-            chatStatsBtn.addEventListener('click', showChatStats);
+        if (dom.chatStats) {
+            dom.chatStats.addEventListener('click', showChatStats);
         }
 
-        if (favoriteChatsBtn) {
-            favoriteChatsBtn.addEventListener('click', toggleFavoriteChat);
+        if (dom.favoriteChats) {
+            dom.favoriteChats.addEventListener('click', toggleFavoriteChat);
         }
 
-        if (exportChatHistoryBtn) {
-            exportChatHistoryBtn.addEventListener('click', exportChatHistory);
+        if (dom.exportChatHistory) {
+            dom.exportChatHistory.addEventListener('click', exportChatHistory);
         }
 
-        if (clearAllDataBtn) {
-            clearAllDataBtn.addEventListener('click', clearAllChatData);
+        if (dom.clearAllData) {
+            dom.clearAllData.addEventListener('click', clearAllChatData);
         }
 
         // Initial state
         dom.sendButton.disabled = true;
         dom.messageInput.focus();
         renderChatHistory();
+
+        // Load saved settings
+        var displayName = localStorage.getItem('chatDisplayName');
+        if (displayName) {
+            console.log('نام نمایشی: ' + displayName);
+        }
 
         console.log('چت لوسیدراگ آماده است');
     }

@@ -69,7 +69,8 @@ public sealed class ProfileAwareEntityExtractor : IEntityExtractor
         // Phase 1: Build corpus IDF statistics (for heuristic backup)
         // ═══════════════════════════════════════════════════════════════════
         progress?.Report(new ProgressInfo(0, 1, $"Extracting entities with {_profile.DisplayName} profile..."));
-        var (termIdf, _) = ComputeIdfStats(chunks);
+        var (termIdf, termDocFreq) = ComputeIdfStats(chunks);
+        //var (termIdf, _) = ComputeIdfStats(chunks);
 
         // ═══════════════════════════════════════════════════════════════════
         // Phase 2: Extract candidates using ONNX NER or heuristics
@@ -92,11 +93,11 @@ public sealed class ProfileAwareEntityExtractor : IEntityExtractor
                 catch (Exception)
                 {
                     // Fallback to heuristics if NER fails
-                    chunkCandidates = ExtractFromChunkHeuristic(chunk.Text, termIdf);
+                    chunkCandidates = ExtractFromChunkHeuristic(chunk.Text, termIdf, termDocFreq);
                 }
             else
                 // Heuristic extraction
-                chunkCandidates = ExtractFromChunkHeuristic(chunk.Text, termIdf);
+                chunkCandidates = ExtractFromChunkHeuristic(chunk.Text, termIdf, termDocFreq);
 
             // Merge candidates
             foreach (var c in chunkCandidates)
@@ -192,21 +193,31 @@ public sealed class ProfileAwareEntityExtractor : IEntityExtractor
     /// <summary>
     ///     Heuristic extraction using IDF + structural signals.
     /// </summary>
-    private List<EntityCandidate> ExtractFromChunkHeuristic(string text, Dictionary<string, double> termIdf)
+    private List<EntityCandidate> ExtractFromChunkHeuristic(
+        string text,
+        Dictionary<string, double> termIdf,
+        Dictionary<string, int> termDocFreq)
     {
         var candidates = new Dictionary<string, EntityCandidate>(StringComparer.OrdinalIgnoreCase);
         var minIdf = _profile.MinIdfThreshold;
+        var minMentions = _profile.MinMentionCount;
 
-        // Signal 1: Terms with high IDF
+        // Signal 1: Terms with high IDF (across-document rarity) or high frequency in current corpus
         foreach (Match m in TokenRx.Matches(text))
         {
             var term = m.Value;
             if (term.Length < 3) continue;
 
-            if (termIdf.TryGetValue(term, out var idf) && idf >= minIdf)
+            if (termIdf.TryGetValue(term, out var idf))
             {
-                var confidence = Math.Min(0.9, 0.4 + idf * 0.05);
-                AddCandidate(candidates, term, "concept", confidence, "high_idf");
+                var confidence = idf >= minIdf
+                    ? Math.Min(0.9, 0.4 + idf * 0.05)
+                    : Math.Min(0.6, 0.3 + idf * 0.1);
+
+                // Include if meets IDF threshold OR has sufficient mention frequency
+                var docFreq = termDocFreq.GetValueOrDefault(term, 0);
+                if (idf >= minIdf || docFreq >= minMentions)
+                    AddCandidate(candidates, term, "concept", confidence, "high_idf");
             }
         }
 
