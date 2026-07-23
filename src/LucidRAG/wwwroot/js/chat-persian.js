@@ -413,6 +413,278 @@
     }
 
     // ============================================================
+    // Admin Features - امکانات ادمین
+    // ============================================================
+    function renderChatHistory() {
+        var historyList = document.getElementById('chatHistoryList');
+        if (!historyList) return;
+
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+
+        if (history.length === 0) {
+            historyList.innerHTML = '<div class="text-center text-xs opacity-50 py-8">هیچ مکالمه‌ای وجود ندارد</div>';
+            return;
+        }
+
+        historyList.innerHTML = history.map(function(chat, index) {
+            return '<div class="chat-history-item ' + (chat.isActive ? 'active' : '') + '" data-index="' + index + '">' +
+                '<div class="chat-history-content">' +
+                '<div class="chat-history-title">' + chat.title + '</div>' +
+                '<div class="chat-history-date">' + chat.date + '</div>' +
+                '</div>' +
+                '<button class="chat-history-delete" data-action="delete" data-index="' + index + '" title="حذف">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
+                '</svg>' +
+                '</button>' +
+                '</div>';
+        }).join('');
+
+        historyList.querySelectorAll('.chat-history-item').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+                if (e.target.closest('.chat-history-delete')) return;
+                var index = parseInt(this.getAttribute('data-index'));
+                loadChatHistory(index);
+            });
+        });
+
+        historyList.querySelectorAll('.chat-history-delete').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var index = parseInt(this.getAttribute('data-index'));
+                deleteChatHistory(index);
+            });
+        });
+    }
+
+    function loadChatHistory(index) {
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+        if (index >= 0 && index < history.length) {
+            showWelcome();
+            history.forEach(function(chat, i) {
+                chat.isActive = (i === index);
+            });
+            localStorage.setItem('chatHistory', JSON.stringify(history));
+            renderChatHistory();
+
+            if (history[index].messages && history[index].messages.length > 0) {
+                history[index].messages.forEach(function(msg) {
+                    if (msg.role === 'user') {
+                        var userMsg = createUserMessage(msg.content);
+                        dom.chatMessages.appendChild(userMsg);
+                    }
+                });
+                hideWelcome();
+            }
+        }
+    }
+
+    function deleteChatHistory(index) {
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+        history.splice(index, 1);
+        localStorage.setItem('chatHistory', JSON.stringify(history));
+        renderChatHistory();
+    }
+
+    function saveChatToHistory(title, messages) {
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+        var existingIndex = history.findIndex(function(chat) {
+            return chat.isActive;
+        });
+
+        if (existingIndex >= 0) {
+            history[existingIndex].messages = messages;
+            history[existingIndex].title = title || history[existingIndex].title;
+        } else {
+            history.push({
+                title: title || 'مکالمه جدید',
+                date: new Date().toLocaleDateString('fa-IR'),
+                messages: messages,
+                isActive: true
+            });
+        }
+
+        localStorage.setItem('chatHistory', JSON.stringify(history));
+        renderChatHistory();
+    }
+
+    function showChatStats() {
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+        var totalChats = history.length;
+        var totalMessages = history.reduce(function(sum, chat) {
+            return sum + (chat.messages ? chat.messages.length : 0);
+        }, 0);
+        var favoriteChats = history.filter(function(chat) {
+            return chat.isFavorite;
+        }).length;
+
+        var overlay = document.createElement('div');
+        overlay.className = 'panel-overlay';
+        overlay.addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            document.body.removeChild(panel);
+        });
+
+        var panel = document.createElement('div');
+        panel.className = 'chat-stats-panel';
+        panel.innerHTML = '<h3>آمار چت</h3>' +
+            '<div class="chat-stats-grid">' +
+            '<div class="chat-stat-item"><div class="chat-stat-value">' + totalChats + '</div><div class="chat-stat-label">تعداد مکالمات</div></div>' +
+            '<div class="chat-stat-item"><div class="chat-stat-value">' + totalMessages + '</div><div class="chat-stat-label">تعداد پیام‌ها</div></div>' +
+            '<div class="chat-stat-item"><div class="chat-stat-value">' + favoriteChats + '</div><div class="chat-stat-label">مکالمات مورد علاقه</div></div>' +
+            '<div class="chat-stat-item"><div class="chat-stat-value">' + new Date().toLocaleDateString('fa-IR') + '</div><div class="chat-stat-label">تاریخ امروز</div></div>' +
+            '</div>' +
+            '<div style="text-align: center; margin-top: 16px;"><button class="btn-primary" id="closeStatsPanel">بستن</button></div>';
+
+        document.body.appendChild(overlay);
+        document.body.appendChild(panel);
+
+        panel.querySelector('#closeStatsPanel').addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            document.body.removeChild(panel);
+        });
+    }
+
+    function showChatSettings() {
+        var overlay = document.createElement('div');
+        overlay.className = 'panel-overlay';
+        overlay.addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            document.body.removeChild(panel);
+        });
+
+        var panel = document.createElement('div');
+        panel.className = 'chat-settings-panel';
+        panel.innerHTML = '<h3>تنظیمات چت</h3>' +
+            '<div class="chat-settings-group">' +
+            '<label class="chat-settings-label">نام نمایشی</label>' +
+            '<input type="text" class="chat-settings-input" id="displayNameInput" value="' + (localStorage.getItem('chatDisplayName') || 'کاربر') + '" />' +
+            '</div>' +
+            '<div class="chat-settings-group">' +
+            '<label class="chat-settings-label">موضوع پیش‌فرض</label>' +
+            '<input type="text" class="chat-settings-input" id="defaultTopicInput" value="' + (localStorage.getItem('chatDefaultTopic') || 'اسناد سازمانی') + '" />' +
+            '</div>' +
+            '<div style="display: flex; gap: 8px; justify-content: center; margin-top: 16px;">' +
+            '<button class="btn-primary" id="saveSettings">ذخیره</button>' +
+            '<button class="btn-secondary" id="closeSettings">لغو</button>' +
+            '</div>';
+
+        document.body.appendChild(overlay);
+        document.body.appendChild(panel);
+
+        panel.querySelector('#saveSettings').addEventListener('click', function() {
+            localStorage.setItem('chatDisplayName', panel.querySelector('#displayNameInput').value);
+            localStorage.setItem('chatDefaultTopic', panel.querySelector('#defaultTopicInput').value);
+            document.body.removeChild(overlay);
+            document.body.removeChild(panel);
+        });
+
+        panel.querySelector('#closeSettings').addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            document.body.removeChild(panel);
+        });
+    }
+
+    function showAllChats() {
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+
+        var overlay = document.createElement('div');
+        overlay.className = 'panel-overlay';
+        overlay.addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            document.body.removeChild(panel);
+        });
+
+        var panel = document.createElement('div');
+        panel.className = 'all-chats-panel';
+
+        if (history.length === 0) {
+            panel.innerHTML = '<h3>تمام مکالمات</h3><div class="text-center text-sm opacity-50 py-8">هیچ مکالمه‌ای وجود ندارد</div>';
+        } else {
+            var listHtml = history.map(function(chat, index) {
+                return '<div class="all-chats-item" data-index="' + index + '">' +
+                    '<div class="all-chats-item-content">' +
+                    '<div class="all-chats-item-title">' + chat.title + '</div>' +
+                    '<div class="all-chats-item-date">' + chat.date + '</div>' +
+                    '</div>' +
+                    '<div class="all-chats-item-actions">' +
+                    '<button class="btn-secondary btn-sm" data-action="load" data-index="' + index + '">بارگذاری</button>' +
+                    '<button class="btn-danger btn-sm" data-action="delete" data-index="' + index + '">حذف</button>' +
+                    '</div>' +
+                    '</div>';
+            }).join('');
+
+            panel.innerHTML = '<h3>تمام مکالمات</h3><div class="all-chats-list">' + listHtml + '</div>';
+        }
+
+        panel.innerHTML += '<div style="text-align: center; margin-top: 16px;"><button class="btn-primary" id="closeAllChats">بستن</button></div>';
+
+        document.body.appendChild(overlay);
+        document.body.appendChild(panel);
+
+        panel.querySelector('#closeAllChats').addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            document.body.removeChild(panel);
+        });
+
+        panel.querySelectorAll('[data-action="load"]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var index = parseInt(this.getAttribute('data-index'));
+                loadChatHistory(index);
+                document.body.removeChild(overlay);
+                document.body.removeChild(panel);
+            });
+        });
+
+        panel.querySelectorAll('[data-action="delete"]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var index = parseInt(this.getAttribute('data-index'));
+                deleteChatHistory(index);
+                document.body.removeChild(overlay);
+                document.body.removeChild(panel);
+                showAllChats();
+            });
+        });
+    }
+
+    function exportChatHistory() {
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+        var dataStr = JSON.stringify(history, null, 2);
+        var dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        var exportFileDefaultName = 'lucidrag-chat-history-' + new Date().toISOString().slice(0, 10) + '.json';
+        var linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    }
+
+    function toggleFavoriteChat() {
+        var history = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+        var activeIndex = history.findIndex(function(chat) {
+            return chat.isActive;
+        });
+
+        if (activeIndex >= 0) {
+            history[activeIndex].isFavorite = !history[activeIndex].isFavorite;
+            localStorage.setItem('chatHistory', JSON.stringify(history));
+            renderChatHistory();
+        }
+    }
+
+    function clearAllChatData() {
+        if (confirm('آیا از پاک کردن تمام داده‌های چت اطمینان دارید؟ این عمل غیرقابل بازگشت است.')) {
+            localStorage.removeItem('chatHistory');
+            localStorage.removeItem('chatDisplayName');
+            localStorage.removeItem('chatDefaultTopic');
+            renderChatHistory();
+            showWelcome();
+            dom.messageInput.value = '';
+            autoResizeTextarea();
+            dom.sendButton.disabled = true;
+        }
+    }
+
+    // ============================================================
     // Init
     // ============================================================
     function init() {
@@ -451,11 +723,88 @@
         // Message action buttons (copy)
         dom.chatMessages.addEventListener('click', handleMessageActionClick);
 
+        // Sidebar admin buttons
+        var toggleSidebar = document.getElementById('toggleSidebar');
+        var themeToggleSidebar = document.getElementById('themeToggleSidebar');
+        var themeToggleMain = document.getElementById('themeToggleMain');
+        var newChatBtnSidebar = document.getElementById('newChatBtnSidebar');
+        var newChatBtnMain = document.getElementById('newChatBtnMain');
+        var clearChatHistory = document.getElementById('clearChatHistory');
+        var showAllChatsBtn = document.getElementById('showAllChats');
+        var exportChatsBtn = document.getElementById('exportChats');
+        var chatSettingsBtn = document.getElementById('chatSettings');
+        var chatStatsBtn = document.getElementById('chatStats');
+        var favoriteChatsBtn = document.getElementById('favoriteChats');
+        var exportChatHistoryBtn = document.getElementById('exportChatHistory');
+        var clearAllDataBtn = document.getElementById('clearAllData');
+        var chatSidebar = document.getElementById('chatSidebar');
+
+        if (toggleSidebar && chatSidebar) {
+            toggleSidebar.addEventListener('click', function() {
+                chatSidebar.classList.toggle('open');
+            });
+        }
+
+        if (themeToggleSidebar) {
+            themeToggleSidebar.addEventListener('click', toggleTheme);
+        }
+
+        if (themeToggleMain) {
+            themeToggleMain.addEventListener('click', toggleTheme);
+        }
+
+        if (newChatBtnSidebar) {
+            newChatBtnSidebar.addEventListener('click', newChat);
+        }
+
+        if (newChatBtnMain) {
+            newChatBtnMain.addEventListener('click', newChat);
+        }
+
+        if (clearChatHistory) {
+            clearChatHistory.addEventListener('click', function() {
+                if (confirm('آیا از پاک کردن تاریخچه مکالمات اطمینان دارید؟')) {
+                    localStorage.removeItem('chatHistory');
+                    renderChatHistory();
+                    showWelcome();
+                }
+            });
+        }
+
+        if (showAllChatsBtn) {
+            showAllChatsBtn.addEventListener('click', showAllChats);
+        }
+
+        if (exportChatsBtn) {
+            exportChatsBtn.addEventListener('click', exportChatHistory);
+        }
+
+        if (chatSettingsBtn) {
+            chatSettingsBtn.addEventListener('click', showChatSettings);
+        }
+
+        if (chatStatsBtn) {
+            chatStatsBtn.addEventListener('click', showChatStats);
+        }
+
+        if (favoriteChatsBtn) {
+            favoriteChatsBtn.addEventListener('click', toggleFavoriteChat);
+        }
+
+        if (exportChatHistoryBtn) {
+            exportChatHistoryBtn.addEventListener('click', exportChatHistory);
+        }
+
+        if (clearAllDataBtn) {
+            clearAllDataBtn.addEventListener('click', clearAllChatData);
+        }
+
         // Initial state
         dom.sendButton.disabled = true;
         dom.messageInput.focus();
+        renderChatHistory();
 
-        console.log('چت ايسيكو آماده است');
+        console.log('چت لوسیدراگ آماده است');
     }
 
     // Run on DOM ready
