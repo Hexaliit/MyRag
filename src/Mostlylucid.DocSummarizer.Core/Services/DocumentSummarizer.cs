@@ -654,7 +654,7 @@ public class DocumentSummarizer
             new RetrievalConfig
             {
                 Alpha = 0.6,
-                TopK = 25,
+                TopK = 50,
                 FallbackCount = 5,
                 MinSimilarity = 0.3
             },
@@ -724,7 +724,7 @@ public class DocumentSummarizer
             new RetrievalConfig
             {
                 Alpha = 0.6, // 60% query similarity, 40% salience
-                TopK = 25, // Retrieve more for synthesis
+                TopK = 50, // Retrieve more for synthesis
                 FallbackCount = 5,
                 MinSimilarity = 0.3
             },

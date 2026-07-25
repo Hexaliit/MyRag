@@ -1061,7 +1061,7 @@ public class RetrievalConfigSection
     ///     Base number of segments to retrieve for synthesis.
     ///     May be scaled by adaptive retrieval based on document size/type.
     /// </summary>
-    public int TopK { get; set; } = 25;
+    public int TopK { get; set; } = 50;
 
     /// <summary>
     ///     Always include top-N salient segments regardless of query match

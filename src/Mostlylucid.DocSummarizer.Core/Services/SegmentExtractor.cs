@@ -301,22 +301,35 @@ public class SegmentExtractor : IDisposable
                 charOffset += section.Heading.Length + 1;
             }
 
-            // Add sentences
-            foreach (var sentenceInfo in section.Sentences)
-            {
-                if (sentenceInfo.Text.Length < _config.MinSegmentLength)
-                    continue;
+            // Group sentences into paragraph-sized chunks with overlap
+            var validSentences = section.Sentences
+                .Where(s => s.Text.Length >= _config.MinSegmentLength)
+                .ToList();
 
-                var segment = new Segment(docId, sentenceInfo.Text, SegmentType.Sentence, segments.Count, charOffset,
-                    charOffset + sentenceInfo.Text.Length)
+            if (validSentences.Count > 0)
+            {
+                var windowSize = Math.Min(_config.ChunkWindowSize, validSentences.Count);
+                var stride = Math.Min(_config.ChunkStride, windowSize);
+
+                for (var i = 0; i < validSentences.Count; i += stride)
                 {
-                    SectionTitle = section.Heading,
-                    HeadingPath = currentHeadingPath,
-                    HeadingLevel = section.Level,
-                    PositionWeight = sentenceInfo.PositionWeight
-                };
-                segments.Add(segment);
-                charOffset += sentenceInfo.Text.Length + 1;
+                    var window = validSentences.Skip(i).Take(windowSize).ToList();
+                    if (window.Count == 0) continue;
+
+                    var combinedText = string.Join(" ", window.Select(w => w.Text));
+                    var avgPositionWeight = window.Average(w => w.PositionWeight);
+
+                    var segment = new Segment(docId, combinedText, SegmentType.Sentence, segments.Count,
+                        charOffset, charOffset + combinedText.Length)
+                    {
+                        SectionTitle = section.Heading,
+                        HeadingPath = currentHeadingPath,
+                        HeadingLevel = section.Level,
+                        PositionWeight = avgPositionWeight
+                    };
+                    segments.Add(segment);
+                    charOffset += combinedText.Length + 1;
+                }
             }
 
             // Add list items as segments

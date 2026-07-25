@@ -614,6 +614,20 @@ public class ExtractionConfig
     ///     balanced with content. Default: 1.8
     /// </summary>
     public double DocumentTitleBoost { get; set; } = 1.8;
+
+    /// <summary>
+    ///     Number of consecutive sentences to group into one chunk.
+    ///     Larger windows provide more context for multi-paragraph questions.
+    ///     Default: 3 (about 1 paragraph worth of text)
+    /// </summary>
+    public int ChunkWindowSize { get; set; } = 3;
+
+    /// <summary>
+    ///     Slide step for chunk windows. Stride < WindowSize creates overlap,
+    ///     preserving cross-sentence context across adjacent chunks.
+    ///     Default: 2 (1-sentence overlap between adjacent chunks)
+    /// </summary>
+    public int ChunkStride { get; set; } = 2;
 }
 
 /// <summary>

@@ -672,7 +672,7 @@ public class DocumentQueueProcessor(
                         // Segments loaded from Qdrant cache have empty Text (privacy: no text in vector store).
                         // Split file content into ~2000-char chunks for domain classification and entity extraction.
                         var enrichmentChunks = new List<ContentChunk>();
-                        const int chunkSize = 200;
+                        const int chunkSize = 2000;
                         for (var ci = 0; ci < rawFileContent.Length; ci += chunkSize)
                         {
                             var len = Math.Min(chunkSize, rawFileContent.Length - ci);

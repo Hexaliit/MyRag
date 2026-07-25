@@ -422,7 +422,8 @@ public static class ServiceCollectionExtensions
         return new OnnxEmbeddingService(config, verbose);
     }
 
-    private static IEmbeddingService CreateOllamaEmbeddingService(Mostlylucid.DocSummarizer.Config.OllamaConfig config)
+      private static IEmbeddingService CreateOllamaEmbeddingService(OllamaConfig config)
+	 //private static IEmbeddingService CreateOllamaEmbeddingService(Mostlylucid.DocSummarizer.Config.OllamaConfig config)
     {
         var ollamaService = new OllamaService(
             config.Model,
@@ -438,25 +439,9 @@ public static class ServiceCollectionExtensions
     {
         return config.BertRag.VectorStore switch
         {
-            VectorStoreBackend.InMemory => new InMemoryVectorStore(config.Output.Verbose),
-            VectorStoreBackend.SqliteVec => CreateSqliteVecAdapter(config, sp),
-            _ => new InMemoryVectorStore(config.Output.Verbose)
+            VectorStoreBackend.InMemory => new InMemoryVectorStore(),
+            _ => new InMemoryVectorStore()
         };
-    }
-
-    private static IVectorStore CreateSqliteVecAdapter(DocSummarizerConfig config, IServiceProvider sp)
-    {
-        var storageStore = sp.GetService<Storage.Core.Abstractions.IVectorStore>();
-        if (storageStore != null)
-            return new DuckDBVectorStoreAdapter(storageStore);
-
-        var options = Storage.Core.Config.VectorStoreOptions.ForStandaloneMode(
-            config.DuckDbDataDirectory ?? "./data");
-        var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-        var logger = loggerFactory.CreateLogger<Storage.Core.Implementations.SqliteVecVectorStore>();
-        var wrappedOptions = Options.Create(options);
-        var sqliteVecStore = new Storage.Core.Implementations.SqliteVecVectorStore(wrappedOptions, logger);
-        return new DuckDBVectorStoreAdapter(sqliteVecStore);
     }
 
     private static ILlmService CreateLlmService(DocSummarizerConfig config)

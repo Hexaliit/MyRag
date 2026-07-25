@@ -185,8 +185,8 @@ models:
   # === PRIMARY: Remote LM Studio model ===
   gpt-oss:
     backend: lmstudio-remote
-    model: meta/llama-3.3-70b
-    # model: openai/gpt-oss-20b
+     # model: meta/llama-3.3-70b
+    model: openai/gpt-oss-20b
     context_window: 32768
     max_tokens: 8192
     temperature: 0.3
