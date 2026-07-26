@@ -37,7 +37,7 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
     private readonly SegmentExtractor _extractor;
     private readonly OllamaService _ollama;
     private readonly OnnxConfig _onnxConfig;
-    private readonly OnnxEmbeddingService _queryEmbedder;
+    private readonly IEmbeddingService _queryEmbedder;
     private readonly RetrievalConfig _retrievalConfig;
 
     // Vector store support
@@ -67,12 +67,36 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
         _onnxConfig = onnxConfig;
     }
 
+    public BertRagSummarizer(
+        SegmentExtractor extractor,
+        IEmbeddingService queryEmbedder,
+        OllamaService ollama,
+        RetrievalConfig? retrievalConfig = null,
+        SummaryTemplate? template = null,
+        bool verbose = false,
+        IVectorStore? vectorStore = null,
+        BertRagConfig? bertRagConfig = null,
+        DeduplicationConfig? deduplicationConfig = null,
+        OnnxConfig? onnxConfig = null)
+    {
+        _extractor = extractor;
+        _queryEmbedder = queryEmbedder;
+        _ollama = ollama;
+        _retrievalConfig = retrievalConfig ?? new RetrievalConfig();
+        Template = template ?? SummaryTemplate.Presets.Default;
+        _verbose = verbose;
+        _vectorStore = vectorStore;
+        _bertRagConfig = bertRagConfig ?? new BertRagConfig();
+        _deduplicationConfig = deduplicationConfig ?? new DeduplicationConfig();
+        _onnxConfig = onnxConfig ?? new OnnxConfig();
+    }
+
     public SummaryTemplate Template { get; private set; }
 
     public async ValueTask DisposeAsync()
     {
         _extractor.Dispose();
-        _queryEmbedder.Dispose();
+        if (_queryEmbedder is IDisposable d) d.Dispose();
 
         if (_vectorStore != null) await _vectorStore.DisposeAsync();
     }
@@ -80,7 +104,7 @@ public class BertRagSummarizer : IDisposable, IAsyncDisposable
     public void Dispose()
     {
         _extractor.Dispose();
-        _queryEmbedder.Dispose();
+        if (_queryEmbedder is IDisposable d) d.Dispose();
     }
 
     public void SetTemplate(SummaryTemplate template)

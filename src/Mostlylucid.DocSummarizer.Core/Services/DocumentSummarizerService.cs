@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Microsoft.Extensions.Options;
@@ -8,6 +9,9 @@ using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 using Mostlylucid.Summarizer.Core.Utilities;
+using UglyToad.PdfPig;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace Mostlylucid.DocSummarizer.Services;
 
@@ -179,16 +183,38 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
                     break;
 
                 case ".pdf":
+#if !SLIM_BUILD
+                    if (_docling != null)
+                    {
+                        progress.WriteStage("Conversion", "Converting PDF with Docling", 10, sw.ElapsedMilliseconds);
+                        markdown = await _docling.ConvertAsync(filePath, cancellationToken);
+                    }
+                    else
+                    {
+                        progress.WriteStage("Conversion", "Extracting PDF text with PdfPig", 10, sw.ElapsedMilliseconds);
+                        markdown = ExtractPdfText(filePath);
+                    }
+#else
+                    markdown = ExtractPdfText(filePath);
+#endif
+                    progress.WriteInfo("Conversion", $"Converted to {markdown.Length:N0} characters",
+                        sw.ElapsedMilliseconds);
+                    break;
+
                 case ".docx":
 #if !SLIM_BUILD
-                    if (_docling == null)
-                        throw new InvalidOperationException(
-                            "Docling is not configured. PDF/DOCX conversion requires Docling service.");
-                    progress.WriteStage("Conversion", "Converting document with Docling", 10, sw.ElapsedMilliseconds);
-                    markdown = await _docling.ConvertAsync(filePath, cancellationToken);
+                    if (_docling != null)
+                    {
+                        progress.WriteStage("Conversion", "Converting DOCX with Docling", 10, sw.ElapsedMilliseconds);
+                        markdown = await _docling.ConvertAsync(filePath, cancellationToken);
+                    }
+                    else
+                    {
+                        progress.WriteStage("Conversion", "Extracting DOCX text with Open XML", 10, sw.ElapsedMilliseconds);
+                        markdown = ExtractDocxText(filePath);
+                    }
 #else
-                    throw new NotSupportedException(
-                        $"File type '{ext}' requires Docling for conversion. Use the complete build for PDF/DOCX support via Docling.");
+                    markdown = ExtractDocxText(filePath);
 #endif
                     progress.WriteInfo("Conversion", $"Converted to {markdown.Length:N0} characters",
                         sw.ElapsedMilliseconds);
@@ -460,19 +486,31 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
             if (!string.IsNullOrEmpty(_config.Docling?.BaseUrl)) _docling = new DoclingClient(_config.Docling);
 #endif
 
-            // Initialize embedding service
-            _embedder = new OnnxEmbeddingService(_config.Onnx, _verbose);
-
-            // Initialize BERT-RAG summarizer with converted configs
-            _bertRag = new BertRagSummarizer(
-                _config.Onnx,
-                _ollama,
-                _config.Extraction.ToExtractionConfig(),
-                _config.Retrieval.ToRetrievalConfig(),
-                Template,
-                _verbose,
-                _vectorStore,
-                _config.BertRag);
+            // Initialize embedding service based on backend config
+            if (_config.EmbeddingBackend == EmbeddingBackend.Ollama)
+            {
+                _embedder = null;
+                var embedService = new OllamaEmbeddingService(_ollama);
+                var extractor = new SegmentExtractor(embedService, _config.Extraction.ToExtractionConfig(), _verbose);
+                _bertRag = new BertRagSummarizer(
+                    extractor, embedService, _ollama,
+                    _config.Retrieval.ToRetrievalConfig(),
+                    Template, _verbose, _vectorStore, _config.BertRag,
+                    onnxConfig: _config.Onnx);
+            }
+            else
+            {
+                _embedder = new OnnxEmbeddingService(_config.Onnx, _verbose);
+                _bertRag = new BertRagSummarizer(
+                    _config.Onnx,
+                    _ollama,
+                    _config.Extraction.ToExtractionConfig(),
+                    _config.Retrieval.ToRetrievalConfig(),
+                    Template,
+                    _verbose,
+                    _vectorStore,
+                    _config.BertRag);
+            }
 
             // Initialize web fetcher
             _webFetcher = new WebFetcher(_config.WebFetch);
@@ -493,6 +531,35 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
         var text = Regex.Replace(html, "<[^>]+>", " ");
         text = WebUtility.HtmlDecode(text);
         return text.Trim();
+    }
+
+    public static string ExtractPdfText(string filePath)
+    {
+        using var doc = PdfDocument.Open(filePath);
+        var sb = new StringBuilder();
+        foreach (var page in doc.GetPages())
+        {
+            var text = page.Text;
+            if (!string.IsNullOrWhiteSpace(text))
+                sb.AppendLine(text.Trim());
+        }
+        return sb.ToString().Trim();
+    }
+
+    public static string ExtractDocxText(string filePath)
+    {
+        using var doc = WordprocessingDocument.Open(filePath, false);
+        var body = doc.MainDocumentPart?.Document?.Body;
+        if (body == null) return string.Empty;
+        var sb = new StringBuilder();
+        foreach (var para in body.Descendants<Paragraph>())
+        {
+            var text = para.InnerText.Trim();
+            if (!string.IsNullOrWhiteSpace(text))
+                sb.AppendLine(text);
+            sb.AppendLine();
+        }
+        return sb.ToString().Trim();
     }
 
     #region OpenTelemetry Instrumentation

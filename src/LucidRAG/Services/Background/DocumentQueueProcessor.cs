@@ -644,7 +644,13 @@ public class DocumentQueueProcessor(
                 {
                     // Document pipeline - extract segments with text directly from file
                     // Vector store doesn't store text (for privacy), so we extract fresh
-                    rawFileContent = await File.ReadAllTextAsync(job.FilePath, ct);
+                    var ext = Path.GetExtension(job.FilePath).ToLowerInvariant();
+                    rawFileContent = ext switch
+                    {
+                        ".pdf"  => DocumentSummarizerService.ExtractPdfText(job.FilePath),
+                        ".docx" => DocumentSummarizerService.ExtractDocxText(job.FilePath),
+                        _       => await File.ReadAllTextAsync(job.FilePath, ct)
+                    };
                     var extractionResult = await summarizer.ExtractSegmentsAsync(rawFileContent, stableDocId, ct);
                     segments = extractionResult.AllSegments;
                     logger.LogDebug("Extracted {SegmentCount} segments with text from file for {DocId}",

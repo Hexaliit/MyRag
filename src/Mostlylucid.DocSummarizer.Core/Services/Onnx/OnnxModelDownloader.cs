@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Mostlylucid.DocSummarizer.Config;
 
 namespace Mostlylucid.DocSummarizer.Services.Onnx;
@@ -47,15 +48,33 @@ public class OnnxModelDownloader
 
         if (tasks.Count > 0)
         {
-            // Always show download message (not just verbose) - this is a one-time operation
-            // Write to stderr to avoid polluting stdout (which is reserved for JSON output)
             VerboseHelper.Log(
                 $"[yellow]First run: downloading ONNX embedding model {model.Name} (~{model.SizeBytes / 1_000_000}MB)...[/]");
             Console.Error.WriteLine($"Models are cached at: {modelDir}");
 
-            await Task.WhenAll(tasks);
+            try
+            {
+                await Task.WhenAll(tasks);
+                Console.Error.WriteLine("Model downloaded successfully!");
+            }
+            catch (HttpRequestException ex)
+            {
+                var msg = $"""
+                    Cannot download ONNX embedding model '{model.Name}' from HuggingFace.
+                    Network error: {ex.Message}
 
-            Console.Error.WriteLine("Model downloaded successfully!");
+                    To run offline:
+                    1. On a machine WITH internet, download these files:
+                       {model.GetModelUrl()}
+                       {model.GetTokenizerUrl()}
+                       {model.GetVocabUrl()}
+                    2. Copy them to: {modelDir}
+                       (rename model file to "model.onnx")
+
+                    Or to use Ollama instead, set "EmbeddingBackend": "Ollama" in appsettings.json
+                    """;
+                throw new InvalidOperationException(msg);
+            }
         }
 
         return new EmbeddingModelPaths(modelPath, tokenizerPath, vocabPath);

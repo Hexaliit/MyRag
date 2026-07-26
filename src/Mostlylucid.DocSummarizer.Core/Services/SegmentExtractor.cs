@@ -22,18 +22,28 @@ namespace Mostlylucid.DocSummarizer.Services;
 public class SegmentExtractor : IDisposable
 {
     private readonly ExtractionConfig _config;
-    private readonly OnnxEmbeddingService _embeddingService;
+    private readonly IEmbeddingService _embeddingService;
     private readonly MarkdigDocumentParser _parser;
     private readonly bool _verbose;
 
 #if !SLIM_BUILD
     public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false,
-        IMermaidParser? mermaidParser = null)
+        IMermaidParser? mermaidParser = null) : this(new OnnxEmbeddingService(onnxConfig, verbose), config, verbose, mermaidParser)
 #else
     public SegmentExtractor(OnnxConfig onnxConfig, ExtractionConfig? config = null, bool verbose = false)
+        : this(new OnnxEmbeddingService(onnxConfig, verbose), config, verbose)
 #endif
     {
-        _embeddingService = new OnnxEmbeddingService(onnxConfig, verbose);
+    }
+
+#if !SLIM_BUILD
+    public SegmentExtractor(IEmbeddingService embeddingService, ExtractionConfig? config = null, bool verbose = false,
+        IMermaidParser? mermaidParser = null)
+#else
+    public SegmentExtractor(IEmbeddingService embeddingService, ExtractionConfig? config = null, bool verbose = false)
+#endif
+    {
+        _embeddingService = embeddingService;
         _parser = new MarkdigDocumentParser();
         _config = config ?? new ExtractionConfig();
         _verbose = verbose;
@@ -45,7 +55,7 @@ public class SegmentExtractor : IDisposable
 
     public void Dispose()
     {
-        _embeddingService.Dispose();
+        if (_embeddingService is IDisposable d) d.Dispose();
 #if !SLIM_BUILD
         _codeSummarizer.Dispose();
 #endif
@@ -57,7 +67,7 @@ public class SegmentExtractor : IDisposable
     /// </summary>
     public float[] Embed(string text)
     {
-        return _embeddingService.Embed(text);
+        return _embeddingService.EmbedAsync(text).GetAwaiter().GetResult();
     }
 
     /// <summary>
