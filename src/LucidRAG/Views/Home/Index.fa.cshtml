@@ -1,0 +1,2817 @@
+@{
+    ViewBag.Title = "lucidRAG";
+    var documents = ViewBag.Documents as List<DocumentEntity> ?? new List<DocumentEntity>();
+    var totalSegments = ViewBag.TotalSegments as int? ?? 0;
+}
+
+<div class="flex w-full h-full" x-data="ragApp()" dir="rtl">
+    <!-- Left Sidebar: Filters (Explorer) or Document Selection (Chat) -->
+    <aside class="bg-base-100 border-l border-base-300 flex flex-col transition-all duration-200"
+           :class="sidebarMode === 'explorer' ? 'w-64' : 'w-80'">
+        <!-- Collection Selector (shared between modes) -->
+        @await Html.PartialAsync("_SidebarCollectionSelector")
+
+        <!-- Mode Toggle: Chat vs Explorer -->
+        @await Html.PartialAsync("_SidebarModeToggle")
+
+        <!-- Swappable Sidebar Content -->
+        <div id="sidebar-content" class="flex-1 flex flex-col overflow-hidden">
+            <!-- Chat Mode: Document selection for chat context -->
+            <template x-if="sidebarMode === 'chat'">
+                <div class="flex flex-col h-full">
+                    <!-- Communities Dropdown -->
+                    @await Html.PartialAsync("_SidebarCommunitiesDropdown")
+
+                    <!-- Document Filter & Selection Header -->
+                    <div class="px-3 py-2 border-b border-base-300 space-y-2">
+                        <!-- Status Filter Toggle -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs opacity-60">نمایش:</span>
+                            <div class="join">
+                                <button class="join-item btn btn-xs"
+                                        :class="docFilter === 'ready' ? 'btn-primary' : 'btn-ghost'"
+                                        @@click="docFilter = 'ready'; refreshDocuments()">
+                                    آماده
+                                </button>
+                                <button class="join-item btn btn-xs"
+                                        :class="docFilter === 'all' ? 'btn-primary' : 'btn-ghost'"
+                                        @@click="docFilter = 'all'; refreshDocuments()">
+                                    همه
+                                </button>
+                            </div>
+                            <span class="mr-auto badge badge-sm badge-ghost"
+                                  x-text="documentCount + ' سند'"></span>
+                        </div>
+                        <!-- Selection Controls -->
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="opacity-60">انتخاب:</span>
+                            <button class="btn btn-ghost btn-xs"
+                                    @@click="selectAllDocuments()"
+                                    title="انتخاب همه اسناد آماده">
+                                همه آماده
+                            </button>
+                            <button class="btn btn-ghost btn-xs"
+                                    @@click="selectedDocIds.clear(); htmx.trigger(document.body, 'documentUploaded');"
+                                    title="پاک کردن انتخاب">
+                                هیچکدام
+                            </button>
+                            <span class="mr-auto badge badge-sm badge-primary"
+                                  x-text="selectedDocIds.size + ' انتخاب'"></span>
+                        </div>
+                    </div>
+
+                    @await Html.PartialAsync("_SidebarProcessingStatus")
+
+                    @await Html.PartialAsync("_SidebarAddContent")
+
+                    <!-- Document List -->
+                    <div id="document-list" class="flex-1 overflow-y-auto p-2 space-y-1"
+                         :hx-get="'/admin/documents?filter=' + docFilter"
+                         hx-trigger="documentUploaded from:body, docFilterChanged from:body"
+                         hx-swap="innerHTML">
+                        @await Html.PartialAsync("_DocumentList", documents)
+                    </div>
+
+                    @await Html.PartialAsync("_SidebarGraphHealth")
+
+                    <!-- Stats Footer -->
+                    <div
+                        class="p-3 border-t border-base-300 text-sm text-base-content/60 flex items-center justify-between">
+                        <div>
+                            <span>📊 <span x-text="documentCount">@documents.Count</span> سند</span>
+                            <span class="mx-1">•</span>
+                            <span>🔢 <span x-text="segmentCount">@totalSegments</span> بخش</span>
+                        </div>
+                        <!-- Dev: Clear All Button -->
+                        <template x-if="canWrite && !demoMode">
+                            <button class="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                                    @@click="clearAll()"
+                                    :disabled="clearingAll"
+                                    title="پاک کردن همه داده‌ها (توسعه)">
+                                <template x-if="!clearingAll">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                         viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </template>
+                                <template x-if="clearingAll">
+                                    <span class="loading loading-spinner loading-xs"></span>
+                                </template>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Explorer Mode: Filter sidebar only -->
+            <template x-if="sidebarMode === 'explorer'">
+                @await Html.PartialAsync("_ExplorerSidebar")
+            </template>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col bg-base-100 relative"
+          @@dragover.prevent="if (!demoMode) isDragging = true"
+          @@dragleave.prevent="isDragging = false"
+          @@drop.prevent="handleDrop($event)">
+        <!-- Drop Zone Overlay (not shown in demo mode) -->
+        <div x-show="isDragging && !demoMode" x-cloak
+             class="absolute inset-0 z-50 bg-primary/20 border-4 border-dashed border-primary rounded-lg flex items-center justify-center">
+            <div class="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-primary mb-4" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                <p class="text-xl font-semibold text-primary">فایل‌ها را اینجا رها کنید</p>
+                <p class="text-sm opacity-60 mt-2">PDF, DOCX, Markdown, TXT, HTML</p>
+            </div>
+        </div>
+
+        <!-- EXPLORER MODE: Full-width file browser -->
+        <template x-if="sidebarMode === 'explorer'">
+            @await Html.PartialAsync("_ExplorerMain")
+        </template>
+
+        <!-- CHAT MODE: Chat interface -->
+        <template x-if="sidebarMode === 'chat'">
+            <div class="flex-1 flex flex-col">
+                <!-- Header with Mode Toggle -->
+                <div class="p-4 border-b border-base-300 flex items-center justify-between">
+                    <h2 class="font-semibold flex items-center gap-2">
+                        <span>💬</span> گفتگو
+                    </h2>
+
+                    <!-- View Mode Toggle -->
+                    <div class="flex items-center gap-4">
+                        <!-- Chat History button -->
+                        <button class="btn btn-sm btn-ghost" @@click="toggleChatHistory()" title="تاریخچه گفتگوها">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            تاریخچه
+                        </button>
+                        <!-- New Chat button -->
+                        <button class="btn btn-sm btn-ghost" @@click="startNewChat()" title="شروع گفتگوی جدید"
+                                x-show="messages.length > 0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 4v16m8-8H4"/>
+                            </svg>
+                            جدید
+                        </button>
+                        <div class="btn-group">
+                            <button class="btn btn-sm" :class="viewMode === 'answer' ? 'btn-active' : ''"
+                                    @@click="viewMode = 'answer'">
+                                پاسخ
+                            </button>
+                            <button class="btn btn-sm" :class="viewMode === 'evidence' ? 'btn-active' : ''"
+                                    @@click="viewMode = 'evidence'">
+                                شواهد
+                            </button>
+                            <button class="btn btn-sm" :class="viewMode === 'graph' ? 'btn-active' : ''"
+                                    @@click="viewMode = 'graph'; loadGraphData()">
+                                گراف
+                            </button>
+                            <template x-if="documentDetails">
+                                <button class="btn btn-sm"
+                                        :class="viewMode === 'details' ? 'btn-active btn-accent' : 'btn-accent'"
+                                        @@click="viewMode = 'details'">
+                                    جزئیات
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Area -->
+                <div class="flex-1 flex overflow-hidden min-h-0">
+                    <!-- Answer View -->
+                    <template x-if="viewMode === 'answer'">
+                        <div class="flex-1 flex flex-col min-h-0">
+                            <!-- Messages -->
+                            <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4" x-ref="chatMessages">
+                                <template x-if="messages.length === 0">
+                                    <div class="text-center text-base-content/50 mt-8">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 opacity-30"
+                                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                        </svg>
+                                        <p class="text-lg font-medium">از اسناد خود سوال بپرسید</p>
+                                        <p class="text-sm mt-1 opacity-70">اسناد را از نوار کناری انتخاب کنید و شروع به
+                                            گفتگو کنید</p>
+                                        <div class="mt-6 flex justify-center gap-2">
+                                            <span class="badge badge-ghost badge-lg">جستجوی ترکیبی</span>
+                                            <span class="badge badge-ghost badge-lg">💬 گفتگوی هوشمند</span>
+                                            <span class="badge badge-ghost badge-lg">🔗 گراف دانش</span>
+                                        </div>
+                                        <div class="mt-4 text-xs opacity-40">
+                                            برای شروع سوال بپرسید یا یک سند را انتخاب کنید
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-for="(msg, idx) in messages" :key="msg.id">
+                                    <div>
+                                        <!-- User Message -->
+                                        <template x-if="msg.role === 'user'">
+                                            <div class="chat chat-end">
+                                                <div class="chat-bubble chat-bubble-primary">
+                                                    <p x-text="msg.content"></p>
+                                                    <div class="text-xs opacity-60 mt-1"
+                                                         x-text="formatTimestamp(msg.timestamp)"></div>
+                                                    <template x-if="msg.documentIds && msg.documentIds.length > 0">
+                                                        <div class="text-xs opacity-40 mt-1">
+                                                            <span>Documents: </span>
+                                                            <span x-text="msg.documentIds.length"></span>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <!-- Assistant Message -->
+                                        <template x-if="msg.role === 'assistant'">
+                                            <div class="chat chat-start">
+                                                <div class="chat-bubble chat-bubble-secondary">
+                                                    <template x-if="msg.isStreaming && !msg.content">
+                                                        <div class="flex items-center gap-2">
+                                                            <span>🤔</span>
+                                                            <span class="loading loading-dots loading-sm"></span>
+                                                            <span class="text-sm opacity-70">در حال فکر کردن...</span>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="msg.content">
+                                                        <div>
+                                                            <div class="prose prose-sm max-w-none"
+                                                                 x-html="renderMarkdown(msg.content)"></div>
+                                                            <div class="flex items-center gap-2 mt-2">
+                                                                <template x-if="msg.isStreaming">
+                                                                    <span class="loading loading-dots loading-sm"></span>
+                                                                </template>
+                                                                <span class="text-xs opacity-50"
+                                                                      x-text="formatTimestamp(msg.timestamp)"></span>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <!-- Sources for this message -->
+                                                    <template x-if="msg.sources && msg.sources.length > 0">
+                                                        <div class="mt-3 pt-3 border-t border-base-content/10">
+                                                            <div class="flex items-center gap-1 text-xs font-medium opacity-60 mb-2">
+                                                                <svg xmlns="http://www.w3.org/2000/svg"
+                                                                     class="h-3 w-3" fill="none" viewBox="0 0 24 24"
+                                                                     stroke="currentColor">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                                          stroke-width="2"
+                                                                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                                                </svg>
+                                                                <span x-text="msg.sources.length + ' منبع'"></span>
+                                                            </div>
+                                                            <div class="flex flex-wrap gap-1">
+                                                                <template x-for="(source, si) in msg.sources.slice(0, 5)"
+                                                                          :key="si">
+                                                                    <button
+                                                                        class="badge badge-ghost badge-sm hover:badge-primary cursor-pointer gap-1"
+                                                                        @@click="showSegmentDetail(source)"
+                                                                        :title="source.documentName + ' - ' + (source.pageOrSection || '')">
+                                                                        <span class="font-mono text-xs"
+                                                                              x-text="'[' + (source.number || si + 1) + ']'"></span>
+                                                                        <span class="truncate max-w-24"
+                                                                              x-text="source.documentName"></span>
+                                                                    </button>
+                                                                </template>
+                                                                <template x-if="msg.sources.length > 5">
+                                                                    <span class="text-xs opacity-50">
+                                                                        +<span x-text="msg.sources.length - 5"></span>
+                                                                    </span>
+                                                                </template>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                    <!-- Thinking Note (compact) -->
+                                                    <template x-if="msg.thinkingNote">
+                                                        <div
+                                                            class="mt-2 text-xs bg-base-300/50 rounded p-2 opacity-70">
+                                                            <span class="font-medium">🧠</span>
+                                                            <span x-text="msg.thinkingNote.substring(0, 200)"></span>
+                                                            <template x-if="msg.thinkingNote.length > 200">
+                                                                <span>...</span>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <!-- Streaming Thinking Indicator -->
+                                <template x-if="isTyping && streamingThinking">
+                                    <div class="flex items-center gap-2 text-xs opacity-60 px-2">
+                                        <span class="loading loading-spinner loading-xs"></span>
+                                        <span>🤔</span>
+                                        <span x-text="streamingThinking"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Evidence View -->
+                    <template x-if="viewMode === 'evidence'">
+                        <div class="flex-1 flex min-h-0">
+                            <!-- Sentences List -->
+                            <div class="flex-1 overflow-y-auto p-4 border-l border-base-300">
+                                <h3 class="font-semibold text-sm mb-4 flex items-center gap-2">
+                                    <span>📝</span> جملات
+                                </h3>
+                                <template x-if="!lastAnswer">
+                                    <div class="text-center py-8 opacity-50">
+                                        <p>هنوز پاسخی وجود ندارد</p>
+                                        <p class="text-xs mt-1">یک سوال بپرسید تا جملات پاسخ نمایش داده شود</p>
+                                    </div>
+                                </template>
+                                <template x-if="lastAnswer">
+                                    <div class="space-y-2">
+                                        <template x-for="(sentence, idx) in lastAnswer.sentences" :key="idx">
+                                            <div
+                                                class="p-3 rounded cursor-pointer transition-colors"
+                                                :class="selectedSentence === idx ? 'bg-primary/10 border border-primary/30' : 'hover:bg-base-200'"
+                                                @@click="selectSentence(idx)">
+                                                <p class="text-sm leading-relaxed" x-text="sentence.text"></p>
+                                                <div class="flex items-center gap-2 mt-1">
+                                                    <template x-if="sentence.isDirectQuote">
+                                                        <span class="badge badge-ghost badge-xs">نقل قول</span>
+                                                    </template>
+                                                    <template x-if="sentence.sourceRefs.length > 0">
+                                                        <span class="text-xs opacity-50">
+                                                            منبع <span x-text="sentence.sourceRefs.join(', ')"></span>
+                                                        </span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- Evidence Panel -->
+                            <div class="w-96 overflow-y-auto p-4 bg-base-200/30">
+                                <h3 class="font-semibold text-sm mb-4 flex items-center gap-2">
+                                    <span>📚</span> شواهد
+                                </h3>
+                                <template x-if="selectedEvidence.length === 0">
+                                    <div class="text-center py-8 opacity-50">
+                                        <p>هیچ شاهدی انتخاب نشده</p>
+                                        <p class="text-xs mt-1">روی یک جمله کلیک کنید تا شواهد آن نمایش داده شود</p>
+                                    </div>
+                                </template>
+                                <template x-for="(evidence, idx) in selectedEvidence" :key="idx">
+                                    <div class="mb-4 p-3 bg-base-100 rounded shadow-sm">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <span class="badge badge-sm"
+                                                  x-text="'#' + (evidence.number || idx + 1)"></span>
+                                            <span class="text-sm font-medium truncate flex-1"
+                                                  x-text="evidence.documentName"></span>
+                                        </div>
+                                        <template x-if="evidence.pageOrSection">
+                                            <p class="text-xs opacity-60 mb-1" x-text="evidence.pageOrSection"></p>
+                                        </template>
+                                        <template x-if="evidence.score !== undefined">
+                                            <div class="w-full bg-base-300 rounded-full h-1.5 mb-2">
+                                                <div class="bg-primary h-1.5 rounded-full transition-all duration-300"
+                                                     :style="'width: ' + (evidence.score * 100) + '%'"></div>
+                                            </div>
+                                        </template>
+                                        <div class="text-sm leading-relaxed bg-base-300/30 rounded p-2 max-h-40 overflow-y-auto"
+                                             x-text="evidence.text"></div>
+                                        <button class="btn btn-ghost btn-xs mt-2 w-full"
+                                                @@click="showSegmentDetail(evidence)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none"
+                                                 viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            </svg>
+                            مشاهده جزئیات
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Graph View -->
+                    <template x-if="viewMode === 'graph'">
+                        <div class="flex-1 flex min-h-0">
+                            <!-- Graph canvas -->
+                            <div class="flex-1 overflow-hidden relative" :class="graphLoading ? 'opacity-50' : ''">
+                                <div x-ref="graphCanvas"
+                                     class="w-full h-full min-h-96 bg-base-200/20 rounded-lg"></div>
+                                <template x-if="graphLoading">
+                                    <div
+                                        class="absolute inset-0 flex items-center justify-center bg-base-100/50">
+                                        <span class="loading loading-spinner loading-lg text-primary"></span>
+                                    </div>
+                                </template>
+                                <template x-if="!graphData && !graphLoading">
+                                    <div
+                                        class="absolute inset-0 flex items-center justify-center text-base-content/50">
+                                        <div class="text-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg"
+                                                 class="h-16 w-16 mx-auto mb-4 opacity-30" fill="none"
+                                                 viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                      d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                                            </svg>
+                                            <p>برای نمایش گراف ابتدا سوال بپرسید</p>
+                                            <p class="text-xs mt-1">یا از منوی سمت چپ یک گراف را بارگذاری کنید</p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- Graph Info Panel -->
+                            <div class="w-72 border-r border-base-300 p-4 overflow-y-auto">
+                                <h3 class="font-semibold text-sm mb-4 flex items-center gap-2">
+                                    <span>🔮</span> گراف دانش
+                                </h3>
+                                <!-- Graph settings -->
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="label">
+                                            <span class="label-text text-xs">حداکثر گام‌ها</span>
+                                        </label>
+                                        <select class="select select-bordered select-xs w-full"
+                                                x-model="graphSettings.maxHops">
+                                            <option value="1">1 گام</option>
+                                            <option value="2">2 گام</option>
+                                            <option value="3">3 گام</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="label">
+                                            <span class="label-text text-xs">فیلتر یال</span>
+                                        </label>
+                                        <select class="select select-bordered select-xs w-full"
+                                                x-model="graphSettings.edgeFilter">
+                                            <option value="all">همه یال‌ها</option>
+                                            <option value="related">مرتبط</option>
+                                            <option value="contains">شامل</option>
+                                        </select>
+                                    </div>
+                                    <!-- Graph Stats -->
+                                    <template x-if="graphData">
+                                        <div class="mt-4 p-3 bg-base-200 rounded space-y-1 text-xs">
+                                            <div class="flex justify-between">
+                                                <span class="opacity-60">گره‌ها</span>
+                                                <span class="font-mono" x-text="graphStats.nodes || graphData.nodes.length"></span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="opacity-60">یال‌ها</span>
+                                                <span class="font-mono" x-text="graphStats.edges || graphData.links.length"></span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="opacity-60">پوشش</span>
+                                                <span class="font-mono" x-text="graphStats.entityCoverage"></span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="opacity-60">گره‌های تنها</span>
+                                                <span class="font-mono" x-text="graphStats.orphans"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <button class="btn btn-primary btn-sm w-full"
+                                            @@click="loadGraphData()"
+                                            :disabled="graphLoading">
+                                        <template x-if="!graphLoading">
+                                            <span>🔄 بارگذاری گراف</span>
+                                        </template>
+                                        <template x-if="graphLoading">
+                                            <span class="loading loading-spinner loading-xs"></span>
+                                        </template>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Document Details View -->
+                    <template x-if="viewMode === 'details' && documentDetails">
+                        <div class="flex-1 overflow-y-auto p-6">
+                            <!-- Header -->
+                            <div class="flex items-start justify-between mb-6">
+                                <div>
+                                    <h2 class="text-xl font-bold" x-text="documentDetails.document.title"></h2>
+                                    <div class="flex items-center gap-2 mt-2">
+                                        <span class="badge"
+                                              :class="getStatusBadgeClass(documentDetails.document.status)"
+                                              x-text="documentDetails.document.status"></span>
+                                        <span class="text-sm opacity-60"
+                                              x-text="formatFileSize(documentDetails.document.fileSize)"></span>
+                                        <span class="text-sm opacity-60"
+                                              x-text="documentDetails.document.createdAt ? formatDate(documentDetails.document.createdAt) : ''"></span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-circle btn-ghost"
+                                        @@click="closeDocumentDetails()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                         viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Tabs -->
+                            <div class="tabs tabs-bordered mb-6" role="tablist">
+                                <a class="tab tab-sm"
+                                   :class="detailsTab === 'entities' ? 'tab-active text-primary' : ''"
+                                   @@click="detailsTab = 'entities'"
+                                   role="tab">نهادها</a>
+                                <a class="tab tab-sm"
+                                   :class="detailsTab === 'signals' ? 'tab-active text-primary' : ''"
+                                   @@click="detailsTab = 'signals'"
+                                   role="tab">سیگنال‌ها</a>
+                                <a class="tab tab-sm"
+                                   :class="detailsTab === 'content' ? 'tab-active text-primary' : ''"
+                                   @@click="detailsTab = 'content'"
+                                   role="tab">محتوا</a>
+                            </div>
+
+                            <!-- Entities Tab -->
+                            <template x-if="detailsTab === 'entities'">
+                                <div>
+                                    <h3 class="font-semibold mb-4">نهادهای استخراج شده</h3>
+                                    <template
+                                        x-if="documentDetails.entities && documentDetails.entities.length > 0">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            <template x-for="entity in documentDetails.entities" :key="entity.id">
+                                                <div class="p-3 bg-base-200 rounded">
+                                                    <div class="flex items-center gap-2 mb-1">
+                                                        <span class="badge badge-sm"
+                                                              :class="getEntityTypeBadge(entity.type)"
+                                                              x-text="entity.type"></span>
+                                                        <span class="font-medium text-sm"
+                                                              x-text="entity.name"></span>
+                                                    </div>
+                                                    <template x-if="entity.description">
+                                                        <p class="text-xs opacity-60 mt-1"
+                                                           x-text="entity.description"></p>
+                                                    </template>
+                                                    <template x-if="entity.mentionCount">
+                                                        <p class="text-xs opacity-40 mt-1">
+                                                            <span x-text="entity.mentionCount"></span> اشاره
+                                                        </p>
+                                                    </template>
+                                                    <template x-if="entity.confidence !== undefined">
+                                                        <div class="flex items-center gap-1 mt-1">
+                                                            <span class="text-xs opacity-50">اطمینان:</span>
+                                                            <div class="w-16 bg-base-300 rounded-full h-1">
+                                                                <div class="bg-primary h-1 rounded-full"
+                                                                     :style="'width: ' + (entity.confidence * 100) + '%'"></div>
+                                                            </div>
+                                                            <span class="text-xs font-mono"
+                                                                  x-text="(entity.confidence * 100).toFixed(0) + '%'"></span>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template
+                                        x-if="!documentDetails.entities || documentDetails.entities.length === 0">
+                                        <div class="text-center py-8 opacity-50">
+                                            <p>نهادی استخراج نشده</p>
+                                            <p class="text-xs mt-1">نهادها هنگام پردازش سند استخراج می‌شوند</p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <!-- Signals Tab -->
+                            <template x-if="detailsTab === 'signals'">
+                                <div>
+                                    <h3 class="font-semibold mb-4">سیگنال‌های سند</h3>
+                                    <template x-if="documentDetails.signals && documentDetails.signals.length > 0">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <template x-for="signal in documentDetails.signals" :key="signal.key">
+                                                <div class="p-3 bg-base-200 rounded">
+                                                    <div class="flex items-center gap-2 mb-2">
+                                                        <span class="badge badge-sm badge-ghost"
+                                                              x-text="getSignalCategory(signal.key)"></span>
+                                                        <span class="text-sm font-medium"
+                                                              x-text="signal.key.split('.').pop()"></span>
+                                                    </div>
+                                                    <template x-if="typeof signal.value === 'object'">
+                                                        <pre
+                                                            class="bg-base-300 p-2 rounded text-xs overflow-x-auto max-h-40"
+                                                            x-text="JSON.stringify(signal.value, null, 2)"></pre>
+                                                    </template>
+                                                    <template x-if="typeof signal.value !== 'object'">
+                                                        <p class="opacity-70"
+                                                           x-text="signal.value || '(خالی)'"></p>
+                                                    </template>
+                                                    <template x-if="signal.source">
+                                                        <p class="text-xs opacity-40 mt-1">
+                                                            منبع: <span x-text="signal.source"></span>
+                                                        </p>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template
+                                        x-if="!documentDetails.signals || documentDetails.signals.length === 0">
+                                        <div class="text-center py-8 opacity-50">
+                                            <p>سیگنالی استخراج نشده</p>
+                                            <p class="text-xs mt-1">سیگنال‌ها هنگام پردازش سند ایجاد می‌شوند</p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <!-- Content Tab -->
+                            <template x-if="detailsTab === 'content'">
+                                <div>
+                                    <h3 class="font-semibold mb-4">محتوای سند</h3>
+                                    <div class="prose prose-sm max-w-none">
+                                        <template
+                                            x-if="documentDetails.content">
+                                            <div class="bg-base-200 p-4 rounded whitespace-pre-wrap text-sm leading-relaxed max-h-96 overflow-y-auto"
+                                                 x-text="documentDetails.content"></div>
+                                        </template>
+                                        <template x-if="!documentDetails.content">
+                                            <p class="opacity-50">محتوایی موجود نیست</p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Retry Button for failed docs -->
+                            <template x-if="documentDetails.document.status === 'failed'">
+                                <div class="flex justify-end pt-4">
+                                    <button class="btn btn-primary btn-sm"
+                                            @@click="retryDocument(documentDetails.document.id)">
+                                        تلاش مجدد
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Debug Panel (collapsible) -->
+                <template x-if="showDebugPanel && debugInfo">
+                    <div class="border-t border-base-300 bg-base-200/50 p-3 max-h-48 overflow-y-auto">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-xs font-semibold flex items-center gap-1">
+                                <span>🔧</span> اشکال‌زدایی: چرا X را پیدا نکرد؟
+                            </h4>
+                            <button class="btn btn-xs btn-ghost" @@click="showDebugPanel = false">×</button>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 text-xs">
+                            <div>
+                                <span class="opacity-60">نهادهای شناسایی شده:</span>
+                                <div class="font-mono mt-1" x-text="(debugInfo.queryEntities || []).join(', ') || 'هیچکدام'"></div>
+                            </div>
+                            <div>
+                                <span class="opacity-60">غایب از گراف:</span>
+                                <div class="font-mono mt-1 text-warning"
+                                     x-text="(debugInfo.missingEntities || []).join(', ') || 'هیچکدام'"></div>
+                            </div>
+                            <div>
+                                <span class="opacity-60">پیشنهادات:</span>
+                                <div class="mt-1" x-text="debugInfo.suggestion || 'پیشنهادی نیست'"></div>
+                            </div>
+                        </div>
+                        <template x-if="debugInfo.latencyMs">
+                            <div class="mt-2 text-xs opacity-60">
+                                تأخیر: <span x-text="debugInfo.latencyMs + 'ms'"></span>
+                                | تعداد بازیابی: <span x-text="debugInfo.retrievalHits"></span>
+                                | گسترش گراف: <span x-text="debugInfo.graphExpansions"></span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Input -->
+                <div class="p-6 border-t border-base-300 bg-base-200/30">
+                    <!-- Selected documents indicator -->
+                    <template x-if="selectedDocIds.size > 0">
+                        <div class="max-w-4xl mx-auto mb-3 flex items-center gap-2 text-sm">
+                    <span class="badge badge-primary badge-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <span x-text="selectedDocIds.size"></span> سند انتخاب شده
+                    </span>
+                            <span class="text-base-content/50">گفتگو فقط در اسناد انتخاب شده جستجو می‌کند</span>
+                            <button type="button"
+                                    class="btn btn-ghost btn-xs mr-auto"
+                                    @@click="selectedDocIds.clear(); htmx.trigger(document.body, 'documentUploaded');"
+                                    title="پاک کردن انتخاب">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                     stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                                پاک کردن
+                            </button>
+                        </div>
+                    </template>
+                    <form x-on:submit.prevent="sendMessage" class="max-w-4xl mx-auto">
+                        <div class="flex gap-3 items-center">
+                            <!-- Search Mode Toggle -->
+                            <div class="dropdown dropdown-top">
+                                <label tabindex="0" class="btn btn-ghost btn-sm gap-1 opacity-70 hover:opacity-100"
+                                       :class="searchMode !== 'hybrid' ? 'btn-active text-primary' : ''">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                         viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                    <span class="text-xs"
+                                          x-text="searchMode === 'hybrid' ? 'ترکیبی' : searchMode === 'semantic' ? 'معنایی' : 'کلیدواژه'"></span>
+                                </label>
+                                <ul tabindex="0"
+                                    class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 rounded-box w-48 mb-2">
+                                    <li class="menu-title"><span>حالت جستجو</span></li>
+                                    <li>
+                                        <a @@click="searchMode = 'hybrid'"
+                                           :class="searchMode === 'hybrid' ? 'active' : ''">
+                                            <span class="font-medium">ترکیبی</span>
+                                            <span class="text-xs opacity-60">معنایی + کلیدواژه</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a @@click="searchMode = 'semantic'"
+                                           :class="searchMode === 'semantic' ? 'active' : ''">
+                                            <span class="font-medium">معنایی</span>
+                                            <span class="text-xs opacity-60">جستجوی مبتنی بر معنا</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a @@click="searchMode = 'keyword'"
+                                           :class="searchMode === 'keyword' ? 'active' : ''">
+                                            <span class="font-medium">کلیدواژه</span>
+                                            <span class="text-xs opacity-60">تطبیق دقیق (BM25)</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            <!-- Debug Panel Toggle -->
+                            <button type="button" class="btn btn-ghost btn-circle btn-sm opacity-60 hover:opacity-100"
+                                    @@click="showDebugPanel = !showDebugPanel"
+                                    :class="showDebugPanel ? 'btn-active' : ''"
+                                    title="پنل اشکال‌زدایی">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                     stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                            </button>
+                            <div class="flex-1 relative">
+                                <input type="text"
+                                       x-model="currentMessage"
+                                       :placeholder="selectedDocIds.size > 0 ? 'درباره ' + selectedDocIds.size + ' سند انتخاب شده بپرسید...' : 'درباره اسناد خود بپرسید...'"
+                                       class="input input-bordered input-lg w-full pr-14 text-lg shadow-sm focus:shadow-md transition-shadow"
+                                       :disabled="isTyping"/>
+                                <button type="submit"
+                                        class="btn btn-primary btn-circle absolute left-2 top-1/2 -translate-y-1/2"
+                                        :disabled="!currentMessage.trim() || isTyping">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                         viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <!-- Chat History Sidebar (slides from left in RTL) -->
+                <div x-show="showChatHistory" x-cloak
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="-translate-x-full"
+                     x-transition:enter-end="translate-x-0"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="translate-x-0"
+                     x-transition:leave-end="-translate-x-full"
+                     class="absolute left-0 top-0 bottom-0 w-72 bg-base-100 border-r border-base-300 shadow-xl z-40 flex flex-col">
+                    <div class="p-3 border-b border-base-300 flex items-center justify-between bg-base-200/50">
+                        <h3 class="font-semibold text-sm">تاریخچه گفتگوها</h3>
+                        <button class="btn btn-ghost btn-xs" @@click="showChatHistory = false">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-2">
+                        <template x-if="chatHistoryLoading">
+                            <div class="text-center py-8">
+                                <span class="loading loading-spinner loading-md"></span>
+                            </div>
+                        </template>
+                        <template x-if="!chatHistoryLoading && chatHistory.length === 0">
+                            <p class="text-center text-sm opacity-50 py-8">تاریخچه‌ای وجود ندارد</p>
+                        </template>
+                        <template x-if="!chatHistoryLoading && chatHistory.length > 0">
+                            <div class="space-y-1">
+                                <template x-for="chat in chatHistory" :key="chat.id">
+                                    <div class="group relative">
+                                        <button
+                                            class="w-full text-left p-2 rounded hover:bg-base-200 transition-colors flex items-start gap-2 pl-8"
+                                            :class="conversationId === chat.id ? 'bg-primary/10 border-r-2 border-primary' : ''"
+                                            @@click="loadConversation(chat.id)">
+                                            <svg xmlns="http://www.w3.org/2000/svg"
+                                                 class="h-4 w-4 mt-0.5 opacity-50 flex-shrink-0" fill="none"
+                                                 viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                            </svg>
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium truncate"
+                                                   x-text="chat.title || 'گفتگوی بدون عنوان'"></p>
+                                                <p class="text-xs opacity-50"
+                                                   x-text="formatChatDate(chat.updatedAt)"></p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            class="absolute left-2 top-2 opacity-0 group-hover:opacity-100 btn btn-ghost btn-xs text-error"
+                                            @@click.stop="deleteConversation(chat.id)"
+                                            title="حذف گفتگو">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none"
+                                                 viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="p-2 border-t border-base-300">
+                        <button class="btn btn-primary btn-sm w-full"
+                                @@click="startNewChat(); showChatHistory = false;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 4v16m8-8H4"/>
+                            </svg>
+                            گفتگوی جدید
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </main>
+
+    <!-- Upload Progress Modal -->
+    <dialog id="upload-modal" class="modal" x-ref="uploadModal">
+    <div class="modal-box max-w-lg max-h-[70vh]">
+        <h3 class="font-bold text-lg mb-4">در حال بارگذاری اسناد</h3>
+
+        <!-- Progress Summary -->
+        <div class="flex gap-2 mb-3 text-xs flex-wrap">
+            <span class="badge badge-sm" x-show="uploads.filter(u => u.status === 'pending').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'pending').length"></span> در انتظار
+            </span>
+            <span class="badge badge-info badge-sm" x-show="uploads.filter(u => u.status === 'uploading').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'uploading').length"></span> در حال بارگذاری
+            </span>
+            <span class="badge badge-success badge-sm" x-show="uploads.filter(u => u.status === 'queued').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'queued').length"></span> در صف
+            </span>
+            <span class="badge badge-ghost badge-sm" x-show="uploads.filter(u => u.status === 'skipped').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'skipped').length"></span> بدون تغییر
+            </span>
+            <span class="badge badge-error badge-sm" x-show="uploads.filter(u => u.status === 'error').length > 0">
+                <span x-text="uploads.filter(u => u.status === 'error').length"></span> خطا
+            </span>
+        </div>
+
+        <div class="space-y-2 overflow-y-auto max-h-[40vh]">
+            <template x-for="upload in uploads" :key="upload.filename">
+                <div class="flex items-center gap-3 text-sm">
+                    <span class="truncate flex-1" x-text="upload.filename" :title="upload.filename"></span>
+                    <template x-if="upload.status === 'pending'">
+                        <span class="badge badge-ghost badge-sm">در انتظار</span>
+                    </template>
+                    <template x-if="upload.status === 'uploading'">
+                        <span class="loading loading-spinner loading-sm"></span>
+                    </template>
+                    <template x-if="upload.status === 'queued'">
+                        <span class="badge badge-success badge-sm">در صف</span>
+                    </template>
+                    <template x-if="upload.status === 'skipped'">
+                        <span class="badge badge-ghost badge-sm" title="فایل بدون تغییر، رد شد">بدون تغییر</span>
+                    </template>
+                    <template x-if="upload.status === 'error'">
+                        <span class="badge badge-error badge-sm" :title="upload.error">خطا</span>
+                    </template>
+                </div>
+            </template>
+        </div>
+        <div class="modal-action">
+            <button class="btn" @@click="closeUploadModal">بستن</button>
+        </div>
+    </div>
+</dialog>
+
+<!-- Segment Detail Modal -->
+<dialog id="segment-modal" class="modal" x-ref="segmentModal">
+    <div class="modal-box max-w-3xl">
+        <template x-if="selectedSegment">
+            <div>
+                <!-- Header -->
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h3 class="font-bold text-lg flex items-center gap-2">
+                            <span class="badge badge-primary" x-text="'[' + selectedSegment.number + ']'"></span>
+                            <span x-text="selectedSegment.documentName"></span>
+                        </h3>
+                        <template x-if="selectedSegment.pageOrSection">
+                            <p class="text-sm opacity-60 mt-1" x-text="selectedSegment.pageOrSection"></p>
+                        </template>
+                    </div>
+                    <button class="btn btn-sm btn-circle btn-ghost" @@click="closeSegmentModal">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Segment Content -->
+                <div class="bg-base-200 rounded-lg p-4 mb-4">
+                    <h4 class="text-xs font-semibold uppercase tracking-wide opacity-60 mb-2">متن منبع</h4>
+                    <div class="prose prose-sm max-w-none" x-html="formatSegmentText(selectedSegment.text)"></div>
+                </div>
+
+                <!-- Metadata -->
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <template x-if="selectedSegment.segmentId">
+                        <div>
+                            <span class="opacity-60">شناسه بخش:</span>
+                            <code class="mr-2 text-xs bg-base-200 px-2 py-1 rounded"
+                                  x-text="selectedSegment.segmentId"></code>
+                        </div>
+                    </template>
+                    <template x-if="selectedSegment.score">
+                        <div>
+                            <span class="opacity-60">ارتباط:</span>
+                            <span class="mr-2 font-medium"
+                                  x-text="(selectedSegment.score * 100).toFixed(1) + '%'"></span>
+                        </div>
+                    </template>
+                    <template x-if="selectedSegment.salience">
+                        <div>
+                            <span class="opacity-60">برجستگی:</span>
+                            <span class="mr-2 font-medium"
+                                  x-text="(selectedSegment.salience * 100).toFixed(1) + '%'"></span>
+                        </div>
+                    </template>
+                    <template x-if="selectedSegment.charRange">
+                        <div>
+                            <span class="opacity-60">موقعیت:</span>
+                            <span class="mr-2 text-xs" x-text="selectedSegment.charRange"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Related Entities (if available) -->
+                <template x-if="selectedSegment.entities && selectedSegment.entities.length > 0">
+                    <div class="mt-4 pt-4 border-t border-base-300">
+                        <h4 class="text-xs font-semibold uppercase tracking-wide opacity-60 mb-2">نهادهای موجود در بخش</h4>
+                        <div class="flex flex-wrap gap-2">
+                            <template x-for="entity in selectedSegment.entities" :key="entity">
+                                <span class="badge badge-outline badge-sm" x-text="entity"></span>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+        <template x-if="!selectedSegment">
+            <div class="text-center py-8 opacity-50">
+                <p>در حال بارگذاری بخش...</p>
+            </div>
+        </template>
+        <div class="modal-action">
+            <button class="btn" @@click="closeSegmentModal">بستن</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>بستن</button>
+    </form>
+</dialog>
+
+</div>
+
+@section Scripts {
+    <script>
+        // Initialize FilePond
+        FilePond.registerPlugin(
+            FilePondPluginFileValidateType,
+            FilePondPluginFileValidateSize
+        );
+
+        // Global FilePond instance
+        let pond = null;
+
+        function ragApp() {
+            return {
+                // Core state
+                documents: [],
+                documentCount: @documents.Count,
+                segmentCount: @totalSegments,
+                messages: [],
+                currentMessage: '',
+                conversationId: null,
+                isTyping: false,
+                streamingThinking: null, // Shows thinking note during stream
+                uploads: [],
+                selectedDocIds: new Set(),
+                isDragging: false,
+                docFilter: 'ready', // 'ready' (completed only) or 'all' (including processing)
+
+                // Sidebar mode: 'chat' (document selection) or 'explorer' (file browser)
+                sidebarMode: 'chat',
+
+                // Write permissions (authenticated users can modify)
+                canWrite: @(User.Identity?.IsAuthenticated == true ? "true" : "false"),
+
+                // ===== EXPLORER STATE =====
+                // Navigation
+                currentFolderId: null,
+                currentCommunityId: null,
+                breadcrumb: [],
+
+                // Explorer view settings
+                explorerViewMode: localStorage.getItem('explorer-view') || 'list',
+                explorerMode: 'browse', // 'browse' | 'search'
+                sortBy: localStorage.getItem('explorer-sort') || 'name',
+                sortOrder: localStorage.getItem('explorer-order') || 'asc',
+
+                // Filtering
+                explorerFilters: {type: [], status: []},
+                globPattern: '',
+                signals: {hasImages: false, hasTables: false, hasCode: false, dateRange: ''},
+
+                // Entity filtering
+                selectedEntities: new Set(),
+                entityGroups: {},
+                allEntities: [],
+
+                // Sidebar expansion states
+                communitiesExpanded: true,
+                entitiesExpanded: true,
+                signalsExpanded: false,
+
+                // Explorer data
+                communities: [],
+                folderTree: [],
+                folders: [],
+                explorerDocuments: [],
+                expandedFolders: new Set(),
+                explorerLoading: false,
+
+                // Search
+                searchQuery: '',
+                searchResults: [],
+                queryDecomposition: [],
+                showSearchHints: false,
+
+                // Explorer stats
+                explorerStats: {folders: 0, documents: 0, totalSizeBytes: 0},
+
+                // Collection state
+                collections: [],
+                currentCollectionId: null,
+                newCollectionName: '',
+                showCreateCollection: false,
+
+                // Community state
+                communityList: [],
+                communityStats: {totalCommunities: 0},
+                selectedCommunityId: null,
+
+                // Processing status state (SignalR)
+                processingStatus: {
+                    currentDocument: null,
+                    progress: 0,
+                    stage: '',
+                    recentEvents: []
+                },
+                hubConnection: null,
+
+                // Demo mode state
+                demoMode: false,
+                demoBannerMessage: '',
+
+                // Content tab state (Upload / Crawl)
+                contentTab: 'upload',
+
+                // Crawl state
+                crawlUrl: '',
+                crawlSelector: '',
+                crawlMaxPages: 50,
+                crawlMaxDepth: 3,
+                crawlInProgress: false,
+                crawlProgress: null,
+                crawlEventSource: null,
+
+                // View state
+                viewMode: 'answer', // 'answer', 'evidence', 'graph'
+                graphRagEnabled: true,
+                showDebugPanel: false,
+
+                // Search mode state: 'hybrid', 'semantic', 'keyword'
+                searchMode: 'hybrid',
+
+                // Chat history state
+                showChatHistory: false,
+                chatHistory: [],
+                chatHistoryLoading: false,
+
+                // Evidence view state
+                lastAnswer: null,
+                selectedSentence: null,
+                selectedEvidence: [],
+
+                // Segment detail modal state
+                selectedSegment: null,
+
+                // Document details modal state
+                documentDetails: null,
+                detailsTab: 'entities',
+
+                // Graph view state
+                graphData: null,
+                graphLoading: false,
+                selectedEntity: null,
+                graphSettings: {
+                    maxHops: 2,
+                    edgeFilter: 'all',
+                    preferAuthoritative: false
+                },
+                graphStats: {
+                    nodes: 0,
+                    edges: 0,
+                    entityCoverage: '0%',
+                    orphans: 0
+                },
+
+                // Extraction mode state
+                extractionModes: [],
+                currentExtractionMode: 'heuristic',
+                ollamaAvailable: false,
+
+                // Debug state
+                debugInfo: null,
+
+                // Clear all state
+                clearingAll: false,
+
+                async init() {
+                    await this.checkDemoMode();
+                    await this.loadExtractionModes();
+                    await this.loadCollections();
+                    await this.loadCommunities();
+                    this.loadGraphStats();
+                    this.initSignalR();
+                    if (!this.demoMode) {
+                        // Wait for Alpine to render the input element after x-if evaluates
+                        this.$nextTick(() => {
+                            this.initFilePond();
+                        });
+                    }
+                    // Restore conversation from cookie
+                    await this.restoreConversation();
+                    // Listen for document details events from Explorer
+                    window.addEventListener('show-document-details', (e) => {
+                        if (e.detail?.documentId) {
+                            this.showDocumentDetails(e.detail.documentId);
+                        }
+                    });
+
+                    // Setup Ctrl+K keyboard shortcut for search
+                    document.addEventListener('keydown', (e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                            e.preventDefault();
+                            const searchInput = document.querySelector('[x-model="searchQuery"]');
+                            if (searchInput) searchInput.focus();
+                        }
+                    });
+
+                    // Watch graph settings changes to re-render graph
+                    this.$watch('graphSettings', () => {
+                        if (this.viewMode === 'graph' && this.graphData) {
+                            this.$nextTick(() => this.renderGraph());
+                        }
+                    }, { deep: true });
+
+                    // Select all completed documents by default
+                    await this.selectAllDocuments();
+                },
+
+                // ===== EXPLORER METHODS =====
+                async loadExplorerContents() {
+                    this.explorerLoading = true;
+                    try {
+                        const params = new URLSearchParams();
+                        if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                        if (this.currentFolderId) params.append('folderId', this.currentFolderId);
+                        if (this.currentCommunityId) params.append('communityId', this.currentCommunityId);
+                        params.append('sort', this.sortBy);
+                        params.append('order', this.sortOrder);
+                        if (this.signals.hasImages) params.append('hasImages', 'true');
+                        if (this.signals.hasTables) params.append('hasTables', 'true');
+                        if (this.signals.dateRange) params.append('dateRange', this.signals.dateRange);
+                        if (this.selectedEntities.size > 0) {
+                            params.append('entityIds', [...this.selectedEntities].join(','));
+                        }
+
+                        const response = await fetch(`/api/explorer?${params}`);
+                        const data = await response.json();
+
+                        this.folders = data.folders || [];
+                        this.explorerDocuments = data.documents || [];
+                        this.explorerStats = {folders: this.folders.length, documents: this.explorerDocuments.length};
+                    } catch (e) {
+                        console.error('Failed to load explorer contents:', e);
+                    } finally {
+                        this.explorerLoading = false;
+                    }
+                },
+
+                async loadEntities() {
+                    try {
+                        const params = new URLSearchParams();
+                        if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                        params.append('limit', '100');
+
+                        const response = await fetch(`/api/explorer/entities?${params}`);
+                        const data = await response.json();
+
+                        this.entityGroups = data.entities || {};
+                        this.allEntities = [];
+                        for (const [type, entities] of Object.entries(this.entityGroups)) {
+                            for (const entity of entities) {
+                                this.allEntities.push({...entity, type});
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to load entities:', e);
+                    }
+                },
+
+                async loadFolderTree() {
+                    try {
+                        const response = await fetch(`/api/folders/tree?collectionId=${this.currentCollectionId || ''}`);
+                        const data = await response.json();
+                        this.folderTree = data.folders || [];
+                    } catch (e) {
+                        console.error('Failed to load folder tree:', e);
+                    }
+                },
+
+                navigateToFolder(folderId) {
+                    this.currentFolderId = folderId;
+                    this.loadExplorerContents();
+                },
+
+                hasActiveFilters() {
+                    return this.explorerFilters.type.length > 0 ||
+                        this.explorerFilters.status.length > 0 ||
+                        this.currentCommunityId ||
+                        this.selectedEntities.size > 0 ||
+                        this.signals.hasImages ||
+                        this.signals.hasTables ||
+                        this.signals.hasCode ||
+                        this.signals.dateRange;
+                },
+
+                clearAllFilters() {
+                    this.explorerFilters = {type: [], status: []};
+                    this.currentCommunityId = null;
+                    this.selectedEntities.clear();
+                    this.selectedEntities = new Set();
+                    this.signals = {hasImages: false, hasTables: false, hasCode: false, dateRange: ''};
+                    this.loadExplorerContents();
+                },
+
+                toggleEntityFilter(entityId, type) {
+                    if (this.selectedEntities.has(entityId)) {
+                        this.selectedEntities.delete(entityId);
+                    } else {
+                        this.selectedEntities.add(entityId);
+                    }
+                    this.selectedEntities = new Set(this.selectedEntities);
+                    this.loadExplorerContents();
+                },
+
+                getEntityName(entityId) {
+                    const entity = this.allEntities.find(e => e.id === entityId);
+                    return entity?.name || 'Entity';
+                },
+
+                getEntityIcon(type) {
+                    const icons = {
+                        person: '<svg class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>',
+                        organization: '<svg class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>',
+                        location: '<svg class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>',
+                        concept: '<svg class="h-4 w-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>',
+                    };
+                    return icons[type?.toLowerCase()] || '<svg class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>';
+                },
+
+                async executeSearch() {
+                    if (!this.searchQuery.trim()) return;
+                    this.explorerLoading = true;
+                    this.explorerMode = 'search';
+                    try {
+                        const params = new URLSearchParams();
+                        params.append('query', this.searchQuery);
+                        if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+
+                        const response = await fetch(`/api/explorer/search?${params}`);
+                        const data = await response.json();
+
+                        this.searchResults = data.results || [];
+                        this.queryDecomposition = data.queryPlan?.steps || [];
+                    } catch (e) {
+                        console.error('Search failed:', e);
+                    } finally {
+                        this.explorerLoading = false;
+                    }
+                },
+
+                clearSearch() {
+                    this.searchQuery = '';
+                    this.searchResults = [];
+                    this.explorerMode = 'browse';
+                    this.loadExplorerContents();
+                },
+
+                toggleDocSelection(docId) {
+                    if (this.selectedDocIds.has(docId)) {
+                        this.selectedDocIds.delete(docId);
+                    } else {
+                        this.selectedDocIds.add(docId);
+                    }
+                    this.selectedDocIds = new Set(this.selectedDocIds);
+                },
+
+                chatWithSelection() {
+                    // Switch to chat mode with selection
+                    this.sidebarMode = 'chat';
+                },
+
+                getFileIcon(mimeType) {
+                    const iconMap = {
+                        'application/pdf': '<svg class="h-full w-full text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zm-3 12v-2h4v2H10zm0-4V10h6v2h-6z"/></svg>',
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '<svg class="h-full w-full text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>',
+                        'text/markdown': '<svg class="h-full w-full text-gray-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>',
+                    };
+                    if (mimeType?.startsWith('image/')) {
+                        return '<svg class="h-full w-full text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                    }
+                    return iconMap[mimeType] || '<svg class="h-full w-full text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg>';
+                },
+
+                getStatusBadgeClass(status) {
+                    const classes = {
+                        'completed': 'badge-success',
+                        'ready': 'badge-success',
+                        'processing': 'badge-info',
+                        'pending': 'badge-warning',
+                        'failed': 'badge-error'
+                    };
+                    return classes[status?.toLowerCase()] || 'badge-ghost';
+                },
+
+                formatFileSize(bytes) {
+                    if (!bytes) return '';
+                    const sizes = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                    return Math.round(bytes / Math.pow(1024, i)) + ' ' + sizes[i];
+                },
+
+                formatDate(dateStr) {
+                    if (!dateStr) return '';
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('fa-IR');
+                },
+
+                // Called when switching to explorer mode
+                async onExplorerModeActivated() {
+                    await this.loadFolderTree();
+                    await this.loadEntities();
+                    await this.loadExplorerContents();
+                },
+
+                initSignalR() {
+                    if (typeof signalR === 'undefined') {
+                        console.warn('SignalR not loaded');
+                        return;
+                    }
+
+                    this.hubConnection = new signalR.HubConnectionBuilder()
+                        .withUrl('/hubs/processing')
+                        .withAutomaticReconnect()
+                        .build();
+
+                    this.hubConnection.on('DocumentProcessing', (data) => {
+                        this.handleProcessingUpdate(data);
+                    });
+
+                    this.hubConnection.on('QueueStatus', (data) => {
+                        this.handleQueueStatus(data);
+                    });
+
+                    this.hubConnection.start()
+                        .then(() => console.log('SignalR connected'))
+                        .catch(err => console.warn('SignalR connection failed:', err));
+                },
+
+                handleProcessingUpdate(data) {
+                    // Add to recent events (keep last 10)
+                    this.processingStatus.recentEvents.unshift({
+                        ...data,
+                        receivedAt: new Date()
+                    });
+                    if (this.processingStatus.recentEvents.length > 10) {
+                        this.processingStatus.recentEvents.pop();
+                    }
+
+                    // Update current document status
+                    if (data.type === 'started' || data.type === 'progress') {
+                        this.processingStatus.currentDocument = data.documentName;
+                        this.processingStatus.progress = data.progress || 0;
+                        this.processingStatus.stage = data.stage || 'Processing';
+                    } else if (data.type === 'completed' || data.type === 'failed') {
+                        // Clear current if it matches
+                        if (this.processingStatus.currentDocument === data.documentName) {
+                            setTimeout(() => {
+                                this.processingStatus.currentDocument = null;
+                                this.processingStatus.progress = 0;
+                                this.processingStatus.stage = '';
+                            }, 2000);
+                        }
+
+                        // Refresh collections to update counts
+                        this.loadCollections();
+                    }
+                },
+
+                handleQueueStatus(data) {
+                    // Could update a queue status display
+                    console.log('Queue status:', data);
+                },
+
+                // Cookie utilities
+                getCookie(name) {
+                    const value = `; ${document.cookie}`;
+                    const parts = value.split(`; ${name}=`);
+                    if (parts.length === 2) return parts.pop().split(';').shift();
+                    return null;
+                },
+
+                setCookie(name, value, days = 7) {
+                    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+                    document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`;
+                },
+
+                deleteCookie(name) {
+                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+                },
+
+                async restoreConversation() {
+                    const savedConversationId = this.getCookie('lucidrag-conversation');
+                    if (!savedConversationId) return;
+
+                    try {
+                        const response = await fetch(`/api/chat/conversations/${savedConversationId}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.conversationId = data.id;
+                            // Load messages
+                            this.messages = data.messages.map((m, i) => ({
+                                id: i,
+                                role: m.role,
+                                content: m.content,
+                                sources: [],
+                                timestamp: m.createdAt
+                            }));
+                            console.log(`Restored conversation ${savedConversationId} with ${this.messages.length} messages`);
+                        } else {
+                            // Conversation not found, clear cookie
+                            this.deleteCookie('lucidrag-conversation');
+                        }
+                    } catch (e) {
+                        console.warn('Could not restore conversation:', e);
+                        this.deleteCookie('lucidrag-conversation');
+                    }
+                },
+
+                startNewChat() {
+                    this.messages = [];
+                    this.conversationId = null;
+                    this.lastAnswer = null;
+                    this.graphData = null;
+                    this.debugInfo = null;
+                    this.deleteCookie('lucidrag-conversation');
+                },
+
+                async toggleChatHistory() {
+                    this.showChatHistory = !this.showChatHistory;
+                    if (this.showChatHistory && this.chatHistory.length === 0) {
+                        await this.loadChatHistory();
+                    }
+                },
+
+                async loadChatHistory() {
+                    this.chatHistoryLoading = true;
+                    try {
+                        const url = this.currentCollectionId
+                            ? `/api/chat/conversations?collectionId=${this.currentCollectionId}`
+                            : '/api/chat/conversations';
+                        const response = await fetch(url);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.chatHistory = data.conversations || [];
+                        }
+                    } catch (e) {
+                        console.warn('Could not load chat history:', e);
+                    } finally {
+                        this.chatHistoryLoading = false;
+                    }
+                },
+
+                async loadConversation(id) {
+                    try {
+                        const response = await fetch(`/api/chat/conversations/${id}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.conversationId = data.id;
+                            this.messages = data.messages.map(m => ({
+                                id: m.id,
+                                role: m.role,
+                                content: m.content,
+                                sources: [],
+                                timestamp: m.createdAt
+                            }));
+                            this.setCookie('lucidrag-conversation', data.id);
+                            this.showChatHistory = false;
+                        }
+                    } catch (e) {
+                        console.warn('Could not load conversation:', e);
+                    }
+                },
+
+                async deleteConversation(id) {
+                    if (!confirm('این گفتگو حذف شود؟')) return;
+                    try {
+                        await fetch(`/api/chat/conversations/${id}`, {method: 'DELETE'});
+                        this.chatHistory = this.chatHistory.filter(c => c.id !== id);
+                        if (this.conversationId === id) {
+                            this.startNewChat();
+                        }
+                    } catch (e) {
+                        console.warn('Could not delete conversation:', e);
+                    }
+                },
+
+                formatChatDate(dateStr) {
+                    if (!dateStr) return '';
+                    const date = new Date(dateStr);
+                    const now = new Date();
+                    const diff = now - date;
+                    if (diff < 60000) return 'همین الان';
+                    if (diff < 3600000) return `${Math.floor(diff / 60000)} دقیقه پیش`;
+                    if (diff < 86400000) return `${Math.floor(diff / 3600000)} ساعت پیش`;
+                    if (diff < 604800000) return `${Math.floor(diff / 86400000)} روز پیش`;
+                    return date.toLocaleDateString('fa-IR');
+                },
+
+                formatTimestamp(timestamp) {
+                    if (!timestamp) return '';
+                    const date = new Date(timestamp);
+                    const now = new Date();
+                    const diff = now - date;
+                    // Within the last minute
+                    if (diff < 60000) return 'همین الان';
+                    // Within the last hour
+                    if (diff < 3600000) return `${Math.floor(diff / 60000)} دقیقه پیش`;
+                    // Within today - show time
+                    if (date.toDateString() === now.toDateString()) {
+                        return date.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
+                    }
+                    // Within the last week
+                    if (diff < 604800000) {
+                        return date.toLocaleDateString('fa-IR', {weekday: 'short'}) + ' ' +
+                            date.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
+                    }
+                    // Older - show date and time
+                    return date.toLocaleDateString('fa-IR', {month: 'short', day: 'numeric'}) + ' ' +
+                        date.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
+                },
+
+                async loadExtractionModes() {
+                    try {
+                        const response = await fetch('/api/config/extraction-modes');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.extractionModes = data.modes;
+                            this.ollamaAvailable = data.ollamaAvailable;
+                            // Set current mode from default
+                            const defaultMode = data.modes.find(m => m.isDefault);
+                            if (defaultMode) {
+                                this.currentExtractionMode = defaultMode.value;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Could not load extraction modes:', e);
+                        // Fallback to heuristic only
+                        this.extractionModes = [{
+                            value: 'heuristic',
+                            label: 'Heuristic (Fast)',
+                            available: true,
+                            isDefault: true
+                        }];
+                    }
+                },
+
+                // Collection management
+                async loadCollections() {
+                    try {
+                        const response = await fetch('/api/collections');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.collections = data.collections || [];
+                        }
+                    } catch (e) {
+                        console.warn('Could not load collections:', e);
+                    }
+                },
+
+                // Community management
+                async loadCommunities() {
+                    try {
+                        // Load stats first
+                        const statsResponse = await fetch('/api/communities/stats');
+                        if (statsResponse.ok) {
+                            const stats = await statsResponse.json();
+                            this.communityStats = stats;
+                        }
+
+                        // Load community list
+                        if (this.communityStats.totalCommunities > 0) {
+                            const response = await fetch('/api/communities?take=50');
+                            if (response.ok) {
+                                const data = await response.json();
+                                this.communityList = data.items || [];
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Could not load communities:', e);
+                    }
+                },
+
+                get selectedCommunity() {
+                    if (!this.selectedCommunityId) return null;
+                    return this.communityList.find(c => c.id === this.selectedCommunityId) || null;
+                },
+
+                selectCommunity(comm) {
+                    this.selectedCommunityId = comm.id;
+                    // Could filter graph or search by community here
+                },
+
+                getCommunityColor(comm) {
+                    // Generate consistent color based on community id
+                    if (!comm || !comm.id) return '#6b7280';
+                    const hash = comm.id.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
+                    const hue = hash % 360;
+                    return `hsl(${hue}, 65%, 50%)`;
+                },
+
+                async createCollection() {
+                    if (!this.newCollectionName.trim()) return;
+                    try {
+                        const response = await fetch('/api/collections', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({name: this.newCollectionName.trim()})
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            await this.loadCollections();
+                            this.currentCollectionId = data.id;
+                            this.newCollectionName = '';
+                            this.showCreateCollection = false;
+                            this.filterByCollection();
+                        }
+                    } catch (e) {
+                        console.error('Failed to create collection:', e);
+                    }
+                },
+
+                async filterByCollection() {
+                    // Reload document list filtered by collection
+                    const url = this.currentCollectionId
+                        ? `/documents?collectionId=${this.currentCollectionId}`
+                        : '/documents';
+                    try {
+                        const response = await fetch(url);
+                        if (response.ok) {
+                            const html = await response.text();
+                            document.getElementById('document-list').innerHTML = html;
+                        }
+                    } catch (e) {
+                        console.error('Failed to filter documents:', e);
+                    }
+                },
+
+                async addSelectedToCollection(collectionId) {
+                    if (this.selectedDocIds.size === 0) return;
+                    try {
+                        const response = await fetch(`/api/collections/${collectionId}/documents`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({documentIds: Array.from(this.selectedDocIds)})
+                        });
+                        if (response.ok) {
+                            await this.loadCollections();
+                            this.filterByCollection();
+                        }
+                    } catch (e) {
+                        console.error('Failed to add documents to collection:', e);
+                    }
+                },
+
+                async deleteCollection(collectionId) {
+                    if (!confirm('این مجموعه حذف شود؟ اسناد از مجموعه خارج می‌شوند اما حذف نمی‌شوند.')) return;
+                    try {
+                        const response = await fetch(`/api/collections/${collectionId}`, {method: 'DELETE'});
+                        if (response.ok) {
+                            if (this.currentCollectionId === collectionId) {
+                                this.currentCollectionId = null;
+                            }
+                            await this.loadCollections();
+                            this.filterByCollection();
+                        }
+                    } catch (e) {
+                        console.error('Failed to delete collection:', e);
+                    }
+                },
+
+                async clearAll() {
+                    if (!confirm('⚠️ حذف همه داده‌ها؟\n\nاین عملیات موارد زیر را برای همیشه حذف می‌کند:\n• همه اسناد\n• همه مجموعه‌ها\n• همه بردارها\n• همه نهادها\n\nاین عمل قابل بازگشت نیست!')) return;
+                    if (!confirm('واقعاً مطمئن هستید؟')) return;
+
+                    this.clearingAll = true;
+                    try {
+                        const response = await fetch('/api/documents/clear-all', {method: 'DELETE'});
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log('Cleared:', data);
+                            // Reset state
+                            this.documents = [];
+                            this.documentCount = 0;
+                            this.segmentCount = 0;
+                            this.currentCollectionId = null;
+                            this.collections = [];
+                            this.messages = [];
+                            this.graphStats = {nodes: 0, edges: 0, entityCoverage: '0%', orphans: 0};
+                            // Refresh document list
+                            htmx.trigger(document.body, 'documentUploaded');
+                            await this.loadCollections();
+                            this.loadGraphStats();
+                            alert(`✓ ${data.documentsDeleted} سند و همه داده‌های مرتبط حذف شد`);
+                        } else {
+                            const err = await response.json();
+                            alert('خطا در حذف: ' + (err.error || 'خطای ناشناخته'));
+                        }
+                    } catch (e) {
+                        console.error('Failed to clear all:', e);
+                        alert('خطا در حذف همه داده‌ها: ' + e.message);
+                    } finally {
+                        this.clearingAll = false;
+                    }
+                },
+
+                get currentCollectionName() {
+                    if (!this.currentCollectionId) return 'همه اسناد';
+                    const col = this.collections.find(c => c.id === this.currentCollectionId);
+                    return col?.name || 'همه اسناد';
+                },
+
+                get currentCollection() {
+                    if (!this.currentCollectionId) return null;
+                    return this.collections.find(c => c.id === this.currentCollectionId) || null;
+                },
+
+                async setExtractionMode(mode) {
+                    if (this.demoMode) return;
+                    try {
+                        const response = await fetch('/api/config/extraction-mode', {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({mode})
+                        });
+                        if (response.ok) {
+                            this.currentExtractionMode = mode;
+                        }
+                    } catch (e) {
+                        console.warn('Could not set extraction mode:', e);
+                    }
+                },
+
+                async checkDemoMode() {
+                    try {
+                        const response = await fetch('/api/documents/demo-status');
+                        if (response.ok) {
+                            const status = await response.json();
+                            this.demoMode = status.demoMode;
+                            this.demoBannerMessage = status.message || 'حالت نمایشی فعال';
+                        }
+                    } catch (e) {
+                        console.warn('Could not check demo status:', e);
+                    }
+                },
+
+                initFilePond() {
+                    const input = document.querySelector('#filepond-input');
+                    if (!input) return;
+
+                    pond = FilePond.create(input, {
+                        allowMultiple: true,
+                        maxFileSize: '100MB',
+                        name: 'file', // Must match controller parameter name
+                        acceptedFileTypes: [
+                            'application/pdf',
+                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            'text/markdown',
+                            'text/plain',
+                            'text/html'
+                        ],
+                        fileValidateTypeDetectType: (source, type) => {
+                            // Allow .md files
+                            if (source.name.endsWith('.md')) return Promise.resolve('text/markdown');
+                            return Promise.resolve(type);
+                        },
+                        labelIdle: 'فایل‌ها را اینجا رها کنید یا <span class="filepond--label-action">مرور کنید</span>',
+                        labelFileProcessing: 'در حال بارگذاری...',
+                        labelFileProcessingComplete: 'بارگذاری کامل شد',
+                        labelTapToCancel: 'برای لغو ضربه بزنید',
+                        labelTapToRetry: 'برای تلاش مجدد ضربه بزنید',
+                        server: {
+                            process: {
+                                url: '/api/documents/upload',
+                                method: 'POST',
+                                withCredentials: false,
+                                onload: (response) => {
+                                    const result = JSON.parse(response);
+                                    htmx.trigger(document.body, 'documentUploaded');
+                                    this.loadGraphStats();
+                                    return result.documentId;
+                                },
+                                onerror: (response) => {
+                                    const result = JSON.parse(response);
+                                    return result.error || 'بارگذاری ناموفق';
+                                }
+                            },
+                            revert: null
+                        },
+                        credits: false
+                    });
+                },
+
+                handleDrop(event) {
+                    this.isDragging = false;
+                    if (this.demoMode) return; // Uploads disabled in demo mode
+                    const files = event.dataTransfer.files;
+                    if (files.length > 0 && pond) {
+                        pond.addFiles(files);
+                    }
+                },
+
+                async loadGraphStats() {
+                    try {
+                        const response = await fetch('/api/graph/stats');
+                        if (response.ok) {
+                            const stats = await response.json();
+                            this.graphStats = stats;
+                        }
+                    } catch (e) {
+                        console.warn('Could not load graph stats:', e);
+                    }
+                },
+
+                async loadGraphData() {
+                    if (this.graphLoading) return;
+                    this.graphLoading = true;
+                    try {
+                        const response = await fetch('/api/graph?maxNodes=100');
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Normalize API response to graphData format
+                            this.graphData = {
+                                nodes: data.nodes || [],
+                                links: data.links || [],
+                                entities: (data.nodes || []).map(n => ({
+                                    id: n.id,
+                                    name: n.name,
+                                    type: n.type,
+                                    description: n.description,
+                                    score: n.mentionCount ? n.mentionCount / 100 : 0
+                                })),
+                                paths: []
+                            };
+                            this.$nextTick(() => this.renderGraph());
+                        }
+                    } catch (e) {
+                        console.warn('Could not load graph data:', e);
+                    } finally {
+                        this.graphLoading = false;
+                    }
+                },
+
+                async loadSubgraph(entityId) {
+                    if (!entityId || this.graphLoading) return;
+                    this.graphLoading = true;
+                    try {
+                        const params = new URLSearchParams({
+                            maxHops: this.graphSettings.maxHops || 2,
+                            edgeFilter: this.graphSettings.edgeFilter || 'all'
+                        });
+                        const response = await fetch(`/api/graph/subgraph/${entityId}?${params}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.graphData = {
+                                nodes: data.nodes || [],
+                                links: (data.links || []).map(l => ({
+                                    source: l.source,
+                                    target: l.target,
+                                    type: l.type,
+                                    strength: l.strength
+                                })),
+                                entities: (data.nodes || []).map(n => ({
+                                    id: n.id,
+                                    name: n.name,
+                                    type: n.type,
+                                    description: n.description,
+                                    score: n.isCenter ? 1 : 0.5
+                                })),
+                                paths: []
+                            };
+                            this.$nextTick(() => this.renderGraph());
+                        }
+                    } catch (e) {
+                        console.warn('Could not load subgraph:', e);
+                    } finally {
+                        this.graphLoading = false;
+                    }
+                },
+
+                renderGraph() {
+                    const container = this.$refs.graphCanvas;
+                    if (!container || !this.graphData) return;
+
+                    const width = container.clientWidth;
+                    const height = container.clientHeight || 384;
+
+                    // Clear previous graph
+                    container.innerHTML = '';
+
+                    const { nodes, links } = this.graphData;
+                    if (!nodes || nodes.length === 0) return;
+
+                    // Colors by entity type
+                    const typeColors = {
+                        person: '#3b82f6',
+                        organization: '#10b981',
+                        location: '#ef4444',
+                        concept: '#8b5cf6',
+                        event: '#f59e0b',
+                        date: '#6b7280',
+                        class: '#3b82f6',
+                        function: '#10b981',
+                        method: '#8b5cf6',
+                        property: '#f59e0b',
+                        default: '#6b7280'
+                    };
+
+                    const getColor = (type) => typeColors[type?.toLowerCase()] || typeColors.default;
+
+                    // Create SVG
+                    const svg = d3.select(container)
+                        .append('svg')
+                        .attr('width', width)
+                        .attr('height', height)
+                        .style('cursor', 'grab');
+
+                    // Define arrow marker for links
+                    svg.append('defs').append('marker')
+                        .attr('id', 'arrow')
+                        .attr('viewBox', '0 -5 10 10')
+                        .attr('refX', 20)
+                        .attr('refY', 0)
+                        .attr('markerWidth', 6)
+                        .attr('markerHeight', 6)
+                        .attr('orient', 'auto')
+                        .append('path')
+                        .attr('d', 'M0,-5L10,0L0,5')
+                        .attr('fill', '#999');
+
+                    // Filter links based on edgeFilter
+                    const edgeFilter = this.graphSettings.edgeFilter || 'all';
+                    const activeLinks = edgeFilter === 'all'
+                        ? links
+                        : links.filter(l => l.type === edgeFilter);
+
+                    // Collect node IDs that are part of active links (plus all nodes)
+                    const activeNodeIds = new Set(nodes.map(n => n.id));
+                    activeLinks.forEach(l => {
+                        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                        activeNodeIds.add(sId);
+                        activeNodeIds.add(tId);
+                    });
+
+                    const activeNodes = nodes.filter(n => activeNodeIds.has(n.id));
+
+                    // Create zoom behavior
+                    const zoom = d3.zoom()
+                        .scaleExtent([0.1, 4])
+                        .on('zoom', (event) => {
+                            g.attr('transform', event.transform);
+                        });
+
+                    svg.call(zoom);
+
+                    // Main group for zoom/pan
+                    const g = svg.append('g');
+
+                    // Create links
+                    const linkGroup = g.append('g').attr('class', 'links');
+                    const linkElements = linkGroup.selectAll('g.link-group')
+                        .data(activeLinks)
+                        .enter()
+                        .append('g')
+                        .attr('class', 'link-group');
+
+                    const linkLines = linkElements.append('line')
+                        .attr('stroke', '#999')
+                        .attr('stroke-opacity', 0.6)
+                        .attr('stroke-width', d => Math.max(0.5, Math.min(3, (d.strength || 0.5) * 3)))
+                        .attr('marker-end', 'url(#arrow)');
+
+                    // Link labels
+                    const linkLabels = linkElements.append('text')
+                        .attr('font-size', '8px')
+                        .attr('fill', '#999')
+                        .attr('text-anchor', 'middle')
+                        .attr('dy', '-4')
+                        .text(d => d.type || '');
+
+                    // Create nodes
+                    const nodeGroup = g.append('g').attr('class', 'nodes');
+                    const nodeElements = nodeGroup.selectAll('g.node-group')
+                        .data(activeNodes)
+                        .enter()
+                        .append('g')
+                        .attr('class', 'node-group')
+                        .style('cursor', 'pointer')
+                        .on('click', (event, d) => {
+                            event.stopPropagation();
+                            this.loadSubgraph(d.id);
+                        })
+                        .call(d3.drag()
+                            .on('start', (event, d) => {
+                                if (!event.active) simulation.alphaTarget(0.3).restart();
+                                d.fx = d.x;
+                                d.fy = d.y;
+                            })
+                            .on('drag', (event, d) => {
+                                d.fx = event.x;
+                                d.fy = event.y;
+                            })
+                            .on('end', (event, d) => {
+                                if (!event.active) simulation.alphaTarget(0);
+                                d.fx = null;
+                                d.fy = null;
+                            })
+                        );
+
+                    // Node circles
+                    nodeElements.append('circle')
+                        .attr('r', d => Math.max(5, Math.min(15, (d.mentionCount || 1) * 0.5)))
+                        .attr('fill', d => getColor(d.type))
+                        .attr('stroke', '#fff')
+                        .attr('stroke-width', 1.5);
+
+                    // Node labels
+                    nodeElements.append('text')
+                        .attr('dx', d => Math.max(5, Math.min(15, (d.mentionCount || 1) * 0.5)) + 4)
+                        .attr('dy', 4)
+                        .attr('font-size', '10px')
+                        .attr('fill', '#333')
+                        .text(d => d.name || '');
+
+                    // Node type badges (small text below label)
+                    nodeElements.append('text')
+                        .attr('dx', d => Math.max(5, Math.min(15, (d.mentionCount || 1) * 0.5)) + 4)
+                        .attr('dy', 14)
+                        .attr('font-size', '7px')
+                        .attr('fill', '#999')
+                        .text(d => d.type || '');
+
+                    // Force simulation
+                    const simulation = d3.forceSimulation(activeNodes)
+                        .force('link', d3.forceLink(activeLinks)
+                            .id(d => d.id)
+                            .distance(100)
+                        )
+                        .force('charge', d3.forceManyBody().strength(-300))
+                        .force('center', d3.forceCenter(width / 2, height / 2))
+                        .force('collision', d3.forceCollide().radius(30))
+                        .on('tick', () => {
+                            linkLines
+                                .attr('x1', d => d.source.x)
+                                .attr('y1', d => d.source.y)
+                                .attr('x2', d => d.target.x)
+                                .attr('y2', d => d.target.y);
+
+                            linkLabels
+                                .attr('x', d => (d.source.x + d.target.x) / 2)
+                                .attr('y', d => (d.source.y + d.target.y) / 2);
+
+                            nodeElements
+                                .attr('transform', d => `translate(${d.x},${d.y})`);
+                        });
+
+                    // Legend
+                    const types = [...new Set(activeNodes.map(n => n.type?.toLowerCase()).filter(Boolean))];
+                    const legend = svg.append('g')
+                        .attr('transform', `translate(${width - 120}, 10)`);
+
+                    types.slice(0, 8).forEach((type, i) => {
+                        const row = legend.append('g')
+                            .attr('transform', `translate(0, ${i * 18})`);
+
+                        row.append('circle')
+                            .attr('r', 4)
+                            .attr('fill', getColor(type));
+
+                        row.append('text')
+                            .attr('x', 10)
+                            .attr('y', 4)
+                            .attr('font-size', '9px')
+                            .attr('fill', '#666')
+                            .text(type.charAt(0).toUpperCase() + type.slice(1));
+                    });
+
+                    // Double-click to reset zoom
+                    svg.on('dblclick.zoom', null);
+                    svg.on('dblclick', () => {
+                        svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+                    });
+                },
+
+                async uploadFiles(event) {
+                    const files = event.target.files;
+                    if (!files.length) return;
+
+                    this.uploads = Array.from(files).map(f => ({
+                        filename: f.name,
+                        status: 'uploading'
+                    }));
+
+                    this.$refs.uploadModal.showModal();
+
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        try {
+                            const response = await fetch('/api/documents/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const result = await response.json();
+
+                            if (response.ok) {
+                                this.uploads[i].status = 'queued';
+                                this.uploads[i].documentId = result.documentId;
+                            } else {
+                                this.uploads[i].status = 'error';
+                                this.uploads[i].error = result.error;
+                            }
+                        } catch (e) {
+                            this.uploads[i].status = 'error';
+                            this.uploads[i].error = e.message;
+                        }
+                    }
+
+                    htmx.trigger(document.body, 'documentUploaded');
+                    this.loadGraphStats();
+                    event.target.value = '';
+                },
+
+                closeUploadModal() {
+                    this.$refs.uploadModal.close();
+                    this.uploads = [];
+                },
+
+                async uploadFolder(event) {
+                    const files = event.target.files;
+                    if (!files || files.length === 0) return;
+
+                    // Filter to supported file types
+                    const supportedExtensions = ['.pdf', '.docx', '.doc', '.md', '.markdown', '.txt', '.html', '.htm',
+                        '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif',
+                        '.csv', '.xlsx', '.xls', '.json', '.parquet'];
+                    const filteredFiles = Array.from(files).filter(f => {
+                        const ext = '.' + f.name.split('.').pop().toLowerCase();
+                        return supportedExtensions.includes(ext);
+                    });
+
+                    if (filteredFiles.length === 0) {
+                        alert('فایل پشتیبانی شده‌ای در پوشه انتخاب شده یافت نشد.\n\nپشتیبانی شده: PDF, DOCX, MD, TXT, HTML, images, CSV, XLSX, JSON, Parquet');
+                        event.target.value = '';
+                        return;
+                    }
+
+                    // Show upload progress
+                    this.uploads = filteredFiles.map(f => ({
+                        filename: f.webkitRelativePath || f.name,
+                        status: 'pending'
+                    }));
+                    this.$refs.uploadModal.showModal();
+
+                    // Get folder base path from first file
+                    const firstPath = filteredFiles[0].webkitRelativePath || '';
+                    const folderName = firstPath.split('/')[0] || 'uploaded';
+
+                    // Upload files in batches (parallel within batch, sequential batches)
+                    const batchSize = 5;
+                    for (let i = 0; i < filteredFiles.length; i += batchSize) {
+                        const batch = filteredFiles.slice(i, Math.min(i + batchSize, filteredFiles.length));
+
+                        await Promise.all(batch.map(async (file, batchIndex) => {
+                            const fileIndex = i + batchIndex;
+                            const relativePath = file.webkitRelativePath || file.name;
+                            this.uploads[fileIndex].status = 'uploading';
+
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            formData.append('sourcePath', relativePath);
+                            if (this.currentCollectionId) {
+                                formData.append('collectionId', this.currentCollectionId);
+                            }
+
+                            try {
+                                const response = await fetch('/api/documents/import', {
+                                    method: 'POST',
+                                    body: formData
+                                });
+                                const result = await response.json();
+
+                                if (response.ok) {
+                                    this.uploads[fileIndex].status = result.action === 'unchanged' ? 'skipped' : 'queued';
+                                    this.uploads[fileIndex].documentId = result.documentId;
+                                    this.uploads[fileIndex].action = result.action;
+                                } else {
+                                    this.uploads[fileIndex].status = 'error';
+                                    this.uploads[fileIndex].error = result.error || 'بارگذاری ناموفق';
+                                }
+                            } catch (e) {
+                                this.uploads[fileIndex].status = 'error';
+                                this.uploads[fileIndex].error = e.message;
+                            }
+                        }));
+                    }
+
+                    // Refresh document list and stats
+                    htmx.trigger(document.body, 'documentUploaded');
+                    this.loadGraphStats();
+                    event.target.value = '';
+
+                    // Show summary
+                    const created = this.uploads.filter(u => u.action === 'created').length;
+                    const updated = this.uploads.filter(u => u.action === 'updated').length;
+                    const unchanged = this.uploads.filter(u => u.status === 'skipped').length;
+                    const errors = this.uploads.filter(u => u.status === 'error').length;
+
+                    console.log(`Folder upload complete: ${created} created, ${updated} updated, ${unchanged} unchanged, ${errors} errors`);
+                },
+
+                toggleDocument(docId, checked) {
+                    if (checked) {
+                        this.selectedDocIds.add(docId);
+                    } else {
+                        this.selectedDocIds.delete(docId);
+                    }
+                },
+
+                async selectAllDocuments() {
+                    try {
+                        const url = this.currentCollectionId
+                            ? `/api/documents?collectionId=${this.currentCollectionId}`
+                            : '/api/documents';
+                        const response = await fetch(url);
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Select all completed documents
+                            data.data
+                                .filter(d => d.status === 'completed')
+                                .forEach(d => this.selectedDocIds.add(d.id));
+                            // Trigger UI refresh
+                            htmx.trigger(document.body, 'documentUploaded');
+                        }
+                    } catch (e) {
+                        console.error('Failed to select all documents:', e);
+                    }
+                },
+
+                // Refresh document list with current filter
+                refreshDocuments() {
+                    htmx.trigger(document.body, 'docFilterChanged');
+                },
+
+                async sendMessage() {
+                    const query = this.currentMessage.trim();
+                    if (!query) return;
+
+                    const userMsg = {
+                        id: Date.now(),
+                        role: 'user',
+                        content: query,
+                        timestamp: new Date().toISOString()
+                    };
+                    this.messages.push(userMsg);
+                    this.currentMessage = '';
+                    this.isTyping = true;
+                    this.streamingThinking = null;
+                    this.lastAnswer = null;
+                    this.selectedSentence = null;
+                    this.selectedEvidence = [];
+                    this.graphData = null;
+                    this.debugInfo = null;
+
+                    // Create placeholder message for streaming
+                    const assistantMsgId = Date.now() + 1;
+                    const assistantMsg = {
+                        id: assistantMsgId,
+                        role: 'assistant',
+                        content: '',
+                        sources: [],
+                        timestamp: new Date().toISOString(),
+                        isStreaming: true
+                    };
+                    this.messages.push(assistantMsg);
+
+                    this.$nextTick(() => {
+                        if (this.$refs.chatMessages) {
+                            this.$refs.chatMessages.scrollTop = this.$refs.chatMessages.scrollHeight;
+                        }
+                    });
+
+                    const startTime = Date.now();
+
+                    try {
+                        // Use streaming endpoint to show sources early
+                        const response = await fetch('/api/chat/stream-with-sources', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                query,
+                                conversationId: this.conversationId,
+                                documentIds: this.selectedDocIds.size > 0 ? Array.from(this.selectedDocIds) : null,
+                                searchMode: this.searchMode
+                            })
+                        });
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+                        let fullAnswer = '';
+                        let sources = [];
+                        let thinkingNote = null;
+                        let searchTimeMs = 0;
+                        let segmentCount = 0;
+
+                        while (true) {
+                            const {done, value} = await reader.read();
+                            if (done) break;
+
+                            buffer += decoder.decode(value, {stream: true});
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop(); // Keep incomplete line in buffer
+
+                            for (const line of lines) {
+                                if (!line.startsWith('data: ')) continue;
+                                const data = line.slice(6);
+                                if (data === '[DONE]') continue;
+
+                                try {
+                                    const chunk = JSON.parse(data);
+
+                                    if (chunk.type === 'sources' && chunk.sources) {
+                                        // Show sources immediately!
+                                        sources = chunk.sources;
+                                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                                        if (msgIdx >= 0) {
+                                            this.messages[msgIdx].sources = sources;
+                                        }
+                                        // Store for evidence view
+                                        this.lastAnswer = {
+                                            fullText: '',
+                                            sentences: [],
+                                            sources: sources
+                                        };
+                                        this.selectedEvidence = sources.length > 0 ? [sources[0]] : [];
+
+                                        // Update metadata
+                                        if (chunk.conversationId) {
+                                            this.conversationId = chunk.conversationId;
+                                            this.setCookie('lucidrag-conversation', chunk.conversationId);
+                                        }
+                                        if (chunk.thinkingNote) {
+                                            thinkingNote = chunk.thinkingNote;
+                                            // Show compact thinking note during stream
+                                            this.streamingThinking = chunk.thinkingNote.split('\n')[0].substring(0, 100);
+                                        }
+                                        if (chunk.searchTimeMs) searchTimeMs = chunk.searchTimeMs;
+                                        if (chunk.segmentCount) segmentCount = chunk.segmentCount;
+                                    }
+
+                                    if (chunk.type === 'text' && chunk.text) {
+                                        fullAnswer += chunk.text;
+                                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                                        if (msgIdx >= 0) {
+                                            this.messages[msgIdx].content = fullAnswer;
+                                        }
+                                        // Auto-scroll
+                                        this.$nextTick(() => {
+                                            if (this.$refs.chatMessages) {
+                                                this.$refs.chatMessages.scrollTop = this.$refs.chatMessages.scrollHeight;
+                                            }
+                                        });
+                                    }
+
+                                    if (chunk.type === 'done') {
+                                        // Finalize message
+                                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                                        if (msgIdx >= 0) {
+                                            this.messages[msgIdx].isStreaming = false;
+                                            this.messages[msgIdx].thinkingNote = thinkingNote;
+                                            this.messages[msgIdx].searchTimeMs = searchTimeMs;
+                                            this.messages[msgIdx].segmentCount = segmentCount;
+                                        }
+
+                                        // Parse for evidence view
+                                        this.lastAnswer = this.parseAnswerForEvidence({
+                                            answer: fullAnswer,
+                                            sources: sources
+                                        });
+
+                                        // Store debug info
+                                        this.debugInfo = {
+                                            queryEntities: [],
+                                            missingEntities: [],
+                                            suggestion: null,
+                                            latencyMs: Date.now() - startTime,
+                                            retrievalHits: sources.length,
+                                            graphExpansions: 0
+                                        };
+
+                                        // Pre-load graph data for Graph view
+                                        this.loadGraphData();
+                                    }
+                                } catch (parseErr) {
+                                    console.warn('Failed to parse SSE chunk:', parseErr);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        const msgIdx = this.messages.findIndex(m => m.id === assistantMsgId);
+                        if (msgIdx >= 0) {
+                            this.messages[msgIdx].content = `خطا: ${e.message}`;
+                            this.messages[msgIdx].isStreaming = false;
+                        }
+                    } finally {
+                        this.isTyping = false;
+                        this.streamingThinking = null;
+                        this.$nextTick(() => {
+                            if (this.$refs.chatMessages) {
+                                this.$refs.chatMessages.scrollTop = this.$refs.chatMessages.scrollHeight;
+                            }
+                        });
+                    }
+                },
+
+                parseAnswerForEvidence(result) {
+                    const sentences = result.answer.split(/(?<=[.!?])\s+/).map((text, idx) => {
+                        // Simple heuristic: check if sentence contains quoted text
+                        const isDirectQuote = text.includes('"') || text.includes("'") || text.includes('`');
+
+                        // Extract source references from brackets like [1], [2,3]
+                        const sourceRefs = [];
+                        const matches = text.matchAll(/\[(\d+(?:,\s*\d+)*)\]/g);
+                        for (const match of matches) {
+                            sourceRefs.push(...match[1].split(',').map(s => s.trim()));
+                        }
+
+                        return {
+                            text: text.trim(),
+                            isDirectQuote,
+                            sourceRefs,
+                            evidenceIds: sourceRefs.map(n => parseInt(n)).filter(n => !isNaN(n))
+                        };
+                    }).filter(s => s.text.length > 0);
+
+                    return {
+                        fullText: result.answer,
+                        sentences,
+                        sources: result.sources || []
+                    };
+                },
+
+                selectSentence(idx) {
+                    this.selectedSentence = idx;
+                    const sentence = this.lastAnswer.sentences[idx];
+
+                    // Find matching evidence based on source references
+                    if (sentence.evidenceIds.length > 0 && this.lastAnswer.sources) {
+                        this.selectedEvidence = this.lastAnswer.sources.filter(
+                            s => sentence.evidenceIds.includes(s.number)
+                        );
+                    } else if (this.lastAnswer.sources && this.lastAnswer.sources.length > 0) {
+                        // Show first source if no specific refs
+                        this.selectedEvidence = [this.lastAnswer.sources[0]];
+                    } else {
+                        this.selectedEvidence = [];
+                    }
+                },
+
+                showEvidence(source) {
+                    this.viewMode = 'evidence';
+                    this.selectedEvidence = [source];
+                },
+
+                // Audio evidence helper functions
+                isAudioEvidence(type) {
+                    const audioTypes = [
+                        'stem_vocals', 'stem_drums', 'stem_bass', 'stem_other', 'stem_instrumentals',
+                        'audio_waveform', 'speaker_sample', 'transcript'
+                    ];
+                    return audioTypes.includes(type) || type?.startsWith('stem_');
+                },
+
+                hasAudioStems(evidence) {
+                    if (!evidence || !evidence.length) return false;
+                    return evidence.some(e => e.type?.startsWith('stem_'));
+                },
+
+                getAudioStems(evidence) {
+                    if (!evidence) return {};
+                    const stems = {};
+                    const stemTypes = {
+                        'stem_vocals': 'vocals',
+                        'stem_drums': 'drums',
+                        'stem_bass': 'bass',
+                        'stem_other': 'other',
+                        'stem_instrumentals': 'instrumentals'
+                    };
+                    evidence.forEach(e => {
+                        const stemName = stemTypes[e.type];
+                        if (stemName) {
+                            stems[stemName] = `/api/evidence/artifact/${e.id}/download`;
+                        }
+                    });
+                    return stems;
+                },
+
+                toggleAudioPlay(btn, evidenceId) {
+                    const player = window.AudioPlayer?.getPlayer('audio-' + evidenceId);
+                    if (player) {
+                        player.playPause();
+                    }
+                },
+
+                showSegmentDetail(source) {
+                    // Show the segment detail modal with source info
+                    this.selectedSegment = source;
+                    this.$refs.segmentModal.showModal();
+                },
+
+                closeSegmentModal() {
+                    this.$refs.segmentModal.close();
+                    this.selectedSegment = null;
+                },
+
+                async showDocumentDetails(documentId) {
+                    this.documentDetails = null;
+                    this.detailsTab = 'entities';
+                    // Switch to details view
+                    this.viewMode = 'details';
+
+                    try {
+                        const response = await fetch(`/api/documents/${documentId}/details`);
+                        if (response.ok) {
+                            this.documentDetails = await response.json();
+                        } else {
+                            console.error('Failed to load document details:', await response.text());
+                            this.closeDocumentDetails();
+                        }
+                    } catch (e) {
+                        console.error('Error loading document details:', e);
+                        this.closeDocumentDetails();
+                    }
+                },
+
+                closeDocumentDetails() {
+                    this.documentDetails = null;
+                    this.viewMode = 'answer'; // Return to chat view
+                },
+
+                async retryDocument(documentId) {
+                    try {
+                        const response = await fetch(`/api/documents/${documentId}/retry`, {method: 'POST'});
+                        if (response.ok) {
+                            // Refresh details
+                            await this.showDocumentDetails(documentId);
+                            // Refresh document list
+                            htmx.trigger(document.body, 'documentUploaded');
+                        }
+                    } catch (e) {
+                        console.error('Error retrying document:', e);
+                    }
+                },
+
+                formatFileSize(bytes) {
+                    if (!bytes) return '0 B';
+                    const units = ['B', 'KB', 'MB', 'GB'];
+                    let i = 0;
+                    while (bytes >= 1024 && i < units.length - 1) {
+                        bytes /= 1024;
+                        i++;
+                    }
+                    return bytes.toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+                },
+
+                getStatusBadgeClass(status) {
+                    const classes = {
+                        'completed': 'badge-success',
+                        'processing': 'badge-info',
+                        'pending': 'badge-warning',
+                        'failed': 'badge-error',
+                        'stuck': 'badge-error'
+                    };
+                    return classes[status?.toLowerCase()] || 'badge-ghost';
+                },
+
+                getEntityTypeBadge(type) {
+                    const classes = {
+                        'person': 'badge-primary',
+                        'organization': 'badge-secondary',
+                        'location': 'badge-accent',
+                        'concept': 'badge-info',
+                        'event': 'badge-warning',
+                        'date': 'badge-neutral'
+                    };
+                    return classes[type?.toLowerCase()] || 'badge-ghost';
+                },
+
+                getSignalCategory(key) {
+                    if (!key) return 'signal';
+                    // Extract category from signal key (e.g., "document.topics" -> "document")
+                    const parts = key.split('.');
+                    if (parts.length > 1) return parts[0];
+                    // Common signal prefixes
+                    if (key.startsWith('ocr')) return 'ocr';
+                    if (key.startsWith('vision')) return 'vision';
+                    if (key.startsWith('audio')) return 'audio';
+                    if (key.startsWith('video')) return 'video';
+                    if (key.startsWith('data')) return 'data';
+                    if (key.startsWith('table')) return 'table';
+                    return 'signal';
+                },
+
+                formatSegmentText(text) {
+                    if (!text) return '';
+                    // Basic markdown-like formatting
+                    return text
+                        // Escape HTML
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        // Code blocks
+                        .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-base-300 p-2 rounded text-xs overflow-x-auto"><code>$2</code></pre>')
+                        // Inline code
+                        .replace(/`([^`]+)`/g, '<code class="bg-base-300 px-1 rounded text-sm">$1</code>')
+                        // Bold
+                        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                        // Italic
+                        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                        // Line breaks
+                        .replace(/\n/g, '<br>');
+                },
+
+                selectEntity(entity) {
+                    this.selectedEntity = entity;
+                    // TODO: fetch supporting chunks for this entity
+                },
+
+                getEntityBadgeClass(type) {
+                    const classes = {
+                        'class': 'badge-primary',
+                        'function': 'badge-secondary',
+                        'person': 'badge-accent',
+                        'org': 'badge-info',
+                        'concept': 'badge-warning',
+                        'default': 'badge-ghost'
+                    };
+                    return classes[type?.toLowerCase()] || classes.default;
+                },
+
+                async startCrawl() {
+                    if (!this.crawlUrl || this.crawlInProgress) return;
+
+                    this.crawlInProgress = true;
+                    this.crawlProgress = null;
+
+                    try {
+                        const response = await fetch('/api/crawl', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                seedUrls: [this.crawlUrl],
+                                contentSelector: this.crawlSelector || null,
+                                maxPages: this.crawlMaxPages,
+                                maxDepth: this.crawlMaxDepth
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const error = await response.json();
+                            this.crawlProgress = {
+                                status: 'failed',
+                                errorMessage: error.error || 'شروع خزش ناموفق'
+                            };
+                            this.crawlInProgress = false;
+                            return;
+                        }
+
+                        const result = await response.json();
+                        const crawlId = result.crawlId;
+
+                        // Connect to SSE for progress updates
+                        this.crawlEventSource = new EventSource(`/api/crawl/${crawlId}/status`);
+
+                        this.crawlEventSource.onmessage = (event) => {
+                            const progress = JSON.parse(event.data);
+                            this.crawlProgress = progress;
+
+                            if (progress.status === 'completed' || progress.status === 'failed') {
+                                this.crawlEventSource.close();
+                                this.crawlEventSource = null;
+                                this.crawlInProgress = false;
+
+                                // Refresh document list
+                                htmx.trigger(document.body, 'documentUploaded');
+                                this.loadGraphStats();
+                            }
+                        };
+
+                        this.crawlEventSource.onerror = () => {
+                            this.crawlEventSource.close();
+                            this.crawlEventSource = null;
+                            this.crawlInProgress = false;
+                            if (!this.crawlProgress || this.crawlProgress.status === 'crawling') {
+                                this.crawlProgress = {status: 'failed', errorMessage: 'ارتباط قطع شد'};
+                            }
+                        };
+                    } catch (e) {
+                        this.crawlProgress = {status: 'failed', errorMessage: e.message};
+                        this.crawlInProgress = false;
+                    }
+                }
+            };
+        }
+    </script>
+}

@@ -25,8 +25,9 @@ public class HomeController(
         ViewBag.TotalSegments = documents.Sum(d => d.SegmentCount);
         ViewBag.UserId = User.Identity?.IsAuthenticated == true ? User.Identity.Name : null;
 
-       // return View("~/Views/PersianChat/Index.cshtml");
-        return View();
+       // Uncomment the line below for Persian RTL view, comment out `return View()`:
+        return View("Index.fa");
+       // return View();
     }
 
     [HttpGet("documents")]
