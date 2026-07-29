@@ -9,10 +9,10 @@
     <aside class="bg-base-100 border-l border-base-300 flex flex-col transition-all duration-200"
            :class="sidebarMode === 'explorer' ? 'w-64' : 'w-80'">
         <!-- Collection Selector (shared between modes) -->
-        @await Html.PartialAsync("_SidebarCollectionSelector")
+        @await Html.PartialAsync("_SidebarCollectionSelector.fa")
 
         <!-- Mode Toggle: Chat vs Explorer -->
-        @await Html.PartialAsync("_SidebarModeToggle")
+        @await Html.PartialAsync("_SidebarModeToggle.fa")
 
         <!-- Swappable Sidebar Content -->
         <div id="sidebar-content" class="flex-1 flex flex-col overflow-hidden">
@@ -20,7 +20,7 @@
             <template x-if="sidebarMode === 'chat'">
                 <div class="flex flex-col h-full">
                     <!-- Communities Dropdown -->
-                    @await Html.PartialAsync("_SidebarCommunitiesDropdown")
+                    @await Html.PartialAsync("_SidebarCommunitiesDropdown.fa")
 
                     <!-- Document Filter & Selection Header -->
                     <div class="px-3 py-2 border-b border-base-300 space-y-2">
@@ -60,9 +60,9 @@
                         </div>
                     </div>
 
-                    @await Html.PartialAsync("_SidebarProcessingStatus")
+                    @await Html.PartialAsync("_SidebarProcessingStatus.fa")
 
-                    @await Html.PartialAsync("_SidebarAddContent")
+                    @await Html.PartialAsync("_SidebarAddContent.fa")
 
                     <!-- Document List -->
                     <div id="document-list" class="flex-1 overflow-y-auto p-2 space-y-1"
@@ -72,7 +72,7 @@
                         @await Html.PartialAsync("_DocumentList", documents)
                     </div>
 
-                    @await Html.PartialAsync("_SidebarGraphHealth")
+                    @await Html.PartialAsync("_SidebarGraphHealth.fa")
 
                     <!-- Stats Footer -->
                     <div

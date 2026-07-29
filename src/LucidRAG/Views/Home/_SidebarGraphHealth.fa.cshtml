@@ -1,0 +1,29 @@
+@* Graph Health Widget - Persian RTL version *@
+
+<div id="graph-health-widget" class="p-3 border-t border-base-300 bg-base-200/50">
+    <div class="text-xs font-semibold mb-2 flex items-center gap-1">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-secondary" fill="none" viewBox="0 0 24 24"
+             stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        سلامت گراف
+    </div>
+    <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="stat-item">
+            <span class="opacity-60">گره‌ها:</span>
+            <span class="font-medium" x-text="graphStats.nodes">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="opacity-60">یال‌ها:</span>
+            <span class="font-medium" x-text="graphStats.edges">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="opacity-60">نهادها:</span>
+            <span class="font-medium" x-text="graphStats.entityCoverage">0%</span>
+        </div>
+        <div class="stat-item">
+            <span class="opacity-60">گره‌های تنها:</span>
+            <span class="font-medium" :class="graphStats.orphans > 0 ? 'text-warning' : ''" x-text="graphStats.orphans">0</span>
+        </div>
+    </div>
+</div>
