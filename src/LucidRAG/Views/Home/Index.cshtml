@@ -414,7 +414,8 @@
                                             <span class="label-text text-xs">Max Hops:</span>
                                         </label>
                                         <input type="range" min="1" max="5" class="range range-xs range-primary w-24"
-                                               x-model="graphSettings.maxHops"/>
+                                               x-model="graphSettings.maxHops"
+                                               @@change="graphCenterId ? loadSubgraph(graphCenterId) : loadGraphData()"/>
                                         <span class="text-xs" x-text="graphSettings.maxHops"></span>
                                     </div>
                                     <div class="form-control">
@@ -422,7 +423,8 @@
                                             <span class="label-text text-xs">Edge Types:</span>
                                         </label>
                                         <select class="select select-xs select-bordered"
-                                                x-model="graphSettings.edgeFilter">
+                                                x-model="graphSettings.edgeFilter"
+                                                @@change="graphCenterId ? loadSubgraph(graphCenterId) : loadGraphData()">
                                             <option value="all">All</option>
                                             <option value="calls">Calls</option>
                                             <option value="uses">Uses</option>
@@ -1339,6 +1341,7 @@
                 graphData: null,
                 graphLoading: false,
                 selectedEntity: null,
+                graphCenterId: null,
                 graphSettings: {
                     maxHops: 2,
                     edgeFilter: 'all',
@@ -2103,9 +2106,13 @@
                     if (this.graphLoading) return;
                     this.graphLoading = true;
                     try {
-                        const response = await fetch('/api/graph?maxNodes=100');
+                        const params = new URLSearchParams();
+                        params.append('maxNodes', '100');
+                        if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
+                        const response = await fetch(`/api/graph?${params}`);
                         if (response.ok) {
                             const data = await response.json();
+                            this.graphCenterId = null;
                             // Normalize API response to graphData format
                             this.graphData = {
                                 nodes: data.nodes || [],
@@ -2131,11 +2138,13 @@
                 async loadSubgraph(entityId) {
                     if (!entityId || this.graphLoading) return;
                     this.graphLoading = true;
+                    this.graphCenterId = entityId;
                     try {
                         const params = new URLSearchParams({
                             maxHops: this.graphSettings.maxHops || 2,
                             edgeFilter: this.graphSettings.edgeFilter || 'all'
                         });
+                        if (this.currentCollectionId) params.append('collectionId', this.currentCollectionId);
                         const response = await fetch(`/api/graph/subgraph/${entityId}?${params}`);
                         if (response.ok) {
                             const data = await response.json();

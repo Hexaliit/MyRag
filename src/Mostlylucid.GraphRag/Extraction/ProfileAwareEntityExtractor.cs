@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.GraphRag.Services;
 using Mostlylucid.GraphRag.Storage;
 
@@ -28,7 +29,7 @@ public sealed class ProfileAwareEntityExtractor : IEntityExtractor
     private static readonly Regex InternalLinkRx = new(@"\[([^\]]+)\]\(/blog/([^)]+)\)", RegexOptions.Compiled);
     private static readonly Regex TokenRx = new(@"\b[A-Za-z][A-Za-z0-9_\.#\+\-]*[A-Za-z0-9]\b", RegexOptions.Compiled);
     private readonly GraphRagDb _db;
-    private readonly EmbeddingService _embedder;
+    private readonly IEmbeddingService _embedder;
     private readonly OllamaClient? _llm;
     private readonly ExtractionMode _mode;
     private readonly OnnxNerService? _nerService;
@@ -37,7 +38,7 @@ public sealed class ProfileAwareEntityExtractor : IEntityExtractor
 
     public ProfileAwareEntityExtractor(
         GraphRagDb db,
-        EmbeddingService embedder,
+        IEmbeddingService embedder,
         EntityProfile? profile = null,
         OllamaClient? llm = null,
         OnnxNerService? nerService = null,

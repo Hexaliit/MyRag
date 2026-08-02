@@ -1,4 +1,5 @@
 using Mostlylucid.DocSummarizer.Config;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.DocSummarizer.Services.Onnx;
 
 namespace Mostlylucid.GraphRag.Services;
@@ -6,7 +7,7 @@ namespace Mostlylucid.GraphRag.Services;
 /// <summary>
 ///     ONNX BERT embedding service wrapper.
 /// </summary>
-public sealed class EmbeddingService : IDisposable
+public sealed class EmbeddingService : IDisposable, IEmbeddingService
 {
     private readonly OnnxEmbeddingService _inner;
 
@@ -22,6 +23,8 @@ public sealed class EmbeddingService : IDisposable
     }
 
     public int Dimension => _inner.EmbeddingDimension;
+
+    public int EmbeddingDimension => _inner.EmbeddingDimension;
 
     public void Dispose()
     {

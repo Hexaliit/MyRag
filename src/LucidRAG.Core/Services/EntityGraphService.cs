@@ -3,7 +3,9 @@ using LucidRAG.Config;
 using LucidRAG.Data;
 using LucidRAG.Entities;
 using Microsoft.Extensions.Options;
+using Mostlylucid.DocSummarizer.Config;
 using Mostlylucid.DocSummarizer.Models;
+using Mostlylucid.DocSummarizer.Services;
 using Mostlylucid.GraphRag;
 using Mostlylucid.GraphRag.Extraction;
 using Mostlylucid.GraphRag.Services;
@@ -67,8 +69,9 @@ public class EntityGraphService : IEntityGraphService, IDisposable
 {
     private readonly RagDocumentsConfig _config;
     private readonly RagDocumentsDbContext _db;
-    private readonly EmbeddingService _embedder;
-    private readonly GraphRagDb _graphDb;
+    private readonly IEmbeddingService _embedder;
+    private readonly string _graphDbPath;
+    private GraphRagDb? _graphDb;
     private readonly ILogger<EntityGraphService> _logger;
     private bool _initialized;
     private OnnxNerService? _nerService; // Not readonly - assigned lazily after downloading models
@@ -76,7 +79,8 @@ public class EntityGraphService : IEntityGraphService, IDisposable
     public EntityGraphService(
         RagDocumentsDbContext db,
         IOptions<RagDocumentsConfig> config,
-        ILogger<EntityGraphService> logger)
+        ILogger<EntityGraphService> logger,
+        IOptions<DocSummarizerConfig> summarizerConfig)
     {
         _db = db;
         _config = config.Value;
@@ -85,19 +89,40 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         // Initialize GraphRag's DuckDB for entity graph storage
         var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(dataDir);
-        var graphDbPath = Path.Combine(dataDir, "entities.duckdb");
+        _graphDbPath = Path.Combine(dataDir, "entities.duckdb");
 
-        _graphDb = new GraphRagDb(graphDbPath);
-        _embedder = new EmbeddingService();
+        _embedder = CreateEmbedder(summarizerConfig.Value);
 
         // NER service will be created lazily in EnsureInitializedAsync() after downloading models
         _nerService = null;
     }
 
+    /// <summary>
+    ///     Create the embedding service based on the configured backend.
+    ///     Ollama avoids HuggingFace model downloads, so it works in intranet environments.
+    /// </summary>
+    private static IEmbeddingService CreateEmbedder(DocSummarizerConfig config)
+    {
+        if (config.EmbeddingBackend == EmbeddingBackend.Ollama)
+        {
+            var ollamaConfig = config.Ollama;
+            var ollama = new OllamaService(
+                ollamaConfig.Model,
+                ollamaConfig.EmbedModel,
+                ollamaConfig.BaseUrl,
+                TimeSpan.FromSeconds(ollamaConfig.TimeoutSeconds),
+                config.Embedding,
+                ollamaConfig.ClassifierModel);
+            return new OllamaEmbeddingService(ollama);
+        }
+
+        return new EmbeddingService();
+    }
+
     public void Dispose()
     {
-        _graphDb.Dispose();
-        _embedder.Dispose();
+        _graphDb?.Dispose();
+        if (_embedder is IDisposable disposable) disposable.Dispose();
         _nerService?.Dispose();
     }
 
@@ -129,7 +154,7 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         )).ToList();
 
         // Store document reference in GraphRag
-        await _graphDb.UpsertDocumentAsync(docIdStr, $"doc:{documentId}", "", "");
+        await _graphDb!.UpsertDocumentAsync(docIdStr, $"doc:{documentId}", "", "");
 
         // Keep ALL chunks in DuckDB for cross-document IDF computation.
         // Removing ClearAllChunksAsync enables entity extraction to consider
@@ -142,7 +167,7 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         foreach (var chunk in chunks)
         {
             var embedding = await _embedder.EmbedAsync(chunk.Text, ct);
-            await _graphDb.InsertChunkAsync(chunk.Id, chunk.DocumentId, chunk.ChunkIndex, chunk.Text, embedding,
+            await _graphDb!.InsertChunkAsync(chunk.Id, chunk.DocumentId, chunk.ChunkIndex, chunk.Text, embedding,
                 chunk.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
         }
 
@@ -200,8 +225,8 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         await EnsureInitializedAsync();
 
         // Get data from GraphRag DuckDB (faster for graph queries)
-        var entities = await _graphDb.GetAllEntitiesAsync();
-        var relationships = await _graphDb.GetAllRelationshipsAsync();
+        var entities = await _graphDb!.GetAllEntitiesAsync();
+        var relationships = await _graphDb!.GetAllRelationshipsAsync();
 
         var nodes = entities
             .Select(e => new GraphNode(e.Id, e.Name, e.Type, e.MentionCount))
@@ -223,13 +248,13 @@ public class EntityGraphService : IEntityGraphService, IDisposable
 
         // Embed query and search for similar entities
         var queryEmbedding = await _embedder.EmbedAsync(query, ct);
-        var chunks = await _graphDb.SearchChunksAsync(queryEmbedding, limit * 2);
+        var chunks = await _graphDb!.SearchChunksAsync(queryEmbedding, limit * 2);
 
         // Get entities mentioned in matching chunks
         var entitySet = new Dictionary<string, EntityResult>();
         foreach (var chunk in chunks)
         {
-            var chunkEntities = await _graphDb.GetEntitiesInChunkAsync(chunk.Id);
+            var chunkEntities = await _graphDb!.GetEntitiesInChunkAsync(chunk.Id);
             foreach (var e in chunkEntities)
                 if (!entitySet.ContainsKey(e.Id))
                     entitySet[e.Id] = e;
@@ -246,8 +271,25 @@ public class EntityGraphService : IEntityGraphService, IDisposable
     {
         if (_initialized) return;
 
+        // Embedder init is a no-op for Ollama; for ONNX it may download models.
+        // Wrap so a model-download failure on an intranet degrades to heuristic extraction
+        // instead of killing entity extraction entirely.
+        try
+        {
+            await _embedder.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Embedding service initialization failed, entity extraction will proceed without vector deduplication");
+        }
+
+        // Probe the actual embedding dimension so the DuckDB FLOAT[n] column matches
+        // the configured backend. Ollama bge-m3 is 1024-dim while the DuckDB default is 384.
+        var dimension = await ProbeEmbeddingDimensionAsync();
+
+        _graphDb ??= new GraphRagDb(_graphDbPath, dimension);
+
         await _graphDb.InitializeAsync();
-        await _embedder.InitializeAsync();
 
         // Re-enabled with debug logging to diagnose 0 entity extraction
         if (_nerService == null)
@@ -283,11 +325,31 @@ public class EntityGraphService : IEntityGraphService, IDisposable
         _initialized = true;
     }
 
+    /// <summary>
+    ///     Probe the real embedding dimension from the active backend.
+    ///     Ollama bge-m3 returns 1024-dim vectors while nomic-embed-text returns 768,
+    ///     and the DuckDB FLOAT[n] column must match exactly.
+    /// </summary>
+    private async Task<int> ProbeEmbeddingDimensionAsync()
+    {
+        try
+        {
+            var probe = await _embedder.EmbedAsync("embedding dimension probe", CancellationToken.None);
+            if (probe.Length > 0) return probe.Length;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to probe embedding dimension, defaulting to 384");
+        }
+
+        return 384;
+    }
+
     private async Task SyncEntitiesToPostgresAsync(Guid documentId, CancellationToken ct)
     {
         // Get entities from GraphRag DuckDB
-        var graphEntities = await _graphDb.GetAllEntitiesAsync();
-        var graphRelationships = await _graphDb.GetAllRelationshipsAsync();
+        var graphEntities = await _graphDb!.GetAllEntitiesAsync();
+        var graphRelationships = await _graphDb!.GetAllRelationshipsAsync();
 
         // Batch pre-load: all existing entities and document links in 2 queries (not N)
         var entityLookup = await _db.Entities

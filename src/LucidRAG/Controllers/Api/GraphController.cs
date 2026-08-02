@@ -112,11 +112,26 @@ public class GraphController(
         Guid entityId,
         [FromQuery] int maxHops = 2,
         [FromQuery] string? edgeFilter = null,
+        [FromQuery] Guid? collectionId = null,
         CancellationToken ct = default)
     {
         var centerEntity = await db.Entities.FindAsync([entityId], ct);
         if (centerEntity is null)
             return NotFound(new { error = "Entity not found" });
+
+        // When a collection is selected, only traverse entities linked to its documents
+        HashSet<Guid>? collectionEntityIds = null;
+        if (collectionId.HasValue)
+        {
+            collectionEntityIds = await db.DocumentEntityLinks
+                .Where(l => l.Document!.CollectionId == collectionId)
+                .Select(l => l.EntityId)
+                .Distinct()
+                .ToHashSetAsync(ct);
+
+            if (!collectionEntityIds.Contains(entityId))
+                return Ok(new { center = centerEntity.CanonicalName, nodes = new List<object>(), links = new List<object>() });
+        }
 
         // BFS to find connected entities within maxHops
         var visited = new HashSet<Guid> { entityId };
@@ -154,6 +169,10 @@ public class GraphController(
             frontier = newFrontier;
         }
 
+        // Restrict visited entities to the selected collection when applicable
+        if (collectionEntityIds is not null)
+            visited.IntersectWith(collectionEntityIds);
+
         var entities = await db.Entities
             .Where(e => visited.Contains(e.Id))
             .Select(e => new
@@ -170,13 +189,15 @@ public class GraphController(
         {
             center = centerEntity.CanonicalName,
             nodes = entities,
-            links = allRelationships.Distinct().Select(r => new
-            {
-                source = r.Source,
-                target = r.Target,
-                type = r.Type,
-                strength = r.Strength
-            })
+            links = allRelationships.Distinct()
+                .Where(r => visited.Contains(r.Source) && visited.Contains(r.Target))
+                .Select(r => new
+                {
+                    source = r.Source,
+                    target = r.Target,
+                    type = r.Type,
+                    strength = r.Strength
+                })
         });
     }
 
