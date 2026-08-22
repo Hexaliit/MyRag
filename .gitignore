@@ -329,3 +329,5 @@ test-publish/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+# Added by code-review-graph
+.code-review-graph/

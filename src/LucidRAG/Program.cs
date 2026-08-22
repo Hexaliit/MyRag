@@ -110,7 +110,8 @@ if (standaloneMode)
     // Use SQLite for standalone mode (portable)
     var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
     Directory.CreateDirectory(dataDir);
-    var sqliteConnectionString = $"Data Source={Path.Combine(dataDir, "ragdocs.db")}";
+    var sqliteConnectionString =
+        $"Data Source={Path.Combine(dataDir, "ragdocs.db")};Cache=Shared;Default Timeout=30;Foreign Keys=True";
     builder.Services.AddDbContext<RagDocumentsDbContext>(options =>
         options.UseSqlite(sqliteConnectionString));
     connectionString = sqliteConnectionString; // Update for later checks

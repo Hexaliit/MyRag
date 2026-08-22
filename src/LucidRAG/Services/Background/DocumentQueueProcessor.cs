@@ -27,6 +27,10 @@ public class DocumentQueueProcessor(
     // Maximum time to process a single document before timing out
     private static readonly TimeSpan DocumentProcessingTimeout = TimeSpan.FromMinutes(30);
 
+    // Hard wall-clock cap for the table-extraction stage. Table processing is fail-soft, so a
+    // hung extraction must never stall the single-reader queue waiting on a token that is ignored.
+    private static readonly TimeSpan TableProcessingTimeout = TimeSpan.FromMinutes(5);
+
     // How often to run cleanup for abandoned progress channels
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(15);
 
@@ -554,26 +558,51 @@ public class DocumentQueueProcessor(
                 progressChannel.Writer.TryWrite(
                     ProgressUpdates.Stage("Tables", "Extracting tables..."));
 
-                var tableProcessingService = scope.ServiceProvider.GetService<TableProcessingService>();
-                if (tableProcessingService != null)
+                // Table processing runs in its own scope so a hung table operation cannot poison the
+                // queue's shared scoped DbContext (and the single-reader loop must always make progress).
+                using (var tableScope = scopeFactory.CreateScope())
                 {
-                    var tableEntities = await tableProcessingService.ProcessDocumentTablesAsync(
-                        job.FilePath,
-                        document.Id, // Use document ID as parent
-                        document.CollectionId ?? Guid.Empty,
-                        null, // Default options
-                        ct);
-
-                    if (tableEntities.Count > 0)
+                    var tableProcessingService = tableScope.ServiceProvider.GetService<TableProcessingService>();
+                    if (tableProcessingService != null)
                     {
-                        logger.LogInformation("Extracted {TableCount} tables from document {DocumentId}",
-                            tableEntities.Count, job.DocumentId);
+                        // Hard wall-clock cap on the table stage with cooperative cancellation.
+                        // Table processing is fail-soft, so even if it blocks in a synchronous call
+                        // that ignores the token, the single-reader queue must be able to move on.
+                        using var tableCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        tableCts.CancelAfter(TableProcessingTimeout);
 
-                        document.TableCount = tableEntities.Count;
-                        document.ProcessingProgress = 70;
-                        await db.SaveChangesAsync(ct);
+                        var tableProcessingTask = tableProcessingService.ProcessDocumentTablesAsync(
+                            job.FilePath,
+                            document.Id, // Use document ID as parent
+                            document.CollectionId,
+                            null, // Default options
+                            tableCts.Token);
+
+                        var tableEntities = await tableProcessingTask.WaitAsync(tableCts.Token);
+
+                        if (tableEntities.Count > 0)
+                        {
+                            logger.LogInformation("Extracted {TableCount} tables from document {DocumentId}",
+                                tableEntities.Count, job.DocumentId);
+
+                            document.TableCount = tableEntities.Count;
+                            document.ProcessingProgress = 70;
+                            await db.SaveChangesAsync(ct);
+                        }
                     }
                 }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Global per-document timeout or shutdown - propagate so the job is marked failed/timed out.
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                // Table-local timeout (tableCts.CancelAfter) - table processing is fail-soft.
+                logger.LogWarning(
+                    "Table extraction timed out for document {DocumentId} after {Timeout}, continuing",
+                    job.DocumentId, TableProcessingTimeout);
             }
             catch (Exception ex)
             {

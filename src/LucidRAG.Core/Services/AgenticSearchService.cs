@@ -420,9 +420,17 @@ public class AgenticSearchService(
         var relevantResults = searchResult.Results.Where(r => r.Score >= dedupConfig.MinRelevanceScore).Take(10)
             .ToList();
         var dedupedResults = DeduplicateByTextSimilarity(relevantResults, textSimilarityThreshold);
-        var sources = dedupedResults.Take(5).Select((r, i) => new SourceCitation(i + 1, r.DocumentId, r.DocumentName,
-            r.SegmentId, r.Text.Length > 300 ? r.Text[..297] + "..." : r.Text, r.SectionTitle,
-            MatchedEntities: r.DomainEntities, DocumentType: r.DomainDetected)).ToList();
+        var sources = dedupedResults.Take(5).Select((r, i) =>
+        {
+            // Don't truncate table content - tables need full markdown for accurate answers
+            var isTable = r.Text.Contains("|") && r.Text.Contains("---");
+            var text = isTable || r.Text.Length <= 3000 
+                ? r.Text 
+                : r.Text[..2997] + "...";
+            return new SourceCitation(i + 1, r.DocumentId, r.DocumentName,
+                r.SegmentId, text, r.SectionTitle,
+                MatchedEntities: r.DomainEntities, DocumentType: r.DomainDetected);
+        }).ToList();
 
         var thinking = BuildThinkingOutput(request.Query, searchResult);
 
@@ -538,6 +546,7 @@ RULES:
 - NEVER mention ""sources"", ""documents"", ""excerpts"", ""segments"", or ""according to""
 - If the information doesn't answer the question, say ""اطلاعي درباره اين موضوع ندارم.""
 - If this is a follow-up question, build on the conversation context
+- NEVER answer completely in English.instead translate it to Persian
 
 ANSWER:";
 
@@ -592,6 +601,17 @@ ANSWER:";
             ? ""
             : $"\nCONVERSATION HISTORY:\n{conversationContext}\n";
 
+        // Check if any sources contain table data
+        var hasTableData = sources.Any(s => s.Text.Contains("|") && s.Text.Contains("---"));
+        
+        var tableInstruction = hasTableData ? @"
+IMPORTANT - TABLE DATA HANDLING:
+- If sources contain tables (markdown with | separators), use EXACT values from the tables
+- Cite the TABLE NUMBER/TITLE from the source text (e.g., 'جدول 4-2', 'Table 4-3')
+- NEVER hallucinate coefficients, ranges, or values not explicitly in the table
+- If asked about a specific table, use ONLY that table's data
+- If multiple similar tables exist, explicitly state which table you're referencing" : "";
+
         var prompt = $@"You are a knowledgeable assistant. Answer the question using ONLY the information below.
 
 {systemPrompt}
@@ -609,6 +629,9 @@ RULES:
 - If the information doesn't answer the question, say ""اطلاعي درباره اين موضوع ندارم.""
 - If this is a follow-up question, build on the conversation context
 - Do NOT ask if the answer was helpful or add meta-commentary
+- NEVER answer completely in English.instead translate it to Persian
+
+{tableInstruction}
 
 EXAMPLE:
 Question: What database does the system use?

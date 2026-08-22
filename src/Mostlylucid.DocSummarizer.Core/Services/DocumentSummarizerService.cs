@@ -552,14 +552,69 @@ public class DocumentSummarizerService : IDocumentSummarizer, IDisposable
         var body = doc.MainDocumentPart?.Document?.Body;
         if (body == null) return string.Empty;
         var sb = new StringBuilder();
-        foreach (var para in body.Descendants<Paragraph>())
+
+        foreach (var element in body.ChildElements)
         {
-            var text = para.InnerText.Trim();
-            if (!string.IsNullOrWhiteSpace(text))
-                sb.AppendLine(text);
-            sb.AppendLine();
+            switch (element)
+            {
+                case Paragraph para:
+                {
+                    var text = para.InnerText.Trim();
+                    if (!string.IsNullOrWhiteSpace(text))
+                        sb.AppendLine(text);
+                    sb.AppendLine();
+                    break;
+                }
+
+                case Table table:
+                    // Skip tables - they are processed separately by TableProcessingService
+                    // which creates dedicated table entities with full markdown + embeddings
+                    break;
+            }
         }
+
         return sb.ToString().Trim();
+    }
+
+    private static string ConvertTableToMarkdown(Table table)
+    {
+        var rows = table.Elements<TableRow>().ToList();
+        if (rows.Count == 0)
+            return "";
+
+        var sb = new StringBuilder();
+        var isFirstRow = true;
+
+        foreach (var row in rows)
+        {
+            var cells = row.Elements<TableCell>().ToList();
+            var cellTexts = cells.Select(GetCellText).ToList();
+
+            sb.AppendLine("| " + string.Join(" | ", cellTexts) + " |");
+
+            if (isFirstRow)
+            {
+                sb.AppendLine("| " + string.Join(" | ", cells.Select(_ => "---")) + " |");
+                isFirstRow = false;
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static string GetCellText(TableCell cell)
+    {
+        var texts = new List<string>();
+
+        foreach (var para in cell.Elements<Paragraph>())
+        {
+            var text = string.Join("", para.Descendants<Text>().Select(t => t.Text));
+            if (!string.IsNullOrWhiteSpace(text))
+                texts.Add(text.Trim());
+        }
+
+        var result = string.Join(" ", texts);
+        return result.Replace("|", "\\|");
     }
 
     #region OpenTelemetry Instrumentation

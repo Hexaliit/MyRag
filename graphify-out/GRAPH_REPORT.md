@@ -1,16 +1,16 @@
-# Graph Report - lucidrag  (2026-08-01)
+# Graph Report - lucidrag  (2026-08-22)
 
 ## Corpus Check
-- 1959 files · ~6,329,606 words
+- 1989 files · ~6,359,868 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 33693 nodes · 70014 edges · 1390 communities (1288 shown, 102 thin omitted)
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 4547 edges (avg confidence: 0.72)
+- 33970 nodes · 70275 edges · 1439 communities (1332 shown, 107 thin omitted)
+- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 4548 edges (avg confidence: 0.72)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5606da0c`
+- Built from commit: `a20b5269`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1143,7 +1143,6 @@
 - UkParliamentFetcher.cs
 - SECTION: Data Storage
 - v0.7.0: Score-Based Source Routing & Embedding Reliability
-- Configuration
 - MCP Server (AI Agent Integration)
 - v0.6.1: Advanced Search & Retrieval
 - Algorithm
@@ -1206,11 +1205,10 @@
 - Mostlylucid.LucidRAG.CodeSummarizer.Mermaid.Jint
 - "node_modules/d3-array/src/bisect.js"
 - SECTION: MCP Server Mode
-- SECTION: Overview
+- .AnalyzeAsync
 - SECTION: First-Time Setup
 - SECTION: ask Command
-- RrfWeightsConfig
-- SaasQueryLogEntity
+- AuthorizationSetup.cs
 - RobotsTxt
 - Distribution Alternatives
 - Commands
@@ -1231,7 +1229,7 @@
 - Mostlylucid.LucidRAG.Plugins.Image
 - Mostlylucid.LucidRAG.Plugins.Video
 - Mostlylucid.LucidRAG.Plugins.YouTube
-- Key Features
+- ServiceProviderExtensions
 - Mostlylucid.LucidRAG.Plugins.Complete
 - AnnouncementDto.cs
 - Class1.cs
@@ -1239,10 +1237,9 @@
 - The Microsoft Network Project (MNP) - the secret's out!
 - New personal crusade...
 - Debugging & Diagnostics
-- Architecture
 - Overview
 - 1. Enhanced MCP Server with 5 New Tools
-- Next Steps (Future Enhancements)
+- .PlayEasterEggAnimationAsync
 - What Was Integrated
 - Testing Checklist
 - Supported Document Types
@@ -1254,12 +1251,12 @@
 - Performance Characteristics
 - Technology Stack
 - Key Findings
-- Configuration Reference
+- ServiceProviderExtensions
 - _PublicLayout.cshtml
 - CreateTenant.cshtml
 - Mostlylucid.LucidRAG.DataSummarizer
 - Mostlylucid.LucidRAG.Decomposer
-- Configuration: Multi-Backend Setup
+- Long-Form Article Generation
 - Performance Considerations
 - Why Use Multiple LLMs?
 - Performance Considerations
@@ -1339,11 +1336,63 @@
 - 1004.md
 - test.sh
 - test_markdown_converter.sh
+- ResearchChatService
+- .GetMagicBytes
+- Processing Pipeline
+- QueryNerContext
+- ProcessorManifestModels.cs
+- WaveRegistryInitializer
+- .Denoise
+- MarkdownFormatter
+- BatchProcessorTests
+- .Detect
+- SECTION: scroll Command
+- SentinelRefiner
+- EmbeddingHelper
+- SalientSegmentCacheRegistry
+- DoomSummarizer User Manual
+- NullLlmService
+- ExtractedEntitiesTests
+- SECTION: crawl Command
+- SECTION: Other Commands
+- ul
+- Debug Issue
+- Explore Codebase
+- Refactor Safely
+- Review Changes
+- MCP Tools: code-review-graph
+- Debug Issue
+- Explore Codebase
+- Refactor Safely
+- Review Changes
+- MCP Tools: code-review-graph
+- Debug Issue
+- Explore Codebase
+- Refactor Safely
+- Review Changes
+- MCP Tools: code-review-graph
+- MCP Tools: code-review-graph
+- MCP Tools: code-review-graph
+- SECTION: Data Storage
+- SECTION: MCP Server Mode
+- SECTION: Overview
+- SECTION: First-Time Setup
+- SECTION: Output Templates
+- SECTION: ask Command
+- SECTION: page Command
+- SECTION: man Command
+- RrfWeightsConfig
+- Unified Pipeline Integration
+- code-review-graph
+- code-review-graph
+- code-review-graph
+- crg-session-start.sh
+- crg-update.sh
 
 ## God Nodes (most connected - your core abstractions)
 1. `ContentItem` - 238 edges
 2. `DoomSummarizer.Services` - 202 edges
-3. `Mostlylucid.DocSummarizer.Services` - 190 edges
+3. `Mostlylucid.DocSummarizer.Services` - 191 edges
 4. `DoomSummarizer.Models` - 162 edges
 5. `DataProfile` - 155 edges
 6. `"node_modules/mermaid/dist/chunks/mermaid.core/chunk-MI3HLSF2.mjs"()` - 116 edges
@@ -1367,63 +1416,63 @@
 ## Import Cycles
 - None detected.
 
-## Communities (1390 total, 102 thin omitted)
+## Communities (1439 total, 107 thin omitted)
 
 ### Community 0 - "mermaid-parser-bundle.js"
 Cohesion: 0.00
-Nodes (123): addA11yInfo(), addSVGa11yTitleDescription(), ascendingBreadth(), ascendingSourceBreadth(), ascendingTargetBreadth(), assertMethodIdxIsValid(), assignMandatoryProperties(), attemptInRepetitionRecovery() (+115 more)
+Nodes (118): addA11yInfo(), addSVGa11yTitleDescription(), ascendingBreadth(), ascendingSourceBreadth(), ascendingTargetBreadth(), assertMethodIdxIsValid(), assignMandatoryProperties(), attemptInRepetitionRecovery() (+110 more)
 
 ### Community 1 - "d3.v7.min.js"
 Cohesion: 0.01
-Nodes (174): Ac(), Ag(), Ai(), an(), ao(), ar(), Av(), bc() (+166 more)
+Nodes (187): Ac(), Ag(), ao(), ap(), ar(), Av(), bc(), bd() (+179 more)
 
 ### Community 2 - "d3.v7.min.js"
 Cohesion: 0.01
-Nodes (149): Ac(), Ai(), ao(), ar(), Av(), bc(), Be(), bezierCurveTo() (+141 more)
+Nodes (96): ao(), ar(), Av(), bezierCurveTo(), Bm(), bv(), ca(), Ce() (+88 more)
 
 ### Community 3 - "forEach"
 Cohesion: 0.02
-Nodes (269): addEdges(), addEdges2(), addGroups(), addHtmlLabel(), addHtmlLabel2(), addHtmlSpan(), addJunctions(), addNodes() (+261 more)
+Nodes (307): addClass2(), addEdges(), addEdges2(), addGroups(), addHtmlLabel(), addHtmlLabel2(), addHtmlSpan(), addJunctions() (+299 more)
 
 ### Community 4 - "DoomSummarizer.Services"
-Cohesion: 0.03
-Nodes (25): Mostlylucid.DocSummarizer.Services.Onnx, Mostlylucid.DoomSummarizer.Plugin.Books.Commands, DoomSummarizer.Plugins, DoomSummarizer.Plugins.Subtitles, Mostlylucid.DocSummarizer.Resilience, DoomSummarizer.Services, DoomSummarizer.Tests, DoomSummarizer.Core.Services (+17 more)
+Cohesion: 0.02
+Nodes (54): Mostlylucid.Summarizers.Reader.Pdf, Mostlylucid.DoomSummarizer.Plugin.Books.Commands, DoomSummarizer.Plugins, DoomSummarizer.Sources.Reference, Mostlylucid.LucidRAG.Plugins.Complete, Mostlylucid.DoomSummarizer.Plugin.Books.Tests, DoomSummarizer.Plugins.Subtitles, Mostlylucid.DoomSummarizer.Plugin.Books.Splitters (+46 more)
 
 ### Community 5 - "e"
 Cohesion: 0.04
-Nodes (139): Hr(), A(), ad(), ae(), al(), ap(), at(), b() (+131 more)
+Nodes (124): A(), ad(), ae(), al(), an(), at(), b(), Bf() (+116 more)
 
 ### Community 6 - "VideoContext"
-Cohesion: 0.02
-Nodes (99): IReadOnlyList, ISignalAwareVideoWave, CancellationToken, ConcurrentDictionary, Dictionary, HashSet, IEnumerable, ILogger (+91 more)
+Cohesion: 0.03
+Nodes (90): IReadOnlyList, ISignalAwareVideoWave, CancellationToken, ConcurrentDictionary, Dictionary, HashSet, IEnumerable, ILogger (+82 more)
 
 ### Community 7 - "cdn.min.js"
 Cohesion: 0.03
-Nodes (131): G(), L(), "node_modules/marked/lib/marked.esm.js"(), darker(), zn(), A(), Ae(), ar() (+123 more)
+Nodes (134): G(), L(), "node_modules/marked/lib/marked.esm.js"(), Ai(), darker(), zn(), Z(), A() (+126 more)
 
 ### Community 8 - "Mostlylucid.DocSummarizer.Images.Models.Dynamic"
 Cohesion: 0.03
-Nodes (58): Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves, Mostlylucid.DocSummarizer.Images.Tests.Services, LucidRAG.ImageCli, Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing, Mostlylucid.DocSummarizer.Images.Models.Dynamic, Mostlylucid.DocSummarizer.Images.Tests.Services.Analysis.Waves, LucidRAG.ImageCli.Commands, Mostlylucid.DocSummarizer.Images.Services.Analysis (+50 more)
+Nodes (68): Mostlylucid.DocSummarizer.Images.Services.Analysis.Waves, Mostlylucid.DocSummarizer.Images.Tests.Services, Mostlylucid.DocSummarizer.Images.Tests.Services.Analysis, Mostlylucid.Summarizer.Core.Extensions, LucidRAG.ImageCli, Mostlylucid.DocSummarizer.Images.Services.Ocr.PostProcessing, Mostlylucid.DocSummarizer.Images.Models.Dynamic, Mostlylucid.DocSummarizer.Images.Tests.Services.Analysis.Waves (+60 more)
 
 ### Community 9 - "q"
-Cohesion: 0.03
-Nodes (22): j(), list(), b(), c, d, E, g, h (+14 more)
+Cohesion: 0.02
+Nodes (24): _, j(), b(), c, d, E, g, h (+16 more)
 
 ### Community 10 - "AsyncCommand"
 Cohesion: 0.02
-Nodes (108): AsyncCommand, CommandSettings, Mostlylucid.Summarizers.Reader.Pdf, DoomSummarizer.Sources.Reference, Mostlylucid.LucidRAG.Plugins.Complete, Mostlylucid.DoomSummarizer.Plugin.Image.Commands, Mostlylucid.DoomSummarizer.Plugin.Video.Commands, DoomSummarizer.Sources.HackerNews (+100 more)
+Nodes (105): AsyncCommand, CommandSettings, Mostlylucid.DoomSummarizer.Plugin.Image.Commands, Mostlylucid.DoomSummarizer.Plugin.Video.Commands, Mostlylucid.DoomSummarizer.Plugin.Data.Commands, Mostlylucid.DoomSummarizer.Plugin.Audio.Commands, IHasTreeNodes, Settings (+97 more)
 
 ### Community 11 - "ColumnProfile"
-Cohesion: 0.04
-Nodes (69): AvgLength, EmptyCount, MaxLength, MinLength, Action, DateTime, Dictionary, List (+61 more)
+Cohesion: 0.08
+Nodes (17): AvgLength, EmptyCount, MaxLength, MinLength, AggregateStatistic, bool, Count, DateTime (+9 more)
 
 ### Community 12 - ""node_modules/mermaid/dist/chunks/mermaid.core/chunk-MI3HLSF2.mjs""
 Cohesion: 0.04
-Nodes (122): blockHeader(), captureSegment(), charFromCodepoint(), chooseScalarStyle(), _class(), codePointAt(), compileStyleAliases(), compileStyleMap() (+114 more)
+Nodes (118): blockHeader(), captureSegment(), charFromCodepoint(), chooseScalarStyle(), _class(), codePointAt(), compileStyleMap(), composeNode() (+110 more)
 
 ### Community 13 - ""node_modules/cytoscape/dist/cytoscape.esm.mjs""
 Cohesion: 0.02
-Nodes (117): addChildren(), addParent(), addParentAndChildren(), arrayEqual(), _arrayLikeToArray(), _arrayWithHoles(), _arrayWithoutHoles(), b64ToBlob() (+109 more)
+Nodes (113): addChildren(), addParent(), addParentAndChildren(), arrayEqual(), _arrayLikeToArray(), _arrayWithHoles(), _arrayWithoutHoles(), b64ToBlob() (+105 more)
 
 ### Community 14 - ""node_modules/d3-selection/src/selection/index.js""
 Cohesion: 0.02
@@ -1431,19 +1480,19 @@ Nodes (116): append_default(), array(), arrayAll(), arraylike(), attr_default(),
 
 ### Community 15 - "has"
 Cohesion: 0.03
-Nodes (111): assertUnreachable(), binarySearch(), bindKey(), buildAction(), buildAlternatives(), buildCrossReference(), buildElement(), buildGroup4() (+103 more)
+Nodes (100): assertUnreachable(), binarySearch(), buildAction(), buildAlternatives(), buildCrossReference(), buildElement(), buildGroup4(), buildKeyword() (+92 more)
 
 ### Community 16 - "Mostlylucid.DocSummarizer.Services"
-Cohesion: 0.04
-Nodes (30): Mostlylucid.DocSummarizer.Scanning.Waves, Mostlylucid.DocSummarizer.Tests.Config, Mostlylucid.DocSummarizer.Pipeline, Mostlylucid.DocSummarizer.Article.Tests, Mostlylucid.DocSummarizer.Services.Utilities, Mostlylucid.DocSummarizer.Services.Deduplication, Mostlylucid.DocSummarizer.Services.Embeddings, Mostlylucid.DocSummarizer.Services (+22 more)
+Cohesion: 0.03
+Nodes (39): Mostlylucid.DocSummarizer.Services.Onnx, Mostlylucid.DocSummarizer.Tests.Config, Mostlylucid.DocSummarizer, Mostlylucid.DocSummarizer.Pipeline, LucidRAG.LLM.Services, LucidRAG.LLM.Extensions, LucidRAG.LLM.Services.Providers, Mostlylucid.DocSummarizer.Article.Tests (+31 more)
 
 ### Community 17 - "CommandBootstrap"
-Cohesion: 0.04
-Nodes (58): IAsyncDisposable, CancellationToken, CommandContext, Task, Settings, CreateAudioTranscriberAsync(), AudioTranscriberDelegate, CancellationToken (+50 more)
+Cohesion: 0.03
+Nodes (64): IAsyncDisposable, CreateAudioTranscriberAsync(), AudioTranscriberDelegate, CancellationToken, CommandContext, Settings, Task, CrawlCommand (+56 more)
 
 ### Community 18 - "BookProcessorPlugin"
-Cohesion: 0.04
-Nodes (59): ILoggerFactory, ImmutableList, IConfigurator, IReadOnlyList, ICliPlugin, PluginCliMetadata, IDocumentReader, IDocumentSplitter (+51 more)
+Cohesion: 0.06
+Nodes (37): ILoggerFactory, IConfigurator, IReadOnlyList, ICliPlugin, PluginCliMetadata, IDocumentSplitter, CancellationToken, Dictionary (+29 more)
 
 ### Community 19 - "DoomSummarizer.Core.csproj"
 Cohesion: 0.02
@@ -1451,7 +1500,7 @@ Nodes (92): Fluid.Core (2.31.0), Microsoft.Recognizers.Text.DateTime (1.8.13), M
 
 ### Community 20 - "runLayout"
 Cohesion: 0.03
-Nodes (104): addBorderNode(), addBorderNode2(), addBorderSegments(), addDummyNode(), addSubgraphConstraints(), adjust2(), alignCoordinates(), asNonCompoundGraph() (+96 more)
+Nodes (101): addBorderNode(), addBorderNode2(), addBorderSegments(), addDummyNode(), addSubgraphConstraints(), adjust2(), alignCoordinates(), asNonCompoundGraph() (+93 more)
 
 ### Community 21 - "DataProfile"
 Cohesion: 0.06
@@ -1463,59 +1512,59 @@ Nodes (100): A(), ae(), an(), at(), B(), be(), bn(), bt() (+92 more)
 
 ### Community 23 - "ProfileStore"
 Cohesion: 0.06
-Nodes (31): Baseline, ExistingProfile, IsExactMatch, Fact, string, ProfileStoreTests, CancellationToken, DateTime (+23 more)
+Nodes (29): Baseline, ExistingProfile, IsExactMatch, Fact, string, ProfileStoreTests, CancellationToken, DateTime (+21 more)
 
 ### Community 24 - "RagSummarizer"
-Cohesion: 0.06
-Nodes (27): bullets, claims, DocumentClassification, DocumentSizeProfile, DocumentType, paragraphs, IEnumerable, SummaryLengthConfig (+19 more)
+Cohesion: 0.05
+Nodes (33): bullets, claims, DocumentClassification, DocumentSizeProfile, DocumentType, paragraphs, IEnumerable, SummaryLengthConfig (+25 more)
 
 ### Community 25 - "LucidRAG.Entities"
-Cohesion: 0.05
-Nodes (32): LucidRAG.Controllers.Api, LucidRAG.Cli.Services, LucidRAG.Services, LucidRAG.Entities, LucidRAG.Services.Background, LucidRAG.Filters, LucidRAG.UltraResearch.Signals, LucidRAG.Models (+24 more)
+Cohesion: 0.04
+Nodes (42): LucidRAG.Identity, LucidRAG.Controllers.Api, LucidRAG.Web.Services, LucidRAG.Cli.Services, LucidRAG.Services, LucidRAG.Services.Storage, LucidRAG.Entities, LucidRAG.Services.Background (+34 more)
 
 ### Community 26 - "e"
-Cohesion: 0.08
-Nodes (76): _, A(), ad(), ae(), b(), bt(), C(), cd() (+68 more)
+Cohesion: 0.07
+Nodes (61): ap(), at(), bd(), Cg(), cn(), ct(), ei(), Er() (+53 more)
 
 ### Community 27 - "LensPackage"
-Cohesion: 0.04
-Nodes (50): LucidRAG.Lenses, LucidRAG.Services.Lenses, Drop, HttpGet, IConfiguration, ILogger, List, NotFound (+42 more)
+Cohesion: 0.09
+Nodes (23): LensManifest, LensPackage, CancellationToken, IReadOnlyList, Task, ILensLoader, List, SourceCitation (+15 more)
 
 ### Community 28 - "AnalysisContext"
-Cohesion: 0.05
-Nodes (34): DoomWriter.Tests.Analysis, CancellationToken, IEnumerable, IReadOnlyList, ConditionalWave, ConsumerWave, CountingWave, FailingWave (+26 more)
+Cohesion: 0.08
+Nodes (15): DoomWriter.Tests.Analysis, CancellationToken, IEnumerable, IReadOnlyList, ConditionalWave, ConsumerWave, CountingWave, FailingWave (+7 more)
 
 ### Community 29 - ".SummarizeAsync"
-Cohesion: 0.09
-Nodes (14): Fact, InlineData, Task, Theory, DataSummarizerServiceTests, Fact, Task, PatternDetectorTests (+6 more)
+Cohesion: 0.08
+Nodes (17): Fact, InlineData, Task, Theory, DataSummarizerServiceTests, Fact, Task, DataSynthesizerTests (+9 more)
 
 ### Community 30 - "RelevanceScorerTests"
 Cohesion: 0.07
 Nodes (25): avgDocLen, PreTokenized, QueryType, Dictionary, double, float, GeneratedRegex, HashSet (+17 more)
 
 ### Community 31 - "UnifiedVisionService"
-Cohesion: 0.03
-Nodes (64): Available, CancellationToken, HttpClient, ILogger, Message, string, Task, AnthropicContent (+56 more)
+Cohesion: 0.06
+Nodes (32): Available, CancellationToken, HttpClient, ILogger, Message, string, Task, AnthropicContent (+24 more)
 
 ### Community 32 - "DocumentSummary"
 Cohesion: 0.06
-Nodes (32): CitationMetrics, cleanedText, CoherenceMetrics, EntityHallucinationDetail, EntityMetrics, entityType, EvidenceDensityMetrics, FactualityMetrics (+24 more)
+Nodes (31): CitationMetrics, cleanedText, CoherenceMetrics, EntityHallucinationDetail, EntityMetrics, entityType, EvidenceDensityMetrics, FactualityMetrics (+23 more)
 
 ### Community 33 - "Mostlylucid.DataSummarizer.Services"
-Cohesion: 0.04
-Nodes (31): Mostlylucid.DataSummarizer.Configuration, Mostlylucid.DataSummarizer.Tests, Mostlylucid.DataSummarizer.Models, Mostlylucid.DataSummarizer.Services.Onnx, Mostlylucid.DataSummarizer.Services, OnnxConfig, OnnxEmbeddingModel, OnnxExecutionProvider (+23 more)
+Cohesion: 0.05
+Nodes (29): Mostlylucid.DataSummarizer.Configuration, Mostlylucid.DataSummarizer.Tests, Mostlylucid.DataSummarizer.Models, Mostlylucid.DataSummarizer.Services.Onnx, Mostlylucid.DataSummarizer.Services, OnnxConfig, OnnxEmbeddingModel, OnnxExecutionProvider (+21 more)
 
 ### Community 34 - "IEntityGraphStore"
-Cohesion: 0.07
-Nodes (29): HashSet, confidence, Dictionary, entity, entityId, IEnumerable, itemId, List (+21 more)
+Cohesion: 0.08
+Nodes (23): DuckDBConnection, int, itemId, List, similarity, string, Task, title (+15 more)
 
 ### Community 35 - "formatLocale"
 Cohesion: 0.04
-Nodes (83): count(), count_default(), defaultLocale2(), dISO(), formatDayOfMonth(), formatDayOfYear(), formatFullYear(), formatFullYearISO() (+75 more)
+Nodes (82): count(), defaultLocale2(), dISO(), formatDayOfMonth(), formatDayOfYear(), formatFullYear(), formatFullYearISO(), formatHour12() (+74 more)
 
 ### Community 36 - "SignalEffectivenessTracker"
-Cohesion: 0.06
-Nodes (35): DateTimeOffset, Dictionary, List, DiscriminatorEffectiveness, DiscriminatorScore, SignalContribution, VectorScores, ImageType (+27 more)
+Cohesion: 0.11
+Nodes (19): DateTimeOffset, Dictionary, DiscriminatorEffectiveness, DiscriminatorScore, VectorScores, ImageType, CancellationToken, ConcurrentDictionary (+11 more)
 
 ### Community 37 - "PiiDetector"
 Cohesion: 0.06
@@ -1523,15 +1572,15 @@ Nodes (18): Risk, PiiType, Fact, PiiDetectorTests, bool, CancellationToken, Colu
 
 ### Community 38 - ""node_modules/mermaid/dist/chunks/mermaid.core/chunk-JZLCHNYA.mjs""
 Cohesion: 0.06
-Nodes (79): anchor(), applyStyle2(), bang(), bowTieRect(), card(), choice(), circle(), cloud() (+71 more)
+Nodes (76): anchor(), bang(), bowTieRect(), card(), choice(), circle(), cloud(), createLine() (+68 more)
 
 ### Community 39 - "DocumentModels.cs"
 Cohesion: 0.06
 Nodes (43): ChunkId, Dictionary, IReadOnlyList, List, ChunkIndexEntry, Claim, ClaimLedger, ConfidenceLevel (+35 more)
 
 ### Community 40 - "ProgressUpdate"
-Cohesion: 0.06
-Nodes (35): IDocumentSummarizer, CancellationToken, ChannelWriter, Task, IDocumentSummarizer, SummarizationMode, ActivitySource, bool (+27 more)
+Cohesion: 0.14
+Nodes (15): IDocumentSummarizer, ActivitySource, bool, CancellationToken, ChannelWriter, Counter, Histogram, Meter (+7 more)
 
 ### Community 41 - "ArchiveHandler"
 Cohesion: 0.07
@@ -1543,50 +1592,50 @@ Nodes (23): fullKey, DateTimeOffset, Guid, ApiKeyCollectionLink, DateTimeOffset,
 
 ### Community 43 - "DoomConfig"
 Cohesion: 0.05
-Nodes (47): CancellationToken, CommandContext, Settings, Task, ConfigCommand, CancellationToken, CommandContext, Task (+39 more)
+Nodes (50): CancellationToken, CommandContext, Settings, Task, ConfigCommand, CancellationToken, CommandContext, Task (+42 more)
 
 ### Community 44 - "TenantAdminController.cs"
 Cohesion: 0.06
 Nodes (46): Authorize, Controller, LucidRAG.Controllers.UI, LucidRAG.Authorization, IServiceCollection, AuthorizationSetup, HttpGet, HttpPost (+38 more)
 
 ### Community 45 - "ImageProfile"
-Cohesion: 0.05
-Nodes (34): LucidRAG.ImageCli.Tests, List, GifComplexityProfile, GifMotionProfile, MotionRegion, IReadOnlyList, ImageProfile, Dictionary (+26 more)
+Cohesion: 0.12
+Nodes (16): List, GifComplexityProfile, GifMotionProfile, MotionRegion, IReadOnlyList, ImageProfile, Dictionary, ILogger (+8 more)
 
 ### Community 46 - ".LoadAllExemplars"
-Cohesion: 0.07
-Nodes (29): ExemplarEmbedding, IClassFixture, CancellationToken, CommandContext, List, Settings, Task, ExemplarsCommand (+21 more)
+Cohesion: 0.08
+Nodes (22): ExemplarEmbedding, IClassFixture, Dictionary, List, ExemplarDocument, QueryClassification, QueryExemplar, ScoredExemplar (+14 more)
 
 ### Community 47 - "Program.cs"
-Cohesion: 0.04
-Nodes (35): Mostlylucid.Summarizer.Core.Extensions, DomainClassifier.Core.Models, LucidRAG.Services.Storage, DomainClassifier.Technical.Extensions, Mostlylucid.DocSummarizer.FullText.Lucene, DomainClassifier.Core.Configuration, LucidRAG.Core.Services.Caching, DomainClassifier.Financial.Extractors (+27 more)
+Cohesion: 0.09
+Nodes (11): Mostlylucid.Summarizer.Core.FileAnalysis, FileAttributes, IServiceCollection, ServiceCollectionExtensions, DateTimeOffset, Dictionary, IReadOnlyList, TimeSpan (+3 more)
 
 ### Community 48 - "DecomposerTests"
 Cohesion: 0.07
 Nodes (7): Dictionary, Fact, Task, DecomposerTests, CancellationToken, Task, IReadOnlyList
 
 ### Community 49 - "CapabilityAtoms.cs"
-Cohesion: 0.05
-Nodes (32): avg, CancellationToken, ConcurrentDictionary, ConcurrentQueue, double, IDisposable, int, max (+24 more)
+Cohesion: 0.14
+Nodes (10): ConcurrentDictionary, Stopwatch, string, TimeSpan, CapabilityAtomExtensions, CapabilityAtoms, ITimeEstimator, RollingAverageTimeEstimator (+2 more)
 
 ### Community 50 - "SourcePluginServices"
-Cohesion: 0.06
-Nodes (33): BuiltinPlugins, CancellationToken, List, Task, IOutputPlugin, ISourcePlugin, OutputPluginRegistry, SourcePluginRegistry (+25 more)
+Cohesion: 0.05
+Nodes (44): BuiltinPlugins, CancellationToken, List, Task, IOutputPlugin, ISourcePlugin, IReadOnlyList, OutputContext (+36 more)
 
 ### Community 51 - "ExtractedEntity"
-Cohesion: 0.05
-Nodes (33): ActionResult, HttpGet, HttpPost, IActionResult, ILogger, List, CacheController, CacheInfo (+25 more)
+Cohesion: 0.06
+Nodes (26): DateTimeOffset, Guid, DocumentEntityLink, DateTimeOffset, Guid, ICollection, ExtractedEntity, ConcurrentDictionary (+18 more)
 
 ### Community 52 - "WaveManifest"
 Cohesion: 0.07
-Nodes (31): Mostlylucid.DocSummarizer.Images.Coordination, Dictionary, HashSet, TimeSpan, CoordinatorProfile, CoordinatorProfiles, CancellationToken, ConcurrentBag (+23 more)
+Nodes (22): Dictionary, HashSet, TimeSpan, CoordinatorProfile, CoordinatorProfiles, CancellationToken, ConcurrentBag, ConcurrentDictionary (+14 more)
 
 ### Community 53 - "GutenbergReader"
-Cohesion: 0.05
-Nodes (39): CancellationToken, IReadOnlyDictionary, IReadOnlyList, Stream, Task, ReaderOptions, ReaderResult, Fact (+31 more)
+Cohesion: 0.10
+Nodes (20): CancellationToken, IReadOnlyDictionary, Stream, Task, ReaderOptions, ReaderResult, Fact, string (+12 more)
 
 ### Community 54 - "Task"
-Cohesion: 0.10
+Cohesion: 0.09
 Nodes (15): IAsyncLifetime, CancellationToken, List, Task, Fact, InlineData, string, Task (+7 more)
 
 ### Community 55 - "DataSource"
@@ -1594,32 +1643,32 @@ Cohesion: 0.06
 Nodes (31): SearchedColumns, Sql, Dictionary, IEnumerable, List, ColumnInfo, DataSource, DataSourceType (+23 more)
 
 ### Community 56 - "requireToPath"
-Cohesion: 0.05
-Nodes (65): require_arrayMap(), require_assignValue(), require_assocIndexOf(), require_baseAssignValue(), require_baseGet(), require_baseGetTag(), require_baseIsNative(), require_baseSet() (+57 more)
+Cohesion: 0.04
+Nodes (78): clearNow(), delayNextTick(), interruptAndCheck(), nap(), "node_modules/d3-timer/src/timer.js"(), "node_modules/lodash-es/now.js"(), now(), poke() (+70 more)
 
 ### Community 57 - "DocumentNode"
-Cohesion: 0.06
-Nodes (34): Mostlylucid.DoomSummarizer.Plugin.Books.Splitters, IEnumerable, IReadOnlyDictionary, IReadOnlyList, DocumentNode, CancellationToken, Task, SplitOptions (+26 more)
+Cohesion: 0.10
+Nodes (20): IEnumerable, IReadOnlyDictionary, IReadOnlyList, DocumentNode, CancellationToken, Task, SplitContext, SplitOptions (+12 more)
 
 ### Community 58 - "IDocumentHandler"
 Cohesion: 0.06
 Nodes (30): DocumentToMarkdownService, Dictionary, int, IReadOnlyList, Task, DefaultDocumentHandlerExtensions, DocxDocumentHandler, HtmlDocumentHandler (+22 more)
 
 ### Community 59 - ".BuildCorpus"
-Cohesion: 0.05
-Nodes (43): bool, CancellationToken, current, int, IProgress, List, Task, total (+35 more)
+Cohesion: 0.06
+Nodes (39): bool, CancellationToken, current, int, IProgress, List, Task, total (+31 more)
 
 ### Community 60 - "RagDocumentsDbContext"
-Cohesion: 0.07
-Nodes (40): LucidRAG.GraphQL, IdentityDbContext, IQueryable, DbSet, ModelBuilder, RagDocumentsDbContext, DateTimeOffset, Guid (+32 more)
+Cohesion: 0.06
+Nodes (42): LucidRAG.GraphQL, IdentityDbContext, IDesignTimeDbContextFactory, IQueryable, DbSet, ModelBuilder, RagDocumentsDbContext, DateTimeOffset (+34 more)
 
 ### Community 61 - "LearningCoordinator"
-Cohesion: 0.07
-Nodes (34): IComparable, PriorityQueue, bool, CancellationToken, ConcurrentDictionary, DateTimeOffset, Dictionary, Guid (+26 more)
+Cohesion: 0.14
+Nodes (16): IComparable, CancellationToken, DateTimeOffset, Dictionary, Guid, IReadOnlyList, List, Task (+8 more)
 
 ### Community 62 - "ContentItem"
-Cohesion: 0.07
-Nodes (35): ContentStructure, Dictionary, ContentItem, HashSet, IReadOnlyList, SourceFetchContext, IEnumerable, List (+27 more)
+Cohesion: 0.09
+Nodes (31): ContentStructure, Dictionary, ContentItem, HashSet, IReadOnlyList, SourceFetchContext, CachedSegment, List (+23 more)
 
 ### Community 63 - "StopwordLists"
 Cohesion: 0.07
@@ -1638,40 +1687,40 @@ Cohesion: 0.06
 Nodes (41): PadX, PadY, Scale, AnalysisContext, CancellationToken, DenseTensor, float, IEnumerable (+33 more)
 
 ### Community 67 - "HierarchicalCollectionSummarizer"
-Cohesion: 0.07
+Cohesion: 0.08
 Nodes (24): ParsedSection, bool, CancellationToken, int, List, Task, TimeSpan, ValueTask (+16 more)
 
 ### Community 68 - "AgenticSearchService"
-Cohesion: 0.09
-Nodes (21): ChatPipelineContext, DenseScore, CancellationToken, Dictionary, HashSet, IAsyncEnumerable, IEnumerable, List (+13 more)
+Cohesion: 0.08
+Nodes (28): ChatPipelineContext, DenseScore, CancellationToken, Dictionary, Guid, HashSet, IAsyncEnumerable, IEnumerable (+20 more)
 
 ### Community 69 - "VideoSummarizer.Core.Waves"
 Cohesion: 0.06
-Nodes (27): VideoSummarizer.Core.Services, VideoSummarizer.Core.Models, VideoSummarizer.Core.Pipeline, VideoSummarizer.Core.Extensions, VideoSummarizer.Core.Services.External, VideoSummarizer.Core.Coordination, Mostlylucid.Summarizer.Core.Capabilities, VideoSummarizer.Core.Waves (+19 more)
+Nodes (31): VideoSummarizer.Core.Services, VideoSummarizer.Core.Models, VideoSummarizer.Core.Pipeline, VideoSummarizer.Core.Services.External, VideoSummarizer.Core.Coordination, Mostlylucid.Summarizer.Core.Capabilities, VideoSummarizer.Core.Waves, Action (+23 more)
 
 ### Community 70 - "ComplexModeWave"
-Cohesion: 0.10
-Nodes (28): DocumentLayoutAnalyzer, Rectangle, Dictionary, List, DocumentLayout, DocumentSegment, LayoutType, SegmentResult (+20 more)
+Cohesion: 0.06
+Nodes (40): DocumentLayoutAnalyzer, Rectangle, Dictionary, List, DocumentLayout, DocumentSegment, LayoutType, SegmentResult (+32 more)
 
 ### Community 71 - "ClassifierModelInfo"
-Cohesion: 0.06
-Nodes (35): string, DomainClassifierConfig, CancellationToken, HttpClient, ILogger, string, Task, ClassifierModelDownloader (+27 more)
+Cohesion: 0.08
+Nodes (22): IRenderable, CancellationToken, CommandContext, Task, Settings, CancellationToken, CommandContext, List (+14 more)
 
 ### Community 72 - "OcrBenchmarkWave"
 Cohesion: 0.05
 Nodes (34): OcrBenchmarkConfig, OcrConfig, OcrQualityMode, DateTime, IReadOnlyList, OcrBenchmarkResult, OcrSystemResult, AnalysisContext (+26 more)
 
 ### Community 73 - ".ExecuteAsync"
-Cohesion: 0.04
-Nodes (37): CancellationToken, CoordinatorResult, IEnumerable, ILogger, List, Task, DocumentCoordinator, CancellationToken (+29 more)
+Cohesion: 0.07
+Nodes (22): CancellationToken, CoordinatorResult, IEnumerable, ILogger, List, Task, DocumentCoordinator, CancellationToken (+14 more)
 
 ### Community 74 - "DocumentSummarizer"
-Cohesion: 0.09
-Nodes (21): bool, chunks, docId, IEnumerable, int, List, string, summary (+13 more)
+Cohesion: 0.08
+Nodes (27): DocumentSummary, SummarizationMode, bool, chunks, docId, IEnumerable, int, List (+19 more)
 
 ### Community 75 - "SentinelService"
-Cohesion: 0.06
-Nodes (31): coreferences, hasCoreference, LlmAssumption, LlmOperation, LlmSubQuery, ReadOnlyMemory, string, EvidenceTypes (+23 more)
+Cohesion: 0.08
+Nodes (29): coreferences, hasCoreference, ReadOnlyMemory, DateTimeOffset, Dictionary, Guid, List, AssumptionValidation (+21 more)
 
 ### Community 76 - "LucidRAG.csproj"
 Cohesion: 0.04
@@ -1682,8 +1731,8 @@ Cohesion: 0.08
 Nodes (21): SocketsHttpHandler, ActivitySource, bool, CancellationToken, Counter, Histogram, HttpClient, IAsyncEnumerable (+13 more)
 
 ### Community 78 - "Segment"
-Cohesion: 0.07
-Nodes (21): CachedSegment, double, int, IReadOnlyList, List, SegmentSelector, Dictionary, Fact (+13 more)
+Cohesion: 0.08
+Nodes (15): Dictionary, Fact, List, ArticleCodeExamplesTests, SimpleRagService, Dictionary, IEnumerable, List (+7 more)
 
 ### Community 79 - "GIF/WebP Motion Analysis with OpenCV"
 Cohesion: 0.04
@@ -1699,31 +1748,31 @@ Nodes (16): IServiceProvider, Task, bool, Exception, Func, IDisposable, IEnumera
 
 ### Community 82 - "DataSignalKeys"
 Cohesion: 0.05
-Nodes (27): string, DataSignalKeys, DataSignalTags, SignalAggregationStrategy, DataAnalysisContext, CancellationToken, DataAnalysisContext, Dictionary (+19 more)
+Nodes (32): string, DataSignalKeys, DataSignalTags, SignalAggregationStrategy, CancellationToken, DataAnalysisContext, double, DuckDbAnalyzer (+24 more)
 
 ### Community 83 - "KnowledgeGraphServiceTests"
-Cohesion: 0.09
-Nodes (24): entities, itemEmbeddings, relationships, CancellationToken, confidence, Dictionary, entities, entityId (+16 more)
+Cohesion: 0.06
+Nodes (24): Dictionary, HashSet, Dictionary, HashSet, IDeserializer, IReadOnlyDictionary, IReadOnlyList, IReadOnlySet (+16 more)
 
 ### Community 84 - "WaveManifest"
-Cohesion: 0.07
-Nodes (41): Dictionary, IEnumerable, List, WaveConditionalEmit, WaveConfigEntry, WaveDefaultsConfig, WaveDeterminism, WaveEmitsConfig (+33 more)
+Cohesion: 0.11
+Nodes (33): Dictionary, IEnumerable, List, WaveConditionalEmit, WaveConfigEntry, WaveDefaultsConfig, WaveDeterminism, WaveEmitsConfig (+25 more)
 
 ### Community 85 - "OutputFormatter.cs"
-Cohesion: 0.08
-Nodes (34): Dictionary, List, AnalysisProfileConfig, ConsoleOutputSettings, DataSummarizerSettings, JsonOutputSettings, MarkdownOutputSettings, MarkdownReportSettings (+26 more)
+Cohesion: 0.09
+Nodes (32): Dictionary, List, AnalysisProfileConfig, ConsoleOutputSettings, DataSummarizerSettings, JsonOutputSettings, MarkdownOutputSettings, MarkdownReportSettings (+24 more)
 
 ### Community 86 - "SegmentExtractor.cs"
 Cohesion: 0.09
 Nodes (43): centroid, filtered, ChunkPosition, ContentType, PositionWeights, ApplyPositionWeights(), BuildGuaranteedCoverageSet(), BuildPseudoQuery() (+35 more)
 
 ### Community 87 - "BertRagSummarizer"
-Cohesion: 0.09
-Nodes (12): extraction, retrieved, bool, CancellationToken, List, string, Task, ValueTask (+4 more)
+Cohesion: 0.11
+Nodes (10): extraction, retrieved, bool, CancellationToken, List, string, Task, ValueTask (+2 more)
 
 ### Community 88 - ".BuildLayout"
-Cohesion: 0.06
-Nodes (29): Guid, int, List, Queue, State, AppState, ViewMode, Color (+21 more)
+Cohesion: 0.03
+Nodes (61): LucidResearch, Mostlylucid.LucidRAG.UltraResearch.Tests, LucidResearch.Views, LucidResearch.Tests.Services, LucidRAG.UltraResearch, LucidResearch.Tests, LucidResearch.Services, Guid (+53 more)
 
 ### Community 89 - "VectorStoreService"
 Cohesion: 0.13
@@ -1731,39 +1780,35 @@ Nodes (15): Fact, string, Task, VectorStoreTests, bool, DbDataReader, DuckDBConn
 
 ### Community 90 - "IAnalysisWave"
 Cohesion: 0.05
-Nodes (41): DocumentStructureAnalyzer, IAnalysisWave, AnalysisContext, CancellationToken, IEnumerable, ILogger, IReadOnlyList, Task (+33 more)
+Nodes (45): confidence, Dictionary, entities, entity, entityId, IEnumerable, itemEmbeddings, itemId (+37 more)
 
 ### Community 91 - "ImageConfig"
-Cohesion: 0.07
-Nodes (31): Dictionary, List, string, ColorGridConfig, ComplexModeConfig, ContradictionConfig, CustomContradictionRule, ImageConfig (+23 more)
+Cohesion: 0.13
+Nodes (11): ImmutableList, IReadOnlyList, IDocumentReader, CancellationToken, Dictionary, IReadOnlyList, IReadOnlySet, object (+3 more)
 
 ### Community 92 - "ILlmService"
-Cohesion: 0.08
-Nodes (22): EndpointSelectionStrategy, ProviderTier, Dictionary, List, string, BackendConfig, DefaultsConfig, EndpointEntry (+14 more)
+Cohesion: 0.10
+Nodes (21): EndpointSelectionStrategy, Dictionary, List, string, BackendConfig, DefaultsConfig, EndpointEntry, LlmProviderConfig (+13 more)
 
 ### Community 93 - "qu"
 Cohesion: 0.08
 Nodes (6): draw(), fu(), lu(), qu, Ru, Yu()
 
 ### Community 94 - "IngestionService"
-Cohesion: 0.10
-Nodes (26): ActiveIngestionJob, DiscoveredItem, DateTimeOffset, Guid, ICollection, IngestionJobEntity, IngestionSourceEntity, CreateIngestionSourceRequest (+18 more)
-
-### Community 95 - "Mostlylucid.DocSummarizer.Tests.Models"
-Cohesion: 0.05
-Nodes (13): Mostlylucid.DocSummarizer.Tests.Models, Fact, ChunkSummaryTests, Fact, ContentTypeTests, Fact, ExtractedEntitiesTests, Fact (+5 more)
+Cohesion: 0.09
+Nodes (31): ActiveIngestionJob, DiscoveredItem, DateTimeOffset, Guid, ICollection, IngestionJobEntity, IngestionSourceEntity, CreateIngestionSourceRequest (+23 more)
 
 ### Community 96 - "Mostlylucid.DocSummarizer.Core.csproj"
 Cohesion: 0.04
 Nodes (49): dotnet-stop-words (1.1.0), Microsoft.Extensions.Options.ConfigurationExtensions (10.0.5), OpenTelemetry.Api (1.15.1), PDFtoImage (5.2.0), ReverseMarkdown (5.2.0), System.Diagnostics.DiagnosticSource (10.0.5), net10.0, Microsoft.Extensions.DependencyInjection (10.0.5) (+41 more)
 
 ### Community 97 - ".RunInteractiveLoopAsync"
-Cohesion: 0.08
-Nodes (24): CancellationToken, double, Guid, HashSet, ILogger, List, Task, type (+16 more)
+Cohesion: 0.07
+Nodes (27): Argument, Option, Table, UltraResearchCommand, CancellationToken, double, Guid, HashSet (+19 more)
 
 ### Community 98 - "SpellCheckService"
-Cohesion: 0.08
-Nodes (18): List, DiagnosticItem, DiagnosticType, QuickActionRequest, GeneratedRegex, HashSet, IEnumerable, List (+10 more)
+Cohesion: 0.09
+Nodes (17): List, DiagnosticItem, DiagnosticType, QuickActionRequest, GeneratedRegex, HashSet, List, Regex (+9 more)
 
 ### Community 99 - "qu"
 Cohesion: 0.08
@@ -1779,15 +1824,15 @@ Nodes (18): CancellationToken, HttpClient, IEnumerable, ILogger, int, List, Olla
 
 ### Community 102 - "FFmpegAnalysisService"
 Cohesion: 0.09
-Nodes (27): bool, CancellationToken, Dictionary, IEnumerable, ILogger, JsonElement, List, object (+19 more)
+Nodes (26): bool, CancellationToken, Dictionary, IEnumerable, ILogger, JsonElement, List, object (+18 more)
 
 ### Community 103 - "AdvancedGifOcrService"
-Cohesion: 0.09
-Nodes (31): AgreementScore, ConsensusText, Mostlylucid.DocSummarizer.Images.Services.Ocr.Voting, CancellationToken, DateTime, double, ILogger, Image (+23 more)
+Cohesion: 0.06
+Nodes (45): AgreementScore, ConsensusText, Mostlylucid.DocSummarizer.Images.Services.Ocr.Voting, CancellationToken, DateTime, double, ILogger, Image (+37 more)
 
 ### Community 104 - "OllamaService"
-Cohesion: 0.11
-Nodes (23): analysis, article, CancellationToken, Func, GeneratedRegex, HashSet, HttpClient, IAsyncEnumerable (+15 more)
+Cohesion: 0.16
+Nodes (14): Func, GeneratedRegex, HashSet, HttpClient, Regex, relevance, ResiliencePipeline, sentiment (+6 more)
 
 ### Community 105 - "EntityMatcher"
 Cohesion: 0.10
@@ -1798,15 +1843,15 @@ Cohesion: 0.09
 Nodes (11): Func, List, Task, EditorBridge, Fact, Task, EditorBridgeTests, bool (+3 more)
 
 ### Community 107 - "marked.min.js"
-Cohesion: 0.07
-Nodes (39): A(), br(), checkbox(), codespan(), constructor(), de(), del(), em() (+31 more)
+Cohesion: 0.06
+Nodes (46): A(), blockquote(), blockTokens(), br(), checkbox(), code(), codespan(), constructor() (+38 more)
 
 ### Community 108 - ".Compare"
 Cohesion: 0.10
 Nodes (19): Fact, ProfileComparatorTests, DateTime, Dictionary, HashSet, List, CategoricalChanges, CategoryValueChange (+11 more)
 
 ### Community 109 - "MainViewModel"
-Cohesion: 0.07
+Cohesion: 0.06
 Nodes (16): Bitmap, IClipboard, IStorageProvider, PropertyChangedEventArgs, DragEventArgs, MainWindow, bool, DateTime (+8 more)
 
 ### Community 110 - "PersonalCorpusService"
@@ -1814,7 +1859,7 @@ Cohesion: 0.11
 Nodes (19): lastSeen, DateTimeOffset, bool, DateTimeOffset, name, OllamaService, string, type (+11 more)
 
 ### Community 111 - "SourceRouterTests"
-Cohesion: 0.11
+Cohesion: 0.12
 Nodes (10): Dictionary, float, IEnumerable, Task, SourceRouter, Fact, InlineData, Task (+2 more)
 
 ### Community 112 - "OllamaService"
@@ -1823,87 +1868,87 @@ Nodes (29): CancellationToken, IEnumerable, Task, OllamaEmbeddingService, Activi
 
 ### Community 113 - "FaceTrackingService"
 Cohesion: 0.09
-Nodes (31): IdentityId, DateTimeOffset, Dictionary, Guid, List, FaceAppearance, FaceBoundingBox, FaceDatabase (+23 more)
+Nodes (30): IdentityId, DateTimeOffset, Dictionary, Guid, List, FaceAppearance, FaceBoundingBox, FaceDatabase (+22 more)
 
 ### Community 114 - "Signal"
 Cohesion: 0.06
-Nodes (28): AudioProfile, DateTimeOffset, Dictionary, IEnumerable, IReadOnlyDictionary, List, object, Signal (+20 more)
+Nodes (26): AudioProfile, DateTimeOffset, Dictionary, IEnumerable, IReadOnlyDictionary, List, object, Signal (+18 more)
 
 ### Community 115 - ".ExecuteAsync"
-Cohesion: 0.08
-Nodes (20): CancellationToken, CommandContext, Task, ApiBudgetService, CancellationToken, CircuitBreakerService, Dictionary, Func (+12 more)
+Cohesion: 0.05
+Nodes (32): LensYamlManifest, SecretValues, ApiBudgetService, CancellationToken, CircuitBreakerService, Dictionary, Func, GeneratedRegex (+24 more)
 
 ### Community 116 - "QueryNode"
 Cohesion: 0.11
 Nodes (26): CancellationToken, HttpClient, ILogger, long, ReadOnlySpan, Task, TimeSpan, RetrievalSubQueryExecutor (+18 more)
 
 ### Community 117 - "HotPathBenchmarks"
-Cohesion: 0.08
-Nodes (21): Fact, ReadOnlySpan, Task, HotPathBenchmarks, InlineData, Theory, CancellationToken, Dictionary (+13 more)
+Cohesion: 0.11
+Nodes (18): concept, Fact, ReadOnlySpan, Task, HotPathBenchmarks, CancellationToken, Dictionary, float (+10 more)
 
 ### Community 118 - ".CreateColorBlocks"
 Cohesion: 0.09
 Nodes (21): ColorCast, H, IsTinted, L, S, Dictionary, Image, List (+13 more)
 
 ### Community 119 - "AudioSummarizer.Core.Models"
-Cohesion: 0.08
-Nodes (22): AudioSummarizer.Core.Services.Audio, AudioSummarizer.Core.Services.SourceSeparation, AudioSummarizer.Core.Services.Fingerprinting, AudioSummarizer.Core.Services.Transcription, AudioSummarizer.Tests.Integration, AudioSummarizer.Core.Models, AudioSummarizer.Core.Services, AudioSummarizer.Core.Services.Analysis.Waves (+14 more)
+Cohesion: 0.09
+Nodes (21): AudioSummarizer.Core.Services.Audio, AudioSummarizer.Core.Services.SourceSeparation, AudioSummarizer.Core.Services.Fingerprinting, AudioSummarizer.Core.Services.Transcription, AudioSummarizer.Tests.Integration, AudioSummarizer.Core.Models, AudioSummarizer.Core.Services, AudioSummarizer.Core.Services.Analysis.Waves (+13 more)
 
 ### Community 120 - "ImageLedger"
-Cohesion: 0.08
-Nodes (25): RankedSignal, CancellationToken, Dictionary, DominantColor, IDocumentSummarizer, List, SaliencyRegion, Task (+17 more)
+Cohesion: 0.12
+Nodes (23): RankedSignal, Dictionary, DominantColor, List, SaliencyRegion, BoundingBox, ColorLedger, CompositionLedger (+15 more)
 
 ### Community 121 - "SqliteCircuitBreakerService"
-Cohesion: 0.10
-Nodes (16): SqliteCircuitBreakerService, DateTimeOffset, CircuitEntry, CircuitFailureType, CircuitStatus, bool, ConcurrentDictionary, DateTimeOffset (+8 more)
+Cohesion: 0.24
+Nodes (6): SqliteCircuitBreakerService, ValueTask, Fact, string, Task, SqliteCircuitBreakerServiceTests
 
 ### Community 122 - ".RenderOutputAsync"
 Cohesion: 0.09
 Nodes (28): CancellationToken, entities, HttpClient, IAsyncEnumerable, item, List, relevance, sentiment (+20 more)
 
 ### Community 123 - "i"
-Cohesion: 0.08
-Nodes (48): ap(), at(), bd(), cf(), Cg(), cn(), ei(), Er() (+40 more)
+Cohesion: 0.17
+Nodes (12): cf(), Eg(), ff(), hf(), Ig(), Jc(), lf(), Ng() (+4 more)
 
 ### Community 124 - "MediaFilenameParser"
-Cohesion: 0.09
-Nodes (29): DateTimeOffset, Guid, List, LibraryScanResult, MediaFile, MediaFileStatus, MediaLibrary, MediaType (+21 more)
+Cohesion: 0.21
+Nodes (9): GeneratedRegex, ILogger, Regex, MediaFilenameParser, CancellationToken, ILogger, IReadOnlyList, Task (+1 more)
 
 ### Community 125 - "UnifiedIdentityService"
 Cohesion: 0.08
 Nodes (25): DateTimeOffset, Dictionary, Guid, List, AppearanceType, FaceSignatureSelection, IdentityAppearance, IdentitySuggestion (+17 more)
 
 ### Community 126 - "TextDetectionService"
-Cohesion: 0.09
-Nodes (28): avgScore, maxX, maxY, minX, minY, bool, BoundingBox, CancellationToken (+20 more)
+Cohesion: 0.08
+Nodes (30): avgScore, maxX, maxY, minX, minY, bool, BoundingBox, CancellationToken (+22 more)
 
 ### Community 127 - "VisionLlmWave"
-Cohesion: 0.10
-Nodes (22): Base64, Chunked, EntityDetection, AnalysisContext, CancellationToken, ConcurrentDictionary, Dictionary, FrameCount (+14 more)
+Cohesion: 0.14
+Nodes (12): Base64, AnalysisContext, CancellationToken, ConcurrentDictionary, FrameCount, HttpClient, IEnumerable, ILogger (+4 more)
 
 ### Community 128 - "SYSTEM.md"
 Cohesion: 0.05
-Nodes (23): LucidRAG.Migrations.Tenant, Mostlylucid.ImageSummarizer.Desktop.ViewModels, LucidRAG.Migrations, Migration, ModelSnapshot, MigrationBuilder, ModelBuilder, InitialCreate (+15 more)
+Nodes (27): LucidRAG.Migrations.Tenant, Mostlylucid.ImageSummarizer.Desktop, Mostlylucid.ImageSummarizer.Desktop.ViewModels, LucidRAG.Migrations, Migration, ModelSnapshot, MigrationBuilder, ModelBuilder (+19 more)
 
 ### Community 129 - "SqliteApiBudgetService"
 Cohesion: 0.09
 Nodes (18): Mostlylucid.DocSummarizer.Rdbms.Sqlite.Tests, SqliteApiBudgetService, ApiBudgetConfig, BudgetCheckResult, IServiceBudgetLookup, ServiceBudgetInfo, bool, SemaphoreSlim (+10 more)
 
 ### Community 130 - "AnalysisContext"
-Cohesion: 0.05
-Nodes (21): CancellationToken, ConcurrentDictionary, Dictionary, HashSet, ILogger, IReadOnlyList, IReadOnlySet, List (+13 more)
+Cohesion: 0.10
+Nodes (20): CancellationToken, Dictionary, float, ILogger, string, Task, EntityRelationAnalyzer, CancellationToken (+12 more)
 
 ### Community 131 - "OCR Pipeline Configuration System"
 Cohesion: 0.04
 Nodes (48): 1. Edit pipelines.json, 1. Start with Built-in Pipelines, 2. Use Descriptive Names, 2. Use the Custom Pipeline, 3. Programmatic Pipeline Creation, 3. Set Realistic Estimates, 4. Use Tags for Categorization, 5. Document Parameters (+40 more)
 
 ### Community 132 - "Signal"
-Cohesion: 0.12
-Nodes (22): ContradictionDetector, Signal, DateTime, List, ContradictionResult, ContradictionRule, ContradictionSeverity, ContradictionType (+14 more)
+Cohesion: 0.16
+Nodes (8): AggregationStrategy, Func, IEnumerable, List, ConflictResolutionRule, SignalAggregator, Fact, SignalAggregatorTests
 
 ### Community 133 - "MainWindowViewModel"
 Cohesion: 0.07
-Nodes (21): SignSummarizer.UI.Controls, FuncValueConverter, VideoPlayerControl, bool, CancellationToken, CancellationTokenSource, double, float (+13 more)
+Nodes (19): KeyEventArgs, bool, CancellationTokenSource, double, float, int, mode, query (+11 more)
 
 ### Community 134 - "✅ Completed: Table Extraction Pipeline for LucidRAG"
 Cohesion: 0.04
@@ -1917,21 +1962,17 @@ Nodes (23): EventArgs, ObservableObject, DateTimeOffset, List, CrawlSource, Json
 Cohesion: 0.04
 Nodes (43): Florence2 (25.12.63049), Microsoft.Extensions.Caching.Memory (10.0.5), Microsoft.ML.OnnxRuntime.Gpu (1.24.4), Mostlylucid.Ephemeral.Atoms.Taxonomy (2.3.2), mostlylucid.ephemeral.complete (2.3.2), Mostlylucid.LucidRAG.AudioSummarizer ($(CorePackageVersion)), Npgsql (10.0.2), SixLabors.Fonts (2.1.3) (+35 more)
 
-### Community 137 - "AdaptiveChunkingTests"
-Cohesion: 0.09
-Nodes (14): pageEnd, pageStart, RawSection, Fact, AdaptiveChunkingTests, Dictionary, end, int (+6 more)
-
 ### Community 138 - "PatternDetector"
-Cohesion: 0.10
-Nodes (20): Acf, DominantPeriod, expectedCount, gapCount, HasPeriodicity, Lag, DetectedPattern, PatternType (+12 more)
+Cohesion: 0.08
+Nodes (45): Action, Dictionary, List, AlertSeverity, AlertType, CachedQueryResult, ClassifierDetection, ColumnCorrelation (+37 more)
 
 ### Community 139 - "GraphRagDb"
 Cohesion: 0.10
 Nodes (19): Community, CommunityResult, DuckDBCommand, HierarchicalCommunities, IDataReader, CancellationToken, IProgress, ProgressInfo (+11 more)
 
 ### Community 140 - "OpenAIEmbeddingService"
-Cohesion: 0.06
-Nodes (35): Mostlylucid.DocSummarizer.OpenAI.Extensions, Mostlylucid.DocSummarizer.OpenAI.Config, Mostlylucid.DocSummarizer.OpenAI.Services, EmbeddingUsage, OpenAIMessage, string, OpenAIConfig, Action (+27 more)
+Cohesion: 0.09
+Nodes (22): Mostlylucid.DocSummarizer.OpenAI.Extensions, Mostlylucid.DocSummarizer.OpenAI.Config, Mostlylucid.DocSummarizer.OpenAI.Services, EmbeddingUsage, OpenAIMessage, EmbeddingData, List, BatchEmbeddingRequest (+14 more)
 
 ### Community 141 - "Deduplication Strategy"
 Cohesion: 0.04
@@ -1939,7 +1980,7 @@ Nodes (46): Accepted Trade-offs, Algorithm, Algorithm, Analytics Configuration, 
 
 ### Community 142 - ""node_modules/d3-color/src/color.js""
 Cohesion: 0.06
-Nodes (46): basis(), basis_default(), basisClosed_default(), clampa(), clampi(), color(), Color2(), color_formatHex() (+38 more)
+Nodes (48): basis(), basis_default(), basisClosed_default(), clampa(), clampi(), color(), Color2(), color_formatHex() (+40 more)
 
 ### Community 143 - ".ComputeProfileWithExplainAsync"
 Cohesion: 0.10
@@ -1950,16 +1991,16 @@ Cohesion: 0.15
 Nodes (4): BlogArticleResult, DocumentAssembler, Fact, LongFormGenerationTests
 
 ### Community 145 - "MlOcrWave"
-Cohesion: 0.11
-Nodes (26): AnimatedTextResult, ILogger, Image, List, Mat, Rect, Rgba32, Stopwatch (+18 more)
+Cohesion: 0.13
+Nodes (22): AnimatedTextResult, ILogger, Image, List, Mat, Rgba32, TextRegionChangeDetector, AnalysisContext (+14 more)
 
 ### Community 146 - "PptxDocumentHandler"
 Cohesion: 0.08
 Nodes (24): AreaChart, BarChart, CategoryAxisData, Chart, ChartPart, DoughnutChart, GroupShape, LineChart (+16 more)
 
 ### Community 147 - ".CalculateTextLikeliness"
-Cohesion: 0.12
-Nodes (13): Mostlylucid.DocSummarizer.Images.Tests.Services.Analysis, Image, Rgba32, TextLikelinessAnalyzer, Color, Fact, Image, InlineData (+5 more)
+Cohesion: 0.08
+Nodes (22): bbox, charCount, DocumentScore, IsDocument, confidence, Image, List, Rect (+14 more)
 
 ### Community 148 - "OllamaService"
 Cohesion: 0.08
@@ -1970,56 +2011,56 @@ Cohesion: 0.12
 Nodes (21): MemoryCache, bool, CancellationToken, ConcurrentDictionary, DateTimeOffset, IEnumerable, ILogger, int (+13 more)
 
 ### Community 150 - "DynamicImageProfile"
-Cohesion: 0.10
-Nodes (16): Scene, bool, DateTime, Dictionary, IEnumerable, List, DynamicImageProfile, ProfileStatistics (+8 more)
+Cohesion: 0.04
+Nodes (44): ContradictionDetector, Scene, Signal, DateTime, List, ContradictionResult, ContradictionRule, ContradictionSeverity (+36 more)
 
 ### Community 151 - "HandLandmarks"
 Cohesion: 0.07
-Nodes (22): ReadOnlySpan, TimeSpan, CanonicalLandmarks, int, ReadOnlySpan, TimeSpan, HandLandmarks, HandSide (+14 more)
+Nodes (28): ReadOnlySpan, TimeSpan, CanonicalLandmarks, int, ReadOnlySpan, TimeSpan, HandLandmarks, HandSide (+20 more)
 
 ### Community 152 - "DataSignal"
-Cohesion: 0.09
-Nodes (18): DateTime, Dictionary, List, DataSignal, Dictionary, IEnumerable, TimeSpan, DynamicDataProfile (+10 more)
+Cohesion: 0.11
+Nodes (13): DateTime, Dictionary, List, DataSignal, Dictionary, IEnumerable, TimeSpan, DynamicDataProfile (+5 more)
 
 ### Community 153 - "PipelinedBertRagSummarizer"
-Cohesion: 0.09
-Nodes (17): ExtractionConfigSection, ExtractionConfig, bool, CancellationToken, CancellationTokenSource, ConcurrentBag, ConcurrentQueue, double (+9 more)
+Cohesion: 0.11
+Nodes (13): bool, CancellationToken, CancellationTokenSource, ConcurrentBag, ConcurrentQueue, double, int, List (+5 more)
 
 ### Community 154 - "SceneClusteringWave"
-Cohesion: 0.08
-Nodes (29): DateTimeOffset, Guid, List, BoundingBoxFrame, CutType, ShotSegment, ShotType, Speaker (+21 more)
+Cohesion: 0.12
+Nodes (20): DateTimeOffset, Guid, List, BoundingBoxFrame, SceneSegment, ShotSegment, ShotType, Speaker (+12 more)
 
 ### Community 155 - "LucidRAG.UltraResearch"
-Cohesion: 0.07
-Nodes (24): Mostlylucid.DocSummarizer, LucidResearch, LucidResearch.Views, LucidResearch.Tests.Services, LucidRAG.UltraResearch, LucidResearch.Tests, LucidResearch.Services, AppState (+16 more)
+Cohesion: 0.10
+Nodes (19): Acf, DominantPeriod, expectedCount, gapCount, HasPeriodicity, Lag, DetectedPattern, PatternType (+11 more)
 
 ### Community 156 - "LucidRAG.UltraResearch.Waves"
-Cohesion: 0.05
-Nodes (30): LucidRAG.UltraResearch.Waves, CancellationToken, HttpClient, Task, Action, IServiceCollection, ServiceCollectionExtensions, UltraResearchOptions (+22 more)
+Cohesion: 0.22
+Nodes (8): CancellationToken, FetchCandidate, HttpClient, IEnumerable, ILogger, IReadOnlyList, Task, ContentFetchWave
 
 ### Community 157 - ".AnalyzeAsync"
 Cohesion: 0.12
 Nodes (20): route, reasons, Route, AnalysisContext, CancellationToken, Dictionary, IEnumerable, ILogger (+12 more)
 
 ### Community 158 - "EvidenceCorpus"
-Cohesion: 0.10
-Nodes (27): FabricatedTitles, GroundedCount, HallucinatedUrls, DateTimeOffset, Dictionary, HashSet, List, ArticleSummary (+19 more)
+Cohesion: 0.12
+Nodes (20): FabricatedTitles, GroundedCount, HallucinatedUrls, List, EntityIssue, FactGroundingLevel, FactIssue, TitleIssue (+12 more)
 
 ### Community 159 - "MlContextChecker"
-Cohesion: 0.08
+Cohesion: 0.07
 Nodes (28): FailureReasons, IsKnown, Perplexity, Probability, AnalysisContext, CancellationToken, IEnumerable, ILogger (+20 more)
 
 ### Community 160 - "LlmOptions"
-Cohesion: 0.09
-Nodes (22): INamedLlmProvider, CancellationToken, Dictionary, Task, ActivitySource, CancellationToken, Counter, Dictionary (+14 more)
+Cohesion: 0.12
+Nodes (17): INamedLlmProvider, ActivitySource, CancellationToken, Counter, Dictionary, Histogram, ILogger, IPromptService (+9 more)
 
 ### Community 161 - "DoomSummarizer.csproj"
 Cohesion: 0.05
 Nodes (39): MailKit (4.14.1), mostlylucid.consoleimage (4.5.1), mostlylucid.consoleimage.player (4.5.1), SendGrid (9.29.3), SubtitlesParserV2 (2.4.0), YoutubeExplode (6.5.7), net10.0, Microsoft.Extensions.Hosting (10.0.5) (+31 more)
 
 ### Community 162 - "SignWaveContext"
-Cohesion: 0.09
-Nodes (22): CancellationToken, Dictionary, Guid, List, Task, ISignWave, SignWaveContext, SignWaveResult (+14 more)
+Cohesion: 0.15
+Nodes (13): CancellationToken, Dictionary, Guid, List, Task, SignWaveContext, SignWaveResult, CancellationToken (+5 more)
 
 ### Community 163 - ""node_modules/katex/dist/katex.mjs""
 Cohesion: 0.05
@@ -2030,12 +2071,12 @@ Cohesion: 0.10
 Nodes (24): Fact, Task, WaveCoordinatorTests, CancellationToken, FetchCandidate, Guid, IDocumentIngester, ILogger (+16 more)
 
 ### Community 165 - "EdgeAnalyzerTests"
-Cohesion: 0.12
-Nodes (10): Image, Mat, Rgba32, EdgeAnalyzer, Fact, EdgeAnalyzerTests, Color, Image (+2 more)
+Cohesion: 0.17
+Nodes (6): Image, Mat, Rgba32, EdgeAnalyzer, Fact, EdgeAnalyzerTests
 
 ### Community 166 - "UltraResearchOrchestrator"
-Cohesion: 0.08
-Nodes (24): ActiveSession, CancellationToken, Guid, Task, CliDocumentIngester, CancellationToken, Guid, Task (+16 more)
+Cohesion: 0.07
+Nodes (37): ActiveSession, CancellationToken, Guid, Task, DocumentIngestResult, IDocumentIngester, CancellationToken, Dictionary (+29 more)
 
 ### Community 167 - "IPipeline"
 Cohesion: 0.09
@@ -2046,8 +2087,8 @@ Cohesion: 0.08
 Nodes (41): ChatChoice, Delta, IReadOnlyList, JsonElement, ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse, ChatMessage (+33 more)
 
 ### Community 169 - ".IngestLocalFilesAsync"
-Cohesion: 0.08
-Nodes (28): ChunkFingerprint, collectionName, docType, files, isImageSource, itemCount, minTokens, sourceFilter (+20 more)
+Cohesion: 0.06
+Nodes (35): ChunkFingerprint, collectionName, docType, files, isImageSource, itemCount, minTokens, sourceFilter (+27 more)
 
 ### Community 170 - "Qdrant Multi-Vector Implementation for Images"
 Cohesion: 0.05
@@ -2062,32 +2103,32 @@ Cohesion: 0.05
 Nodes (42): 1. Choose the Right Chunking Mode, 1. Zero-Configuration, 2. Optimize Chunk Sizes, 2. Speaker Diarization, 3. Chunking Strategies, 3. Handle Silence, 4. Speaker Diarization Tips, A. FullFile (Slowest, Most Accurate) (+34 more)
 
 ### Community 173 - "EndpointState"
-Cohesion: 0.10
-Nodes (14): Fact, EndpointStateTests, Fact, FastestSelectorTests, List, LoadBalancingTestHelpers, Fact, RoundRobinSelectorTests (+6 more)
+Cohesion: 0.11
+Nodes (18): ValueCount, DateTime, Dictionary, List, ColumnFidelity, PrivacyCompliance, RelationshipFidelity, RelationshipType (+10 more)
 
 ### Community 174 - "SignalPanelViewModel"
 Cohesion: 0.08
 Nodes (21): List, AnalyzedSegment, HeadingItem, SegmentKind, TopicScore, TrackedEntity, Suggestion, SuggestionType (+13 more)
 
 ### Community 175 - "AudioConfidenceBooster"
-Cohesion: 0.08
-Nodes (26): BaseConfidenceBooster, LucidRAG.Core.Services.ConfidenceBooster.Artifacts, IArtifact, Dictionary, Guid, AudioSegmentArtifact, Dictionary, Guid (+18 more)
+Cohesion: 0.13
+Nodes (18): BaseConfidenceBooster, Dictionary, Guid, AudioSegmentArtifact, BoostResult, CancellationToken, Confidence, Dictionary (+10 more)
 
 ### Community 176 - "LuceneFullTextSearch"
 Cohesion: 0.11
-Nodes (21): Mostlylucid.DocSummarizer.FullText.Lucene.Tests, LuceneFullTextSearch, FullTextResult, CancellationToken, Dictionary, DirectoryReader, FSDirectory, IEnumerable (+13 more)
+Nodes (20): Mostlylucid.DocSummarizer.FullText.Lucene.Tests, LuceneFullTextSearch, CancellationToken, Dictionary, DirectoryReader, FSDirectory, IEnumerable, IndexSearcher (+12 more)
 
 ### Community 177 - "EntityGraphService"
-Cohesion: 0.11
-Nodes (27): Mostlylucid.GraphRag, Dictionary, string, CrawlerConfig, DemoModeConfig, PromptsConfig, QueryClarificationConfig, QueryDecompositionConfig (+19 more)
+Cohesion: 0.19
+Nodes (13): bool, CancellationToken, Guid, ILogger, IReadOnlyList, string, Task, EntityExtractionResult (+5 more)
 
 ### Community 178 - "WhisperService"
-Cohesion: 0.14
-Nodes (18): TimeSpan, DiarizedSegment, SubtitleSegment, CancellationToken, Channel, Dictionary, End, IAsyncEnumerable (+10 more)
+Cohesion: 0.13
+Nodes (19): TimeSpan, DiarizedSegment, SubtitleSegment, CancellationToken, Channel, Dictionary, End, IAsyncEnumerable (+11 more)
 
 ### Community 179 - "ContentChunk"
-Cohesion: 0.08
-Nodes (26): CancellationToken, IReadOnlyList, Task, IDomainPlugin, CancellationToken, IReadOnlyList, Task, IDomainPluginRegistry (+18 more)
+Cohesion: 0.07
+Nodes (33): CancellationToken, IReadOnlyList, Task, IDomainPlugin, CancellationToken, IReadOnlyList, Task, IDomainPluginRegistry (+25 more)
 
 ### Community 180 - "TextDetectionWaveTests"
 Cohesion: 0.11
@@ -2098,16 +2139,16 @@ Cohesion: 0.05
 Nodes (42): 1. Auto-Routing (AutoRoutingWave), 1. Choose the Right Route, 2. OCR Technologies, 2. Optimize for Cost, 3. Maximize Accuracy, 3. Vision LLM Integration, 4. Debug and Monitor, AdvancedOcrWave (Multi-Frame Temporal OCR) (+34 more)
 
 ### Community 182 - "SubdomainTenantResolver"
-Cohesion: 0.08
-Nodes (27): IConfiguration, IServiceProvider, PostgresTenantDbContextFactory, DateTimeOffset, string, ITenantAccessor, TenantAccessor, TenantConstants (+19 more)
+Cohesion: 0.09
+Nodes (20): CancellationToken, HttpContext, ILogger, IMemoryCache, IServiceProvider, PathString, string, Task (+12 more)
 
 ### Community 183 - "DocSummarizerConfig"
 Cohesion: 0.08
-Nodes (26): LlmBackend, OnnxConfig, OnnxExecutionProvider, List, AdaptiveRetrievalConfig, BatchConfig, BertRagConfig, ChunkCacheConfig (+18 more)
+Nodes (29): LlmBackend, OnnxConfig, OnnxExecutionProvider, List, AdaptiveRetrievalConfig, BatchConfig, BertRagConfig, ChunkCacheConfig (+21 more)
 
 ### Community 184 - ".Detect"
-Cohesion: 0.13
-Nodes (12): Dictionary, GeneratedRegex, List, Regex, string, BookTypeDetector, DetectionSignal, Fact (+4 more)
+Cohesion: 0.25
+Nodes (6): GeneratedRegex, List, Regex, string, BookTypeDetector, DetectionSignal
 
 ### Community 185 - "Models.cs"
 Cohesion: 0.07
@@ -2122,8 +2163,8 @@ Cohesion: 0.12
 Nodes (23): DateTimeOffset, Dictionary, Guid, IEnumerable, List, TimeSpan, ArtifactGenerationOptions, ArtifactQuality (+15 more)
 
 ### Community 188 - "DataSynthesizer"
-Cohesion: 0.14
-Nodes (11): columns, Faker, matrix, Fact, Task, DataSynthesizerTests, DateTime, List (+3 more)
+Cohesion: 0.09
+Nodes (12): Action, bool, Exception, Func, IEnumerable, ProgressTask, string, Summary (+4 more)
 
 ### Community 189 - "Workflow Graph Rendering (Running + Signal-Derived)"
 Cohesion: 0.05
@@ -2150,24 +2191,24 @@ Cohesion: 0.10
 Nodes (24): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, AcademicPlugin (+16 more)
 
 ### Community 195 - ".ScoreItemsAsync"
-Cohesion: 0.14
+Cohesion: 0.13
 Nodes (18): CancellationToken, Dictionary, float, HashSet, IReadOnlyList, List, SemaphoreSlim, Task (+10 more)
 
 ### Community 196 - "u"
-Cohesion: 0.07
-Nodes (28): al(), Bf(), bs(), Df(), dl(), ds(), ed, ew() (+20 more)
+Cohesion: 0.09
+Nodes (33): ae(), al(), Bf(), bl(), bs(), d(), Df(), dl() (+25 more)
 
 ### Community 197 - "ClipZeroShotService"
 Cohesion: 0.09
 Nodes (28): AnalysisContext, CancellationToken, Dictionary, IEnumerable, ILogger, IReadOnlyList, string, Task (+20 more)
 
 ### Community 198 - "BatchCommand"
-Cohesion: 0.10
-Nodes (19): EscalationResult, ImageFilter, Argument, CancellationToken, Command, List, Option, Task (+11 more)
+Cohesion: 0.16
+Nodes (10): EscalationResult, ImageFilter, Argument, CancellationToken, Command, List, Option, Task (+2 more)
 
 ### Community 199 - "ApiModels.cs"
-Cohesion: 0.05
-Nodes (37): Guid, IEnumerable, AddDocumentsRequest, ApiMeta, ApiResponse, ApiResponseHelpers, BatchImportResponse, BatchImportResult (+29 more)
+Cohesion: 0.06
+Nodes (35): Guid, IEnumerable, AddDocumentsRequest, ApiMeta, ApiResponse, ApiResponseHelpers, BatchImportResponse, BatchImportResult (+27 more)
 
 ### Community 200 - "DiskBackedChunkStore"
 Cohesion: 0.10
@@ -2178,8 +2219,8 @@ Cohesion: 0.11
 Nodes (24): Action, CancellationToken, Channel, ConcurrentDictionary, ConcurrentQueue, DateTimeOffset, Dictionary, Func (+16 more)
 
 ### Community 202 - "AnthropicLlmService"
-Cohesion: 0.07
-Nodes (28): AnthropicDelta, AnthropicMessage, ContentBlock, Mostlylucid.DocSummarizer.Anthropic.Config, Mostlylucid.DocSummarizer.Anthropic.Services, Mostlylucid.DocSummarizer.Anthropic.Extensions, string, AnthropicConfig (+20 more)
+Cohesion: 0.09
+Nodes (21): AnthropicDelta, AnthropicMessage, ContentBlock, Mostlylucid.DocSummarizer.Anthropic.Config, Mostlylucid.DocSummarizer.Anthropic.Services, Mostlylucid.DocSummarizer.Anthropic.Extensions, string, AnthropicConfig (+13 more)
 
 ### Community 203 - ".ExtractThemeBriefing"
 Cohesion: 0.10
@@ -2191,31 +2232,31 @@ Nodes (14): Categories, CustomWords, bool, Category, Dictionary, IEnumerable, Li
 
 ### Community 205 - "BertSummarizer"
 Cohesion: 0.09
-Nodes (20): ContainerInline, ListBlock, QuoteBlock, bool, CancellationToken, HashSet, List, Task (+12 more)
+Nodes (22): ContainerInline, ListBlock, QuoteBlock, bool, CancellationToken, HashSet, List, Task (+14 more)
 
 ### Community 206 - "ML & LLM Features for Image Analysis"
 Cohesion: 0.05
 Nodes (39): 1. VisionLlmWave (Priority: 50), 2. ClipEmbeddingWave (Priority: 45), 3. OcrQualityWave (Enhanced), 3-Tier OCR Correction Pipeline ✅ IMPLEMENTED, Alt Text Synthesis Integration, Architecture Diagram, Benefits, Configuration (+31 more)
 
 ### Community 207 - ".ExecuteAsync"
-Cohesion: 0.07
-Nodes (21): effectiveMs, Action, CancellationToken, DateTimeOffset, List, string, Task, BraveSearchService (+13 more)
+Cohesion: 0.08
+Nodes (20): effectiveMs, CancellationToken, ConcurrentDictionary, Dictionary, Func, HttpResponseMessage, IDisposable, IReadOnlyDictionary (+12 more)
 
 ### Community 208 - "DemucsSourceSeparationService"
-Cohesion: 0.09
-Nodes (21): DemucsModelDownloader, CancellationToken, IHttpClientFactory, ILogger, Task, DemucsSourceSeparationService, CancellationToken, ILogger (+13 more)
+Cohesion: 0.14
+Nodes (14): DemucsModelDownloader, CancellationToken, IHttpClientFactory, ILogger, Task, DemucsSourceSeparationService, CancellationToken, ILogger (+6 more)
 
 ### Community 209 - "GifTextExtractor"
-Cohesion: 0.11
-Nodes (22): ILogger, List, DocumentStructure, DocumentStructureAnalyzer, FontStatistics, StructureElement, StructureType, TextLine (+14 more)
+Cohesion: 0.14
+Nodes (18): DocumentStructureAnalyzer, ILogger, List, DocumentStructure, DocumentStructureAnalyzer, FontStatistics, StructureElement, StructureType (+10 more)
 
 ### Community 210 - ".AnalyzeAsync"
 Cohesion: 0.19
 Nodes (6): Fact, Image, Rgba32, string, Task, ImageAnalyzerTests
 
 ### Community 211 - "WebCrawlerService"
-Cohesion: 0.10
-Nodes (24): DateTimeOffset, CrawledPage, CrawlJob, CrawlProgress, CrawlRequest, CrawlStartResponse, CrawlStatus, IEnumerable (+16 more)
+Cohesion: 0.07
+Nodes (36): CancellationToken, Guid, HttpGet, HttpPost, IActionResult, Task, CrawlController, DateTimeOffset (+28 more)
 
 ### Community 212 - "CancellationToken"
 Cohesion: 0.14
@@ -2230,20 +2271,20 @@ Cohesion: 0.05
 Nodes (23): net9.0, net10.0, SixLabors.ImageSharp (3.1.12), Microsoft.NET.Sdk, net10.0, Microsoft.Data.Sqlite (10.0.5), MinVer (8.0.0-alpha.1), Mostlylucid.LucidRAG.DocSummarizer ($(CorePackageVersion)) (+15 more)
 
 ### Community 215 - "MusicAnalysisWave"
-Cohesion: 0.09
-Nodes (21): AverageDb, BeatStrength, Bpm, DynamicRangeDb, HighBandRatio, Key, LowBandRatio, MidBandRatio (+13 more)
+Cohesion: 0.11
+Nodes (17): AverageDb, BeatStrength, Bpm, DynamicRangeDb, HighBandRatio, Key, LowBandRatio, MidBandRatio (+9 more)
 
 ### Community 216 - "Mostlylucid.Summarizer.Core.Analysis"
-Cohesion: 0.08
-Nodes (19): Mostlylucid.Summarizer.Core.Analysis, DoomWriter.Waves, DoomWriter.Tests.Waves, Fact, Task, WordCountWaveTests, CancellationToken, IEnumerable (+11 more)
+Cohesion: 0.24
+Nodes (8): Fact, Task, WordCountWaveTests, CancellationToken, IEnumerable, IReadOnlyList, Task, WordCountWave
 
 ### Community 217 - "Proposal: Per-Tenant LFU Cache for Evidence and Entities"
 Cohesion: 0.05
 Nodes (38): 1. EvidenceRepository (Critical), 2. EntityGraphService (Optional Enhancement), 3. Cache Invalidation (Important), After Implementation (Targets), appsettings.json, Before Implementation (Baseline), Cache Statistics API, Cache Structure (+30 more)
 
 ### Community 218 - "WebFetcher"
-Cohesion: 0.11
-Nodes (21): extension, IPAddress, ActivitySource, bool, bytes, Counter, Dictionary, HashSet (+13 more)
+Cohesion: 0.08
+Nodes (26): extension, IPAddress, ActivitySource, bool, bytes, Counter, Dictionary, HashSet (+18 more)
 
 ### Community 219 - "***lucid***RAG"
 Cohesion: 0.05
@@ -2258,8 +2299,8 @@ Cohesion: 0.06
 Nodes (39): abstractElementToRegex(), appendEmptyLine(), buildInlineTokens(), characterRangeToRegex(), createGrammarConfig(), escapeRegExp(), getCaseInsensitivePattern(), getLines() (+31 more)
 
 ### Community 222 - ""node_modules/@mermaid-js/parser/dist/chunks/mermaid-parser.core/chunk-FPAJGGOC.mjs""
-Cohesion: 0.07
-Nodes (39): createArchitectureServices(), createCompletionParser(), createDefaultCoreModule(), createDefaultSharedCoreModule(), createGitGraphServices(), createInfoServices(), createLangiumParser(), createMinimalGrammarServices() (+31 more)
+Cohesion: 0.15
+Nodes (16): Dictionary, Guid, ImageCropArtifact, BoostResult, CancellationToken, Confidence, Dictionary, Guid (+8 more)
 
 ### Community 223 - "DataProcessorService"
 Cohesion: 0.15
@@ -2270,8 +2311,8 @@ Cohesion: 0.10
 Nodes (29): List, DocumentPlan, SentinelOutline, SentinelSection, List, TemplateDefinition, TemplatePromptDef, TemplateSectionDef (+21 more)
 
 ### Community 225 - "PromptInterpreter"
-Cohesion: 0.10
-Nodes (24): CancellationToken, Dictionary, double, GeneratedRegex, Lazy, List, OllamaService, QueryClassification (+16 more)
+Cohesion: 0.11
+Nodes (18): CancellationToken, ClassifierConfig, Dictionary, double, GeneratedRegex, Lazy, List, OllamaService (+10 more)
 
 ### Community 226 - "README.md"
 Cohesion: 0.05
@@ -2298,20 +2339,20 @@ Cohesion: 0.11
 Nodes (16): Action, bool, CancellationToken, DateTimeOffset, Dictionary, Func, IEnumerable, JsonSerializerOptions (+8 more)
 
 ### Community 232 - "Mostlylucid.RAG.Services"
-Cohesion: 0.08
-Nodes (19): Mostlylucid.RAG.Extensions, Mostlylucid.RAG.Config, Mostlylucid.Storage.Core.Config, Mostlylucid.RAG.Services, Mostlylucid.RAG.Models, Mostlylucid.Storage.Core.Implementations, Mostlylucid.Storage.Core.Abstractions, Mostlylucid.Storage.Core.Abstractions.Models (+11 more)
+Cohesion: 0.09
+Nodes (15): Mostlylucid.RAG.Extensions, Mostlylucid.RAG.Config, Mostlylucid.Storage.Core.Config, Mostlylucid.RAG.Services, Mostlylucid.RAG.Models, Mostlylucid.Storage.Core.Implementations, Mostlylucid.Storage.Core.Abstractions, Mostlylucid.Storage.Core.Abstractions.Models (+7 more)
 
 ### Community 233 - "LucidRAG.Multitenancy"
-Cohesion: 0.07
-Nodes (18): LucidRAG.Multitenancy.Providers, LucidRAG.Multitenancy, DbContext, IDesignTimeDbContextFactory, ITenantDatabaseProviderFactory, string, TenantDatabaseOptions, ILogger (+10 more)
+Cohesion: 0.08
+Nodes (15): LucidRAG.Multitenancy.Providers, LucidRAG.Multitenancy, DbContext, ITenantDatabaseProviderFactory, string, TenantDatabaseOptions, ILogger, IServiceProvider (+7 more)
 
 ### Community 234 - "SqliteFts5SearchService"
 Cohesion: 0.12
 Nodes (17): Mostlylucid.DocSummarizer.FullText.Sqlite.Tests, SqliteFts5SearchService, bool, CancellationToken, Dictionary, IEnumerable, int, List (+9 more)
 
 ### Community 235 - ".CrawlAsync"
-Cohesion: 0.09
-Nodes (21): extracted, queued, Action, CancellationToken, ContentExtractor, double, etag, Func (+13 more)
+Cohesion: 0.10
+Nodes (18): extracted, queued, Action, CancellationToken, ContentExtractor, double, etag, Func (+10 more)
 
 ### Community 236 - "AudioSummarizer.Core.csproj"
 Cohesion: 0.05
@@ -2322,28 +2363,28 @@ Cohesion: 0.12
 Nodes (18): personalContext, answer, bool, CancellationToken, GeneratedRegex, HashSet, List, OllamaService (+10 more)
 
 ### Community 238 - ".FetchLinkContentAsync"
-Cohesion: 0.07
-Nodes (27): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, RedditPlugin (+19 more)
+Cohesion: 0.13
+Nodes (14): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, HackerNewsPlugin (+6 more)
 
 ### Community 239 - "DoomScrollerTools"
-Cohesion: 0.17
+Cohesion: 0.19
 Nodes (14): CancellationToken, GeneratedRegex, Regex, string, Task, LuceneQueryGenerator, bool, Description (+6 more)
 
 ### Community 240 - "LuceneSearchService"
-Cohesion: 0.09
-Nodes (20): Dictionary, DirectoryReader, FSDirectory, IndexSearcher, IndexWriter, IReadOnlyList, List, LuceneVersion (+12 more)
+Cohesion: 0.06
+Nodes (25): bool, Dictionary, float, IEnumerable, int, List, Task, ItemProcessor (+17 more)
 
 ### Community 241 - "UrlFixerService"
 Cohesion: 0.11
 Nodes (17): CancellationToken, Dictionary, GeneratedRegex, HttpClient, IEnumerable, IList, ILogger, Regex (+9 more)
 
 ### Community 242 - "ModelDownloader"
-Cohesion: 0.09
-Nodes (26): AnalysisContext, bool, BoundingBox, CancellationToken, Dictionary, double, IEnumerable, ILogger (+18 more)
+Cohesion: 0.06
+Nodes (35): Mostlylucid.DocSummarizer.Images.Tests.Services.Ocr, AnalysisContext, bool, BoundingBox, CancellationToken, Dictionary, double, IEnumerable (+27 more)
 
 ### Community 243 - "ImageDocumentHandlerTests"
-Cohesion: 0.14
-Nodes (9): Task, Fact, Image, InlineData, Rgba32, string, Task, Theory (+1 more)
+Cohesion: 0.11
+Nodes (11): IReadOnlyList, Task, ImageDocumentHandler, Fact, Image, InlineData, Rgba32, string (+3 more)
 
 ### Community 244 - "CollectionEntity"
 Cohesion: 0.06
@@ -2362,24 +2403,24 @@ Cohesion: 0.15
 Nodes (13): Action, bool, CancellationToken, ConcurrentDictionary, Dictionary, IEnumerable, ILogger, List (+5 more)
 
 ### Community 248 - "ConfiguredWaveBase"
-Cohesion: 0.09
-Nodes (20): ConfiguredWaveBase, earlyExit, escalate, quality, CancellationToken, DetectionContribution, Dictionary, IReadOnlyList (+12 more)
+Cohesion: 0.10
+Nodes (19): earlyExit, escalate, quality, CancellationToken, DetectionContribution, Dictionary, IReadOnlyList, Task (+11 more)
 
 ### Community 249 - "DoomWriter.Models"
-Cohesion: 0.10
-Nodes (13): DoomWriter.Views, DoomWriter.Services, DoomWriter.Controls, DoomWriter, DoomWriter.ViewModels, DoomWriter.Models, DoomWriter.Tests.Services, AppBuilder (+5 more)
+Cohesion: 0.05
+Nodes (27): DoomWriter.Views, DoomWriter.Services, DoomWriter.Controls, Mostlylucid.Summarizer.Core.Analysis, DoomWriter.Waves, DoomWriter, DoomWriter.Tests.Waves, DoomWriter.ViewModels (+19 more)
 
 ### Community 250 - "LucidRAG.Decomposer.Models"
 Cohesion: 0.11
 Nodes (11): LucidRAG.Decomposer.Caching, LucidRAG.Decomposer.Orchestration, LucidRAG.Decomposer.Glossary, LucidRAG.Decomposer.KnowledgeBase, LucidRAG.Decomposer.Analysis, LucidRAG.Decomposer.Refinement, LucidRAG.Decomposer.Integration, LucidRAG.Decomposer.Models (+3 more)
 
 ### Community 251 - "LucidRAG.Manifests"
-Cohesion: 0.08
-Nodes (25): LucidRAG.Services.Waves, LucidRAG.Plugins, LucidRAG.Coordination, LucidRAG.Extensions, LucidRAG.Manifests, IConfiguration, IServiceCollection, LensServiceExtensions (+17 more)
+Cohesion: 0.11
+Nodes (20): CancellationToken, FrameCount, ILogger, Image, Rgba32, string, StripPath, Task (+12 more)
 
 ### Community 252 - "HuggingFaceTokenizer.cs"
-Cohesion: 0.11
-Nodes (25): Mostlylucid.Summarizer.Core.Tokenizer, bool, Dictionary, IEnumerable, int, List, Regex, string (+17 more)
+Cohesion: 0.08
+Nodes (32): Mostlylucid.Summarizer.Core.Tokenizer, bool, Dictionary, IEnumerable, int, JsonSerializerOptions, Lazy, List (+24 more)
 
 ### Community 253 - "DuckDbAnalyzer"
 Cohesion: 0.12
@@ -2394,12 +2435,12 @@ Cohesion: 0.05
 Nodes (36): 1. Neutral Perplexity (50.0) for Unknown Bigrams, 1. OCR Pipeline Optimization ✅, 2. Per-Cell Color Grid Signals ✅, 2. Per-Cell Signals for Color Grid, 3. Aspect Ratio Preservation ✅, 3. Ephemeral Signal Naming Pattern, 4. CLI Signal-Based Design ✅, 5. Documentation Created ✅ (+28 more)
 
 ### Community 256 - "ScrollCommand"
-Cohesion: 0.11
-Nodes (14): IRenderable, isTag, GeneratedRegex, List, Regex, relevance, sentiment, summary (+6 more)
+Cohesion: 0.15
+Nodes (12): isTag, GeneratedRegex, List, Regex, relevance, sentiment, summary, title (+4 more)
 
 ### Community 257 - ".AnalyzeWithEscalationAsync"
-Cohesion: 0.12
-Nodes (17): Provider, CancellationToken, IEnumerable, ILogger, IProgress, List, Task, BatchProgress (+9 more)
+Cohesion: 0.14
+Nodes (15): CancellationToken, IEnumerable, ILogger, IProgress, List, Task, BatchProgress, EscalationConfig (+7 more)
 
 ### Community 258 - "CompositeDatabaseReader"
 Cohesion: 0.08
@@ -2418,8 +2459,8 @@ Cohesion: 0.08
 Nodes (24): Command, Option, ChatCommand, Command, Option, CheckCommand, Command, CollectionsCommand (+16 more)
 
 ### Community 262 - ".Ok"
-Cohesion: 0.17
-Nodes (15): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, IActionResult, Task, IngestionController (+7 more)
+Cohesion: 0.16
+Nodes (16): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, IActionResult, Task, IngestionController (+8 more)
 
 ### Community 263 - "ConversationServiceTests"
 Cohesion: 0.20
@@ -2427,7 +2468,7 @@ Nodes (9): CancellationToken, Guid, List, Task, ConversationService, Fact, Postg
 
 ### Community 264 - "chat-persian.js"
 Cohesion: 0.15
-Nodes (36): addCodeCopyButtons(), autoResizeTextarea(), cancelStream(), clearAllChatData(), createAssistantMessage(), createUserMessage(), deleteChatHistory(), escapeHtml() (+28 more)
+Nodes (35): addCodeCopyButtons(), autoResizeTextarea(), cancelStream(), clearAllChatData(), createAssistantMessage(), createUserMessage(), deleteChatHistory(), escapeHtml() (+27 more)
 
 ### Community 265 - "CancellationToken"
 Cohesion: 0.11
@@ -2438,8 +2479,8 @@ Cohesion: 0.12
 Nodes (22): HashSet, EntityCandidate, CancellationToken, ChunkIds, ChunkResult, Dictionary, DocFreq, double (+14 more)
 
 ### Community 267 - "LucidRAG.LLM.Services.LoadBalancing"
-Cohesion: 0.08
-Nodes (20): DoomSummarizer.Tests.LoadBalancing, LucidRAG.LLM.Services.LoadBalancing, IReadOnlyList, FixedOrderSelector, SimpleDto, IReadOnlyList, FixedFirstSelector, bool (+12 more)
+Cohesion: 0.20
+Nodes (5): Fact, EndpointStateTests, Fact, FastestSelectorTests, IReadOnlyList
 
 ### Community 268 - "StartupCoordinator"
 Cohesion: 0.07
@@ -2458,32 +2499,32 @@ Cohesion: 0.06
 Nodes (35): 1. Dependency Inversion Principle (DIP) - ✅ FIXED, 1. TesseractOcrEngineTests.cs (4 tests), 2. OllamaVisionClientTests.cs (6 tests), 2. Single Responsibility Principle (SRP) - ⚠️ IDENTIFIED, 3. Open/Closed Principle (OCP) - ✅ IMPROVED, 3. SignalAggregatorTests.cs (10 tests), 4. DynamicImageProfileTests.cs (12 tests), 4. HttpClient Management - ✅ FIXED (+27 more)
 
 ### Community 272 - ".FindDuplicatesAsync"
-Cohesion: 0.09
-Nodes (24): FileSize, CancellationToken, ConcurrentDictionary, Hash, IEnumerable, ILogger, IProgress, List (+16 more)
+Cohesion: 0.08
+Nodes (27): FileSize, CancellationToken, Task, IImageAnalyzer, CancellationToken, ConcurrentDictionary, Hash, IEnumerable (+19 more)
 
 ### Community 273 - "analyzeTokenTypes"
 Cohesion: 0.07
-Nodes (36): addOptimizedIdxToResult(), addStartOfInput(), addStickyFlag(), addToMapOfArrays(), analyzeTokenTypes(), buildLineBreakIssueMessage(), canMatchCharCode(), charCodeToOptimizedIndex() (+28 more)
+Nodes (35): addOptimizedIdxToResult(), addStartOfInput(), addStickyFlag(), addToMapOfArrays(), analyzeTokenTypes(), buildLineBreakIssueMessage(), canMatchCharCode(), charCodeToOptimizedIndex() (+27 more)
 
 ### Community 274 - "calendar"
-Cohesion: 0.07
-Nodes (36): calendar(), continuous(), date(), decompose_default(), exponent_default(), formatDecimal_default(), formatDecimalParts(), formatPrefixAuto_default() (+28 more)
+Cohesion: 0.08
+Nodes (28): calendar(), continuous(), date(), exponent_default(), formatDecimal_default(), formatDecimalParts(), formatPrefixAuto_default(), formatRounded_default() (+20 more)
 
 ### Community 275 - "ImageSignatureCache"
 Cohesion: 0.09
 Nodes (16): CancellationToken, ConcurrentDictionary, DateTimeOffset, ILogger, int, IReadOnlyDictionary, IReadOnlyList, IReadOnlySet (+8 more)
 
 ### Community 276 - "SalienceLearner"
-Cohesion: 0.12
-Nodes (16): EvolutionStatistics, ConcurrentDictionary, DateTime, Dictionary, Hash, Id, IEnumerable, List (+8 more)
+Cohesion: 0.07
+Nodes (28): bool, CancellationToken, CancellationTokenSource, Channel, DateTime, Dictionary, Func, ILogger (+20 more)
 
 ### Community 277 - "ResearchSentinelEvaluator"
 Cohesion: 0.16
-Nodes (21): CancellationToken, Guid, HashSet, ILogger, IReadOnlyList, Task, CitationGraphQueries, CitationNetwork (+13 more)
+Nodes (20): CancellationToken, Guid, HashSet, ILogger, IReadOnlyList, Task, CitationGraphQueries, CitationNetwork (+12 more)
 
 ### Community 278 - "SegmentProfilerTests"
-Cohesion: 0.16
-Nodes (12): Dictionary, Fact, SegmentProfilerTests, bool, DateTime, Dictionary, List, ColumnCentroid (+4 more)
+Cohesion: 0.14
+Nodes (15): ColumnType, Dictionary, Fact, SegmentProfilerTests, bool, DateTime, Dictionary, List (+7 more)
 
 ### Community 279 - "Mostlylucid.Storage.Core"
 Cohesion: 0.06
@@ -2502,8 +2543,8 @@ Cohesion: 0.08
 Nodes (15): CodeSummarizer.Mermaid.Jint.Tests, CodeSummarizer.Extensions, CodeSummarizer.Parsing, CodeSummarizer.Services, CodeSummarizer.Mermaid.Jint.Extensions, CodeSummarizer.Models, CodeSummarizer.Core.Tests, ServiceCollectionExtensions (+7 more)
 
 ### Community 283 - ".ReadAsync"
-Cohesion: 0.08
-Nodes (19): Mostlylucid.DoomSummarizer.Plugin.Books.Tests, Mostlylucid.Summarizers.Reader.Markdown, Mostlylucid.Summarizers.Reader.Gutenberg, Fact, Task, MarkdownReaderTests, IServiceCollection, GutenbergReaderExtensions (+11 more)
+Cohesion: 0.18
+Nodes (12): Fact, Task, MarkdownReaderTests, CancellationToken, GeneratedRegex, ILogger, IReadOnlyList, Regex (+4 more)
 
 ### Community 284 - "FastPathResult"
 Cohesion: 0.11
@@ -2526,16 +2567,16 @@ Cohesion: 0.07
 Nodes (35): _2(), a(), b2(), D3(), E2(), F2(), G2(), I2() (+27 more)
 
 ### Community 289 - "IEmbeddingService"
-Cohesion: 0.16
-Nodes (13): CancellationToken, double, List, OllamaService, Task, DisambiguationResult, EntityCluster, EntityDisambiguationService (+5 more)
+Cohesion: 0.23
+Nodes (9): CancellationToken, double, List, OllamaService, Task, DisambiguationResult, EntityCluster, EntityDisambiguationService (+1 more)
 
 ### Community 290 - "CircuitBreakerServiceTests"
-Cohesion: 0.14
-Nodes (7): CircuitBreakerService, Fact, InlineData, string, Task, Theory, CircuitBreakerServiceTests
+Cohesion: 0.16
+Nodes (5): CircuitBreakerService, Fact, string, Task, CircuitBreakerServiceTests
 
 ### Community 291 - "BaseConfidenceBooster"
-Cohesion: 0.12
-Nodes (22): Action, IServiceCollection, CancellationToken, Confidence, Dictionary, Guid, IEnumerable, ILogger (+14 more)
+Cohesion: 0.15
+Nodes (17): CancellationToken, Confidence, Dictionary, Guid, IEnumerable, ILogger, List, Metadata (+9 more)
 
 ### Community 292 - ".ExtractAllDates"
 Cohesion: 0.15
@@ -2550,40 +2591,40 @@ Cohesion: 0.11
 Nodes (11): OllamaConfig, CancellationToken, Dictionary, IAsyncEnumerable, List, Task, LlmRouter, Task (+3 more)
 
 ### Community 295 - "RetrievalQualityTests"
-Cohesion: 0.18
-Nodes (6): bool, Fact, Guid, PostgreSqlContainer, Task, RetrievalQualityTests
+Cohesion: 0.15
+Nodes (10): Container, bool, Fact, Guid, PostgreSqlContainer, Task, RetrievalQualityTests, Context (+2 more)
 
 ### Community 296 - "DocumentIngesterTests"
-Cohesion: 0.19
-Nodes (11): CancellationToken, ChannelWriter, Fact, Guid, ServiceProvider, string, Task, DocumentIngesterTests (+3 more)
+Cohesion: 0.20
+Nodes (10): CancellationToken, ChannelWriter, Fact, Guid, ServiceProvider, string, Task, DocumentIngesterTests (+2 more)
 
 ### Community 297 - "ModelManifest"
 Cohesion: 0.10
 Nodes (23): Dictionary, IEnumerable, IReadOnlyDictionary, List, object, string, ComponentDefinition, ComponentIds (+15 more)
 
 ### Community 298 - "SalientTermsService"
-Cohesion: 0.15
-Nodes (17): CombinedTerm, CancellationToken, Guid, List, Task, ISalientTermsService, SalientTermStats, SalientTermSuggestion (+9 more)
+Cohesion: 0.26
+Nodes (10): CombinedTerm, CancellationToken, Dictionary, double, Guid, int, List, Task (+2 more)
 
 ### Community 299 - "WaveConfigProvider"
-Cohesion: 0.07
-Nodes (14): Mostlylucid.DocSummarizer.Images.Orchestration, Dictionary, object, string, ImageAnalysisCache, ImageCacheKeys, bool, Dictionary (+6 more)
+Cohesion: 0.19
+Nodes (6): ParseResult, ConfigurationLoader, Option, RootCommand, ServiceProvider, Program
 
 ### Community 300 - ".ProcessAsync"
-Cohesion: 0.09
-Nodes (20): Mostlylucid.DocSummarizer.Scanning, CancellationToken, IEnumerable, ILogger, IProgress, IReadOnlyList, Task, TimeSpan (+12 more)
+Cohesion: 0.13
+Nodes (13): CancellationToken, IEnumerable, ILogger, IProgress, IReadOnlyList, Task, TimeSpan, DocumentScanProgress (+5 more)
 
 ### Community 301 - "DocumentsController"
-Cohesion: 0.20
-Nodes (19): DisableRequestSizeLimit, IFormFileCollection, ReprocessRequest, BadRequest, CancellationToken, DateTimeOffset, Guid, HttpDelete (+11 more)
+Cohesion: 0.19
+Nodes (20): DisableRequestSizeLimit, IFormFileCollection, ReprocessRequest, BadRequest, CancellationToken, DateTimeOffset, Guid, HttpDelete (+12 more)
 
 ### Community 302 - "Test Job Addition to ImageSummarizer Release Workflow - Summary"
 Cohesion: 0.06
 Nodes (33): After, Before, Benefits, Build, Build Dependency Chain, CI-Safe Verification, Confidence, Cost Savings (+25 more)
 
 ### Community 303 - "DOCS-INDEX.md"
-Cohesion: 0.07
-Nodes (23): CI / Workflows, Design & Historical Notes, DoomSummarizer (Console-First Research Assistant), ImageSummarizer (OCR + MCP), License, Local Commands (Verified), *lucid*RAG Documentation Index, *lucid*RAG (Web App / RAG Platform) (+15 more)
+Cohesion: 0.05
+Nodes (28): CI / Workflows, Design & Historical Notes, DoomSummarizer (Console-First Research Assistant), ImageSummarizer (OCR + MCP), License, Local Commands (Verified), *lucid*RAG Documentation Index, *lucid*RAG (Web App / RAG Platform) (+20 more)
 
 ### Community 304 - "Recent Improvements - 2026-01-04"
 Cohesion: 0.06
@@ -2598,8 +2639,8 @@ Cohesion: 0.08
 Nodes (27): IAudioWave, AudioConfig, FingerprintConfig, FingerprintProvider, OllamaConfig, PipelineConfig, TranscriptionBackend, VoiceEmbeddingConfig (+19 more)
 
 ### Community 307 - "ISourcePlugin"
-Cohesion: 0.09
-Nodes (25): ISourcePlugin, CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task (+17 more)
+Cohesion: 0.10
+Nodes (10): Application, SignSummarizer.UI, App, AppBuilder, STAThread, Program, IServiceCollection, IServiceProvider (+2 more)
 
 ### Community 308 - "DataSummarizer.Core.csproj"
 Cohesion: 0.06
@@ -2614,8 +2655,8 @@ Cohesion: 0.06
 Nodes (30): Microsoft.AspNetCore.Mvc.Testing (10.0.5), Microsoft.ML (5.0.0), Microsoft.ML.TorchSharp (0.23.0), PuppeteerSharp (24.40.0), Testcontainers.PostgreSql (4.11.0), TorchSharp-cpu (0.106.0), net10.0, Npgsql.EntityFrameworkCore.PostgreSQL (10.0.1) (+22 more)
 
 ### Community 311 - "SpeakerDiarizationService"
-Cohesion: 0.12
-Nodes (18): speakerId, DiarizedSegment, SrtFormatter, TranscriptSegment, IEnumerable, List, DiarizationResult, SpeakerDiarizationService (+10 more)
+Cohesion: 0.14
+Nodes (14): speakerId, DiarizationResult, SpeakerDiarizationService, SpeechSegment, CancellationToken, confidence, Dictionary, Embedding (+6 more)
 
 ### Community 312 - ".EnrichAsync"
 Cohesion: 0.14
@@ -2634,20 +2675,20 @@ Cohesion: 0.14
 Nodes (15): Dictionary, Fact, List, Task, LoadBalancedLlmServiceTests, IReadOnlyList, CancellationToken, Func (+7 more)
 
 ### Community 316 - ".AddSignal"
-Cohesion: 0.13
-Nodes (6): AggregationStrategy, ImageProfile, Fact, DynamicImageProfileTests, Fact, DynamicImageProfileTests
+Cohesion: 0.07
+Nodes (39): createArchitectureServices(), createCompletionParser(), createDefaultCoreModule(), createDefaultSharedCoreModule(), createGitGraphServices(), createInfoServices(), createLangiumParser(), createMinimalGrammarServices() (+31 more)
 
 ### Community 317 - "SignalDatabase"
 Cohesion: 0.14
-Nodes (13): bool, CancellationToken, ILogger, List, SemaphoreSlim, SqliteConnection, Task, DatabaseStatistics (+5 more)
+Nodes (12): bool, CancellationToken, ILogger, List, SemaphoreSlim, SqliteConnection, Task, SignalDatabase (+4 more)
 
 ### Community 318 - "IFolderService"
-Cohesion: 0.19
-Nodes (15): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, HttpPut, IActionResult, Task (+7 more)
+Cohesion: 0.17
+Nodes (18): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, HttpPut, IActionResult, Task (+10 more)
 
 ### Community 319 - "CommunityDetectionService"
-Cohesion: 0.16
-Nodes (16): DateTimeOffset, Dictionary, Guid, ICollection, List, CommunityEntity, CommunityFeatures, CommunityMembership (+8 more)
+Cohesion: 0.12
+Nodes (23): communities, modularity, neighbor, DateTimeOffset, Dictionary, Guid, ICollection, List (+15 more)
 
 ### Community 320 - "CancellationToken"
 Cohesion: 0.20
@@ -2666,16 +2707,16 @@ Cohesion: 0.14
 Nodes (15): DateTimeOffset, BlogPostDocument, CancellationToken, Document, Embedding, IEnumerable, List, Task (+7 more)
 
 ### Community 324 - "OmdbClient"
-Cohesion: 0.11
-Nodes (20): DateOnly, ExternalMediaMetadata, CancellationToken, HttpClient, ILogger, JsonSerializerOptions, List, string (+12 more)
+Cohesion: 0.13
+Nodes (10): IEnumerable, DateTime, Dictionary, List, Signal, ConcurrentBag, ConcurrentDictionary, IEnumerable (+2 more)
 
 ### Community 325 - "OllamaVisionClient"
 Cohesion: 0.10
 Nodes (16): Mostlylucid.DocSummarizer.Images.Services.VisionLlm, Mostlylucid.DocSummarizer.Images.Tests.Services.VisionLlm, CancellationToken, Task, IVisionLlmClient, CancellationToken, HttpClient, ILogger (+8 more)
 
 ### Community 326 - "Mostlylucid.DocSummarizer.Data.Models"
-Cohesion: 0.10
-Nodes (16): Mostlylucid.DocSummarizer.Data.Config, Mostlylucid.DocSummarizer.Data.Models, Mostlylucid.DocSummarizer.Data.Pipeline, Mostlylucid.DocSummarizer.Data.Services, Mostlylucid.DocSummarizer.Data.Services.Analysis, Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves, CsvOptions, DataProcessorOptions (+8 more)
+Cohesion: 0.14
+Nodes (7): Mostlylucid.DocSummarizer.Data.Config, Mostlylucid.DocSummarizer.Data.Models, Mostlylucid.DocSummarizer.Data.Pipeline, Mostlylucid.DocSummarizer.Data.Services, Mostlylucid.DocSummarizer.Data.Extensions, Mostlylucid.DocSummarizer.Data.Services.Analysis, Mostlylucid.DocSummarizer.Data.Services.Analysis.Waves
 
 ### Community 327 - "✅ Completed: Markdown Table Converter for DataSummarizer"
 Cohesion: 0.06
@@ -2694,11 +2735,11 @@ Cohesion: 0.15
 Nodes (15): IServiceScope, artifact, CancellationToken, Guid, IEnumerable, ILogger, List, rrfScore (+7 more)
 
 ### Community 331 - "SignAtom"
-Cohesion: 0.13
-Nodes (15): Guid, List, TimeSpan, AtomType, SignAtom, CancellationToken, ConcurrentDictionary, IAsyncEnumerable (+7 more)
+Cohesion: 0.14
+Nodes (14): Guid, List, TimeSpan, AtomType, SignAtom, CancellationToken, ConcurrentDictionary, IAsyncEnumerable (+6 more)
 
 ### Community 332 - "EvidenceArtifact"
-Cohesion: 0.19
+Cohesion: 0.18
 Nodes (11): Guid, EvidenceArtifact, CancellationToken, Dictionary, Guid, IEnumerable, IReadOnlyList, Stream (+3 more)
 
 ### Community 333 - "SegmentGraphService"
@@ -2714,16 +2755,16 @@ Cohesion: 0.06
 Nodes (32): appsettings.json, Architecture Differences from ConfidenceBooster, Automatic Triggers, CLI (Disabled), Comparison Criteria, ConfidenceBooster (Targeted LLM Refinement), Configuration, Configuration Options (+24 more)
 
 ### Community 336 - "QuerySignals"
-Cohesion: 0.10
-Nodes (22): Dictionary, List, DecompositionEnrichment, DoomSummarizerAdapter, List, DecompositionResult, DependentExecution, ExecutionPlan (+14 more)
+Cohesion: 0.08
+Nodes (25): Dictionary, List, DecompositionEnrichment, DoomSummarizerAdapter, Dictionary, List, ConceptPolicy, RecencyMode (+17 more)
 
 ### Community 337 - "test-explorer-integration.js"
-Cohesion: 0.11
-Nodes (29): createCollection(), delay(), fs, getDocumentList(), login(), main(), path, puppeteer (+21 more)
+Cohesion: 0.05
+Nodes (53): delay(), ensureCollection(), ensureTenant(), fs, getEnglishMarkdownFiles(), login(), main(), path (+45 more)
 
 ### Community 338 - "PipelineBase"
-Cohesion: 0.09
-Nodes (23): CancellationToken, HashSet, ILogger, IProgress, IReadOnlyList, IReadOnlySet, Task, DocumentPipeline (+15 more)
+Cohesion: 0.05
+Nodes (37): CancellationToken, ILogger, IProgress, IReadOnlyList, IReadOnlySet, Task, DataPipeline, CancellationToken (+29 more)
 
 ### Community 339 - "MultiVectorStore"
 Cohesion: 0.16
@@ -2754,40 +2795,40 @@ Cohesion: 0.12
 Nodes (19): TimeSpan, BrowPosition, HeadMotion, MouthShape, NonManualModifiers, CancellationToken, float, ILogger (+11 more)
 
 ### Community 346 - "PureNetFingerprintService"
-Cohesion: 0.10
-Nodes (14): SpectralPeak, AudioFingerprint, IFingerprintService, CancellationToken, DateTimeOffset, Task, PureNetFingerprintService, SpectralPeak (+6 more)
+Cohesion: 0.16
+Nodes (9): SpectralPeak, PureNetFingerprintService, SpectralPeak, CancellationToken, double, ILogger, int, List (+1 more)
 
 ### Community 347 - ".ProcessCoreAsync"
-Cohesion: 0.09
-Nodes (22): CancellationToken, ILogger, IProgress, IReadOnlyList, IReadOnlySet, Task, DataPipeline, CancellationToken (+14 more)
+Cohesion: 0.13
+Nodes (15): CancellationToken, IAsyncEnumerable, IReadOnlyDictionary, IReadOnlySet, Task, IDataProcessor, AnalysisContext, CancellationToken (+7 more)
 
 ### Community 348 - "NewsFetcher"
-Cohesion: 0.09
-Nodes (21): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, NewsFeedPlugin (+13 more)
+Cohesion: 0.13
+Nodes (16): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, NewsFeedPlugin (+8 more)
 
 ### Community 349 - "DateExtractionServiceTests"
 Cohesion: 0.17
 Nodes (4): Fact, InlineData, Theory, DateExtractionServiceTests
 
 ### Community 350 - "QueryPlan"
-Cohesion: 0.11
-Nodes (25): CancellationToken, Dictionary, Guid, IReadOnlyList, Task, TimeSpan, FollowUpDetectionResult, ISentinelService (+17 more)
+Cohesion: 0.09
+Nodes (21): string, EvidenceTypes, CancellationToken, Dictionary, Guid, IReadOnlyList, Task, TimeSpan (+13 more)
 
 ### Community 351 - "SegmentGraphServiceTests"
 Cohesion: 0.20
 Nodes (6): bool, Fact, Guid, PostgreSqlContainer, Task, SegmentGraphServiceTests
 
 ### Community 352 - "StorageService"
-Cohesion: 0.10
-Nodes (17): accessCount, lastAccessed, category, embedding, List, Task, StorageService, DateTimeOffset (+9 more)
+Cohesion: 0.17
+Nodes (10): category, embedding, List, Task, StorageService, DateTimeOffset, List, CollectionInfo (+2 more)
 
 ### Community 353 - "devDependencies"
 Cohesion: 0.06
 Nodes (30): alpinejs, htmx.org, dependencies, alpinejs, htmx.org, description, devDependencies, autoprefixer (+22 more)
 
 ### Community 354 - "App"
-Cohesion: 0.07
-Nodes (15): Application, SignSummarizer.UI, Mostlylucid.ImageSummarizer.Desktop, App, MainWindow, AppBuilder, STAThread, Program (+7 more)
+Cohesion: 0.13
+Nodes (14): Dictionary, List, Match, ChapterDetector, DetectedBoundary, Dictionary, IReadOnlyDictionary, IReadOnlyList (+6 more)
 
 ### Community 355 - "OcrPostProcessor"
 Cohesion: 0.10
@@ -2798,15 +2839,15 @@ Cohesion: 0.06
 Nodes (30): Advanced Pipeline (Phase 3-8), Advanced "Super Optimal" Pipeline (Future Work), Conclusion, Current Implementation (Phase 1 & 2), Expert Feedback Source, For Immediate Testing, For Production Quality, GIF OCR Test Results & Advanced Pipeline Recommendations (+22 more)
 
 ### Community 357 - ".AnalyzeAsync"
-Cohesion: 0.08
-Nodes (19): IDataAnalysisWave, IReadOnlyList, CancellationToken, DataAnalysisContext, DuckDbAnalyzer, IEnumerable, ILogger, IReadOnlyList (+11 more)
+Cohesion: 0.18
+Nodes (8): CancellationToken, DataAnalysisContext, DuckDbAnalyzer, IEnumerable, ILogger, IReadOnlyList, Task, ProfileWave
 
 ### Community 358 - "FeedDiscovery"
-Cohesion: 0.12
-Nodes (18): items, method, CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices (+10 more)
+Cohesion: 0.21
+Nodes (10): items, method, Action, GeneratedRegex, HttpClient, List, Regex, Task (+2 more)
 
 ### Community 359 - "CapabilityRegistry"
-Cohesion: 0.12
+Cohesion: 0.15
 Nodes (16): MethodInfo, bool, CancellationToken, DateTimeOffset, Dictionary, ILogger, List, SemaphoreSlim (+8 more)
 
 ### Community 360 - ".ExtractProfile"
@@ -2822,8 +2863,8 @@ Cohesion: 0.06
 Nodes (30): Architecture, Architecture Philosophy, Basic Setup, Building, Configuration, Core Pipeline, Dependencies, Embedding Dimensions (+22 more)
 
 ### Community 363 - ".ComputeHash"
-Cohesion: 0.14
-Nodes (8): bool, Dictionary, float, int, ItemProcessor, Fact, ContentHashBenchmarks, Stream
+Cohesion: 0.27
+Nodes (3): Fact, ContentHashBenchmarks, Stream
 
 ### Community 364 - "SemanticScholarClient"
 Cohesion: 0.13
@@ -2850,8 +2891,8 @@ Cohesion: 0.18
 Nodes (9): Fact, IBrowser, int, IPage, JsonElement, List, string, Task (+1 more)
 
 ### Community 370 - "test-blog-integration.js"
-Cohesion: 0.09
-Nodes (24): delay(), ensureCollection(), ensureTenant(), fs, getEnglishMarkdownFiles(), login(), main(), path (+16 more)
+Cohesion: 0.11
+Nodes (15): ContentMetadata, Mostlylucid.DocSummarizer.Images.Entities, EntityBuilder, IEntityExtractor, AnalysisContext, CancellationToken, ContentType, IEnumerable (+7 more)
 
 ### Community 371 - "TokenizerTests"
 Cohesion: 0.16
@@ -2862,8 +2903,8 @@ Cohesion: 0.06
 Nodes (27): net10.0, Microsoft.Extensions.Logging.Abstractions (10.0.5), MinVer (8.0.0-alpha.1), Mostlylucid.LucidRAG.DoomSummarizer.Core ($(CorePackageVersion)), Spectre.Console (0.54.0), Spectre.Console.Cli (0.53.1), YamlDotNet (16.3.0), Microsoft.NET.Sdk (+19 more)
 
 ### Community 373 - "BackgroundSubtractor"
-Cohesion: 0.12
-Nodes (19): Mostlylucid.DocSummarizer.Images.Services.Ocr.Preprocessing, bool, double, ILogger, Image, int, L8, List (+11 more)
+Cohesion: 0.18
+Nodes (13): ConsensusMask, ConsensusScore, bool, double, ILogger, Image, int, L8 (+5 more)
 
 ### Community 374 - ".AnalyzeAsync"
 Cohesion: 0.11
@@ -2882,48 +2923,48 @@ Cohesion: 0.07
 Nodes (29): Benefits Summary, Conclusion, Current Architecture (Inefficient), Current (C# BM25):, Developer Experience, Features, Implementation Steps, Maintainability (+21 more)
 
 ### Community 378 - ".ExecuteAsync"
-Cohesion: 0.11
-Nodes (18): downloaded, CancellationToken, CommandContext, Settings, Task, SetupCommand, CancellationToken, description (+10 more)
+Cohesion: 0.24
+Nodes (9): downloaded, CancellationToken, description, HttpClient, IProgress, ModelInfo, Task, total (+1 more)
 
 ### Community 379 - ".Count"
-Cohesion: 0.11
-Nodes (15): IHasTreeNodes, ReadOnlySpan, WordCounter, CancellationToken, CommandContext, Settings, Task, BooksDetectCommand (+7 more)
+Cohesion: 0.29
+Nodes (4): ReadOnlySpan, WordCounter, Fact, WordCounterTests
 
 ### Community 380 - "SubtitlesProcessorPluginTests"
-Cohesion: 0.12
-Nodes (13): IProcessorPlugin, Fact, Task, SubtitlesProcessorPluginTests, CancellationToken, IDocumentReader, IDocumentSplitter, IReadOnlyList (+5 more)
+Cohesion: 0.15
+Nodes (6): InlineData, Theory, Fact, Task, SubtitlesProcessorPluginTests, ProcessingContext
 
 ### Community 381 - "TinyClassifier"
-Cohesion: 0.16
-Nodes (17): Label, Role, SemanticRole, bool, CancellationToken, Confidence, Dictionary, Func (+9 more)
+Cohesion: 0.14
+Nodes (19): Label, Role, GenerationMode, GenerationPolicy, SemanticRole, bool, CancellationToken, Confidence (+11 more)
 
 ### Community 382 - "DataFile"
-Cohesion: 0.09
-Nodes (20): long, DataFile, DataFormat, CancellationToken, DataAnalysisContext, DuckDbAnalyzer, IEnumerable, ILogger (+12 more)
+Cohesion: 0.26
+Nodes (9): CancellationToken, DataAnalysisContext, DuckDbAnalyzer, IEnumerable, ILogger, IReadOnlyList, List, Task (+1 more)
 
 ### Community 383 - "AcademicPatterns"
 Cohesion: 0.12
-Nodes (14): GeneratedRegex, List, Regex, string, type, AcademicPatterns, type, Argument (+6 more)
+Nodes (14): CancellationToken, GeneratedRegex, HttpClient, List, Regex, string, Task, type (+6 more)
 
 ### Community 384 - ".ClassifyAsync"
 Cohesion: 0.14
 Nodes (12): CancellationToken, int, IReadOnlyList, Task, DocumentTypeDetector, DocumentTypeResult, CancellationToken, Task (+4 more)
 
 ### Community 385 - "CorpusService"
-Cohesion: 0.12
-Nodes (13): body, CancellationToken, CancellationTokenSource, ConcurrentDictionary, Dictionary, FileSystemEventArgs, List, metadata (+5 more)
+Cohesion: 0.14
+Nodes (12): body, CancellationToken, CancellationTokenSource, ConcurrentDictionary, Dictionary, FileSystemEventArgs, List, metadata (+4 more)
 
 ### Community 386 - ".AnalyzeAsync"
 Cohesion: 0.19
 Nodes (9): CancellationToken, CancellationTokenSource, SemaphoreSlim, Task, ulong, DocumentAnalysisService, Fact, Task (+1 more)
 
 ### Community 387 - "IManifestLoader"
-Cohesion: 0.10
-Nodes (15): CancellationToken, IReadOnlyList, Task, IManifestLoader, CancellationToken, HashSet, IDictionary, ILogger (+7 more)
+Cohesion: 0.27
+Nodes (12): Dictionary, List, LensManifest, LensPersonalityConfig, LensPoliciesConfig, LensScoringConfig, LensStylesConfig, LensTaxonomy (+4 more)
 
 ### Community 388 - "IVectorStore"
-Cohesion: 0.14
-Nodes (14): CancellationToken, ILogger, List, string, Task, ChatResult, ChatSource, ResearchChatService (+6 more)
+Cohesion: 0.28
+Nodes (6): CancellationToken, Dictionary, IEnumerable, List, Task, IVectorStore
 
 ### Community 389 - "VideoWaveManifestLoader"
 Cohesion: 0.15
@@ -2934,8 +2975,8 @@ Cohesion: 0.13
 Nodes (16): Utterance, CancellationToken, GeneratedRegex, Guid, ILogger, List, Regex, Task (+8 more)
 
 ### Community 391 - "DomainClassifier.Tests"
-Cohesion: 0.10
-Nodes (7): DomainClassifier.Narrative.Extractors, DomainClassifier.Technical.Extractors, DomainClassifier.Tests, DomainClassifier.Narrative, DomainClassifier.Technical, Fact, DomainEnrichmentResultTests
+Cohesion: 0.08
+Nodes (22): DomainClassifier.Core.Models, DomainClassifier.Technical.Extensions, DomainClassifier.Core.Configuration, DomainClassifier.Financial.Extractors, DomainClassifier.Core.Services, LucidRAG.Hubs, DomainClassifier.Core.Extensions, DomainClassifier.Narrative.Extensions (+14 more)
 
 ### Community 392 - "ImageCli → ImageSummarizer Rename - Completion Summary"
 Cohesion: 0.07
@@ -3002,15 +3043,15 @@ Cohesion: 0.14
 Nodes (4): Fact, InlineData, Theory, ScrollCommandHelperTests
 
 ### Community 408 - ".Aggregate"
-Cohesion: 0.16
-Nodes (8): AggregationStrategy, Func, IEnumerable, List, ConflictResolutionRule, SignalAggregator, Fact, SignalAggregatorTests
+Cohesion: 0.04
+Nodes (47): SuperApp Frontend — Implementation Guide (From Scratch), راهنمای پیاده‌سازی سوپراپ فرانت‌اند (ساخت از صفر), فهرست مطالب, ۱) پیش‌نیازها و ابزارها, ۱۰) معیار پذیرش هر فاز (Definition of Done), ۱۱) ADRها (مرجع در `@superapp/foundation/docs/adr/`), ۲) تصمیم‌های کلیدیِ اثرگذار بر پیاده‌سازی, ۳) نمای کلی فازها (+39 more)
 
 ### Community 409 - "TriggerCondition"
 Cohesion: 0.13
 Nodes (13): Func, IReadOnlyDictionary, string, AllOfTrigger, AnyOfTrigger, ContentTypeTrigger, ImageSignalKeys, SignalExistsTrigger (+5 more)
 
 ### Community 410 - "BlurAnalyzerTests"
-Cohesion: 0.17
+Cohesion: 0.18
 Nodes (7): Image, Mat, Rgba32, BlurAnalyzer, BlurLevel, Fact, BlurAnalyzerTests
 
 ### Community 411 - "Signal Architecture"
@@ -3018,24 +3059,24 @@ Cohesion: 0.07
 Nodes (29): Built-in Rules, Color Signals, Configuration, Content Signals, Contradiction Detection, Core Concepts, Dual-Hash Strategy, Dynamic Pipeline Selection (+21 more)
 
 ### Community 412 - "DocumentEntity"
-Cohesion: 0.15
-Nodes (16): DateTimeOffset, Guid, ICollection, DocumentEntity, DocumentStatus, DateTimeOffset, Guid, DocumentEntityLink (+8 more)
+Cohesion: 0.29
+Nodes (8): CancellationToken, DateTimeOffset, Guid, IAsyncEnumerable, List, Stream, Task, IDocumentProcessingService
 
 ### Community 413 - "ImageConfidenceBooster"
-Cohesion: 0.15
-Nodes (16): Dictionary, Guid, ImageCropArtifact, BoostResult, CancellationToken, Confidence, Dictionary, Guid (+8 more)
+Cohesion: 0.07
+Nodes (24): DoomSummarizer.Tests.LoadBalancing, LucidRAG.LLM.Services.LoadBalancing, IReadOnlyList, FixedOrderSelector, SimpleDto, IReadOnlyList, FixedFirstSelector, List (+16 more)
 
 ### Community 414 - ".AnalyzeAsync"
-Cohesion: 0.10
-Nodes (20): CancellationToken, Dictionary, float, ILogger, string, Task, EntityRelationAnalyzer, CancellationToken (+12 more)
+Cohesion: 0.18
+Nodes (11): CancellationToken, Guid, Task, CliDocumentIngester, CancellationToken, Guid, HashSet, List (+3 more)
 
 ### Community 415 - "package.json"
 Cohesion: 0.08
 Nodes (23): CancellationToken, dynamic, HttpClient, ILogger, List, string, Task, ImageQueryCriteria (+15 more)
 
 ### Community 416 - "SummaryTemplate"
-Cohesion: 0.14
-Nodes (10): OutputConfig, IReadOnlyList, AudienceLevel, OutputStyle, Presets, SummaryTemplate, SummaryTone, BatchSummary (+2 more)
+Cohesion: 0.13
+Nodes (14): bool, CancellationToken, InferenceSession, int, IProgress, List, Regex, SemaphoreSlim (+6 more)
 
 ### Community 417 - "SubtitleDocumentHandler"
 Cohesion: 0.12
@@ -3046,20 +3087,20 @@ Cohesion: 0.07
 Nodes (28): 1. Download Embedding Models, 2. Start Qdrant, 3. Configuration, Adding Custom Embedding Models, API Keys, Architecture, Configuration Example, Development (+20 more)
 
 ### Community 419 - "InMemoryVectorStore"
-Cohesion: 0.15
-Nodes (13): Dictionary, SearchFilter, Dictionary, SearchResult, bool, CancellationToken, ConcurrentDictionary, Dictionary (+5 more)
+Cohesion: 0.17
+Nodes (11): Dictionary, SearchFilter, bool, CancellationToken, ConcurrentDictionary, Dictionary, IEnumerable, ILogger (+3 more)
 
 ### Community 420 - "OpenSubtitlesClient"
-Cohesion: 0.14
-Nodes (19): CancellationToken, DateTimeOffset, HttpClient, ILogger, JsonSerializerOptions, List, string, Task (+11 more)
+Cohesion: 0.06
+Nodes (40): DateOnly, DateTimeOffset, Guid, List, CastMember, ExternalMediaMetadata, LibraryScanResult, MediaFile (+32 more)
 
 ### Community 421 - "Mostlylucid.Shared.Config"
 Cohesion: 0.10
 Nodes (16): ConfigurationManager, Mostlylucid.Shared.Config, AnalyticsSettings, AnnouncementConfig, AuthSettings, Dictionary, IConfiguration, IConfigurationSection (+8 more)
 
 ### Community 422 - "ConfidenceBoosterCoordinator"
-Cohesion: 0.12
-Nodes (18): LucidRAG.Core.Services.ConfidenceBooster, CancellationToken, DateTime, Guid, IEnumerable, ILogger, IServiceProvider, List (+10 more)
+Cohesion: 0.17
+Nodes (14): CancellationToken, DateTime, Guid, IEnumerable, List, Task, TimeSpan, BoostStatus (+6 more)
 
 ### Community 423 - "StringHelpers"
 Cohesion: 0.07
@@ -3094,20 +3135,20 @@ Cohesion: 0.16
 Nodes (8): Dictionary, GeneratedRegex, HashSet, List, Regex, CharacterExtractor, Fact, CharacterExtractorTests
 
 ### Community 431 - ".Classify"
-Cohesion: 0.15
-Nodes (12): CancellationToken, ILogger, IReadOnlyList, List, Task, TechnicalDomainPlugin, GeneratedRegex, HashSet (+4 more)
+Cohesion: 0.25
+Nodes (6): GeneratedRegex, HashSet, Regex, TechnicalKeywordClassifier, Fact, TechnicalKeywordClassifierTests
 
 ### Community 432 - "DuckDbEntityGraphStore"
-Cohesion: 0.15
-Nodes (10): GraphRelationship, bool, Dictionary, DuckDBConnection, IEnumerable, int, string, Task (+2 more)
+Cohesion: 0.09
+Nodes (23): bool, confidence, Dictionary, DuckDBConnection, entities, entity, entityId, IEnumerable (+15 more)
 
 ### Community 433 - ".GenerateSequentialAsync"
 Cohesion: 0.17
-Nodes (15): Dictionary, EntityContinuityTracker, int, List, RunningSummary, CancellationToken, float, Func (+7 more)
+Nodes (16): PlannedSection, Dictionary, EntityContinuityTracker, int, List, RunningSummary, CancellationToken, float (+8 more)
 
 ### Community 434 - "MapReduceSummarizer"
-Cohesion: 0.18
-Nodes (10): ChunkSummary, bool, double, HashSet, int, List, Task, MapReduceSummarizer (+2 more)
+Cohesion: 0.19
+Nodes (8): ChunkSummary, bool, double, HashSet, int, List, Task, MapReduceSummarizer
 
 ### Community 435 - "Mostlylucid.DocSummarizer"
 Cohesion: 0.07
@@ -3130,8 +3171,8 @@ Cohesion: 0.14
 Nodes (12): ContentClassification, ContentClassifierWave, AnalysisContext, CancellationToken, IEnumerable, ILogger, List, Task (+4 more)
 
 ### Community 440 - "LucidRAG.LLM.Config"
-Cohesion: 0.11
-Nodes (12): LucidRAG.LLM.Services, LucidRAG.LLM.Extensions, LucidRAG.LLM.Services.Providers, LucidRAG.LLM.Config, IConfiguration, ILogger, IServiceCollection, ServiceCollectionExtensions (+4 more)
+Cohesion: 0.36
+Nodes (4): IConfiguration, ILogger, IServiceCollection, ServiceCollectionExtensions
 
 ### Community 441 - "AudioSummarizer.Core - Implementation Status"
 Cohesion: 0.07
@@ -3162,48 +3203,44 @@ Cohesion: 0.07
 Nodes (27): 1. **Full Signal Transparency**, 2. **Fine-Grained Signal Weighting**, 3. **Token-Efficient System Prompts**, 4. **Auto Context Size Detection**, 5. **YAML Inheritance**, Architecture, Component Types, Configuration Hierarchy (+19 more)
 
 ### Community 448 - "DocSummarizerInitializer"
-Cohesion: 0.10
-Nodes (18): IHostedService, CancellationToken, ILogger, Task, LensRegistryInitializer, CancellationToken, Task, CancellationToken (+10 more)
+Cohesion: 0.12
+Nodes (16): IHostedService, CancellationToken, ILogger, Task, LensRegistryInitializer, CancellationToken, ILogger, IServiceProvider (+8 more)
 
 ### Community 449 - "CollectionRouter"
 Cohesion: 0.11
 Nodes (19): matchedCount, matchedTerms, CancellationToken, double, GeneratedRegex, HashSet, int, List (+11 more)
 
 ### Community 450 - ".Extract"
-Cohesion: 0.18
-Nodes (7): GeneratedRegex, List, Match, Regex, BibliographyExtractor, Fact, BibliographyExtractorTests
+Cohesion: 0.13
+Nodes (10): GeneratedRegex, List, Match, Regex, BibliographyExtractor, Fact, BibliographyExtractorTests, Fact (+2 more)
 
 ### Community 451 - "Pipeline Details"
-Cohesion: 0.08
-Nodes (20): advancedocr.yaml, alttext.yaml, caption.yaml (Default), Creating Custom Pipelines, Custom Pipelines: `--pipeline-file`, fast-dedupe.yaml, florence2-llm.yaml, florence2.yaml (+12 more)
+Cohesion: 0.12
+Nodes (15): ConfiguredWaveBase, CellColor, ColorGrid, DominantColor, SaliencyRegion, CancellationToken, DetectionContribution, ImageBlackboardState (+7 more)
 
 ### Community 452 - "WaveManifest.cs"
-Cohesion: 0.13
-Nodes (24): Dictionary, IReadOnlyList, IReadOnlySet, List, BudgetConfig, CacheConfig, ConditionalSignal, ConfidenceDefaults (+16 more)
+Cohesion: 0.06
+Nodes (39): Mostlylucid.DocSummarizer.Images.Orchestration, Mostlylucid.DocSummarizer.Images.Coordination, WaveExecutionLog, SignalEvent, bool, Dictionary, IConfiguration, IConfigurationSection (+31 more)
 
 ### Community 453 - "OpenCvEnhancedAnalyzer"
 Cohesion: 0.14
 Nodes (11): ILogger, List, Mat, Point2f, Rect, DiagramAnalysisResult, ImageQualityResult, OpenCvEnhancedAnalyzer (+3 more)
 
 ### Community 454 - "DocumentScanContext"
-Cohesion: 0.12
-Nodes (11): ILogger, List, DocumentEscalationConfig, DocumentEscalationService, EscalationDecision, IDocumentEscalationService, ModelTiers, ProcessingStrategy (+3 more)
+Cohesion: 0.16
+Nodes (8): ILogger, List, DocumentEscalationConfig, DocumentEscalationService, EscalationDecision, IDocumentEscalationService, ModelTiers, ProcessingStrategy
 
 ### Community 455 - "SpectreProgressService"
-Cohesion: 0.09
-Nodes (12): Action, bool, Exception, Func, IEnumerable, ProgressTask, string, Summary (+4 more)
+Cohesion: 0.14
+Nodes (13): SourceSeparationWave, AnalysisContext, CancellationToken, IEnumerable, ILogger, Task, ISourceSeparationService, SeparationResult (+5 more)
 
 ### Community 456 - "MarkdownContentAnalyzer"
 Cohesion: 0.17
 Nodes (9): Converter, GeneratedRegex, HashSet, List, markdown, Regex, ContentStructure, MarkdownContentAnalyzer (+1 more)
 
-### Community 457 - "UltraResearchModelsTests"
-Cohesion: 0.11
-Nodes (7): Mostlylucid.LucidRAG.UltraResearch.Tests, Fact, ResearchFrontierManagerTests, Fact, SemanticScholarResponseTests, Fact, UltraResearchModelsTests
-
 ### Community 458 - ".EnrichAsync"
-Cohesion: 0.14
-Nodes (13): DomainClassifier.Financial, DomainClassification, DomainSignal, CancellationToken, ILogger, IReadOnlyList, List, Task (+5 more)
+Cohesion: 0.11
+Nodes (16): long, DataFile, DataFormat, CancellationToken, IEnumerable, IReadOnlyList, Task, IDataAnalysisWave (+8 more)
 
 ### Community 459 - "StrategyExecutor"
 Cohesion: 0.15
@@ -3226,7 +3263,7 @@ Cohesion: 0.08
 Nodes (25): 1. Frame Selection & Deduplication, 2. Temporal Text Tracking, 3. Text Deduplication Strategies, 4. Advanced Text Detection (Optional Enhancement), 5. Subtitle-Specific Optimizations, Current Implementation, Decision, Executive Summary (+17 more)
 
 ### Community 464 - "WhisperTranscriptionService"
-Cohesion: 0.13
+Cohesion: 0.12
 Nodes (15): FileStream, WhisperModelDownloader, CancellationToken, HttpClient, ILogger, Task, TempFileStream, WhisperTranscriptionService (+7 more)
 
 ### Community 465 - ".Create"
@@ -3238,12 +3275,12 @@ Cohesion: 0.21
 Nodes (7): IBrowsingContext, Fact, HashSet, IDocument, IEnumerable, Task, WebCrawlerServiceTests
 
 ### Community 467 - "OnnxEmbeddingService"
-Cohesion: 0.14
+Cohesion: 0.13
 Nodes (12): IEmbeddingService, bool, CancellationToken, IEnumerable, InferenceSession, int, List, SemaphoreSlim (+4 more)
 
 ### Community 468 - "Program"
-Cohesion: 0.19
-Nodes (6): ParseResult, ConfigurationLoader, Option, RootCommand, ServiceProvider, Program
+Cohesion: 0.14
+Nodes (7): ProviderTier, IReadOnlyList, ILlmProviderFactory, CancellationToken, Dictionary, Task, INamedLlmProvider
 
 ### Community 469 - "networkSimplex"
 Cohesion: 0.10
@@ -3254,24 +3291,24 @@ Cohesion: 0.22
 Nodes (4): Fact, ScoreDiagTest, Fact, SentinelSourceMapperTests
 
 ### Community 471 - "DigestData"
-Cohesion: 0.14
-Nodes (15): DateTimeOffset, List, DigestData, DigestItem, DigestPick, DigestQuickHit, DigestSection, TopicGroup (+7 more)
+Cohesion: 0.06
+Nodes (32): FilterArguments, FluidValue, DateTimeOffset, Dictionary, FluidParser, GeneratedRegex, IDeserializer, IEnumerable (+24 more)
 
 ### Community 472 - "AutocompleteService"
-Cohesion: 0.18
+Cohesion: 0.15
 Nodes (12): CancellationToken, CancellationTokenSource, List, Task, AutocompleteKind, AutocompleteResult, AutocompleteService, AutocompleteSuggestion (+4 more)
 
 ### Community 473 - "ImageBlackboardState"
-Cohesion: 0.12
-Nodes (17): CancellationToken, DetectionContribution, Dictionary, IReadOnlyList, Task, TimeSpan, ContributingWaveBase, IContributingWave (+9 more)
+Cohesion: 0.16
+Nodes (10): Guid, List, TimeSpan, KeyPose, PoseFilmstrip, float, ILogger, int (+2 more)
 
 ### Community 474 - "WaveOrchestrator"
 Cohesion: 0.14
 Nodes (15): CancellationToken, Func, IEnumerable, ILogger, List, Task, WaveInfo, WaveOrchestrator (+7 more)
 
 ### Community 475 - "SalienceEvolutionService"
-Cohesion: 0.13
-Nodes (12): bool, CancellationToken, CancellationTokenSource, Channel, DateTime, Dictionary, Func, ILogger (+4 more)
+Cohesion: 0.14
+Nodes (20): CancellationToken, DateTimeOffset, HttpClient, ILogger, JsonSerializerOptions, List, string, Task (+12 more)
 
 ### Community 476 - "LucidRAG.LLM.csproj"
 Cohesion: 0.08
@@ -3286,8 +3323,8 @@ Cohesion: 0.38
 Nodes (4): Fact, Task, RegistryTests, IEnumerable
 
 ### Community 479 - "DocumentWaveManifestLoader"
-Cohesion: 0.14
-Nodes (14): Dictionary, IDeserializer, IReadOnlyDictionary, IReadOnlyList, List, DocumentWaveManifestLoader, EscalationTrigger, ModelTierConfig (+6 more)
+Cohesion: 0.22
+Nodes (4): IDeserializer, IReadOnlyDictionary, IReadOnlyList, DocumentWaveManifestLoader
 
 ### Community 480 - "TelemetryExtensionsTests"
 Cohesion: 0.14
@@ -3299,15 +3336,15 @@ Nodes (13): bool, CancellationToken, Dictionary, IEnumerable, ILogger, Inference
 
 ### Community 482 - "VectorStoreRecord"
 Cohesion: 0.18
-Nodes (10): CancellationToken, Dictionary, IEnumerable, List, Task, IVectorStore, VectorStoreBackend, DateTime (+2 more)
+Nodes (11): CancellationToken, Dictionary, IEnumerable, List, Task, IVectorStore, Dictionary, SearchResult (+3 more)
 
 ### Community 483 - "ConceptType"
-Cohesion: 0.10
-Nodes (17): concept, CancellationToken, Dictionary, float, ILogger, scores, Task, ConceptClassifier (+9 more)
+Cohesion: 0.19
+Nodes (11): accelerator, hasGpu, models, CheckDoclingAsync(), available, List, model, Task (+3 more)
 
 ### Community 484 - "TenantSchemaInterceptor"
-Cohesion: 0.12
-Nodes (14): ConnectionEndEventData, DbConnection, DbConnectionInterceptor, CancellationToken, DbContext, Func, GeneratedRegex, ILogger (+6 more)
+Cohesion: 0.08
+Nodes (23): ConnectionEndEventData, DbConnection, DbConnectionInterceptor, CancellationToken, DbContext, Func, GeneratedRegex, IConfiguration (+15 more)
 
 ### Community 485 - "Mostlylucid.GraphRag.Services"
 Cohesion: 0.13
@@ -3334,7 +3371,7 @@ Cohesion: 0.21
 Nodes (9): QueryValidation, bool, CancellationToken, Command, List, QueryPlan, Task, ConversationalCommand (+1 more)
 
 ### Community 491 - "VideoPlayerService"
-Cohesion: 0.17
+Cohesion: 0.16
 Nodes (9): CancellationToken, CancellationTokenSource, ILogger, string, Task, Timer, TimeSpan, IVideoPlayerService (+1 more)
 
 ### Community 492 - "SpeakerDiarizationWaveTests"
@@ -3358,8 +3395,8 @@ Cohesion: 0.08
 Nodes (25): Backfill Command, CLI UX Improvements (Requested), Composite Query Decomposition (NEW in v0.6.9), Current State, Debug Output, Debug Output, DoomSummarizer Retrieval Improvements Spec, Entity-Based Semantic Retrieval (NEW) (+17 more)
 
 ### Community 497 - "DoomSummarizer / LucidRAG CLI"
-Cohesion: 0.08
-Nodes (25): Building from Source, Built-in Templates, Capabilities, Documentation, Documentation, DoomSummarizer / LucidRAG CLI, Evidence Assignment, License (+17 more)
+Cohesion: 0.14
+Nodes (14): Building from Source, Capabilities, Documentation, Documentation, DoomSummarizer / LucidRAG CLI, License, Platforms, Quick Start (+6 more)
 
 ### Community 498 - "InMemoryDecompositionCache"
 Cohesion: 0.14
@@ -3378,20 +3415,20 @@ Cohesion: 0.08
 Nodes (25): 1. RAG (Retrieval-Augmented Generation), 2. Auto-Clustering, 3. Learning & Analytics, 4. Filtering & Faceted Search, 5. Deduplication, Architecture Diagram, Background Coordinator Pattern, Best Practices (+17 more)
 
 ### Community 502 - ".Autocomplete"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (18): BadRequest, CancellationToken, Guid, HttpGet, HttpPost, List, Ok, Results (+10 more)
 
 ### Community 503 - "CancellationToken"
-Cohesion: 0.25
-Nodes (11): CancellationToken, Guid, IEnumerable, List, Task, Text, Type, FeatureEmbeddingService (+3 more)
+Cohesion: 0.10
+Nodes (7): DomainClassifier.Narrative.Extractors, DomainClassifier.Technical.Extractors, DomainClassifier.Tests, DomainClassifier.Narrative, DomainClassifier.Technical, Fact, DomainEnrichmentResultTests
 
 ### Community 504 - "BrowserUploadTests"
 Cohesion: 0.17
 Nodes (8): Fact, IBrowser, IPage, string, Task, BrowserTestCollection, BrowserTestFixture, BrowserUploadTests
 
 ### Community 505 - "FidelityValidator"
-Cohesion: 0.15
-Nodes (13): DateTime, Dictionary, List, ColumnFidelity, PrivacyCompliance, RelationshipFidelity, RelationshipType, SynthesisFidelityReport (+5 more)
+Cohesion: 0.22
+Nodes (9): CancellationToken, Channel, double, ILogger, ImageAnalysisOrchestrator, LearningTask, long, Task (+1 more)
 
 ### Community 506 - "AdaptiveRetrievalTests"
 Cohesion: 0.13
@@ -3402,8 +3439,8 @@ Cohesion: 0.19
 Nodes (9): bool, CancellationToken, ConcurrentDictionary, Dictionary, IEnumerable, List, Task, ValueTask (+1 more)
 
 ### Community 508 - "OnnxNerService"
-Cohesion: 0.13
-Nodes (14): bool, CancellationToken, InferenceSession, int, IProgress, List, Regex, SemaphoreSlim (+6 more)
+Cohesion: 0.11
+Nodes (16): modelParams, LLamaWeights, ModelParams, CancellationToken, IAsyncEnumerable, int, JsonSerializerOptions, SemaphoreSlim (+8 more)
 
 ### Community 509 - "OllamaServiceChunkingTests"
 Cohesion: 0.20
@@ -3414,8 +3451,8 @@ Cohesion: 0.20
 Nodes (3): Fact, List, OllamaServiceChunkingTests
 
 ### Community 511 - "EnhancedCreditsOcrWave"
-Cohesion: 0.18
-Nodes (14): CancellationToken, double, ILogger, int, IReadOnlyList, KeyValuePair, List, Task (+6 more)
+Cohesion: 0.10
+Nodes (21): CancellationToken, double, ILogger, int, IReadOnlyList, KeyValuePair, List, Task (+13 more)
 
 ### Community 512 - "scripts"
 Cohesion: 0.08
@@ -3423,19 +3460,19 @@ Nodes (23): @anthropic-ai/claude-code, cross-env, dependencies, @anthropic-ai/cl
 
 ### Community 513 - "ImageEntityExtractor"
 Cohesion: 0.11
-Nodes (15): ContentMetadata, Mostlylucid.DocSummarizer.Images.Entities, EntityBuilder, IEntityExtractor, AnalysisContext, CancellationToken, ContentType, IEnumerable (+7 more)
+Nodes (17): Channel, ChannelWriter, Dictionary, ProgressChannel, ProgressChannelExtensions, ProgressType, ProgressUpdate, ProgressUpdates (+9 more)
 
 ### Community 514 - "Pipelines (content-type engines)"
 Cohesion: 0.08
 Nodes (23): Audio, Core building blocks, Core + complete bundle, Data, Documents, Domain specialists, DoomSummarizer ecosystem, Images (+15 more)
 
 ### Community 515 - "TemplateService"
-Cohesion: 0.15
-Nodes (12): FilterArguments, FluidValue, Dictionary, FluidParser, GeneratedRegex, IDeserializer, IEnumerable, Regex (+4 more)
+Cohesion: 0.31
+Nodes (6): DiarizedSegment, SrtFormatter, TranscriptSegment, IEnumerable, List, SpeakerTurn
 
 ### Community 516 - "ApiKeyService"
-Cohesion: 0.13
-Nodes (10): SecretValues, CancellationToken, List, Task, EmailService, ApiKeyEntry, Dictionary, IEnumerable (+2 more)
+Cohesion: 0.15
+Nodes (13): string, OpenAIConfig, Action, IConfigurationSection, IServiceCollection, ServiceCollectionExtensions, CancellationToken, HttpClient (+5 more)
 
 ### Community 517 - "newState"
 Cohesion: 0.24
@@ -3446,12 +3483,12 @@ Cohesion: 0.11
 Nodes (14): CancellationToken, confidence, DataAnalysisContext, double, GeneratedRegex, IEnumerable, ILogger, int (+6 more)
 
 ### Community 519 - "Proposition"
-Cohesion: 0.22
-Nodes (8): PlannedSection, EvidenceSegment, GeneratedRegex, List, Regex, Proposition, PropositionExtractor, PropositionType
+Cohesion: 0.15
+Nodes (12): DomainClassifier.Financial, DomainSignal, CancellationToken, ILogger, IReadOnlyList, List, Task, FinancialDomainPlugin (+4 more)
 
 ### Community 520 - ".FetchAsync"
-Cohesion: 0.10
-Nodes (19): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, HackerNewsPlugin (+11 more)
+Cohesion: 0.14
+Nodes (14): PriorityQueue, bool, ConcurrentDictionary, IEnumerable, ILogger, int, IServiceProvider, object (+6 more)
 
 ### Community 521 - "QueryTypeDetectorTests"
 Cohesion: 0.17
@@ -3490,16 +3527,16 @@ Cohesion: 0.17
 Nodes (13): CancellationToken, List, QueryMode, QueryResult, Task, QueryEngine, SearchResult, CancellationToken (+5 more)
 
 ### Community 530 - "UltraResearchState"
-Cohesion: 0.19
-Nodes (16): CancellationToken, Dictionary, Guid, ILogger, List, Task, ResearchSynthesizer, DateTimeOffset (+8 more)
+Cohesion: 0.16
+Nodes (12): pageEnd, pageStart, RawSection, Dictionary, end, int, List, Regex (+4 more)
 
 ### Community 531 - "SearchResult"
-Cohesion: 0.16
-Nodes (13): SearchResult, CancellationToken, ILogger, int, List, Task, HybridSearchService, RrfScore (+5 more)
+Cohesion: 0.14
+Nodes (15): SearchResult, CancellationToken, ILogger, int, List, Task, HybridSearchService, CancellationToken (+7 more)
 
 ### Community 532 - "WebView2Host"
-Cohesion: 0.11
-Nodes (10): CoreWebView2, CoreWebView2Controller, IPlatformHandle, NativeControlHost, IntPtr, Size, Task, WebView2Host (+2 more)
+Cohesion: 0.06
+Nodes (22): CoreWebView2, CoreWebView2Controller, SignSummarizer.UI.Controls, FuncValueConverter, IPlatformHandle, IValueConverter, NativeControlHost, VideoPlayerControl (+14 more)
 
 ### Community 533 - "ImageCli: A Perceptual Primitive for Agentic Systems"
 Cohesion: 0.09
@@ -3510,8 +3547,8 @@ Cohesion: 0.14
 Nodes (10): Engine, JintEnginePool, bool, ConcurrentBag, ILogger, int, string, JintEnginePoolTests (+2 more)
 
 ### Community 535 - "VideoPlayerViewModel"
-Cohesion: 0.14
-Nodes (12): IAsyncRelayCommand, IRelayCommand, IWhisperService, bool, double, int, ObservableCollection, string (+4 more)
+Cohesion: 0.16
+Nodes (11): IAsyncRelayCommand, IRelayCommand, bool, double, int, ObservableCollection, string, Task (+3 more)
 
 ### Community 536 - "TorchSharpNerService"
 Cohesion: 0.16
@@ -3530,20 +3567,20 @@ Cohesion: 0.21
 Nodes (6): GeneratedRegex, List, Regex, DialogueExtractor, Fact, DialogueExtractorTests
 
 ### Community 540 - ".Extract"
-Cohesion: 0.16
-Nodes (8): Dictionary, List, MethodologyExtractor, Fact, string, LivePaperIntegrationTests, Fact, MethodologyExtractorTests
+Cohesion: 0.30
+Nodes (4): Fact, string, Task, EntityDisambiguationServiceTests
 
 ### Community 541 - "QueryTypeDetector"
-Cohesion: 0.21
-Nodes (5): GeneratedRegex, Regex, string, GraphScope, QueryTypeDetector
+Cohesion: 0.24
+Nodes (4): GeneratedRegex, Regex, string, QueryTypeDetector
 
 ### Community 542 - "StorageService"
 Cohesion: 0.14
 Nodes (14): confidence, Dictionary, entities, IEnumerable, itemId, List, mentions, name (+6 more)
 
 ### Community 543 - "GeneratedRegex"
-Cohesion: 0.27
-Nodes (4): GeneratedRegex, Regex, HtmlFormatter, TextFormatter
+Cohesion: 0.28
+Nodes (4): Fact, List, Task, TextOnlyImagePipelineTests
 
 ### Community 544 - "GoogleNewsFetcherTests"
 Cohesion: 0.19
@@ -3554,16 +3591,16 @@ Cohesion: 0.21
 Nodes (10): float, int, string, DocumentSignals, CancellationToken, List, Task, GenerationContext (+2 more)
 
 ### Community 546 - "ClipEmbeddingWave"
-Cohesion: 0.19
-Nodes (12): AnalysisContext, CancellationToken, IEnumerable, ILogger, InferenceSession, int, IReadOnlyList, List (+4 more)
+Cohesion: 0.06
+Nodes (37): Dictionary, List, string, ColorGridConfig, ComplexModeConfig, ContradictionConfig, CustomContradictionRule, ImageConfig (+29 more)
 
 ### Community 547 - "PersonalMemoryService"
-Cohesion: 0.23
+Cohesion: 0.22
 Nodes (8): CancellationToken, Guid, List, string, Task, IPersonalMemoryService, PersonalFact, PersonalMemoryService
 
 ### Community 548 - "CrawlApiTests"
-Cohesion: 0.19
-Nodes (5): Fact, HttpClient, Task, CrawlApiTests, Task
+Cohesion: 0.26
+Nodes (4): Fact, HttpClient, Task, CrawlApiTests
 
 ### Community 549 - "FrontMatterDetector"
 Cohesion: 0.18
@@ -3578,8 +3615,8 @@ Cohesion: 0.09
 Nodes (23): Architecture, CLI Usage, Component Overview, Configuration Reference, Convergence Detection, Dependencies, Examples, How It Works (+15 more)
 
 ### Community 554 - "LLamaSharpLlmService"
-Cohesion: 0.17
-Nodes (12): modelParams, LLamaWeights, ModelParams, CancellationToken, IAsyncEnumerable, int, JsonSerializerOptions, SemaphoreSlim (+4 more)
+Cohesion: 0.12
+Nodes (19): Mostlylucid.DocSummarizer.Images.Services.Ocr.Preprocessing, bool, double, ILogger, Image, int, L8, List (+11 more)
 
 ### Community 555 - "Text-Aware Frame Deduplication - Evaluation Results"
 Cohesion: 0.09
@@ -3594,8 +3631,8 @@ Cohesion: 0.17
 Nodes (10): IDisposable, Action, bool, CancellationToken, ILogger, SemaphoreSlim, Task, TimeSpan (+2 more)
 
 ### Community 558 - "TenantRecord"
-Cohesion: 0.23
-Nodes (11): SqlCommand, SqlConnection, SqlDataReader, CancellationToken, ILogger, IReadOnlyList, Task, SqlServerTenantDatabaseProvider (+3 more)
+Cohesion: 0.26
+Nodes (8): SqlCommand, SqlConnection, SqlDataReader, CancellationToken, ILogger, IReadOnlyList, Task, SqlServerTenantDatabaseProvider
 
 ### Community 559 - "IdentityWaveTests"
 Cohesion: 0.17
@@ -3614,28 +3651,28 @@ Cohesion: 0.19
 Nodes (6): GeneratedRegex, HashSet, Regex, NarrativeKeywordClassifier, Fact, NarrativeKeywordClassifierTests
 
 ### Community 563 - "CitationResolver"
-Cohesion: 0.18
-Nodes (12): CitationMetadata, CancellationToken, ConcurrentDictionary, DateTimeOffset, HttpClient, ILogger, JsonElement, List (+4 more)
+Cohesion: 0.10
+Nodes (23): CitationMetadata, CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task (+15 more)
 
 ### Community 564 - "StoredItem"
-Cohesion: 0.23
-Nodes (7): StoredItem, SqliteDataReader, IReadOnlyList, List, SqliteCommand, Task, StorageService
+Cohesion: 0.15
+Nodes (10): StoredItem, IReadOnlyList, string, SourceFilterSet, SqliteDataReader, IReadOnlyList, List, SqliteCommand (+2 more)
 
 ### Community 565 - ".CreateAsync"
-Cohesion: 0.16
+Cohesion: 0.19
 Nodes (10): EmbeddingConfig, Action, CancellationToken, int, Task, EmbeddingFactory, Fact, string (+2 more)
 
 ### Community 566 - "OllamaService.cs"
-Cohesion: 0.12
-Nodes (21): DateTimeOffset, Dictionary, OllamaOptions, BenchmarkResult, BlogOutline, BlogOutlineSection, ContentAnalysis, EvidenceItem (+13 more)
+Cohesion: 0.27
+Nodes (5): Dictionary, List, MethodologyExtractor, Fact, MethodologyExtractorTests
 
 ### Community 567 - ".Parse"
 Cohesion: 0.19
 Nodes (7): Fact, DescriptionChapterParserTests, GeneratedRegex, List, Regex, TimeSpan, DescriptionChapterParser
 
 ### Community 568 - "YouTubeExtractorTests"
-Cohesion: 0.16
-Nodes (7): InlineData, Theory, Fact, InlineData, Task, Theory, YouTubeExtractorTests
+Cohesion: 0.26
+Nodes (5): Fact, InlineData, Task, Theory, YouTubeExtractorTests
 
 ### Community 569 - "WebCrawlerServiceTests"
 Cohesion: 0.19
@@ -3654,8 +3691,8 @@ Cohesion: 0.19
 Nodes (15): ActionResult, CancellationToken, DateTimeOffset, Dictionary, Guid, HttpDelete, HttpGet, HttpPost (+7 more)
 
 ### Community 573 - "WaveDiscovery"
-Cohesion: 0.14
-Nodes (11): Assembly, IConfiguration, IServiceCollection, PluginServiceExtensions, Assembly, IDeserializer, ILogger, IReadOnlyDictionary (+3 more)
+Cohesion: 0.09
+Nodes (18): Assembly, bool, CancellationToken, IConfiguration, ILogger, IReadOnlyList, IServiceCollection, string (+10 more)
 
 ### Community 574 - "manifest.json"
 Cohesion: 0.09
@@ -3682,8 +3719,8 @@ Cohesion: 0.14
 Nodes (7): IConfiguration, IServiceCollection, ServiceProvider, ServiceRegistration, Fact, ServiceProvider, ServiceRegistrationTests
 
 ### Community 580 - "OnnxEmbeddingService"
-Cohesion: 0.17
-Nodes (11): bool, CancellationToken, IEnumerable, InferenceSession, int, List, SemaphoreSlim, SessionOptions (+3 more)
+Cohesion: 0.13
+Nodes (14): AttentionMask, InputIds, bool, CancellationToken, IEnumerable, InferenceSession, int, List (+6 more)
 
 ### Community 581 - "Dynamic Pipelines"
 Cohesion: 0.09
@@ -3702,16 +3739,16 @@ Cohesion: 0.20
 Nodes (11): binary, NeedsPreprocessing, overCorrected, PreprocessingLevel, PreprocessingResult, Report, Mat, QualityReport (+3 more)
 
 ### Community 585 - "SalientSegmentCache"
-Cohesion: 0.11
-Nodes (13): cache, capacity, ConcurrentDictionary, count, Dictionary, evicted, Guid, IEnumerable (+5 more)
+Cohesion: 0.17
+Nodes (8): capacity, count, Dictionary, evicted, IEnumerable, int, List, SalientSegmentCache
 
 ### Community 586 - "TextCleaner"
-Cohesion: 0.14
-Nodes (5): CleanOptions, Dictionary, Regex, CleanOptions, TextCleaner
+Cohesion: 0.17
+Nodes (10): CancellationToken, ServiceProvider, Task, Program, CancellationToken, IProgress, IReadOnlyList, Task (+2 more)
 
 ### Community 587 - "LucidRAG.Identity"
-Cohesion: 0.10
-Nodes (16): LucidRAG.Identity, LucidRAG.Middleware, IdentityUser, SignInManager, DateTimeOffset, ApplicationUser, bool, HttpContext (+8 more)
+Cohesion: 0.14
+Nodes (12): IdentityUser, SignInManager, DateTimeOffset, ApplicationUser, bool, HttpContext, ILogger, IWebHostEnvironment (+4 more)
 
 ### Community 588 - "MarkdownIndexer"
 Cohesion: 0.16
@@ -3722,8 +3759,8 @@ Cohesion: 0.11
 Nodes (14): Mostlylucid.Shared.Mapper, Mostlylucid.Shared.Models, IPagingModel, BlogPostEntityMapper, List, BasePagingModel, DateTime, DateTimeOffset (+6 more)
 
 ### Community 590 - "FileMetadata"
-Cohesion: 0.10
-Nodes (11): Mostlylucid.Summarizer.Core.FileAnalysis, FileAttributes, DateTimeOffset, Dictionary, IReadOnlyList, TimeSpan, FileMetadata, string (+3 more)
+Cohesion: 0.23
+Nodes (6): Dictionary, Fact, InlineData, string, Theory, BookTypeDetectorTests
 
 ### Community 591 - "ImageCli → ImageSummarizer Migration Plan"
 Cohesion: 0.10
@@ -3734,8 +3771,8 @@ Cohesion: 0.10
 Nodes (20): 1. ZZ Top - La Grange.mp3, 2. Beatles - Mother Nature's Son.mp3, 3. Mud - Lonely This Christmas.mp3, ⚠️ Areas for Improvement, BPM Accuracy, Conclusion, Energy Analysis, High Priority (+12 more)
 
 ### Community 593 - ".AnalyzeAsync"
-Cohesion: 0.17
-Nodes (11): domain, CancellationToken, confidence, DataAnalysisContext, Dictionary, IEnumerable, ILogger, IReadOnlyList (+3 more)
+Cohesion: 0.06
+Nodes (30): domain, IDataAnalysisWave, IReadOnlyList, CancellationToken, confidence, DataAnalysisContext, Dictionary, IEnumerable (+22 more)
 
 ### Community 594 - "CliSmokeTests"
 Cohesion: 0.23
@@ -3754,7 +3791,7 @@ Cohesion: 0.19
 Nodes (11): Page, CancellationToken, End, ILogger, int, IReadOnlyList, List, Start (+3 more)
 
 ### Community 598 - ".ProcessDocumentAsync"
-Cohesion: 0.21
+Cohesion: 0.23
 Nodes (11): PeriodicTimer, CancellationToken, Guid, IEvidenceRepository, ILogger, IReadOnlyList, List, RetrievalEntity (+3 more)
 
 ### Community 599 - ".AnalyzeAsync"
@@ -3766,24 +3803,24 @@ Cohesion: 0.21
 Nodes (5): Fact, LinkGraphExtractorTests, HashSet, List, LinkGraphExtractor
 
 ### Community 601 - ".GetEntitiesForItemsAsync"
-Cohesion: 0.14
-Nodes (14): confidence, entities, entity, entityId, itemEmbeddings, itemId, List, mentions (+6 more)
+Cohesion: 0.06
+Nodes (23): AssemblyDependencyResolver, AssemblyLoadContext, AssemblyName, LucidRAG.Plugins, LucidRAG.Extensions, DoomSummarizer, DoomSummarizer.Plugins.Runtime, Settings (+15 more)
 
 ### Community 602 - "DuckDbVectorStore"
-Cohesion: 0.14
-Nodes (12): DuckDBConnection, int, itemId, List, similarity, string, Task, title (+4 more)
+Cohesion: 0.13
+Nodes (17): Attribute, IFilterFactory, IFilterMetadata, IReadOnlyList, CachesAttribute, EmitsSignalAttribute, ISignalAware, ManifestBackedWave (+9 more)
 
 ### Community 603 - "EntityDisambiguationServiceTests"
-Cohesion: 0.30
-Nodes (4): Fact, string, Task, EntityDisambiguationServiceTests
+Cohesion: 0.16
+Nodes (11): CancellationToken, Dictionary, IConfigurator, ILogger, IReadOnlyList, List, Task, BookProcessorPlugin (+3 more)
 
 ### Community 604 - "StorageServiceTests"
 Cohesion: 0.25
 Nodes (4): Fact, string, Task, StorageServiceTests
 
 ### Community 605 - "CorpusServiceTests"
-Cohesion: 0.20
-Nodes (6): body, Dictionary, Fact, List, metadata, CorpusServiceTests
+Cohesion: 0.19
+Nodes (7): CorpusSegment, body, Dictionary, Fact, List, metadata, CorpusServiceTests
 
 ### Community 606 - ".AnalyzeAsync"
 Cohesion: 0.20
@@ -3794,8 +3831,8 @@ Cohesion: 0.30
 Nodes (8): ILogger, Image, List, Mat, Rect, Rgba32, AnimatedSceneResult, SceneDetectionService
 
 ### Community 608 - "VisionLlmService"
-Cohesion: 0.14
-Nodes (14): Available, CancellationToken, HttpClient, ILogger, List, Message, string, Task (+6 more)
+Cohesion: 0.22
+Nodes (9): AnalysisContext, CancellationToken, IEnumerable, Image, int, IReadOnlyList, Rgba32, Task (+1 more)
 
 ### Community 609 - "EvidenceController"
 Cohesion: 0.23
@@ -3806,8 +3843,8 @@ Cohesion: 0.28
 Nodes (9): DateTimeOffset, Guid, ICollection, FolderEntity, CancellationToken, Guid, List, Task (+1 more)
 
 ### Community 611 - ".SearchAsync"
-Cohesion: 0.18
-Nodes (14): artifact, CancellationToken, Guid, IEnumerable, ILogger, List, score, Task (+6 more)
+Cohesion: 0.16
+Nodes (15): artifact, CancellationToken, Guid, IEnumerable, ILogger, List, score, Task (+7 more)
 
 ### Community 612 - "ToolUseAnalyzer"
 Cohesion: 0.20
@@ -3830,40 +3867,40 @@ Cohesion: 0.19
 Nodes (8): HashSet, Regex, CitationValidator, ValidationResult, Fact, CitationValidatorTests, Fact, CitationValidatorTests
 
 ### Community 617 - "WebFetcherResilienceTests"
-Cohesion: 0.17
-Nodes (5): Fact, HttpStatusCode, InlineData, Theory, WebFetcherResilienceTests
+Cohesion: 0.09
+Nodes (10): Fact, HttpStatusCode, InlineData, Theory, WebFetcherResilienceTests, Fact, HttpStatusCode, InlineData (+2 more)
 
 ### Community 618 - "DetectedServices"
-Cohesion: 0.17
-Nodes (11): accelerator, hasGpu, models, CheckDoclingAsync(), available, List, model, Task (+3 more)
+Cohesion: 0.15
+Nodes (10): Mostlylucid.DocSummarizer.Scanning, CancellationToken, Dictionary, Func, IReadOnlyDictionary, IReadOnlyList, Task, DocumentScanContext (+2 more)
 
 ### Community 619 - "SqliteExporter"
-Cohesion: 0.16
-Nodes (11): ColumnName, IndexName, bool, DateTime, DuckDBConnection, List, Reason, Task (+3 more)
+Cohesion: 0.09
+Nodes (23): ColumnName, columns, Faker, IndexName, matrix, DateTime, ColumnProfile, DistributionType (+15 more)
 
 ### Community 620 - "EdgeConsensusProcessor"
-Cohesion: 0.18
-Nodes (13): ConsensusMask, ConsensusScore, bool, double, ILogger, Image, int, L8 (+5 more)
+Cohesion: 0.21
+Nodes (10): ILogger, Image, List, Mat, Rect, Rgba32, Stopwatch, TextDetectionResult (+2 more)
 
 ### Community 621 - "ControllerBase"
-Cohesion: 0.13
-Nodes (16): ControllerBase, DateTime, HttpGet, IActionResult, IHttpClientFactory, ILogger, List, Task (+8 more)
+Cohesion: 0.12
+Nodes (17): ControllerBase, ActionResult, HttpGet, HttpPost, IActionResult, ILogger, List, CacheController (+9 more)
 
 ### Community 622 - "SignSummarizer.Models"
-Cohesion: 0.14
-Nodes (12): SignSummarizer.Services, SignSummarizer.Extensions, SignSummarizer.Pipelines, SignSummarizer.Models, ILogger, CanonicalizationWave, ILogger, HandPoseWave (+4 more)
+Cohesion: 0.13
+Nodes (16): SignSummarizer.Services, SignSummarizer.Extensions, SignSummarizer.Pipelines, SignSummarizer.Models, ISignWave, IEnumerable, ILogger, FilmstripWave (+8 more)
 
 ### Community 623 - "DynamicPipeline"
-Cohesion: 0.16
-Nodes (11): Mostlylucid.DocSummarizer.Images.Services.Pipelines, Errors, IDeserializer, IsValid, List, Stream, DynamicPipeline, DynamicPipelineLoader (+3 more)
+Cohesion: 0.19
+Nodes (10): Errors, IDeserializer, IsValid, List, Stream, DynamicPipeline, DynamicPipelineLoader, EscalationConfig (+2 more)
 
 ### Community 624 - "LucidRAG.Tests.Integration"
-Cohesion: 0.11
-Nodes (7): LucidRAG.Tests.Integration, ICollectionFixture, IWebHostBuilder, Program, IntegrationTestCollection, TestWebApplicationFactory, WebApplicationFactory
+Cohesion: 0.09
+Nodes (9): LucidRAG.Tests.Integration, ICollectionFixture, Fact, IBrowser, IPage, string, Task, ExplorerLayoutTest (+1 more)
 
 ### Community 625 - "DoclingReader"
-Cohesion: 0.12
-Nodes (15): Mostlylucid.Summarizers.Reader.Docling, CancellationToken, HttpClient, ILogger, IReadOnlyList, List, Stream, string (+7 more)
+Cohesion: 0.20
+Nodes (10): Assembly, CancellationToken, ConcurrentDictionary, IDeserializer, ILogger, IReadOnlyList, SemaphoreSlim, string (+2 more)
 
 ### Community 626 - "Advanced OCR Pipeline for Animated & Static Images"
 Cohesion: 0.10
@@ -3874,8 +3911,8 @@ Cohesion: 0.10
 Nodes (19): 1. Multi-Provider Vision Support, 2. API Keys Configured, 3. Model Switching, 4. Testing Scripts, 5. Caption Quality Metrics, Architecture Files, Expected Results, Full Multi-Provider Comparison (+11 more)
 
 ### Community 628 - "GifMotionAnalyzer"
-Cohesion: 0.16
-Nodes (12): ImageFrame, FrameMotionData, bool, CancellationToken, double, ILogger, int, List (+4 more)
+Cohesion: 0.13
+Nodes (24): DateTimeOffset, Dictionary, List, OllamaOptions, BenchmarkResult, BlogArticleResult, BlogOutline, BlogOutlineSection (+16 more)
 
 ### Community 629 - ".ValidateSchemaName"
 Cohesion: 0.27
@@ -3898,16 +3935,16 @@ Cohesion: 0.21
 Nodes (6): Action, IEnumerable, Fact, InlineData, Theory, SourceFetchContextTests
 
 ### Community 634 - "NerService"
-Cohesion: 0.17
-Nodes (12): Action, bool, CancellationToken, InferenceSession, List, Regex, SemaphoreSlim, string (+4 more)
+Cohesion: 0.20
+Nodes (9): bool, CancellationToken, GeneratedRegex, IEnumerable, IReadOnlyList, List, Regex, Task (+1 more)
 
 ### Community 635 - "StorageService"
 Cohesion: 0.23
 Nodes (7): Dictionary, IEnumerable, item, List, profile, Task, StorageService
 
 ### Community 636 - "DoomSummarizer User Manual"
-Cohesion: 0.10
-Nodes (19): Built-in Sources, Crawl Collections, Custom Templates, DoomSummarizer User Manual, Examples, Examples, Listing Templates, Options (+11 more)
+Cohesion: 0.18
+Nodes (11): Problem: API rate limits or budget exceeded, Problem: Config not loading, Problem: crawl keeps re-processing unchanged pages, Problem: Entity extraction not working, Problem: High memory usage, Problem: JavaScript-heavy sites return empty content, Problem: "No items found" or empty output, Problem: No LLM summary generated (+3 more)
 
 ### Community 637 - "Output Templates Spec: Blog Article + Newsletter + Query-Aware Synthesis"
 Cohesion: 0.10
@@ -3918,7 +3955,7 @@ Cohesion: 0.16
 Nodes (8): GraphEdge, GraphNode, Func, JsonSerializerOptions, List, Task, GraphBridge, Task
 
 ### Community 639 - ".AnalyzeAsync"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (10): Fact, Task, HeadingExtractionWaveTests, CancellationToken, GeneratedRegex, IEnumerable, IReadOnlyList, Regex (+2 more)
 
 ### Community 640 - "ImageOcrTools"
@@ -3926,20 +3963,20 @@ Cohesion: 0.30
 Nodes (6): Description, Dictionary, McpServerTool, string, Task, ImageOcrTools
 
 ### Community 641 - ".ContributeAsync"
-Cohesion: 0.13
-Nodes (14): CellColor, ColorGrid, DominantColor, SaliencyRegion, CancellationToken, DetectionContribution, ImageBlackboardState, IReadOnlyList (+6 more)
+Cohesion: 0.25
+Nodes (6): analysis, article, CancellationToken, IAsyncEnumerable, Task, ArticleAnalysis
 
 ### Community 642 - ".ProcessCoreAsync"
-Cohesion: 0.13
-Nodes (13): CancellationToken, HashSet, ILogger, IProgress, IReadOnlyList, IReadOnlySet, Task, ImagePipeline (+5 more)
+Cohesion: 0.25
+Nodes (11): CancellationToken, Dictionary, float, ILogger, InferenceSession, int, KeyValuePair, List (+3 more)
 
 ### Community 643 - "CommunityController"
-Cohesion: 0.32
-Nodes (11): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, IActionResult, Ok, Results (+3 more)
+Cohesion: 0.29
+Nodes (12): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, IActionResult, Ok, Results (+4 more)
 
 ### Community 644 - ".StartCrawl"
-Cohesion: 0.16
-Nodes (12): CancellationToken, Guid, HttpGet, HttpPost, IActionResult, Task, CrawlController, CancellationToken (+4 more)
+Cohesion: 0.17
+Nodes (9): BenchmarkResults, ExtractionConfig, bool, CancellationToken, IEnumerable, Task, ValueTask, TemplateBenchmarkService (+1 more)
 
 ### Community 645 - "LearningConfig"
 Cohesion: 0.31
@@ -3966,28 +4003,28 @@ Cohesion: 0.15
 Nodes (12): bool, CancellationToken, IEnumerable, ILogger, List, Task, DocSummarizerEmbeddingService, CancellationToken (+4 more)
 
 ### Community 651 - "SqliteVecVectorStoreService"
-Cohesion: 0.23
-Nodes (10): bool, CancellationToken, Document, Embedding, IEnumerable, ILogger, List, SearchResult (+2 more)
+Cohesion: 0.16
+Nodes (13): IConfigSection, SemanticSearchConfig, VectorStoreBackend, bool, CancellationToken, Document, Embedding, IEnumerable (+5 more)
 
 ### Community 652 - "VectorStoreOptions"
 Cohesion: 0.19
 Nodes (8): string, InMemoryOptions, SqliteVecOptions, VectorStoreOptions, Action, IServiceCollection, IServiceProvider, ServiceCollectionExtensions
 
 ### Community 653 - "BackgroundModelDownloader"
-Cohesion: 0.17
+Cohesion: 0.13
 Nodes (13): CancellationToken, ConcurrentDictionary, DateTimeOffset, HttpClient, ILogger, List, SemaphoreSlim, string (+5 more)
 
 ### Community 654 - "LucidRAG.Core.Services.Learning"
-Cohesion: 0.13
-Nodes (10): LucidRAG.Core.Extensions, LucidRAG.Core.Services.Learning.Handlers, LucidRAG.Core.Services.ConfidenceBooster.Domain, LucidRAG.Core.Services.Learning, ConfidenceBoosterServiceExtensions, IServiceCollection, CoreServiceExtensions, Action (+2 more)
+Cohesion: 0.17
+Nodes (8): LucidRAG.Core.Extensions, LucidRAG.Core.Services.Learning.Handlers, LucidRAG.Core.Services.Learning, IServiceCollection, CoreServiceExtensions, Action, IServiceCollection, LearningServiceExtensions
 
 ### Community 655 - "BenchmarkCommand.cs"
-Cohesion: 0.13
-Nodes (13): Mostlylucid.DocSummarizer.LLamaSharp.Extensions, Mostlylucid.DocSummarizer.LLamaSharp.Services, Mostlylucid.DocSummarizer.LLamaSharp.Config, LocalBenchmarkResult, ModelBenchmarkSummary, ApplyLlamaSharpOverrides(), CreateLLamaSharp(), LlamaSharpConfigSection (+5 more)
+Cohesion: 0.12
+Nodes (14): Mostlylucid.DocSummarizer.LLamaSharp.Extensions, Mostlylucid.DocSummarizer.LLamaSharp.Services, Mostlylucid.DocSummarizer.LLamaSharp.Config, Settings, Settings, SetupCommand, ApplyLlamaSharpOverrides(), CreateLLamaSharp() (+6 more)
 
 ### Community 656 - "TableExtractionIntegrationTests"
-Cohesion: 0.17
-Nodes (9): LucidRAG.Tests, Fact, ILogger, ITestOutputHelper, Table, TableCell, Task, TableExtractionIntegrationTests (+1 more)
+Cohesion: 0.21
+Nodes (8): Fact, ILogger, ITestOutputHelper, Table, TableCell, Task, TableExtractionIntegrationTests, TableRow
 
 ### Community 657 - "AudioSummarizer.Core - Audio Characterization Library"
 Cohesion: 0.11
@@ -4018,8 +4055,8 @@ Cohesion: 0.19
 Nodes (12): Output, Dictionary, List, TableExtractionOptions, CancellationToken, Error, ILogger, IReadOnlyList (+4 more)
 
 ### Community 664 - ".ProcessDirectoryAsync"
-Cohesion: 0.17
-Nodes (12): Path, BatchResult, bool, CancellationToken, Error, Func, List, string (+4 more)
+Cohesion: 0.11
+Nodes (16): Path, OutputConfig, BatchResult, BatchSummary, Task, OutputFormatter, bool, CancellationToken (+8 more)
 
 ### Community 665 - "ShotDetectionWave"
 Cohesion: 0.18
@@ -4030,7 +4067,7 @@ Cohesion: 0.16
 Nodes (11): IServiceCollection, ServiceCollectionExtensions, Assembly, Dictionary, IDeserializer, ILogger, List, ISignWaveManifest (+3 more)
 
 ### Community 667 - "VisionLlmService"
-Cohesion: 0.23
+Cohesion: 0.22
 Nodes (7): CancellationToken, ILogger, SemaphoreSlim, string, Task, IVisionLlmService, VisionLlmService
 
 ### Community 668 - ".RenderAllPagesAsync"
@@ -4058,16 +4095,16 @@ Cohesion: 0.18
 Nodes (9): CancellationToken, IEnumerable, Task, CountingEmbeddingService, Fact, List, string, Task (+1 more)
 
 ### Community 674 - "ImageLearningCoordinator"
-Cohesion: 0.22
-Nodes (9): CancellationToken, Channel, double, ILogger, ImageAnalysisOrchestrator, LearningTask, long, Task (+1 more)
+Cohesion: 0.30
+Nodes (4): Fact, Mock, Task, LearningCoordinatorTests
 
 ### Community 675 - "SystemAdminController"
-Cohesion: 0.37
-Nodes (7): CancellationToken, HttpGet, HttpPost, IActionResult, Task, ValidateAntiForgeryToken, SystemAdminController
+Cohesion: 0.19
+Nodes (18): CancellationToken, DateTimeOffset, Guid, HttpGet, HttpPost, IActionResult, List, Task (+10 more)
 
 ### Community 676 - "SqliteTenantDatabaseProvider"
-Cohesion: 0.26
-Nodes (8): CancellationToken, ILogger, IReadOnlyList, SqliteCommand, SqliteConnection, SqliteDataReader, Task, SqliteTenantDatabaseProvider
+Cohesion: 0.23
+Nodes (11): CancellationToken, ILogger, IReadOnlyList, SqliteCommand, SqliteConnection, SqliteDataReader, Task, SqliteTenantDatabaseProvider (+3 more)
 
 ### Community 677 - "DateExtractionService"
 Cohesion: 0.23
@@ -4094,24 +4131,24 @@ Cohesion: 0.18
 Nodes (17): List, AnthropicConfig, AzureOpenAIEmbeddingConfig, AzureOpenAILlmConfig, GoogleAIConfig, HuggingFaceEmbeddingConfig, LlmProviderConfig, LmStudioEmbeddingConfig (+9 more)
 
 ### Community 683 - "OnnxModelDownloader"
-Cohesion: 0.14
+Cohesion: 0.15
 Nodes (9): bool, CancellationToken, HttpClient, string, Task, EmbeddingModelPaths, OnnxModelDownloader, EmbeddingModelInfo (+1 more)
 
 ### Community 684 - "WebFetcherResilienceTests"
-Cohesion: 0.19
-Nodes (5): Fact, HttpStatusCode, InlineData, Theory, WebFetcherResilienceTests
+Cohesion: 0.10
+Nodes (19): Frontend Super-App Architecture Proposal, فهرست مطالب / Table of Contents, منبع Remote ها از کجا بارگذاری می‌شوند؟ / Where are Remotes served from?, پیشنهاد معماری سوپراپ فرانت‌اند, چرا این معماری؟ / Why this architecture?, چرخه‌ی انتشار / Release workflow, ۰) خلاصه اجرایی / Executive Summary, ۱) پیش‌فرض‌ها و محدودیت‌ها / Assumptions & Constraints (+11 more)
 
 ### Community 685 - "Mostlylucid.LucidRAG.UltraResearch.csproj"
 Cohesion: 0.11
 Nodes (17): net10.0, Microsoft.Extensions.DependencyInjection (10.0.5), Microsoft.Extensions.DependencyInjection.Abstractions (10.0.5), Microsoft.Extensions.Http (10.0.5), Microsoft.Extensions.Logging (10.0.5), Microsoft.Extensions.Logging.Abstractions (10.0.5), MinVer (8.0.0-alpha.1), ModelContextProtocol (1.2.0) (+9 more)
 
 ### Community 686 - "CLAUDE.md"
-Cohesion: 0.11
-Nodes (16): Applications, Architecture, Build Commands, CI/CD, Configuration, Core Pipeline Infrastructure, Features, Key Directories (+8 more)
+Cohesion: 0.09
+Nodes (20): Applications, Architecture, Build Commands, CI/CD, Configuration, Core Pipeline Infrastructure, Features, Key Directories (+12 more)
 
 ### Community 687 - "Microsoft.ML Package Opportunity Report for *lucid*RAG"
-Cohesion: 0.11
-Nodes (17): 1) Microsoft.ML.AutoML (Adopt), 2) Microsoft.ML.TimeSeries (Adopt), 3) Microsoft.ML.Recommender (Conditional), Executive Summary, External Package Landscape (as of 2026-02-08), Microsoft.ML.ImageAnalytics (Skip for now), Microsoft.ML.OnnxRuntimeGenAI (Experimental only), Microsoft.ML.OnnxTransformer (Skip for now) (+9 more)
+Cohesion: 0.22
+Nodes (12): Mostlylucid.DocSummarizer.Images.Services.Ocr.FrameStabilization, bool, double, ILogger, Image, int, List, Mat (+4 more)
 
 ### Community 688 - "Code Quality Improvements - Session Summary"
 Cohesion: 0.11
@@ -4122,20 +4159,20 @@ Cohesion: 0.25
 Nodes (6): endpoints, service, Fact, List, Task, LoadBalancingBenchmarks
 
 ### Community 690 - "NativeExtractionWave"
-Cohesion: 0.20
-Nodes (13): pageCount, CancellationToken, DocumentScanContext, DocumentSignal, ILogger, int, IReadOnlyList, markdown (+5 more)
+Cohesion: 0.16
+Nodes (14): Mostlylucid.DocSummarizer.Scanning.Waves, pageCount, CancellationToken, DocumentScanContext, DocumentSignal, ILogger, int, IReadOnlyList (+6 more)
 
 ### Community 691 - "HandDetectionService"
-Cohesion: 0.23
-Nodes (10): CancellationToken, float, ILogger, Left, Mat, Right, Task, TimeSpan (+2 more)
+Cohesion: 0.17
+Nodes (10): CancellationToken, IReadOnlyList, Task, IOnnxNerService, NerEntity, CancellationToken, ILogger, IReadOnlyList (+2 more)
 
 ### Community 692 - ".AnalyzeAsync"
-Cohesion: 0.19
-Nodes (10): FingerprintWave, AnalysisContext, CancellationToken, IEnumerable, ILogger, Task, FingerprintWaveTests, Fact (+2 more)
+Cohesion: 0.11
+Nodes (15): FingerprintWave, AnalysisContext, CancellationToken, IEnumerable, ILogger, Task, AudioFingerprint, IFingerprintService (+7 more)
 
 ### Community 693 - ""node_modules/d3-hierarchy/src/hierarchy/index.js""
 Cohesion: 0.11
-Nodes (18): ancestors_default(), computeHeight(), copyData(), descendants_default(), each_default2(), eachAfter_default(), eachBefore_default(), find_default() (+10 more)
+Nodes (19): ancestors_default(), computeHeight(), copyData(), count_default(), descendants_default(), each_default2(), eachAfter_default(), eachBefore_default() (+11 more)
 
 ### Community 694 - "lookAheadSequenceFromAlternatives"
 Cohesion: 0.14
@@ -4150,20 +4187,20 @@ Cohesion: 0.33
 Nodes (4): GeneratedRegex, Regex, Settings, PageCommand
 
 ### Community 697 - "VibeHelperTests"
-Cohesion: 0.20
-Nodes (4): Fact, InlineData, Theory, VibeHelperTests
+Cohesion: 0.27
+Nodes (4): Color, Image, Rgba32, TestImageGenerator
 
 ### Community 698 - "ImageSummarizer.Core"
 Cohesion: 0.11
 Nodes (18): 22-Wave Signal Catalog, Architecture, CLI Usage, Configuration, Content Hashing, Direct WaveOrchestrator Usage, Documentation, Execution Profiles (+10 more)
 
 ### Community 699 - "DigitalFingerprintWave"
-Cohesion: 0.22
-Nodes (9): AnalysisContext, CancellationToken, IEnumerable, Image, int, IReadOnlyList, Rgba32, Task (+1 more)
+Cohesion: 0.16
+Nodes (13): CancellationToken, IEnumerable, IReadOnlyList, Task, TimeSpan, IAnalysisWave, IContentAnalysisWave, ITypedAnalysisWave (+5 more)
 
 ### Community 700 - "EmbeddedManifestLoader"
-Cohesion: 0.20
-Nodes (10): Assembly, CancellationToken, ConcurrentDictionary, IDeserializer, ILogger, IReadOnlyList, SemaphoreSlim, string (+2 more)
+Cohesion: 0.14
+Nodes (11): CancellationToken, IReadOnlyList, Task, IManifestLoader, CancellationToken, ILogger, IReadOnlyList, Task (+3 more)
 
 ### Community 701 - "ProcessingCoordinator"
 Cohesion: 0.35
@@ -4174,15 +4211,19 @@ Cohesion: 0.22
 Nodes (9): CancellationToken, ILogger, Stream, string, Task, TimeSpan, Uri, EvidenceStorageOptions (+1 more)
 
 ### Community 703 - "DocumentsApiTests"
-Cohesion: 0.27
-Nodes (4): Fact, HttpClient, Task, DocumentsApiTests
+Cohesion: 0.14
+Nodes (9): IWebHostBuilder, Program, Fact, HttpClient, Task, DocumentsApiTests, Task, TestWebApplicationFactory (+1 more)
 
 ### Community 704 - "ExplorerEntityFilteringTests"
 Cohesion: 0.23
 Nodes (8): Fact, IBrowser, IPage, JsonElement, List, string, Task, ExplorerEntityFilteringTests
 
+### Community 705 - "k"
+Cohesion: 0.20
+Nodes (8): Mostlylucid.ImageSummarizer.Cli.Services, height, Image, int, Panel, Rgb24, width, ConsoleImageRenderer
+
 ### Community 706 - "StatePoller"
-Cohesion: 0.22
+Cohesion: 0.24
 Nodes (9): AppState, CancellationToken, CancellationTokenSource, ILogger, Task, StatePoller, Fact, Task (+1 more)
 
 ### Community 707 - "v2.0.0 - Major Feature Release (2025-12-16)"
@@ -4206,24 +4247,24 @@ Cohesion: 0.11
 Nodes (18): Adaptive Retrieval Settings, BERT Extraction Settings (Legacy), BertRag Persistence Settings (Learning Summarizer), Chunk Cache Settings (Docling output), Complete Configuration Reference, Configuration, Configuration Options Explained, Cross-Encoder Reranker Settings (Advanced) (+10 more)
 
 ### Community 712 - "CapabilityRouter"
-Cohesion: 0.25
-Nodes (7): Dictionary, CancellationToken, ConcurrentDictionary, ILogger, Task, TimeSpan, CapabilityRouter
+Cohesion: 0.20
+Nodes (10): CsvOptions, DataProcessorOptions, ExcelOptions, JsonOptions, Action, IServiceCollection, ServiceCollectionExtensions, IEnumerable (+2 more)
 
 ### Community 713 - "KeyframeDeduplicationService"
 Cohesion: 0.15
 Nodes (12): CancellationToken, Dictionary, ILogger, int, List, Task, KeyframeCandidate, KeyframeDeduplicationService (+4 more)
 
 ### Community 714 - "DoomSummarizer.Plugins.Runtime"
-Cohesion: 0.12
-Nodes (9): AssemblyDependencyResolver, AssemblyLoadContext, AssemblyName, DoomSummarizer, DoomSummarizer.Plugins.Runtime, Settings, Assembly, IntPtr (+1 more)
+Cohesion: 0.18
+Nodes (10): Dictionary, double, HashSet, IEnumerable, int, KeyValuePair, List, SentinelSourceMapper (+2 more)
 
 ### Community 715 - "ISignalAware.cs"
-Cohesion: 0.19
-Nodes (13): Attribute, IReadOnlyList, CachesAttribute, EmitsSignalAttribute, ISignalAware, ManifestBackedWave, ManifestSignalContract, RequiresSignalAttribute (+5 more)
+Cohesion: 0.16
+Nodes (14): Command, string, ConfigCommand, CancellationToken, Guid, IEnumerable, List, Task (+6 more)
 
 ### Community 716 - "DoomSummarizer.Models.LongFormGeneration"
-Cohesion: 0.20
-Nodes (5): DoomSummarizer.Models.LongFormGeneration, DoomSummarizer.Services.LongFormGeneration, List, EntityTrack, SectionDigest
+Cohesion: 0.16
+Nodes (9): DoomSummarizer.Models.LongFormGeneration, DoomSummarizer.Services.LongFormGeneration, List, EntityTrack, float, Regex, string, EvidencePreparationService (+1 more)
 
 ### Community 717 - "Mostlylucid.Shared.Entities"
 Cohesion: 0.12
@@ -4231,7 +4272,7 @@ Nodes (12): Mostlylucid.Shared.Entities, DateTimeOffset, AnnouncementEntity, Dat
 
 ### Community 718 - ".StabilizeFrames"
 Cohesion: 0.22
-Nodes (12): Mostlylucid.DocSummarizer.Images.Services.Ocr.FrameStabilization, bool, double, ILogger, Image, int, List, Mat (+4 more)
+Nodes (9): CancellationToken, HttpDelete, HttpGet, HttpPut, IActionResult, string, Task, ConfigController (+1 more)
 
 ### Community 719 - "AudioSummarizer Code Fixes Needed"
 Cohesion: 0.12
@@ -4250,16 +4291,16 @@ Cohesion: 0.12
 Nodes (16): Audio Processing Pipeline, AudioSummarizer Phase 3: Transcription - Status Report, Configuration, Files Modified, Next Steps, Performance Characteristics, Phase 3 Completion, Phase 4: Voice Embeddings (Next) (+8 more)
 
 ### Community 723 - ".AnalyzeAsync"
-Cohesion: 0.18
-Nodes (11): ErrorLevelStats, RegionalAnalysisResult, AnalysisContext, CancellationToken, IEnumerable, Image, int, IReadOnlyList (+3 more)
+Cohesion: 0.12
+Nodes (16): ErrorLevelStats, RegionalAnalysisResult, AnalysisContext, CancellationToken, IEnumerable, Image, int, IReadOnlyList (+8 more)
 
 ### Community 724 - "MainWindow"
-Cohesion: 0.19
-Nodes (5): KeyEventArgs, DragEventArgs, RoutedEventArgs, Task, MainWindow
+Cohesion: 0.20
+Nodes (9): CancellationToken, Channel, ConcurrentDictionary, Guid, TimeSpan, ValueTask, DocumentProcessingJob, DocumentProcessingQueue (+1 more)
 
 ### Community 725 - "FollowPapersCommand"
-Cohesion: 0.24
-Nodes (10): PaperInfo, Argument, CancellationToken, Command, HttpClient, JsonElement, List, Option (+2 more)
+Cohesion: 0.28
+Nodes (9): PaperInfo, Argument, CancellationToken, HttpClient, JsonElement, List, Option, Task (+1 more)
 
 ### Community 726 - "ModelDownloader"
 Cohesion: 0.24
@@ -4270,20 +4311,20 @@ Cohesion: 0.22
 Nodes (5): LanguageRegistry, Dictionary, IReadOnlyCollection, TreeSitterParserTests, Fact
 
 ### Community 728 - "computeLookaheadTarget"
-Cohesion: 0.13
-Nodes (17): adaptivePredict(), addDFAEdge(), addDFAState(), closure(), computeLookaheadTarget(), computeReachSet(), computeStartState(), expandTopLevelRule() (+9 more)
+Cohesion: 0.09
+Nodes (24): adaptivePredict(), addDFAEdge(), addDFAState(), allConfigsInRuleStopStates(), closure(), computeLookaheadTarget(), computeReachSet(), computeStartState() (+16 more)
 
 ### Community 729 - ""node_modules/mermaid/dist/chunks/mermaid.core/quadrantDiagram-AYHSOK5B.mjs""
-Cohesion: 0.22
-Nodes (17): addClass2(), addPoint(), getQuadrantData(), "node_modules/mermaid/dist/chunks/mermaid.core/quadrantDiagram-AYHSOK5B.mjs"(), parseStyles(), setQuadrant1Text(), setQuadrant2Text(), setQuadrant3Text() (+9 more)
+Cohesion: 0.18
+Nodes (9): Provider, Model, Argument, CancellationToken, Command, Option, Table, Task (+1 more)
 
 ### Community 730 - "augmentTokenTypes"
 Cohesion: 0.13
 Nodes (17): applyMixins(), assignCategoriesMapProp(), assignCategoriesTokensProp(), assignTokenDefaultProps(), augmentTokenTypes(), createToken(), createTokenInstance(), createTokenInternal() (+9 more)
 
 ### Community 731 - "SentinelSourceMapper"
-Cohesion: 0.16
-Nodes (10): Dictionary, double, HashSet, IEnumerable, int, KeyValuePair, List, SentinelSourceMapper (+2 more)
+Cohesion: 0.18
+Nodes (11): AudioPipeline, bool, CancellationToken, HashSet, ILogger, IProgress, IReadOnlyList, IReadOnlySet (+3 more)
 
 ### Community 732 - "TextRankExtractor"
 Cohesion: 0.22
@@ -4294,15 +4335,15 @@ Cohesion: 0.12
 Nodes (16): Analytics, Available tools, Claude Code (`~/.claude.json`), Claude Desktop (`claude_desktop_config.json`), Collections, Configuration, Content, Entities / Graph (+8 more)
 
 ### Community 734 - "Sources and `-s/--source` syntax"
-Cohesion: 0.12
-Nodes (16): Arbitrary URLs, Community / Q&A sources (no API keys), Example: factual QA vs news, Force a specific API-backed provider, `gnews:*` (no API key), Hard filters, How scoring works, Knowledge promotion (+8 more)
+Cohesion: 0.36
+Nodes (3): List, Task, StorageService
 
 ### Community 735 - "Scott Galloway | AI Systems Engineer | CTO | Head of Engineering | Systems Architect | Remote"
 Cohesion: 0.12
 Nodes (16): About Me, Additional Projects, Background & Experience, Career Highlights, CLI Tools, Contact, Education, NPM Packages (+8 more)
 
 ### Community 736 - "RecursiveImageWave"
-Cohesion: 0.21
+Cohesion: 0.23
 Nodes (11): AnalysisContext, CancellationToken, Dictionary, HashSet, IEnumerable, ILogger, IReadOnlyList, List (+3 more)
 
 ### Community 737 - ".ProcessInteractiveCommandAsync"
@@ -4310,27 +4351,27 @@ Cohesion: 0.32
 Nodes (6): CancellationToken, Command, IServiceProvider, Task, ServeCommand, CliConfig
 
 ### Community 738 - ".DeleteConversation"
-Cohesion: 0.27
+Cohesion: 0.29
 Nodes (10): CancellationToken, DemoModeWriteBlock, Guid, HttpDelete, HttpGet, HttpPost, IActionResult, Task (+2 more)
 
 ### Community 739 - "FileSystemManifestLoader"
-Cohesion: 0.21
+Cohesion: 0.23
 Nodes (9): CancellationToken, ConcurrentDictionary, IDeserializer, ILogger, IReadOnlyList, SemaphoreSlim, string, Task (+1 more)
 
 ### Community 740 - "IAgenticSearchService.cs"
-Cohesion: 0.19
-Nodes (12): Guid, ChatPipelineContext, CancellationToken, IAsyncEnumerable, Task, ChatResponse, ChatStreamChunk, DecompositionInfo (+4 more)
+Cohesion: 0.15
+Nodes (12): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, RedditPlugin (+4 more)
 
 ### Community 741 - "ConfidenceBoosterBackgroundService"
-Cohesion: 0.22
-Nodes (10): CancellationToken, DateTime, Guid, ILogger, IServiceProvider, List, Task, BoostQueueItem (+2 more)
+Cohesion: 0.14
+Nodes (16): Action, IServiceCollection, ConfidenceBoosterConfig, CancellationToken, DateTime, Guid, ILogger, IServiceProvider (+8 more)
 
 ### Community 742 - "SemanticClusterAnalyzer"
-Cohesion: 0.18
+Cohesion: 0.17
 Nodes (10): CancellationToken, float, GeneratedRegex, ILogger, int, List, Regex, Task (+2 more)
 
 ### Community 743 - "AudioPlayerManager"
-Cohesion: 0.14
+Cohesion: 0.13
 Nodes (3): audioPlayer, AudioPlayerManager, ThemeManager
 
 ### Community 744 - "ChatApiTests"
@@ -4354,12 +4395,12 @@ Cohesion: 0.24
 Nodes (8): TextTrackType, SubtitleEntry, CancellationToken, ILogger, IReadOnlyList, List, Task, SubtitleExtractionWave
 
 ### Community 749 - "ExplorerSearchService.cs"
-Cohesion: 0.24
-Nodes (12): LucidRAG.Web.Services, CancellationToken, DateTimeOffset, Guid, HashSet, List, Task, ExplorerSearchRequest (+4 more)
+Cohesion: 0.25
+Nodes (11): CancellationToken, DateTimeOffset, Guid, HashSet, List, Task, ExplorerSearchRequest, ExplorerSearchResult (+3 more)
 
 ### Community 750 - "TesseractOcrEngine"
-Cohesion: 0.16
-Nodes (9): Mostlylucid.DocSummarizer.Images.Tests.Services.Ocr, bool, ILogger, List, object, string, TesseractOcrEngine, Fact (+1 more)
+Cohesion: 0.07
+Nodes (21): entries, hitRate, hits, LinkedList, misses, float, IEnumerable, int (+13 more)
 
 ### Community 751 - "AudioSummarizer Article Review Fixes - Completed"
 Cohesion: 0.12
@@ -4378,11 +4419,11 @@ Cohesion: 0.12
 Nodes (15): 1. Accuracy, 2. Speed, 3. Model Size, 4. GIF-Specific Performance, Expected Results Matrix, Final Comparison Table, Metrics to Measure, Models to Test (+7 more)
 
 ### Community 755 - "PromptSalienceIndex"
-Cohesion: 0.15
-Nodes (11): entries, hitRate, hits, LinkedList, misses, float, int, List (+3 more)
+Cohesion: 0.21
+Nodes (5): EmbeddingBackend, Fact, InlineData, Theory, EmbeddingBackendConfigTests
 
 ### Community 756 - "VlmOcrWave"
-Cohesion: 0.23
+Cohesion: 0.21
 Nodes (11): IDocumentWave, CancellationToken, DocumentScanContext, DocumentSignal, IDocumentEscalationService, ILogger, IReadOnlyList, List (+3 more)
 
 ### Community 757 - "LogNormalizer"
@@ -4398,36 +4439,36 @@ Cohesion: 0.18
 Nodes (11): outputs, Assembly, IOutputPlugin, IProcessorPlugin, IReadOnlyList, ISourcePlugin, PluginDiscovery, IOutputPlugin (+3 more)
 
 ### Community 760 - "FrameLandmarks"
-Cohesion: 0.23
+Cohesion: 0.21
 Nodes (10): TimeSpan, FrameLandmarks, CancellationToken, float, IAsyncEnumerable, ILogger, List, TimeSpan (+2 more)
 
 ### Community 761 - "GiphyDownloader"
-Cohesion: 0.26
-Nodes (9): CancellationToken, HttpClient, ILogger, JsonSerializerOptions, List, string, Task, GiphyDownloader (+1 more)
+Cohesion: 0.14
+Nodes (20): DateTime, Dictionary, List, GiphyAnalytics, GiphyGif, GiphyImage, GiphyImages, GiphyMeta (+12 more)
 
 ### Community 762 - "RelationshipWave"
-Cohesion: 0.23
-Nodes (8): CancellationToken, DataAnalysisContext, IDatabaseReader, IEnumerable, ILogger, IReadOnlyList, Task, RelationshipWave
+Cohesion: 0.21
+Nodes (10): CancellationToken, Dictionary, double, EntityResult, int, List, Regex, Task (+2 more)
 
 ### Community 763 - ".Extract"
 Cohesion: 0.23
 Nodes (7): GeneratedRegex, HashSet, List, Regex, TickerExtractor, Fact, TickerExtractorTests
 
 ### Community 764 - "StorageService"
-Cohesion: 0.20
-Nodes (7): CancellationToken, List, Task, ChatCorpusService, List, Task, StorageService
+Cohesion: 0.22
+Nodes (9): ClippedBlacks, ClippedWhites, Mean, CancellationToken, Image, Rgba32, StdDev, Task (+1 more)
 
 ### Community 765 - "SalientSegmentCache"
-Cohesion: 0.13
-Nodes (10): IEnumerable, capacity, count, Dictionary, evicted, IEnumerable, int, IReadOnlyList (+2 more)
+Cohesion: 0.18
+Nodes (8): IReadOnlyList, DateTimeOffset, Dictionary, JsonSerializerOptions, List, string, PluginEntry, PluginManifest
 
 ### Community 766 - "QueryFeatures"
-Cohesion: 0.29
+Cohesion: 0.32
 Nodes (5): Dictionary, GeneratedRegex, Regex, QueryFeatures, QueryFeatureSet
 
 ### Community 767 - "RedditCommentsFetcher.cs"
-Cohesion: 0.27
-Nodes (11): DateTimeOffset, JsonElement, List, Task, RedditChildExtended, RedditComment, RedditCommentData, RedditCommentListing (+3 more)
+Cohesion: 0.09
+Nodes (25): Mostlylucid.Summarizers.Reader.Docling, JsonSerializerContext, ApiJsonContext, DoomConfigContext, OllamaJsonContext, DateTimeOffset, JsonElement, List (+17 more)
 
 ### Community 768 - "TextRecognizerService"
 Cohesion: 0.32
@@ -4454,27 +4495,27 @@ Cohesion: 0.19
 Nodes (9): AnalysisContext, CancellationToken, Dictionary, IEnumerable, ILogger, IReadOnlyList, List, Task (+1 more)
 
 ### Community 774 - "CollectionsController"
-Cohesion: 0.33
-Nodes (9): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, HttpPut, IActionResult, Task (+1 more)
+Cohesion: 0.28
+Nodes (8): angle, DeskewMethod, DeskewResult, result, Mat, DeskewMethod, DeskewResult, SkewCorrector
 
 ### Community 775 - "ConfigController"
-Cohesion: 0.22
-Nodes (9): CancellationToken, HttpDelete, HttpGet, HttpPut, IActionResult, string, Task, ConfigController (+1 more)
+Cohesion: 0.31
+Nodes (6): DateTime, List, AnomalyComponent, AnomalyIssue, AnomalyScorer, AnomalyScoreResult
 
 ### Community 776 - "LensManifest"
-Cohesion: 0.27
-Nodes (12): Dictionary, List, LensManifest, LensPersonalityConfig, LensPoliciesConfig, LensScoringConfig, LensStylesConfig, LensTaxonomy (+4 more)
+Cohesion: 0.15
+Nodes (13): HansardDebate, DateTimeOffset, IReadOnlyList, List, string, Task, UkParliamentFetcher, DateTimeOffset (+5 more)
 
 ### Community 777 - ".Main"
 Cohesion: 0.13
 Nodes (11): Argument, Command, Option, AnalyzeCommand, Argument, Command, Option, PreviewCommand (+3 more)
 
 ### Community 778 - "EmbeddingBackendConfigTests"
-Cohesion: 0.21
-Nodes (5): EmbeddingBackend, Fact, InlineData, Theory, EmbeddingBackendConfigTests
+Cohesion: 0.18
+Nodes (8): LucidRAG.Core.Services.ConfidenceBooster.Artifacts, IArtifact, Dictionary, Guid, DataSampleArtifact, Dictionary, Guid, TextWindowArtifact
 
 ### Community 779 - ".ComputeHash"
-Cohesion: 0.26
+Cohesion: 0.24
 Nodes (5): HashHelper, Fact, HashHelperTests, Fact, HashHelperTests
 
 ### Community 780 - "LlmClientAdapter"
@@ -4482,60 +4523,60 @@ Cohesion: 0.28
 Nodes (7): CancellationToken, IAsyncEnumerable, IEnumerable, LlmOptions, Task, EmbeddingClientAdapter, LlmClientAdapter
 
 ### Community 781 - "SearchService"
-Cohesion: 0.21
-Nodes (10): CancellationToken, Dictionary, double, EntityResult, int, List, Regex, Task (+2 more)
+Cohesion: 0.23
+Nodes (4): Fact, InlineData, Theory, EmbeddingBackendConfigTests
 
 ### Community 782 - ".GroupIntoLines"
-Cohesion: 0.18
-Nodes (10): bbox, charCount, DocumentScore, IsDocument, confidence, List, Rect, score (+2 more)
+Cohesion: 0.21
+Nodes (8): CancellationToken, List, Task, ChatCorpusService, CancellationToken, IEnumerable, Task, IEmbeddingService
 
 ### Community 783 - "TemplateBenchmarkService"
-Cohesion: 0.20
-Nodes (8): BenchmarkResults, bool, CancellationToken, IEnumerable, Task, ValueTask, TemplateBenchmarkService, TemplateBenchmarkResult
+Cohesion: 0.21
+Nodes (9): CancellationToken, Func, ILogger, IProgress, List, string, Task, BatchProcessingResult (+1 more)
 
 ### Community 784 - "ImageAnalyzer"
-Cohesion: 0.22
-Nodes (9): ClippedBlacks, ClippedWhites, Mean, CancellationToken, Image, Rgba32, StdDev, Task (+1 more)
+Cohesion: 0.14
+Nodes (5): CleanOptions, Dictionary, Regex, CleanOptions, TextCleaner
 
 ### Community 785 - ".Extract"
 Cohesion: 0.18
 Nodes (6): CodeSummarizer.Mermaid.Jint, JsValue, ObjectInstance, MermaidDataExtractor, List, MermaidDomStubs
 
 ### Community 786 - "Mostlylucid.DocSummarizer.Core.Services"
-Cohesion: 0.20
-Nodes (8): Mostlylucid.DocSummarizer.Core.Models, Mostlylucid.DocSummarizer.Core.Services, List, OllamaVisionOptions, OllamaVisionRequest, OllamaVisionResponse, VlmOcrTagModel, VlmOcrTagsResponse
+Cohesion: 0.15
+Nodes (7): LucidRAG.Tests, Mostlylucid.DocSummarizer.Core.Models, Mostlylucid.DocSummarizer.Core.Services, TestDbContextFactory, Dictionary, List, PythonTableOutput
 
 ### Community 787 - "ConsoleImageRenderer"
-Cohesion: 0.20
-Nodes (8): Mostlylucid.ImageSummarizer.Cli.Services, height, Image, int, Panel, Rgb24, width, ConsoleImageRenderer
+Cohesion: 0.10
+Nodes (21): Ag(), Be(), Bg(), clamp(), formatHsl(), hn(), ie(), jg() (+13 more)
 
 ### Community 788 - "PiiDetectionWave"
-Cohesion: 0.26
-Nodes (9): detected, confidence, GeneratedRegex, ILogger, IReadOnlyList, List, Regex, type (+1 more)
+Cohesion: 0.16
+Nodes (13): detected, CancellationToken, confidence, DataAnalysisContext, GeneratedRegex, IEnumerable, ILogger, IReadOnlyList (+5 more)
 
 ### Community 789 - "Table Extraction Pipeline Implementation"
 Cohesion: 0.13
 Nodes (14): 1.1 New Service: `ITableExtractor`, 1.2 Implementation: `PdfTableExtractor`, 1.3 Integration with BertRagSummarizer, 2.1 Modify DocumentProcessingService, 3.1 Hybrid Search (Text + Tables), appsettings.json, Architecture: DocSummarizer → DataSummarizer → LucidRAG, CLI Usage (+6 more)
 
 ### Community 790 - "UkParliamentFetcher"
-Cohesion: 0.28
-Nodes (7): HansardDebate, DateTimeOffset, IReadOnlyList, List, string, Task, UkParliamentFetcher
+Cohesion: 0.16
+Nodes (6): object, SemaphoreSlim, AdaptiveBackpressureController, BackpressureStatus, IBackpressureController, SlotReleaser
 
 ### Community 791 - "Mostlylucid.DocSummarizer.FullText.Lucene.csproj"
 Cohesion: 0.13
 Nodes (13): Lucene.Net (4.8.0-beta00017), Lucene.Net.Analysis.Common (4.8.0-beta00017), Lucene.Net.QueryParser (4.8.0-beta00017), net10.0, MinVer (8.0.0-alpha.1), Mostlylucid.LucidRAG.DocSummarizer ($(CorePackageVersion)), Microsoft.NET.Sdk, net10.0 (+5 more)
 
 ### Community 792 - "DocxTableExtractor"
-Cohesion: 0.21
-Nodes (8): OpenXmlTable, OpenXmlTableCell, CancellationToken, ILogger, IReadOnlyList, List, Task, DocxTableExtractor
+Cohesion: 0.13
+Nodes (14): OpenXmlTable, OpenXmlTableCell, Dictionary, List, TimeSpan, ExtractedTable, TableCell, TableExtractionResult (+6 more)
 
 ### Community 793 - "ModelLoader"
 Cohesion: 0.17
 Nodes (7): CancellationToken, Dictionary, ILogger, string, Task, IModelLoader, ModelLoader
 
 ### Community 794 - "AudioPipeline"
-Cohesion: 0.18
-Nodes (11): AudioPipeline, bool, CancellationToken, HashSet, ILogger, IProgress, IReadOnlyList, IReadOnlySet (+3 more)
+Cohesion: 0.10
+Nodes (20): advancedocr.yaml, alttext.yaml, caption.yaml (Default), Creating Custom Pipelines, Custom Pipelines: `--pipeline-file`, fast-dedupe.yaml, florence2-llm.yaml, florence2.yaml (+12 more)
 
 ### Community 795 - "New Features"
 Cohesion: 0.13
@@ -4543,11 +4584,11 @@ Nodes (14): 1.3.0 - Unified Media Pipeline, No-GPU Build, CUDA Detection Fix, Br
 
 ### Community 796 - "ContentItem.cs"
 Cohesion: 0.23
-Nodes (13): DateTimeOffset, List, GraphEntity, HnStory, RedditChild, RedditImage, RedditImageSource, RedditListing (+5 more)
+Nodes (14): DateTimeOffset, List, GraphEntity, GraphRelationship, HnStory, RedditChild, RedditImage, RedditImageSource (+6 more)
 
 ### Community 797 - "SearchPlugin"
-Cohesion: 0.20
-Nodes (11): ApiBudgetService, CancellationToken, CircuitBreakerService, HttpClient, int, List, SourceFetchContext, SourcePluginMetadata (+3 more)
+Cohesion: 0.32
+Nodes (5): Fact, InlineData, Task, Theory, WebFetcherTests
 
 ### Community 798 - ".ExtractAsync"
 Cohesion: 0.24
@@ -4558,44 +4599,48 @@ Cohesion: 0.23
 Nodes (8): DateTimeOffset, Dictionary, GeneratedRegex, IEnumerable, List, Regex, Task, FactCheckFetcher
 
 ### Community 800 - "UkPoliceFetcher"
-Cohesion: 0.34
-Nodes (6): DateTimeOffset, IReadOnlyList, List, string, Task, UkPoliceFetcher
+Cohesion: 0.35
+Nodes (4): CancellationToken, Task, CliApp, ICliPlugin
 
 ### Community 801 - "YouTubeSourcePluginTests"
 Cohesion: 0.21
 Nodes (7): Fact, Task, YouTubeSourcePluginTests, CancellationToken, List, Task, YouTubeSourcePlugin
 
 ### Community 802 - "EntityExtractionWave"
-Cohesion: 0.20
-Nodes (9): bool, CancellationToken, GeneratedRegex, IEnumerable, IReadOnlyList, List, Regex, Task (+1 more)
+Cohesion: 0.25
+Nodes (6): GeneratedRegex, List, Regex, Proposition, PropositionExtractor, PropositionType
 
 ### Community 803 - "Signal Catalog"
 Cohesion: 0.13
 Nodes (14): Accessing Signals, Caption Signals, Collections, Color Signals, Custom Signal Selection, Embedding Signals, Glob Patterns, Identity Signals (+6 more)
 
 ### Community 804 - "TableExtractionWave"
-Cohesion: 0.21
-Nodes (9): AnalysisContext, CancellationToken, IEnumerable, ILogger, IReadOnlyList, string, Task, TableExtractionResult (+1 more)
+Cohesion: 0.11
+Nodes (15): HttpGet, IConfiguration, ILogger, List, NotFound, Ok, Results, LensDetailItem (+7 more)
 
 ### Community 805 - "SuperResolutionService"
 Cohesion: 0.20
-Nodes (8): bool, ILogger, InferenceSession, int, Mat, object, string, SuperResolutionService
+Nodes (10): List, SignalContribution, CancellationToken, Dictionary, ILogger, Task, DiscriminatorService, EvidenceClaim (+2 more)
 
 ### Community 806 - "LocaleHint"
 Cohesion: 0.25
 Nodes (7): DateTimeOffset, List, Match, DateOrder, ExtractedDate, IDateExtractionService, LocaleHint
+
+### Community 807 - ".Parse"
+Cohesion: 0.23
+Nodes (8): AnalysisContext, CancellationToken, HttpClient, IEnumerable, ILogger, IReadOnlyList, Task, NanonetsOcrWave
 
 ### Community 808 - "Random Ponderings: An emergent AI pathway I randomly thought about..."
 Cohesion: 0.13
 Nodes (15): Advanced Topics, Basic Configuration, Building a Multi-LLM Synthetic Decision Engine with LLMockApi, Configuration: Multi-Backend Setup, Consensus Voting Pattern, Cost-Optimized Configuration, Dynamic Backend Selection, Introduction (+7 more)
 
 ### Community 809 - "AnomalyScoreResult"
-Cohesion: 0.31
-Nodes (6): DateTime, List, AnomalyComponent, AnomalyIssue, AnomalyScorer, AnomalyScoreResult
+Cohesion: 0.24
+Nodes (10): AnalysisContext, bool, CancellationToken, HttpClient, IEnumerable, ILogger, IReadOnlyList, string (+2 more)
 
 ### Community 810 - "ExtractedTable"
-Cohesion: 0.19
-Nodes (9): Dictionary, List, TimeSpan, ExtractedTable, TableCell, TableExtractionResult, Dictionary, List (+1 more)
+Cohesion: 0.29
+Nodes (5): CancellationToken, CommandContext, Settings, Task, PluginCommand
 
 ### Community 811 - "DocumentWaveManifest"
 Cohesion: 0.27
@@ -4606,24 +4651,24 @@ Cohesion: 0.13
 Nodes (15): Basic Summarization, Batch Processing, Benchmarking, Custom Prompts with Placeholders, Custom Templates, Example: Custom Template in Config, LLM Tool Mode, Programmatic Custom Templates (+7 more)
 
 ### Community 813 - "EmbeddingBackendConfigTests"
-Cohesion: 0.23
-Nodes (4): Fact, InlineData, Theory, EmbeddingBackendConfigTests
+Cohesion: 0.24
+Nodes (7): CancellationToken, HttpClient, IAsyncEnumerable, ILogger, JsonSerializerOptions, Task, AnthropicLlmService
 
 ### Community 814 - "HuggingFaceTokenizer"
-Cohesion: 0.18
-Nodes (6): AttentionMask, InputIds, JsonSerializerOptions, Lazy, HuggingFaceTokenizer, TokenTypeIds
+Cohesion: 0.09
+Nodes (25): string, DomainClassifierConfig, CancellationToken, HttpClient, ILogger, string, Task, ClassifierModelDownloader (+17 more)
 
 ### Community 815 - ".RunLeiden"
-Cohesion: 0.40
-Nodes (7): communities, modularity, neighbor, Dictionary, HashSet, List, weight
+Cohesion: 0.14
+Nodes (13): 🧭 آینده‌نگر: پکیج‌های موکول‌شده (برای فاز ۴), 📘 راهنمای آموزش تیم سوپر اپ (SuperApp), 🧩 سطح ۱: پیش‌نیازهای ضروری (همه اعضا، پیش از شروع کد), 🛠️ سطح ۲: هسته‌ی توسعه (پس از پیش‌نیازها، به ترتیب اولویت), 🔁 سطح ۳: مباحث موازی و تخصصی (قابل تقسیم بین اعضای تیم), فهرست دانش فنی و مفاهیم مورد نیاز بر اساس معماری, 📚 منابع کلی برای مطالعه, ✅ چک‌لیست تسلط فردی (نسخه‌ی تکمیل‌شده) (+5 more)
 
 ### Community 816 - "BlogPostEntity"
 Cohesion: 0.14
 Nodes (10): NpgsqlTsVector, DateTimeOffset, ICollection, BlogPostEntity, ICollection, CategoryEntity, ICollection, LanguageEntity (+2 more)
 
 ### Community 817 - "VideoWaveCoordinator"
-Cohesion: 0.18
-Nodes (10): Priority, CancellationToken, IEnumerable, ILogger, IReadOnlyList, Name, Task, VideoPhase (+2 more)
+Cohesion: 0.40
+Nodes (4): Priority, IReadOnlyList, Name, Tags
 
 ### Community 818 - ".ExtractLandmarksAsync"
 Cohesion: 0.16
@@ -4642,20 +4687,20 @@ Cohesion: 0.14
 Nodes (14): API Keys (Cloud LLM providers), Command: `config`, Config File Locations (highest priority wins), Email (Newsletter Delivery), Embedding, Global API Budget, Key Configuration Sections, Link Following (+6 more)
 
 ### Community 824 - "SettingsViewModel"
-Cohesion: 0.18
-Nodes (9): Action, bool, double, int, List, RelayCommand, string, Task (+1 more)
+Cohesion: 0.15
+Nodes (11): net10.0, Microsoft.Data.Sqlite (10.0.5), MinVer (8.0.0-alpha.1), Mostlylucid.LucidRAG.DocSummarizer ($(CorePackageVersion)), Microsoft.NET.Sdk, net10.0, FluentAssertions (8.9.0), Microsoft.NET.Test.Sdk (18.3.0) (+3 more)
 
 ### Community 825 - "Motion Analysis"
 Cohesion: 0.14
 Nodes (13): API Usage, CLI Strip Modes, Configuration, Detection Method, Example: Motion Strip, Example: Text-Only Strip, Keyframe Extraction, Keyframe Selection Algorithm (+5 more)
 
 ### Community 826 - "ImageDocumentHandler"
-Cohesion: 0.24
-Nodes (5): CancellationToken, Task, IImageAnalyzer, IReadOnlyList, ImageDocumentHandler
+Cohesion: 0.18
+Nodes (4): ConcurrentDictionary, Func, IReadOnlyList, CacheBag
 
 ### Community 827 - "VisionLlmEmbeddingWave"
-Cohesion: 0.24
-Nodes (10): AnalysisContext, bool, CancellationToken, HttpClient, IEnumerable, ILogger, IReadOnlyList, string (+2 more)
+Cohesion: 0.04
+Nodes (46): IAnalysisWave, Rational, AnalysisContext, CancellationToken, HttpClient, IEnumerable, ILogger, IReadOnlyList (+38 more)
 
 ### Community 828 - "EvidenceArtifact.cs"
 Cohesion: 0.20
@@ -4686,20 +4731,20 @@ Cohesion: 0.21
 Nodes (13): detect_header_docx(), estimate_confidence_docx(), estimate_section(), extract_tables_from_docx(), is_numeric(), main(), Any, Table (+5 more)
 
 ### Community 835 - "VlmOcrService"
-Cohesion: 0.24
-Nodes (8): CancellationToken, HttpClient, ILogger, string, Task, VlmOcrResult, IVlmOcrService, VlmOcrService
+Cohesion: 0.15
+Nodes (14): CancellationToken, HttpClient, ILogger, List, string, Task, VlmOcrResult, IVlmOcrService (+6 more)
 
 ### Community 836 - "ImageSummarizer - Complete Image Intelligence Pipeline"
-Cohesion: 0.14
-Nodes (13): Build from Source, Desktop GUI Application, Download Pre-Built Binaries (Recommended), Features, ImageSummarizer - Complete Image Intelligence Pipeline, Installation, Key Quality Metrics, Output Formats (+5 more)
+Cohesion: 0.13
+Nodes (14): Auto-Download Resources, Build from Source, Download Pre-Built Binaries (Recommended), Frame Strip Technology, ImageSummarizer - Complete Image Intelligence Pipeline, Installation, Key Features, Key Quality Metrics (+6 more)
 
 ### Community 837 - ".Deskew"
-Cohesion: 0.28
-Nodes (8): angle, DeskewMethod, DeskewResult, result, Mat, DeskewMethod, DeskewResult, SkewCorrector
+Cohesion: 0.15
+Nodes (12): Configuration Highlights, Core Capabilities, Default LLM settings (appsettings), Development Commands, Docker, LucidRAG Web App, Prerequisites, Quick Start (Local Dev) (+4 more)
 
 ### Community 838 - "MimeTypeDetector"
-Cohesion: 0.19
-Nodes (8): byte, Hex, Bytes, Dictionary, ReadOnlySpan, Stream, string, MimeTypeDetector
+Cohesion: 0.15
+Nodes (10): byte, Hex, List, TimeSpan, Bytes, Dictionary, ReadOnlySpan, Stream (+2 more)
 
 ### Community 839 - "Program"
 Cohesion: 0.27
@@ -4726,56 +4771,56 @@ Cohesion: 0.18
 Nodes (6): AudioStftService, double, ILogger, int, left, right
 
 ### Community 846 - "now"
-Cohesion: 0.22
-Nodes (13): clearNow(), delayNextTick(), interruptAndCheck(), nap(), "node_modules/d3-timer/src/timer.js"(), "node_modules/lodash-es/now.js"(), now(), poke() (+5 more)
+Cohesion: 0.27
+Nodes (7): Action, CancellationToken, DateTimeOffset, List, string, Task, BraveSearchService
 
 ### Community 847 - ".AnalyzeAsync"
-Cohesion: 0.17
-Nodes (9): CancellationToken, double, DuckDbAnalyzer, IEnumerable, ILogger, int, IReadOnlyList, Task (+1 more)
+Cohesion: 0.20
+Nodes (9): IProcessorPlugin, CancellationToken, IDocumentReader, IDocumentSplitter, IReadOnlyList, ProcessorPluginMetadata, ProcessorPluginServices, Task (+1 more)
 
 ### Community 848 - "PluginManifest"
-Cohesion: 0.18
-Nodes (8): IReadOnlyList, DateTimeOffset, Dictionary, JsonSerializerOptions, List, string, PluginEntry, PluginManifest
+Cohesion: 0.17
+Nodes (12): ImageFrame, FrameMotionData, bool, CancellationToken, double, ILogger, int, List (+4 more)
 
 ### Community 849 - "StorageService"
-Cohesion: 0.19
-Nodes (6): EmbeddingCompat, SqliteConnection, string, Task, ValueTask, StorageService
+Cohesion: 0.27
+Nodes (5): SqliteConnection, string, Task, ValueTask, StorageService
 
 ### Community 850 - "EvidenceAssigner"
-Cohesion: 0.18
-Nodes (6): double, float, int, List, string, EvidenceAssigner
+Cohesion: 0.13
+Nodes (14): DateTimeOffset, Dictionary, HashSet, List, ArticleSummary, EvidenceCorpus, EvidenceSegment, TrackedEntity (+6 more)
 
 ### Community 851 - "UsgsEarthquakeFetcher.cs"
-Cohesion: 0.15
-Nodes (11): Dictionary, IEnumerable, List, string, Task, GeoJsonFeature, GeoJsonGeometry, GeoJsonMetadata (+3 more)
+Cohesion: 0.29
+Nodes (6): Dictionary, IEnumerable, List, string, Task, UsgsEarthquakeFetcher
 
 ### Community 853 - "DeepseekOcrWave"
-Cohesion: 0.23
-Nodes (8): AnalysisContext, CancellationToken, HttpClient, IEnumerable, ILogger, IReadOnlyList, Task, DeepseekOcrWave
+Cohesion: 0.19
+Nodes (10): CancellationToken, ILogger, IReadOnlyList, Paragraph, Stream, string, StringBuilder, Table (+2 more)
 
 ### Community 854 - "NanonetsOcrWave"
-Cohesion: 0.23
-Nodes (8): AnalysisContext, CancellationToken, HttpClient, IEnumerable, ILogger, IReadOnlyList, Task, NanonetsOcrWave
+Cohesion: 0.22
+Nodes (9): LlmAssumption, LlmOperation, LlmSubQuery, List, LlmAssumption, LlmOperation, LlmQueryPlan, LlmSubQuery (+1 more)
 
 ### Community 855 - "OlmOcr2Wave"
-Cohesion: 0.23
-Nodes (8): AnalysisContext, CancellationToken, HttpClient, IEnumerable, ILogger, IReadOnlyList, Task, OlmOcr2Wave
+Cohesion: 0.13
+Nodes (12): InlineData, Theory, DateTimeOffset, CircuitEntry, CircuitFailureType, CircuitStatus, bool, ConcurrentDictionary (+4 more)
 
 ### Community 856 - "CliProgressRenderer"
 Cohesion: 0.18
 Nodes (5): Func, IEnumerable, ProgressContext, Task, CliProgressRenderer
 
 ### Community 857 - "GraphController"
-Cohesion: 0.45
+Cohesion: 0.52
 Nodes (6): CancellationToken, Guid, HttpGet, IActionResult, Task, GraphController
 
 ### Community 858 - "DocumentProcessingQueue"
 Cohesion: 0.24
-Nodes (8): CancellationToken, Channel, ConcurrentDictionary, Guid, TimeSpan, ValueTask, DocumentProcessingJob, DocumentProcessingQueue
+Nodes (8): IEntityMatcher, CancellationToken, Guid, ILogger, int, IServiceScopeFactory, Task, DocumentIngester
 
 ### Community 859 - "DocumentIngester"
-Cohesion: 0.24
-Nodes (8): IEntityMatcher, CancellationToken, Guid, ILogger, int, IServiceScopeFactory, Task, DocumentIngester
+Cohesion: 0.36
+Nodes (4): Action, IReadOnlyDictionary, Task, PluginManager
 
 ### Community 860 - "MarkdownTableConverter"
 Cohesion: 0.29
@@ -4786,12 +4831,12 @@ Cohesion: 0.22
 Nodes (12): detect_header(), estimate_confidence(), extract_tables_from_pdf(), get_table_bbox(), is_numeric(), main(), Any, Heuristic to detect if first row is a header. (+4 more)
 
 ### Community 862 - "TextOnlyImagePipelineTests"
-Cohesion: 0.28
-Nodes (4): Fact, List, Task, TextOnlyImagePipelineTests
+Cohesion: 0.24
+Nodes (6): Action, HttpClient, List, string, Task, PluginLoader
 
 ### Community 863 - "Mostlylucid.DocSummarizer.Rdbms.Sqlite.csproj"
-Cohesion: 0.15
-Nodes (11): net10.0, Microsoft.Data.Sqlite (10.0.5), MinVer (8.0.0-alpha.1), Mostlylucid.LucidRAG.DocSummarizer ($(CorePackageVersion)), Microsoft.NET.Sdk, net10.0, FluentAssertions (8.9.0), Microsoft.NET.Test.Sdk (18.3.0) (+3 more)
+Cohesion: 0.07
+Nodes (28): ISourcePlugin, CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task (+20 more)
 
 ### Community 864 - "Mostlylucid.ImageSummarizer.Desktop.csproj"
 Cohesion: 0.15
@@ -4810,32 +4855,32 @@ Cohesion: 0.17
 Nodes (11): esbuild, mermaid, description, devDependencies, esbuild, mermaid, name, private (+3 more)
 
 ### Community 868 - "VibeResolver"
-Cohesion: 0.23
-Nodes (6): LensYamlManifest, Assembly, bool, IDeserializer, IReadOnlyList, VibeResolver
+Cohesion: 0.29
+Nodes (6): Action, CancellationToken, List, string, Task, CurrentsApiService
 
 ### Community 869 - ".AnalyzeAsync"
-Cohesion: 0.21
-Nodes (8): Rational, AnalysisContext, CancellationToken, IEnumerable, IReadOnlyList, List, Task, ExifForensicsWave
+Cohesion: 0.26
+Nodes (7): Action, CircuitBreakerService, HttpClient, List, string, Task, DuckDuckGoSearch
 
 ### Community 870 - "GiphyGif"
-Cohesion: 0.27
-Nodes (11): DateTime, Dictionary, List, GiphyAnalytics, GiphyGif, GiphyImage, GiphyImages, GiphyMeta (+3 more)
+Cohesion: 0.23
+Nodes (4): List, RobotsTxt, Fact, RobotsTxtTests
 
 ### Community 871 - "FallbackTests"
 Cohesion: 0.21
 Nodes (5): InlineData, Theory, FallbackTests, Fact, JintMermaidParser
 
 ### Community 872 - "DomainPluginRegistryTests"
-Cohesion: 0.33
-Nodes (3): Fact, Task, DomainPluginRegistryTests
+Cohesion: 0.31
+Nodes (6): Action, CancellationToken, List, string, Task, JinaSearchService
 
 ### Community 873 - "CommonSettings"
 Cohesion: 0.20
-Nodes (10): Settings, CommonSettings, ContentProcessingSettings, InteractiveSettings, Settings, Settings, ManCommand, Settings (+2 more)
+Nodes (10): `ask` - Interactive Q&A, `audio` - Audio transcription (`lucidrag` only), `benchmark` - Compare Ollama models, Commands, `crawl` - Build a knowledge base, `page` - Summarize a single URL, `scroll` - Aggregate and summarize, `show` - Browse knowledge base (+2 more)
 
 ### Community 874 - "HardwareDetector"
-Cohesion: 0.33
-Nodes (4): HardwareCapabilities, CancellationToken, Task, HardwareDetector
+Cohesion: 0.35
+Nodes (5): DateTimeOffset, Dictionary, List, Task, ArxivFetcher
 
 ### Community 875 - "ReferencePlugin"
 Cohesion: 0.32
@@ -4846,8 +4891,8 @@ Cohesion: 0.17
 Nodes (11): MediaWikiQuery, MediaWikiSearchResponse, MediaWikiSearchResult, WikiArticle, WikiContentUrls, WikiFeatured, WikiNewsItem, WikiOnThisDay (+3 more)
 
 ### Community 877 - "SubtitleBenchmarks"
-Cohesion: 0.29
-Nodes (4): Fact, List, Task, SubtitleBenchmarks
+Cohesion: 0.33
+Nodes (4): HardwareCapabilities, CancellationToken, Task, HardwareDetector
 
 ### Community 878 - "PromptInterpreterTests"
 Cohesion: 0.50
@@ -4858,7 +4903,7 @@ Cohesion: 0.17
 Nodes (11): Additional Sources (Future), Commands, Currently Implemented, DoomSummarizer Future Enhancements, Example Prompts, Features, Output Options, Quality Improvements (+3 more)
 
 ### Community 880 - "su"
-Cohesion: 0.24
+Cohesion: 0.27
 Nodes (5): ku(), Mu(), pu(), su(), z()
 
 ### Community 881 - "Architecture"
@@ -4866,20 +4911,20 @@ Cohesion: 0.17
 Nodes (11): Analysis Context, Architecture, Cache Performance, Caching, Dynamic Pipelines, Escalation Chain, Escalation Rules, Signals (+3 more)
 
 ### Community 882 - ".GetTextChangedFrameIndices"
-Cohesion: 0.35
-Nodes (6): ILogger, Image, List, Mat, Rgba32, TextRegionChangeDetector
+Cohesion: 0.33
+Nodes (5): CancellationToken, IDisposable, Task, IRateLimiter, SlidingWindowRateLimiter
 
 ### Community 883 - ".Analyze"
-Cohesion: 0.35
-Nodes (4): Mat, QualityReport, ImageQualityAssessor, QualityReport
+Cohesion: 0.18
+Nodes (4): int, AdaptivePipelineBalancer, IPipelineBalancer, PipelineBalance
 
 ### Community 884 - "OcrPreprocessor.cs"
-Cohesion: 0.18
-Nodes (8): EventId, Exception, Func, IDisposable, ILogger, LogLevel, LoggerAdapter, PreprocessingLevel
+Cohesion: 0.20
+Nodes (8): byTitle, byUrl, CancellationToken, Dictionary, HttpClient, List, Task, ContentItemHelpers
 
 ### Community 885 - "SystemAdminController.cs"
-Cohesion: 0.30
-Nodes (11): DateTimeOffset, Guid, List, SystemDashboardViewModel, TenantDeleteViewModel, TenantDetailsViewModel, TenantFormViewModel, TenantListItemViewModel (+3 more)
+Cohesion: 0.33
+Nodes (3): Fact, Task, DomainPluginRegistryTests
 
 ### Community 886 - "LucidRAG Image CLI"
 Cohesion: 0.17
@@ -4890,8 +4935,8 @@ Cohesion: 0.26
 Nodes (6): Fact, IBrowser, IPage, string, Task, AutoLoginTests
 
 ### Community 888 - "Random Ponderings: An emergent AI pathway I randomly thought about..."
-Cohesion: 0.17
-Nodes (12): Advanced Topics, Building a Multi-LLM Synthetic Decision Engine with LLMockApi, Consensus Voting Pattern, Dynamic Backend Selection, Introduction, Random Ponderings: An emergent AI pathway I randomly thought about..., Real-World Use Cases, Self-Healing Pipelines (+4 more)
+Cohesion: 0.13
+Nodes (15): Advanced Topics, Basic Configuration, Building a Multi-LLM Synthetic Decision Engine with LLMockApi, Configuration: Multi-Backend Setup, Consensus Voting Pattern, Cost-Optimized Configuration, Dynamic Backend Selection, Introduction (+7 more)
 
 ### Community 889 - "LucidResearch.Tests.csproj"
 Cohesion: 0.17
@@ -4918,12 +4963,12 @@ Cohesion: 0.17
 Nodes (11): CitationMetrics, ClaimEvidenceDetail, CoherenceMetrics, EntityHallucinationDetail, EntityMetrics, EvidenceDensityMetrics, FactualityMetrics, HallucinationReason (+3 more)
 
 ### Community 895 - "BertConfigTests"
-Cohesion: 0.27
-Nodes (4): Fact, InlineData, Theory, BertConfigTests
+Cohesion: 0.25
+Nodes (7): Dictionary, CancellationToken, ConcurrentDictionary, ILogger, Task, TimeSpan, CapabilityRouter
 
 ### Community 897 - "WebFetcherTests"
-Cohesion: 0.32
-Nodes (5): Fact, InlineData, Task, Theory, WebFetcherTests
+Cohesion: 0.12
+Nodes (16): Arbitrary URLs, Community / Q&A sources (no API keys), Example: factual QA vs news, Force a specific API-backed provider, `gnews:*` (no API key), Hard filters, How scoring works, Knowledge promotion (+8 more)
 
 ### Community 898 - "OpenAILlmService"
 Cohesion: 0.27
@@ -4934,16 +4979,12 @@ Cohesion: 0.27
 Nodes (4): Fact, InlineData, Theory, BertConfigTests
 
 ### Community 901 - "WebFetcherTests"
-Cohesion: 0.32
-Nodes (5): Fact, InlineData, Task, Theory, WebFetcherTests
-
-### Community 902 - "Normalizer"
-Cohesion: 0.20
-Nodes (5): BertNormalizer, LowercaseNormalizer, NfcNormalizer, NfkcNormalizer, Normalizer
+Cohesion: 0.29
+Nodes (8): CancellationToken, HttpClient, List, SourceFetchContext, SourcePluginMetadata, SourcePluginServices, Task, SciencePlugin
 
 ### Community 903 - ".Extract"
-Cohesion: 0.40
-Nodes (4): BinarizationMethod, Mat, BinarizationMethod, InkExtractor
+Cohesion: 0.21
+Nodes (4): Fact, InlineData, Theory, VibeHelperTests
 
 ### Community 904 - "EmailRenderingModel"
 Cohesion: 0.22
@@ -4954,28 +4995,28 @@ Cohesion: 0.18
 Nodes (11): 3-Tier OCR Correction Pipeline - Test Results, Conclusion, Configuration, Executive Summary, Explainability Features ✅, Failure Reasons (Tier 2), ImageCli Configuration, Next Steps (+3 more)
 
 ### Community 906 - "UltraResearch — Autonomous Research Corpus Builder"
-Cohesion: 0.18
-Nodes (11): Architecture, CLI Command, LLM Mode, Modified Files, Overview, Project Layout, Reused Infrastructure, Sentinel Evaluation (+3 more)
+Cohesion: 0.03
+Nodes (70): 1. INITIALIZE, 1. New Information Declining, 2. Frontier Exhausted, 2. MAIN LOOP (while not converged and within budget), 3. Budget Exhausted, 3. FINALIZE, Architecture, Authentication (+62 more)
 
 ### Community 907 - "CliApp"
-Cohesion: 0.35
-Nodes (4): CancellationToken, Task, CliApp, ICliPlugin
+Cohesion: 0.24
+Nodes (9): ConversionProgress, DoclingDocument, DoclingResponse, DoclingResultResponse, DoclingStatusResponse, DoclingTaskResponse, DocxChapter, DocxChunkTask (+1 more)
 
 ### Community 908 - ".ExecuteAsync"
-Cohesion: 0.29
-Nodes (5): CancellationToken, CommandContext, Settings, Task, PluginCommand
+Cohesion: 0.30
+Nodes (10): Dictionary, List, EscalationTrigger, ModelTierConfig, PipelineBudget, PipelineDefinition, PipelineEscalation, PipelineModels (+2 more)
 
 ### Community 909 - "CollectionNaming"
-Cohesion: 0.36
-Nodes (3): GeneratedRegex, Regex, CollectionNaming
+Cohesion: 0.33
+Nodes (4): Action, IServiceCollection, OrchestrationServiceExtensions, ServiceCollectionExtensions
 
 ### Community 910 - "Key Services"
 Cohesion: 0.18
 Nodes (10): Batch Operations (`ItemProcessor.cs`), Dependencies, Features, Key Services, License, Mostlylucid.DoomSummarizer.Core, Retrieval Pipeline (`RetrievalPipeline.cs`), Storage (`StorageService.cs`) (+2 more)
 
 ### Community 911 - ".SearchAsync"
-Cohesion: 0.35
-Nodes (5): DateTimeOffset, Dictionary, List, Task, ArxivFetcher
+Cohesion: 0.27
+Nodes (4): Fact, InlineData, Theory, BertConfigTests
 
 ### Community 912 - ".SearchAsync"
 Cohesion: 0.31
@@ -4986,20 +5027,20 @@ Cohesion: 0.31
 Nodes (6): Action, CancellationToken, List, string, Task, SerperSearchService
 
 ### Community 914 - "SECTION: Troubleshooting"
-Cohesion: 0.18
-Nodes (11): Problem: API rate limits or budget exceeded, Problem: Config not loading, Problem: crawl keeps re-processing unchanged pages, Problem: Entity extraction not working, Problem: High memory usage, Problem: JavaScript-heavy sites return empty content, Problem: "No items found" or empty output, Problem: No LLM summary generated (+3 more)
+Cohesion: 0.31
+Nodes (10): Dictionary, string, CrawlerConfig, DemoModeConfig, PromptsConfig, QueryClarificationConfig, QueryDecompositionConfig, RagDocumentsConfig (+2 more)
 
 ### Community 915 - ".InferContextSize"
 Cohesion: 0.42
 Nodes (4): Fact, InlineData, Theory, LlmRouterTests
 
 ### Community 917 - "Lg"
-Cohesion: 0.20
-Nodes (11): Ag(), Bg(), jg(), Jr(), Lg(), mg(), Og(), Sg() (+3 more)
+Cohesion: 0.06
+Nodes (74): A(), Ac(), ad(), b(), bc(), bt(), C(), cd() (+66 more)
 
 ### Community 918 - "BoundedImageSummary"
-Cohesion: 0.24
-Nodes (7): IReadOnlyList, BoundedImageSummary, IReadOnlyList, ClaimValidationResult, ImageClaim, ImageClaims, ValidatedClaim
+Cohesion: 0.18
+Nodes (9): DateTime, HttpGet, IActionResult, IHttpClientFactory, ILogger, List, Task, ArticleDto (+1 more)
 
 ### Community 919 - "WaveRegistry"
 Cohesion: 0.38
@@ -5010,28 +5051,28 @@ Cohesion: 0.25
 Nodes (6): Dictionary, HashSet, IEnumerable, IReadOnlyDictionary, List, SignalGlobMatcher
 
 ### Community 921 - ".IndexFileAsync"
-Cohesion: 0.31
-Nodes (7): CancellationToken, Guid, HashSet, List, Task, CliDocumentProcessor, IndexResult
+Cohesion: 0.17
+Nodes (8): accessCount, lastAccessed, EmbeddingCompat, DateTimeOffset, Dictionary, List, Task, StorageService
 
 ### Community 922 - "ContentTypes"
-Cohesion: 0.22
+Cohesion: 0.20
 Nodes (4): string, ContentTypes, Modalities, SignalTypes
 
 ### Community 923 - "ProcessorManifestModels.cs"
-Cohesion: 0.35
-Nodes (10): Dictionary, List, ProcessorCapabilities, ProcessorDefaultsConfig, ProcessorInputContract, ProcessorKind, ProcessorManifest, ProcessorOutputContract (+2 more)
+Cohesion: 0.36
+Nodes (3): GeneratedRegex, Regex, CollectionNaming
 
 ### Community 924 - "StructuralAnalyzer"
-Cohesion: 0.27
-Nodes (8): CancellationToken, Dictionary, float, ILogger, List, string, Task, StructuralAnalyzer
+Cohesion: 0.10
+Nodes (19): InlineData, Theory, CancellationToken, Dictionary, float, ILogger, MethodImpl, ReadOnlySpan (+11 more)
 
 ### Community 925 - "TableProcessingService"
 Cohesion: 0.33
 Nodes (7): CancellationToken, Guid, ILogger, List, Task, TableEntity, TableProcessingService
 
 ### Community 926 - "su"
-Cohesion: 0.27
-Nodes (5): ku(), Mu(), pu(), su(), z()
+Cohesion: 0.26
+Nodes (8): CancellationToken, IDocumentSummarizer, Task, CancellationToken, ChannelWriter, Task, IDocumentSummarizer, QueryAnswer
 
 ### Community 927 - "Major Improvements"
 Cohesion: 0.18
@@ -5050,8 +5091,8 @@ Cohesion: 0.18
 Nodes (11): Activity Sources (Tracing), Architecture, CLI Telemetry Options, Components, Embedding Architecture, Example: Send to Jaeger, LLM Resilience, Metrics Exposed (+3 more)
 
 ### Community 931 - ".ProcessImageAsync"
-Cohesion: 0.31
-Nodes (4): CancellationToken, ServiceProvider, Task, Program
+Cohesion: 0.18
+Nodes (11): AnalysisContext, bool, CancellationToken, double, HttpClient, IEnumerable, ILogger, IReadOnlyList (+3 more)
 
 ### Community 932 - "Vision LLM Integration"
 Cohesion: 0.18
@@ -5062,8 +5103,8 @@ Cohesion: 0.24
 Nodes (7): CancellationToken, FetchCandidate, IEnumerable, ILogger, IReadOnlyList, Task, MarkdownSaveWave
 
 ### Community 934 - "CapabilityRouter.cs"
-Cohesion: 0.25
-Nodes (8): DateTimeOffset, List, TaskCompletionSource, ActivationResult, ComponentRegistration, ComponentState, ComponentStatus, PendingWork
+Cohesion: 0.29
+Nodes (6): Action, CancellationToken, List, string, Task, NewsApiService
 
 ### Community 935 - "NormalizeWave"
 Cohesion: 0.31
@@ -5074,8 +5115,8 @@ Cohesion: 0.27
 Nodes (6): Mostlylucid.Shared.Models.Email, BaseEmailModel, CommentEmailModel, SubscriptionType, ConfirmEmailModel, ContactEmailModel
 
 ### Community 937 - ".Denoise"
-Cohesion: 0.38
-Nodes (4): DenoiseMethod, Mat, DenoiseMethod, NoiseReducer
+Cohesion: 0.29
+Nodes (6): Action, CancellationToken, List, string, Task, TavilySearchService
 
 ### Community 938 - "Pipeline Phases"
 Cohesion: 0.20
@@ -5094,44 +5135,44 @@ Cohesion: 0.20
 Nodes (9): LLamaSharp (0.26.0), LLamaSharp.Backend.Cpu (0.25.0), LLamaSharp.Backend.Cuda11 (0.25.0), LLamaSharp.Backend.Cuda12 (0.26.0), LLamaSharp.Backend.Vulkan (0.25.0), net10.0, MinVer (8.0.0-alpha.1), Mostlylucid.LucidRAG.DocSummarizer ($(CorePackageVersion)) (+1 more)
 
 ### Community 942 - "PluginManager"
-Cohesion: 0.36
-Nodes (4): Action, IReadOnlyDictionary, Task, PluginManager
+Cohesion: 0.24
+Nodes (6): CancellationToken, HashSet, IDictionary, ILogger, Task, ManifestInheritanceResolver
 
 ### Community 943 - "PluginLoader"
-Cohesion: 0.24
-Nodes (6): Action, HttpClient, List, string, Task, PluginLoader
+Cohesion: 0.20
+Nodes (7): avg, ConcurrentQueue, double, max, min, stdDev, OperationStats
 
 ### Community 944 - ".SearchAsync"
-Cohesion: 0.29
-Nodes (6): Action, CancellationToken, List, string, Task, CurrentsApiService
+Cohesion: 0.14
+Nodes (9): LucidRAG.Services.Waves, LucidRAG.Coordination, LucidRAG.Lenses, LucidRAG.Services.Lenses, LucidRAG.Manifests, LensPersonality, LensScoringConfig, LensTemplatesConfig (+1 more)
 
 ### Community 945 - ".SearchAsync"
 Cohesion: 0.29
 Nodes (6): Action, CancellationToken, List, string, Task, GoogleSearchService
 
 ### Community 946 - ".SearchAsync"
-Cohesion: 0.31
-Nodes (6): Action, CancellationToken, List, string, Task, JinaSearchService
+Cohesion: 0.24
+Nodes (7): CancellationToken, FetchCandidate, IEnumerable, ILogger, IReadOnlyList, Task, IngestWave
 
 ### Community 947 - ".SearchAsync"
-Cohesion: 0.29
-Nodes (6): Action, CancellationToken, List, string, Task, NewsApiService
+Cohesion: 0.31
+Nodes (5): ku(), Mu(), pu(), su(), z()
 
 ### Community 948 - ".SearchAsync"
-Cohesion: 0.29
-Nodes (6): Action, CancellationToken, List, string, Task, NewsDataService
+Cohesion: 0.25
+Nodes (8): DateTimeOffset, List, TaskCompletionSource, ActivationResult, ComponentRegistration, ComponentState, ComponentStatus, PendingWork
 
 ### Community 949 - ".SearchAsync"
 Cohesion: 0.29
-Nodes (6): Action, CancellationToken, List, string, Task, TavilySearchService
+Nodes (6): Action, CancellationToken, List, string, Task, NewsDataService
 
 ### Community 950 - "UkPoliceFetcher.cs"
 Cohesion: 0.20
 Nodes (9): CrimeCategory, CrimeLocation, CrimeOutcome, CrimeStreet, OutcomeCategory, OutcomeStatus, PoliceAvailability, PoliceForce (+1 more)
 
 ### Community 951 - "Commands"
-Cohesion: 0.20
-Nodes (10): `ask` - Interactive Q&A, `audio` - Audio transcription (`lucidrag` only), `benchmark` - Compare Ollama models, Commands, `crawl` - Build a knowledge base, `page` - Summarize a single URL, `scroll` - Aggregate and summarize, `show` - Browse knowledge base (+2 more)
+Cohesion: 0.33
+Nodes (9): CancellationToken, Guid, HttpDelete, HttpGet, HttpPost, HttpPut, IActionResult, Task (+1 more)
 
 ### Community 952 - "Getting Started with RAG Pipelines"
 Cohesion: 0.20
@@ -5166,8 +5207,8 @@ Cohesion: 0.20
 Nodes (9): ASPNETCORE_ENVIRONMENT, applicationUrl, commandName, dotnetRunMessages, environmentVariables, launchBrowser, profiles, LucidRAG (+1 more)
 
 ### Community 960 - "ExplorerLayoutTest"
-Cohesion: 0.24
-Nodes (6): Fact, IBrowser, IPage, string, Task, ExplorerLayoutTest
+Cohesion: 0.31
+Nodes (5): double, int, IReadOnlyList, List, SegmentSelector
 
 ### Community 961 - "filepond.min.js"
 Cohesion: 0.22
@@ -5178,28 +5219,32 @@ Cohesion: 0.20
 Nodes (10): Breaking Changes, Bug Fixes, Comprehensive Blog Series, Documentation Improvements, Documentation Updates, Files Modified, Improvements, New Features (+2 more)
 
 ### Community 963 - "DoclingClient.cs"
-Cohesion: 0.24
-Nodes (9): ConversionProgress, DoclingDocument, DoclingResponse, DoclingResultResponse, DoclingStatusResponse, DoclingTaskResponse, DocxChapter, DocxChunkTask (+1 more)
+Cohesion: 0.28
+Nodes (6): CancellationToken, FetchCandidate, IEnumerable, IReadOnlyList, Task, AuthorPromotionWave
 
 ### Community 964 - "OllamaLlmService"
-Cohesion: 0.40
-Nodes (4): CancellationToken, IAsyncEnumerable, Task, OllamaLlmService
+Cohesion: 0.24
+Nodes (8): CancellationToken, HttpClient, ILogger, IReadOnlyList, Stream, string, Task, DoclingReader
 
 ### Community 965 - "ShortTextSummarizer"
 Cohesion: 0.38
 Nodes (3): HashSet, List, ShortTextSummarizer
+
+### Community 966 - "BatchProcessorTests"
+Cohesion: 0.60
+Nodes (3): IConfiguration, IServiceCollection, ProviderServiceCollectionExtensions
 
 ### Community 967 - "Usage"
 Cohesion: 0.20
 Nodes (10): All Signals (detailed diagnostics), Basic Text Extraction, Caption Pipeline (Best for Movie Subtitles), Directory Processing, Interactive Mode, JSON Output (for scripts/tools), Quality Metrics Only, Usage (+2 more)
 
 ### Community 968 - ".AnalyzeAsync"
-Cohesion: 0.24
-Nodes (7): CancellationToken, FetchCandidate, IEnumerable, ILogger, IReadOnlyList, Task, VenueResolutionWave
+Cohesion: 0.22
+Nodes (8): CancellationToken, ILogger, int, IReadOnlyList, Stream, string, Task, PdfReader
 
 ### Community 969 - ".Detect"
-Cohesion: 0.28
-Nodes (6): ComponentStats, OverCorrectionReport, Mat, ComponentStats, OverCorrectionDetector, OverCorrectionReport
+Cohesion: 0.67
+Nodes (3): Architecture, Technology Stack, Wave-Based Pipeline
 
 ### Community 970 - "WordListGenerator"
 Cohesion: 0.36
@@ -5226,8 +5271,8 @@ Cohesion: 0.22
 Nodes (7): Conclusion, Executive Summary, Key Observations, Next Steps, OCR Pipeline Optimization Results, Performance Characteristics, Test Results Summary
 
 ### Community 976 - "JsonSerializerContext"
-Cohesion: 0.22
-Nodes (8): JsonSerializerContext, ApiJsonContext, DoomConfigContext, OllamaJsonContext, RedditCommentsJsonContext, TemplateJsonContext, PipelineJsonContext, DocSummarizerJsonContext
+Cohesion: 0.42
+Nodes (8): Dictionary, List, PipelineConfig, PipelineEarlyExitConfig, PipelineFailureHandling, PipelineLane, PipelineManifest, PipelineStage
 
 ### Community 977 - "OCR Benchmark Results"
 Cohesion: 0.22
@@ -5236,6 +5281,10 @@ Nodes (8): Body Text:, Image: 27857671-e13cf85e-6172-11e7-81dd-c2fe5d1dfd2e.jpg,
 ### Community 978 - "update-screenshots.mjs"
 Cohesion: 0.36
 Nodes (8): capturePage(), defaultPages, desktop, ensureDir(), main(), mobile, parsePages(), readArg()
+
+### Community 979 - ".CalculateSimilarity"
+Cohesion: 0.39
+Nodes (5): bool, CancellationToken, string, Task, FakeLlmService
 
 ### Community 980 - "validateGrammar"
 Cohesion: 0.28
@@ -5246,28 +5295,28 @@ Cohesion: 0.33
 Nodes (4): Dictionary, FluidParser, string, PromptTemplateService
 
 ### Community 982 - "SECTION: scroll Command"
-Cohesion: 0.22
-Nodes (9): Arguments, Examples, Extending with Plugins, Local File Ingestion via scroll, Options, Output Modes, Pipeline Stages, SECTION: scroll Command (+1 more)
+Cohesion: 0.28
+Nodes (7): CancellationToken, FetchCandidate, IEnumerable, ILogger, IReadOnlyList, Task, VenueResolutionWave
 
 ### Community 983 - "up"
-Cohesion: 0.31
-Nodes (9): cp(), dp(), fp(), hp(), lp(), pp(), sp(), up() (+1 more)
+Cohesion: 0.18
+Nodes (13): bp(), cp(), dp(), fp(), gp(), hp(), Ip(), lp() (+5 more)
 
 ### Community 984 - "Detection Rules"
 Cohesion: 0.22
 Nodes (9): Artwork Detection, Chart Detection, Detection Rules, Diagram Detection, Icon Detection, Meme Detection, Photo Detection, Scanned Document Detection (+1 more)
 
 ### Community 985 - ".AddImageAnalysisOrchestration"
-Cohesion: 0.33
-Nodes (4): Action, IServiceCollection, OrchestrationServiceExtensions, ServiceCollectionExtensions
+Cohesion: 0.08
+Nodes (22): CancellationToken, DetectionContribution, Dictionary, IReadOnlyList, Task, TimeSpan, ContributingWaveBase, IContributingWave (+14 more)
 
 ### Community 986 - "ConfigCommand"
-Cohesion: 0.44
-Nodes (3): Command, string, ConfigCommand
+Cohesion: 0.18
+Nodes (12): CutType, CancellationToken, Confidence, double, ILogger, IReadOnlyList, List, Task (+4 more)
 
 ### Community 987 - ".BoostBatchAsync"
-Cohesion: 0.42
-Nodes (6): CancellationToken, Guid, IEnumerable, List, Task, IConfidenceBooster
+Cohesion: 0.18
+Nodes (11): LucidRAG.Core.Services.ConfidenceBooster, LucidRAG.Core.Services.ConfidenceBooster.Domain, ConfidenceBoosterServiceExtensions, Dictionary, BoostResult, CancellationToken, Guid, IEnumerable (+3 more)
 
 ### Community 988 - "Implementation Examples"
 Cohesion: 0.22
@@ -5282,12 +5331,16 @@ Cohesion: 0.22
 Nodes (9): Example 1: Quick Profile, Example 2: Target-Aware Analysis, Example 3: Constraint Generation & Validation, Example 4: Drift Monitoring (Cron), Example 5: Segment Comparison, Example 6: Multi-File Registry, Example 7: Interactive Q&A, Example 8: Profile Store Management (+1 more)
 
 ### Community 991 - "EmbeddingHelper"
-Cohesion: 0.31
-Nodes (3): IEnumerable, int, EmbeddingHelper
+Cohesion: 0.67
+Nodes (3): 1. Enhanced MCP Server with 5 New Tools, Content Generation Tools (3), Template System Tools (2)
 
 ### Community 992 - "New Features"
 Cohesion: 0.22
 Nodes (9): 11 Summary Templates (was 9), LLM Tool Mode (`tool` command), New Features, Quality Analysis System, Rich Terminal UI, Security-Hardened Web Fetching, Structured MapReduce Summarizer, Template Word Count Syntax (+1 more)
+
+### Community 993 - "WebFetchConfigTests"
+Cohesion: 0.26
+Nodes (4): Fact, InlineData, Theory, WebFetchConfigTests
 
 ### Community 994 - "ChunkCacheServiceTests"
 Cohesion: 0.58
@@ -5305,6 +5358,10 @@ Nodes (8): Configuration, DocSummarizer MCP Server v3.0.0, Example Usage, OpenCo
 Cohesion: 0.22
 Nodes (9): Auto (Default - Smart Selection), Bert (Fast, No LLM Required) ⚡, BertHybrid (Best of Both), BertRag (Production Pipeline) ⭐ Recommended, Iterative (Small Documents), MapReduce (Legacy - Comprehensive), Mode Selection Guide, Rag (Legacy - Focused Queries) (+1 more)
 
+### Community 998 - "WebFetchConfigTests"
+Cohesion: 0.26
+Nodes (4): Fact, InlineData, Theory, WebFetchConfigTests
+
 ### Community 999 - "ChunkCacheServiceTests"
 Cohesion: 0.58
 Nodes (3): Fact, Task, ChunkCacheServiceTests
@@ -5318,12 +5375,12 @@ Cohesion: 0.22
 Nodes (9): Advanced OCR, Alt Text Generation, Caption Pipeline (Default), List Available Pipelines, Motion Pipeline (Fast, No Dependencies), Pipelines, Quick Reference, Stats Pipeline (Fastest) (+1 more)
 
 ### Community 1002 - ".AnalyzeAsync"
-Cohesion: 0.28
-Nodes (6): CancellationToken, FetchCandidate, IEnumerable, IReadOnlyList, Task, AuthorPromotionWave
+Cohesion: 0.57
+Nodes (4): Assembly, IConfiguration, IServiceCollection, ManifestServiceExtensions
 
 ### Community 1003 - ".AnalyzeAsync"
-Cohesion: 0.28
-Nodes (6): CancellationToken, FetchCandidate, IEnumerable, IReadOnlyList, Task, CitationExtractionWave
+Cohesion: 0.22
+Nodes (9): ۱۱) پشتیبانی موبایل و دسکتاپ / Mobile & Desktop Support, ۱۱-۱) تصمیمات کلیدی, ۱۱-۲) یک Shell، دو Layout (نه دو Shell), ۱۱-۳) Adaptive Remote ها (نه صرفاً Responsive), ۱۱-۴) PWA-ready Shell (پیش‌نیاز TWA), ۱۱-۵) Deep Linking و TWA, ۱۱-۶) هشدار: iOS و محدودیت‌های TWA, ۱۱-۷) تأثیر بر Design System و Template (+1 more)
 
 ### Community 1004 - "mermaid-parser-entry.js"
 Cohesion: 0.42
@@ -5333,33 +5390,29 @@ Nodes (8): buildDescription(), detectDiagramType(), extractClass(), extractFlowc
 Cohesion: 0.36
 Nodes (5): BackgroundService, CancellationToken, Task, TimeSpan, SalientTermsUpdaterService
 
-### Community 1006 - ".CreatePostgresContainerAsync"
-Cohesion: 0.25
-Nodes (5): Container, Context, PostgreSqlContainer, Task, TestDbContextFactory
-
 ### Community 1007 - "HunyuanOCR VLM Escalation (FUTURE)"
 Cohesion: 0.25
 Nodes (8): HunyuanOCR VLM Escalation (FUTURE), OCR Modes (Planned), Planned Configuration, Priority in Pipeline, Resources, Server Setup (When Implemented), Signal Keys (Planned), Why HunyuanOCR?
 
 ### Community 1008 - "Models Reference"
-Cohesion: 0.25
-Nodes (8): CandidateSource (enum), FetchCandidate, FetchedPaper (record), Models Reference, SentinelCheckpoint, UltraResearchConfig, UltraResearchProgress (record), UltraResearchState
+Cohesion: 0.21
+Nodes (9): AnalysisContext, CancellationToken, IEnumerable, ILogger, IReadOnlyList, string, Task, TableExtractionResult (+1 more)
 
 ### Community 1009 - "LucidRAG Website"
 Cohesion: 0.25
 Nodes (7): Deployment, Development, Features, LucidRAG Website, Pages, Project Structure, Tech Stack
 
 ### Community 1011 - ".PlayEasterEggAnimationAsync"
-Cohesion: 0.46
-Nodes (4): PlayerDocument, CancellationToken, Task, ScrollCommand
+Cohesion: 0.20
+Nodes (8): bool, ILogger, InferenceSession, int, Mat, object, string, SuperResolutionService
 
 ### Community 1012 - "ChunkFingerprint"
-Cohesion: 0.25
-Nodes (7): GeneratedRegex, HashSet, int, Regex, string, ulong, ChunkFingerprint
+Cohesion: 0.15
+Nodes (12): Available, CancellationToken, HttpClient, ILogger, Message, string, Task, OpenAIChoice (+4 more)
 
 ### Community 1013 - "SourceFilterSet"
-Cohesion: 0.36
-Nodes (3): IReadOnlyList, string, SourceFilterSet
+Cohesion: 0.29
+Nodes (5): CancellationToken, IEnumerable, IReadOnlyList, Task, TopicInferenceWave
 
 ### Community 1014 - "Models & ML Pipeline"
 Cohesion: 0.25
@@ -5386,8 +5439,8 @@ Cohesion: 0.25
 Nodes (7): Auto Pipeline, Built-in Pipelines, CLI Pipeline Usage, Custom Pipelines, Pipeline Selection Guide, Pipelines, Signal Collections
 
 ### Community 1020 - "ManifestServiceExtensions"
-Cohesion: 0.57
-Nodes (4): Assembly, IConfiguration, IServiceCollection, ManifestServiceExtensions
+Cohesion: 0.48
+Nodes (6): Guid, DocumentGraphEdge, DocumentSimilarityResult, EntityCentrality, GraphWalkResult, ShortestPathStep
 
 ### Community 1021 - "Step-by-Step Setup"
 Cohesion: 0.25
@@ -5398,8 +5451,8 @@ Cohesion: 0.54
 Nodes (7): createEventSource(), ensureEventSource(), ensureEventSourceOnElement(), hasEventSource(), maybeCloseSSESource(), registerSSE(), swap()
 
 ### Community 1023 - ".Create"
-Cohesion: 0.32
-Nodes (4): AppState, TextBlockStyle, Visual, SummaryView
+Cohesion: 0.29
+Nodes (5): IConfiguration, IServiceCollection, IServiceProvider, Task, MultitenancyExtensions
 
 ### Community 1024 - "Commands Reference"
 Cohesion: 0.25
@@ -5411,7 +5464,7 @@ Nodes (8): Expanded Input Format Support, Files Added/Modified, Improvements, Ne
 
 ### Community 1026 - "WebFetchConfig"
 Cohesion: 0.25
-Nodes (6): WebFetchConfig, WebFetchMode, InlineData, Theory, InlineData, Theory
+Nodes (8): تصمیم نسخه‌ی React: **۱۸** (ADR — پاسخ به m1), چرا Module Federation **2.0** و نه MF کلاسیک (Webpack v1)؟ — ADR-0001, ۲) تصمیمات معماری کلیدی / Key Architectural Decisions, ۲-۱) الگوی کلی: Module Federation 2.0, ۲-۲) ساختار ریپوها: Nx Monorepo (مسیر اصلی) — Polyrepo فقط در صورت نیاز, ۲-۳) احراز هویت و نشست مشترک / Authentication & Shared Session, ۲-۴) مدیریت State مشترک / Shared State Management, ۲-۵) مسیریابی / Routing
 
 ### Community 1027 - "ConsoleVerboseOutput"
 Cohesion: 0.43
@@ -5442,11 +5495,11 @@ Cohesion: 0.29
 Nodes (5): ActionExecutedContext, ActionExecutingContext, IActionFilter, HashSet, DemoModeWriteBlockFilter
 
 ### Community 1034 - ".BuildContentLookups"
-Cohesion: 0.33
-Nodes (5): byTitle, byUrl, Dictionary, List, ContentItemHelpers
+Cohesion: 0.25
+Nodes (9): Chunked, Dictionary, Height, Image, List, Rgba32, Width, Y (+1 more)
 
 ### Community 1035 - "WhisperService.cs"
-Cohesion: 0.38
+Cohesion: 0.40
 Nodes (3): SignSummarizer.UI.ViewModels, SignSummarizer.UI.Services, SignSummarizer.UI.Models
 
 ### Community 1036 - "Mostlylucid.DocSummarizer.Rdbms.Sqlite"
@@ -5466,8 +5519,8 @@ Cohesion: 0.29
 Nodes (7): 1. Markdown Table Converter (Bonus Feature), 3. Evidence Storage Integration, 4. Document Pipeline Integration, 5. Dependency Injection Setup, 6. Comprehensive Testing, 7. Chart Extraction Design (Phase 3), What Was Built
 
 ### Community 1040 - "Components"
-Cohesion: 0.29
-Nodes (7): Components, IDocumentIngester, ResearchFrontierManager, ResearchPaperFetcher, ResearchSentinelEvaluator, SemanticScholarClient, UltraResearchOrchestrator
+Cohesion: 0.10
+Nodes (8): Fact, ContentTypeTests, Fact, ExtractedEntitiesTests, Fact, ChunkSummaryTests, Fact, ContentTypeTests
 
 ### Community 1041 - "ICodeSummarizer"
 Cohesion: 0.38
@@ -5477,13 +5530,17 @@ Nodes (3): ICodeSummarizer, CancellationToken, Task
 Cohesion: 0.29
 Nodes (7): constant_default8(), curveHorizontal(), horizontalSource(), horizontalTarget(), link(), linkHorizontal(), sankeyLinkHorizontal_default()
 
+### Community 1043 - ".GetVectorDbPath"
+Cohesion: 0.38
+Nodes (4): CancellationToken, List, Task, INerService
+
 ### Community 1044 - "SECTION: crawl Command"
-Cohesion: 0.29
-Nodes (7): Arguments, Examples, Incremental Updates, Options, SECTION: crawl Command, Usage, YouTube Support (`lucidrag` Only)
+Cohesion: 0.40
+Nodes (4): ImmutableDictionary, Dictionary, IReadOnlyDictionary, DictionaryExtensions
 
 ### Community 1045 - "SECTION: Other Commands"
-Cohesion: 0.29
-Nodes (7): benchmark - Model Testing, list - Content Browser, plugin - Extension Manager, SECTION: Other Commands, show - Collection Inspector, sources - Source Registry, trends - Analytics
+Cohesion: 0.33
+Nodes (5): GeoJsonFeature, GeoJsonGeometry, GeoJsonMetadata, GeoJsonProperties, GeoJsonResponse
 
 ### Community 1046 - "LLM Providers"
 Cohesion: 0.29
@@ -5510,8 +5567,8 @@ Cohesion: 0.48
 Nodes (5): Confidence, IEnumerable, List, Text, StartOffset
 
 ### Community 1053 - "MultitenancyExtensions"
-Cohesion: 0.29
-Nodes (5): IConfiguration, IServiceCollection, IServiceProvider, Task, MultitenancyExtensions
+Cohesion: 0.40
+Nodes (5): DateTimeOffset, Guid, ICollection, DocumentEntity, DocumentStatus
 
 ### Community 1054 - "Best Practices"
 Cohesion: 0.29
@@ -5554,8 +5611,8 @@ Cohesion: 0.29
 Nodes (7): Breaking Changes, Files Added, Files Modified, Improvements, Security Notes, Usage Examples, v2.6.0 - LLM Tool Mode, Web Fetching & Security Hardening (2025-12-17)
 
 ### Community 1065 - "INerService"
-Cohesion: 0.38
-Nodes (4): CancellationToken, List, Task, INerService
+Cohesion: 0.18
+Nodes (9): Action, bool, double, int, List, RelayCommand, string, Task (+1 more)
 
 ### Community 1066 - "New Features - DocSummarizer v2.7"
 Cohesion: 0.29
@@ -5614,23 +5671,23 @@ Cohesion: 0.33
 Nodes (6): All Tests Passing ✅, Test 1: Simple Table Extraction, Test 2: Multiple Tables, Test 3: Unsupported Extension, Test Coverage, Test Results
 
 ### Community 1080 - "Venue Quality Scoring"
-Cohesion: 0.33
-Nodes (6): Composite Formula, Data Sources, RRF Integration, Score Examples, Venue Quality Scoring, Venue Tier Dictionary
+Cohesion: 0.29
+Nodes (7): فاز ۰: Foundation (هفته ۱–۲) — **محلی**, فاز ۱: Core (هفته ۳–۵) — **محلی**, فاز ۲: First Remote (هفته ۶–۸) — **محلی**, فاز ۳: استقرار روی زیرساخت شرکت — **Azure + استقرار مرحله‌ای**, فاز ۴ (پس از استقرار): تکمیل و مقیاس, نمای کلی مسیر, ۶) فازبندی MVP / MVP Phasing (هدف ~۲ ماه، منعطف)
 
 ### Community 1081 - "Testing"
-Cohesion: 0.33
-Nodes (6): ResearchPaperFetcherTests (8 tests), Running Tests, SemanticScholarResponseTests (5 tests), Testing, UltraResearchModelsTests (7 tests), VenueQualityScorerTests (13 tests)
+Cohesion: 0.29
+Nodes (7): چرا «سقف» لازم است؟ (رفع C2 — نقص forward-compatibility), ۱۶) نسخه‌بندی مستقل + هم‌راستاسازی توصیه‌شده / Independent Versioning with Recommended Alignment, ۱۶-۱) تنها قید سخت: نسخه‌ی major مشترکِ React, ۱۶-۲) نقش `@superapp/foundation` — «توصیه»، نه «اجبار», ۱۶-۳) گیت CI: سقف نه، کف, ۱۶-۴) مزایا و بهای این مدل, ۱۶-۵) گردش کار ارتقا و rollback / Upgrade & Rollback workflow
 
 ### Community 1082 - "DictionaryExtensions"
 Cohesion: 0.40
-Nodes (4): ImmutableDictionary, Dictionary, IReadOnlyDictionary, DictionaryExtensions
+Nodes (5): defaultLocale(), formatGroup_default(), formatNumerals_default(), locale_default(), "node_modules/d3-format/src/defaultLocale.js"()
 
 ### Community 1083 - "SearchModeStringConverter"
-Cohesion: 0.47
-Nodes (4): IValueConverter, CultureInfo, Type, SearchModeStringConverter
+Cohesion: 0.67
+Nodes (3): Next Steps (Future Enhancements), Not Required Now, Optional Future Work
 
 ### Community 1084 - "SourceDefinition"
-Cohesion: 0.67
+Cohesion: 0.43
 Nodes (5): Dictionary, List, RoutingRule, SourceDefinition, SourceRoutingConfig
 
 ### Community 1085 - "UkEnvironmentFetcher.cs"
@@ -5646,12 +5703,12 @@ Cohesion: 0.33
 Nodes (6): Freshness Detection, Microsoft Recognizers Text, Named Entity Recognition (NER), Query Intelligence, Sentinel LLM Analysis, URL Fixer Service
 
 ### Community 1090 - "ErrorLevelAnalysisWave.cs"
-Cohesion: 0.33
-Nodes (5): List, ErrorLevelStats, RegionalAnalysisResult, SuspiciousRegion, SuspiciousRegion
+Cohesion: 0.40
+Nodes (5): Adaptive Ingestion Deduplication, LFU Embedding Cache, ONNX DirectML GPU Stability, Self-Describing Source Routing, v0.7.0: Score-Based Source Routing & Embedding Reliability
 
 ### Community 1091 - "ConversationEntity"
-Cohesion: 0.53
-Nodes (5): DateTimeOffset, Guid, ICollection, ConversationEntity, ConversationMessage
+Cohesion: 0.25
+Nodes (10): DateTimeOffset, Guid, ICollection, ConversationEntity, ConversationMessage, CancellationToken, Guid, List (+2 more)
 
 ### Community 1092 - "Troubleshooting"
 Cohesion: 0.33
@@ -5702,8 +5759,8 @@ Cohesion: 0.33
 Nodes (6): Batch Processing, Custom Configuration, Model Information, Output Formats, Single File (Simple), 🚀 Usage Examples
 
 ### Community 1104 - "ProviderServiceCollectionExtensions"
-Cohesion: 0.60
-Nodes (3): IConfiguration, IServiceCollection, ProviderServiceCollectionExtensions
+Cohesion: 0.40
+Nodes (5): API Keys, Configuration, Email Delivery, Prompt Customization, Resilience
 
 ### Community 1105 - "🎯 Other Features"
 Cohesion: 0.33
@@ -5722,8 +5779,8 @@ Cohesion: 0.33
 Nodes (4): DateTimeOffset, double, int, SlugRedirectEntity
 
 ### Community 1109 - "AGENTS.md"
-Cohesion: 0.40
-Nodes (4): Coding Workflow, Existing Code Policy, graphify, Modification Policy
+Cohesion: 0.22
+Nodes (8): Coding Workflow, Existing Code Policy, graphify, Key Tools, MCP Tools: code-review-graph, Modification Policy, When to use graph tools FIRST, Workflow
 
 ### Community 1110 - "Architecture: Signals & Waves"
 Cohesion: 0.40
@@ -5758,16 +5815,16 @@ Cohesion: 0.40
 Nodes (5): Test Case 1: BackOfTheNet.gif ✅, Test Case 2: anchorman-not-even-mad.gif ✅, Test Case 3: animatedbullshit.gif ⚠️, Test Case 4: BrainStrike.gif / alanshrug_opt.gif ✅, Test Results
 
 ### Community 1118 - "Priority Scoring"
-Cohesion: 0.40
-Nodes (5): Cited-By Score (weight: 0.40), Entity Overlap Score (weight: 0.25), Priority Scoring, Recency Score (weight: 0.15), Sentinel Boost Score (weight: 0.20)
+Cohesion: 0.33
+Nodes (6): ۱۰) تجربه‌ی توسعه‌دهنده (DX) برای Remote ها / Developer Experience, ۱۰-۰) PoC محلی (فاز ۰–۲): Shell + Remote روی localhost ⭐, ۱۰-۱) شرکت (فاز ۳+): Dev Shell مشترک + Local Remote Override, ۱۰-۲) راهکار مکمل: Storybook (از فاز ۱), ۱۰-۳) توصیه, ۱۰-۴) مدیریت پکیج: `bun` (اولویت) و `pnpm` (جایگزین)
 
 ### Community 1119 - "explorer-screenshot.js"
 Cohesion: 0.40
 Nodes (3): path, puppeteer, SCREENSHOT_PATH
 
 ### Community 1120 - "DemoModeWriteBlockAttribute"
-Cohesion: 0.40
-Nodes (4): IFilterFactory, IFilterMetadata, IServiceProvider, DemoModeWriteBlockAttribute
+Cohesion: 0.33
+Nodes (6): ۱۷) Service Worker + Push Notification / Push & Caching Subsystem, ۱۷-۱) معماری Service Worker (بدون آفلاین), ۱۷-۲) استراتژی‌های Caching (فقط برای سرعت، نه آفلاین), ۱۷-۲-الف) حل تداخل کش SW با rollback مستقل (رفع C3), ۱۷-۳) Push Notification (آینده، ولی زیرساخت از الان), ۱۷-۴) اشتراک Remote ها در Push
 
 ### Community 1121 - "createBaseSemanticVisitorConstructor"
 Cohesion: 0.40
@@ -5790,24 +5847,20 @@ Cohesion: 0.40
 Nodes (4): HansardContribution, HansardDebate, HansardDivision, HansardSearchResponse
 
 ### Community 1126 - "SECTION: Data Storage"
-Cohesion: 0.40
-Nodes (5): Clearing Data, Database, Image Cache, SECTION: Data Storage, Vector Store
+Cohesion: 0.33
+Nodes (6): ۱۸) Resilience & خطایابی Module Federation / Federation Resilience, ۱۸-۱) خطاهای ممکن در Federation, ۱۸-۲) ماتریس راهکار / Mitigation Matrix, ۱۸-۳) الگوی Fallback Component, ۱۸-۴) Version Negotiation در Federation, ۱۸-۵) Error Boundary سراسری در Shell
 
 ### Community 1127 - "v0.7.0: Score-Based Source Routing & Embedding Reliability"
-Cohesion: 0.40
-Nodes (5): Adaptive Ingestion Deduplication, LFU Embedding Cache, ONNX DirectML GPU Stability, Self-Describing Source Routing, v0.7.0: Score-Based Source Routing & Embedding Reliability
-
-### Community 1128 - "Configuration"
-Cohesion: 0.40
-Nodes (5): API Keys, Configuration, Email Delivery, Prompt Customization, Resilience
+Cohesion: 0.67
+Nodes (3): Desktop GUI Application, Features, Running the Desktop App
 
 ### Community 1129 - "MCP Server (AI Agent Integration)"
 Cohesion: 0.40
-Nodes (5): Available Tools, Configuration, Example Agent Workflows, MCP Server (AI Agent Integration), Starting the MCP Server
+Nodes (5): ۱۹) استراتژی تست / Testing Strategy, ۱۹-۱) هرم تست / Testing Pyramid, ۱۹-۲) ماتریس مسئولیت تست / Test Responsibility Matrix, ۱۹-۳) Contract Testing (مهم), ۱۹-۴) تست در CI
 
 ### Community 1130 - "v0.6.1: Advanced Search & Retrieval"
 Cohesion: 0.40
-Nodes (5): Composite Query Decomposition, Entity Profile HNSW, Lucene.NET Hybrid Search, Reliability Improvements, v0.6.1: Advanced Search & Retrieval
+Nodes (5): ۲۲) حاکمیت معماری و مالکیت / Architecture Governance & Ownership, ۲۲-۱) Ownership Matrix, ۲۲-۲) ADR (Architecture Decision Records), ۲۲-۳) فرآیند انتشار نسخه‌ی پکیج‌های مشترک / Release Process, ۲۲-۴) مدیریت Breaking Changes
 
 ### Community 1131 - "Algorithm"
 Cohesion: 0.40
@@ -5815,11 +5868,7 @@ Nodes (5): 1. High-Frequency Edge Density (30% weight), 2. Bimodal Luminance Dis
 
 ### Community 1132 - "SaasUsageRollupEntity"
 Cohesion: 0.40
-Nodes (4): DateOnly, DateTimeOffset, Guid, SaasUsageRollupEntity
-
-### Community 1133 - "ActiveIngestionJob"
-Cohesion: 0.40
-Nodes (5): IngestionJobStatus, CancellationTokenSource, DateTimeOffset, ActiveIngestionJob, DiscoveredItem
+Nodes (5): Available Tools, Configuration, Example Agent Workflows, MCP Server (AI Agent Integration), Starting the MCP Server
 
 ### Community 1134 - "Troubleshooting"
 Cohesion: 0.40
@@ -5995,27 +6044,27 @@ Nodes (4): Pipeline Architecture, Tier 1: Dictionary + Heuristics (50-100ms, fre
 
 ### Community 1179 - "The Agentic Loop"
 Cohesion: 0.50
-Nodes (4): 1. INITIALIZE, 2. MAIN LOOP (while not converged and within budget), 3. FINALIZE, The Agentic Loop
+Nodes (4): PoC محلی (فاز ۰–۲): بدون Azure, تکمیل Pipeline (فاز ۴ و بعد) / Full Pipeline — Later, شرکت (فاز ۳+): Azure Pipeline — Build → Deploy, ۵) CI/CD / DevOps Pipeline
 
 ### Community 1180 - "Convergence Detection"
 Cohesion: 0.50
-Nodes (4): 1. New Information Declining, 2. Frontier Exhausted, 3. Budget Exhausted, Convergence Detection
+Nodes (4): **اسناد مکمل:**, راهنمای آموزش تیم سوپر اپ (SuperApp) `SupperApp-Learning-Guid.md`, واژه‌نامه مخفف‌های پروژه سوپر اپ (SuperApp Glossary) `SuperApp-Glossary.md`, گام‌های ساخت از صفر و جزئیات پیاده‌سازی در `SuperApp-Implementation-Progress.md`
 
 ### Community 1181 - "Semantic Scholar API"
 Cohesion: 0.50
-Nodes (4): Authentication, Paper ID Formats, Response Models, Semantic Scholar API
+Nodes (4): ۲۱) API Governance و پیکربندی مشترک / API Governance & Shared Config, ۲۱-۱) پکیج جدید: `@superapp/config`, ۲۱-۲) API Governance با OpenAPI, ۲۱-۳) مدیریت تغییر API / API Change Management
 
 ### Community 1182 - "Data Flow"
 Cohesion: 0.50
-Nodes (4): Content Resolution Strategy, Data Flow, ID Normalization, Paper Storage
+Nodes (4): ۲۳) استراتژی دیپلوی پیشرفته / Advanced Deployment Strategy, ۲۳-۱) استراتژی‌ها, ۲۳-۲) Pipeline کامل / Full Pipeline (فاز ۴ و بعد), ۲۳-۳) Feature Flags در عمل
 
 ### Community 1183 - "Programmatic API"
 Cohesion: 0.50
-Nodes (4): Programmatic API, Resume After Crash, Service Registration, Starting and Monitoring
+Nodes (4): ۲۴) Observability / Monitoring & Logging, ۲۴-۱) لایه‌های Observability, ۲۴-۲) چی پکیج Observability, ۲۴-۳) فازبندی Observability
 
 ### Community 1184 - "State Persistence & Crash Recovery"
-Cohesion: 0.50
-Nodes (4): Resume Flow, Size Considerations, State Persistence & Crash Recovery, What's Persisted
+Cohesion: 0.40
+Nodes (5): Composite Query Decomposition, Entity Profile HNSW, Lucene.NET Hybrid Search, Reliability Improvements, v0.6.1: Advanced Search & Retrieval
 
 ### Community 1185 - "_ViewImports.cshtml"
 Cohesion: 0.50
@@ -6038,28 +6087,28 @@ Cohesion: 0.67
 Nodes (4): ascending(), bisector(), "node_modules/d3-array/src/bisect.js"(), number()
 
 ### Community 1190 - "SECTION: MCP Server Mode"
-Cohesion: 0.50
-Nodes (4): Available Tools (15), Integration Example (Claude Desktop), SECTION: MCP Server Mode, Usage
+Cohesion: 0.67
+Nodes (3): ۲۰) امنیت و کارایی / Security & Performance Hardening, ۲۰-۱) امنیت / Security, ۲۰-۲) کارایی / Performance
 
-### Community 1191 - "SECTION: Overview"
-Cohesion: 0.50
-Nodes (4): Build Variants, SECTION: Overview, Smart Routing, What is DoomSummarizer?
+### Community 1191 - ".AnalyzeAsync"
+Cohesion: 0.28
+Nodes (6): CancellationToken, FetchCandidate, IEnumerable, IReadOnlyList, Task, CitationExtractionWave
 
 ### Community 1192 - "SECTION: First-Time Setup"
-Cohesion: 0.50
-Nodes (4): Command: `setup`, LLM Provider Defaults, Prerequisites, SECTION: First-Time Setup
+Cohesion: 0.67
+Nodes (3): ۸) مدیریت Server-State / Server-State Management (`@superapp/query`), ۸-۱) تصمیم: TanStack Query به‌صورت singleton مشترک, ۸-۲) قواعد کلید کش و invalidation
 
 ### Community 1193 - "SECTION: ask Command"
-Cohesion: 0.50
-Nodes (4): Examples, Options, SECTION: ask Command, Usage
+Cohesion: 0.16
+Nodes (8): Drop, Dictionary, ILogger, List, SourceCitation, LensLiquidFilters, LensRenderService, SourceCitationDrop
 
-### Community 1194 - "RrfWeightsConfig"
-Cohesion: 0.67
-Nodes (3): string, RrfModeWeights, RrfWeightsConfig
-
-### Community 1195 - "SaasQueryLogEntity"
+### Community 1195 - "AuthorizationSetup.cs"
 Cohesion: 0.50
-Nodes (3): DateTimeOffset, Guid, SaasQueryLogEntity
+Nodes (3): string, AggregationStrategy, SignalTags
+
+### Community 1196 - "RobotsTxt"
+Cohesion: 0.29
+Nodes (4): Fact, List, Task, SubtitleBenchmarks
 
 ### Community 1197 - "Distribution Alternatives"
 Cohesion: 0.50
@@ -6086,8 +6135,8 @@ Cohesion: 0.50
 Nodes (4): Automatic Drift Detection, Cron Job Pattern, Distance Metrics, How It Works
 
 ### Community 1203 - "Unified Pipeline Integration"
-Cohesion: 0.50
-Nodes (4): Benefits, Service Registration, Unified Pipeline Integration, XxHash64 Content Hashing
+Cohesion: 0.35
+Nodes (4): Mat, QualityReport, ImageQualityAssessor, QualityReport
 
 ### Community 1204 - "Trust Model"
 Cohesion: 0.50
@@ -6137,9 +6186,9 @@ Nodes (3): CLI Commands, Mostlylucid.LucidRAG.Plugins.Video, Supported Extension
 Cohesion: 0.50
 Nodes (3): Docs, Install, Mostlylucid.LucidRAG.Plugins.YouTube
 
-### Community 1216 - "Key Features"
-Cohesion: 0.50
-Nodes (4): Auto-Download Resources, Frame Strip Technology, Key Features, Multiple Output Formats
+### Community 1216 - "ServiceProviderExtensions"
+Cohesion: 0.18
+Nodes (8): EventId, Exception, Func, IDisposable, ILogger, LogLevel, LoggerAdapter, PreprocessingLevel
 
 ### Community 1217 - "Mostlylucid.LucidRAG.Plugins.Complete"
 Cohesion: 0.50
@@ -6153,21 +6202,17 @@ Nodes (3): DateTimeOffset, AnnouncementDto, CreateAnnouncementRequest
 Cohesion: 0.67
 Nodes (3): Debugging & Diagnostics, Intermediate Images, Performance Metrics
 
-### Community 1224 - "Architecture"
-Cohesion: 0.67
-Nodes (3): Architecture, Technology Stack, Wave-Based Pipeline
-
 ### Community 1225 - "Overview"
 Cohesion: 0.67
 Nodes (3): Overview, What AudioSummarizer Does, What AudioSummarizer Does NOT Do
 
 ### Community 1226 - "1. Enhanced MCP Server with 5 New Tools"
-Cohesion: 0.67
-Nodes (3): 1. Enhanced MCP Server with 5 New Tools, Content Generation Tools (3), Template System Tools (2)
+Cohesion: 0.32
+Nodes (7): CancellationToken, Guid, List, Task, ISalientTermsService, SalientTermStats, SalientTermSuggestion
 
-### Community 1227 - "Next Steps (Future Enhancements)"
-Cohesion: 0.67
-Nodes (3): Next Steps (Future Enhancements), Not Required Now, Optional Future Work
+### Community 1227 - ".PlayEasterEggAnimationAsync"
+Cohesion: 0.46
+Nodes (4): PlayerDocument, CancellationToken, Task, ScrollCommand
 
 ### Community 1228 - "What Was Integrated"
 Cohesion: 0.67
@@ -6213,13 +6258,13 @@ Nodes (3): .NET Libraries Used, No External Dependencies, Technology Stack
 Cohesion: 0.67
 Nodes (3): Areas for Improvement 🔧, Key Findings, Strengths ✅
 
-### Community 1239 - "Configuration Reference"
-Cohesion: 0.67
-Nodes (3): Configuration Reference, UltraResearchConfig, UltraResearchOptions (DI)
+### Community 1239 - "ServiceProviderExtensions"
+Cohesion: 0.50
+Nodes (4): Built-in Templates, List All Available Templates, Templates, YAML Templates (Structured Articles)
 
-### Community 1244 - "Configuration: Multi-Backend Setup"
-Cohesion: 0.67
-Nodes (3): Basic Configuration, Configuration: Multi-Backend Setup, Cost-Optimized Configuration
+### Community 1244 - "Long-Form Article Generation"
+Cohesion: 0.50
+Nodes (4): Evidence Assignment, Long-Form Article Generation, Output Validation, Pipeline Phases
 
 ### Community 1245 - "Performance Considerations"
 Cohesion: 0.67
@@ -6257,25 +6302,205 @@ Nodes (3): 🔧 Command-Line Reference, New Commands, New Options
 Cohesion: 0.67
 Nodes (3): Configuration Migration, From v1.0 to v2.0, 🎓 Migration Guide
 
+### Community 1391 - "ResearchChatService"
+Cohesion: 0.24
+Nodes (8): CancellationToken, ILogger, List, string, Task, ChatResult, ChatSource, ResearchChatService
+
+### Community 1392 - ".GetMagicBytes"
+Cohesion: 0.40
+Nodes (4): BinarizationMethod, Mat, BinarizationMethod, InkExtractor
+
+### Community 1393 - "Processing Pipeline"
+Cohesion: 0.67
+Nodes (3): `--no-llm` Mode, Processing Pipeline, Ranking Signals (RRF Fusion)
+
+### Community 1395 - "QueryNerContext"
+Cohesion: 0.31
+Nodes (8): CancellationToken, HashSet, IEnumerable, List, Task, EntitySearchQuery, QueryNerContext, QueryPreprocessor
+
+### Community 1396 - "ProcessorManifestModels.cs"
+Cohesion: 0.35
+Nodes (10): Dictionary, List, ProcessorCapabilities, ProcessorDefaultsConfig, ProcessorInputContract, ProcessorKind, ProcessorManifest, ProcessorOutputContract (+2 more)
+
+### Community 1397 - "WaveRegistryInitializer"
+Cohesion: 0.24
+Nodes (6): CancellationToken, Task, CancellationToken, ILogger, Task, WaveRegistryInitializer
+
+### Community 1398 - ".Denoise"
+Cohesion: 0.38
+Nodes (4): DenoiseMethod, Mat, DenoiseMethod, NoiseReducer
+
+### Community 1399 - "MarkdownFormatter"
+Cohesion: 0.08
+Nodes (15): IEnumerable, Task, IOutputFormatter, IEnumerable, JsonSerializerOptions, List, Task, JsonFormatter (+7 more)
+
+### Community 1401 - ".Detect"
+Cohesion: 0.28
+Nodes (6): ComponentStats, OverCorrectionReport, Mat, ComponentStats, OverCorrectionDetector, OverCorrectionReport
+
+### Community 1403 - "SECTION: scroll Command"
+Cohesion: 0.22
+Nodes (9): Arguments, Examples, Extending with Plugins, Local File Ingestion via scroll, Options, Output Modes, Pipeline Stages, SECTION: scroll Command (+1 more)
+
+### Community 1408 - "SentinelRefiner"
+Cohesion: 0.36
+Nodes (6): Dictionary, IEnumerable, ILogger, List, SentinelRefinementInput, SentinelRefiner
+
+### Community 1410 - "EmbeddingHelper"
+Cohesion: 0.31
+Nodes (3): IEnumerable, int, EmbeddingHelper
+
+### Community 1411 - "SalientSegmentCacheRegistry"
+Cohesion: 0.32
+Nodes (5): cache, ConcurrentDictionary, Guid, SalientSegmentCacheRegistry, turn
+
+### Community 1415 - "DoomSummarizer User Manual"
+Cohesion: 0.25
+Nodes (7): Built-in Sources, Crawl Collections, DoomSummarizer User Manual, Plugin Sources, SECTION: Environment Variables, SECTION: Glossary, SECTION: Source Reference
+
+### Community 1417 - "NullLlmService"
+Cohesion: 0.46
+Nodes (3): CancellationToken, Task, NullLlmService
+
+### Community 1423 - "SECTION: crawl Command"
+Cohesion: 0.29
+Nodes (7): Arguments, Examples, Incremental Updates, Options, SECTION: crawl Command, Usage, YouTube Support (`lucidrag` Only)
+
+### Community 1424 - "SECTION: Other Commands"
+Cohesion: 0.29
+Nodes (7): benchmark - Model Testing, list - Content Browser, plugin - Extension Manager, SECTION: Other Commands, show - Collection Inspector, sources - Source Registry, trends - Analytics
+
+### Community 1425 - "ul"
+Cohesion: 0.29
+Nodes (7): cl(), fl(), ll(), ol(), ql(), sl(), ul()
+
+### Community 1432 - "Debug Issue"
+Cohesion: 0.40
+Nodes (4): Debug Issue, Steps, Tips, Token Efficiency Rules
+
+### Community 1433 - "Explore Codebase"
+Cohesion: 0.40
+Nodes (4): Explore Codebase, Steps, Tips, Token Efficiency Rules
+
+### Community 1434 - "Refactor Safely"
+Cohesion: 0.40
+Nodes (4): Refactor Safely, Safety Checks, Steps, Token Efficiency Rules
+
+### Community 1435 - "Review Changes"
+Cohesion: 0.40
+Nodes (4): Output Format, Review Changes, Steps, Token Efficiency Rules
+
+### Community 1436 - "MCP Tools: code-review-graph"
+Cohesion: 0.40
+Nodes (4): Key Tools, MCP Tools: code-review-graph, When to use graph tools FIRST, Workflow
+
+### Community 1437 - "Debug Issue"
+Cohesion: 0.40
+Nodes (4): Debug Issue, Steps, Tips, Token Efficiency Rules
+
+### Community 1438 - "Explore Codebase"
+Cohesion: 0.40
+Nodes (4): Explore Codebase, Steps, Tips, Token Efficiency Rules
+
+### Community 1439 - "Refactor Safely"
+Cohesion: 0.40
+Nodes (4): Refactor Safely, Safety Checks, Steps, Token Efficiency Rules
+
+### Community 1440 - "Review Changes"
+Cohesion: 0.40
+Nodes (4): Output Format, Review Changes, Steps, Token Efficiency Rules
+
+### Community 1442 - "MCP Tools: code-review-graph"
+Cohesion: 0.40
+Nodes (4): Key Tools, MCP Tools: code-review-graph, When to use graph tools FIRST, Workflow
+
+### Community 1443 - "Debug Issue"
+Cohesion: 0.40
+Nodes (4): Debug Issue, Steps, Tips, Token Efficiency Rules
+
+### Community 1444 - "Explore Codebase"
+Cohesion: 0.40
+Nodes (4): Explore Codebase, Steps, Tips, Token Efficiency Rules
+
+### Community 1445 - "Refactor Safely"
+Cohesion: 0.40
+Nodes (4): Refactor Safely, Safety Checks, Steps, Token Efficiency Rules
+
+### Community 1446 - "Review Changes"
+Cohesion: 0.40
+Nodes (4): Output Format, Review Changes, Steps, Token Efficiency Rules
+
+### Community 1447 - "MCP Tools: code-review-graph"
+Cohesion: 0.40
+Nodes (4): Key Tools, MCP Tools: code-review-graph, When to use graph tools FIRST, Workflow
+
+### Community 1448 - "MCP Tools: code-review-graph"
+Cohesion: 0.40
+Nodes (4): Key Tools, MCP Tools: code-review-graph, When to use graph tools FIRST, Workflow
+
+### Community 1449 - "MCP Tools: code-review-graph"
+Cohesion: 0.40
+Nodes (4): Key Tools, MCP Tools: code-review-graph, When to use graph tools FIRST, Workflow
+
+### Community 1450 - "SECTION: Data Storage"
+Cohesion: 0.40
+Nodes (5): Clearing Data, Database, Image Cache, SECTION: Data Storage, Vector Store
+
+### Community 1458 - "SECTION: MCP Server Mode"
+Cohesion: 0.50
+Nodes (4): Available Tools (15), Integration Example (Claude Desktop), SECTION: MCP Server Mode, Usage
+
+### Community 1459 - "SECTION: Overview"
+Cohesion: 0.50
+Nodes (4): Build Variants, SECTION: Overview, Smart Routing, What is DoomSummarizer?
+
+### Community 1460 - "SECTION: First-Time Setup"
+Cohesion: 0.50
+Nodes (4): Command: `setup`, LLM Provider Defaults, Prerequisites, SECTION: First-Time Setup
+
+### Community 1461 - "SECTION: Output Templates"
+Cohesion: 0.50
+Nodes (4): Custom Templates, Listing Templates, SECTION: Output Templates, Using Templates
+
+### Community 1462 - "SECTION: ask Command"
+Cohesion: 0.50
+Nodes (4): Examples, Options, SECTION: ask Command, Usage
+
+### Community 1463 - "SECTION: page Command"
+Cohesion: 0.50
+Nodes (4): Examples, Options, SECTION: page Command, Usage
+
+### Community 1464 - "SECTION: man Command"
+Cohesion: 0.50
+Nodes (4): Examples, Options, SECTION: man Command, Usage
+
+### Community 1465 - "RrfWeightsConfig"
+Cohesion: 0.67
+Nodes (3): string, RrfModeWeights, RrfWeightsConfig
+
+### Community 1466 - "Unified Pipeline Integration"
+Cohesion: 0.50
+Nodes (4): Benefits, Service Registration, Unified Pipeline Integration, XxHash64 Content Hashing
+
 ## Knowledge Gaps
-- **4790 isolated node(s):** `name`, `version`, `description`, `type`, `dev` (+4785 more)
+- **4984 isolated node(s):** `crg-session-start.sh script`, `crg-update.sh script`, `C:\Users\10686661\AppData\Local\Programs\Python\Python314\python.exe`, `C:\Users\10686661\AppData\Local\Programs\Python\Python314\python.exe`, `C:\Users\10686661\AppData\Local\Programs\Python\Python314\python.exe` (+4979 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **102 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **107 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Mostlylucid.DocSummarizer.Services` connect `Mostlylucid.DocSummarizer.Services` to `ConsoleVerboseOutput`, `DoomSummarizer.Services`, `IVectorStore`, `Mostlylucid.DocSummarizer.Images.Models.Dynamic`, `AdaptiveChunkingTests`, `LucidRAG.LLM.Services.LoadBalancing`, `OpenAIEmbeddingService`, `.ComputeProfileWithExplainAsync`, `BenchmarkCommand.cs`, `PptxDocumentHandler`, `Mostlylucid.DocSummarizer.Core.Services`, `CachingEmbeddingService`, `LucidRAG.Entities`, `LucidRAG.UltraResearch`, `ContextCompressor`, `LlmOptions`, `IEmbeddingService`, `RetrievalBenchmarks`, `DocumentSignals`, `FrontMatterDetector`, `ProgressUpdate`, `ArchiveHandler`, `Program.cs`, `EntityGraphService`, `QdrantHttpClient.cs`, `.CreateAsync`, `OllamaService.cs`, `Task`, `LucidRAG.LLM.Config`, `DocSummarizerConfig`, `IDocumentHandler`, `.BuildCorpus`, `LoadBalancedLlmService`, `EndpointHealthMonitor`, `StopwordLists`, `SimpleProgressService`, `.ScoreItemsAsync`, `DoclingClient.cs`, `HierarchicalCollectionSummarizer`, `ShortTextSummarizer`, `DiskBackedChunkStore`, `AnthropicLlmService`, `TextCleaner`, `BertSummarizer`, `SegmentExtractor.cs`, `BertRagSummarizer`, `AutocompleteService`, `SentinelSourceMapper`, `ILlmService`, `TelemetryExtensionsTests`, `PromptInterpreter`, `Mostlylucid.GraphRag.Services`, `.CrawlAsync`, `ConversationSentinel`, `OllamaService`, `CancellationToken`, `DoomWriter.Models`, `LucidRAG.Decomposer.Models`, `QualityAnalyzer.cs`?**
-  _High betweenness centrality (0.103) - this node is a cross-community bridge._
-- **Why does `IEmbeddingService` connect `IEmbeddingService` to `CorpusService`, `IVectorStore`, `ProfileAwareEntityExtractor`, `LlmClientAdapter`, `OpenAIEmbeddingService`, `.ComputeProfileWithExplainAsync`, `CommandBootstrap`, `CachingEmbeddingService`, `RagSummarizer`, `PipelinedBertRagSummarizer`, `StructuralAnalyzer`, `ContextCompressor`, `.AnalyzeAsync`, `RetrievalBenchmarks`, `DocumentSignals`, `.LoadAllExemplars`, `SignalPanelViewModel`, `EntityGraphService`, `.CreateAsync`, `Task`, `DocSummarizerConfig`, `Models.cs`, `StopwordLists`, `CommunityDetectionService`, `DocSummarizerInitializer`, `.ScoreItemsAsync`, `DocumentSummarizer`, `SentinelService`, `.ProcessDocumentAsync`, `BertRagSummarizer`, `AutocompleteService`, `EntityDisambiguationServiceTests`, `PromptInterpreter`, `.ProcessInteractiveCommandAsync`, `ConceptType`, `ToolUseAnalyzer`, `SemanticClusterAnalyzer`, `EntityMatcher`, `ConversationSentinel`, `PersonalCorpusService`, `SourceRouterTests`, `DoomScrollerTools`, `LuceneSearchService`, `OllamaService`, `.ExecuteAsync`, `QueryNode`, `HotPathBenchmarks`, `StorageService`?**
+- **Why does `Mostlylucid.DocSummarizer.Services` connect `Mostlylucid.DocSummarizer.Services` to `ImageEntityExtractor`, `ConsoleVerboseOutput`, `DoomSummarizer.Services`, `DomainClassifier.Tests`, `Mostlylucid.DocSummarizer.Images.Models.Dynamic`, `NullLlmService`, `CliApp`, `OpenAIEmbeddingService`, `.GroupIntoLines`, `.ComputeProfileWithExplainAsync`, `ImageAnalyzer`, `BenchmarkCommand.cs`, `UltraResearchState`, `PptxDocumentHandler`, `CachingEmbeddingService`, `LucidRAG.Entities`, `ImageConfidenceBooster`, `ContextCompressor`, `LlmOptions`, `IEmbeddingService`, `RetrievalBenchmarks`, `DocumentSignals`, `FrontMatterDetector`, `ArchiveHandler`, `NativeExtractionWave`, `QdrantHttpClient.cs`, `.CreateAsync`, `Task`, `DocSummarizerConfig`, `IDocumentHandler`, `.BuildCorpus`, `LoadBalancedLlmService`, `EndpointHealthMonitor`, `StopwordLists`, `CommunityDetectionService`, `SimpleProgressService`, `.ScoreItemsAsync`, `HierarchicalCollectionSummarizer`, `ShortTextSummarizer`, `VlmOcrService`, `AnthropicLlmService`, `ISignalAware.cs`, `DocumentSummarizer`, `BertSummarizer`, `MainWindow`, `NanonetsOcrWave`, `SegmentExtractor.cs`, `AutocompleteService`, `BertRagSummarizer`, `TelemetryExtensionsTests`, `PromptInterpreter`, `ConceptType`, `Mostlylucid.GraphRag.Services`, `Mostlylucid.RAG.Services`, `ConversationSentinel`, `ResearchChatService`, `OllamaService`, `QueryNerContext`, `GifMotionAnalyzer`, `DoomWriter.Models`, `LucidRAG.Decomposer.Models`, `QualityAnalyzer.cs`?**
+  _High betweenness centrality (0.101) - this node is a cross-community bridge._
+- **Why does `DoomSummarizer.Services` connect `DoomSummarizer.Services` to `.ClassifyAsync`, `TextRecognizerService`, `DomainClassifier.Tests`, `Mostlylucid.DocSummarizer.Images.Models.Dynamic`, `BenchmarkCommand.cs`, `.ComputeProfileWithExplainAsync`, `Mostlylucid.DocSummarizer.Services`, `CommandBootstrap`, `RedditCommentsFetcher.cs`, `SECTION: Other Commands`, `.IndexFileAsync`, `LucidRAG.Entities`, `ContentItem.cs`, `LucidRAG.UltraResearch.Waves`, `ContextCompressor`, `IEmbeddingService`, `IEntityGraphStore`, `.AnalyzeAsync`, `DoomConfig`, `LinkFollowingService`, `StoredItem`, `.CreateAsync`, `UkPoliceFetcher.cs`, `Task`, `.BuildCorpus`, `UkEnvironmentFetcher.cs`, `StopwordLists`, `StackOverflowFetcher`, `.ScoreItemsAsync`, `.Fuse`, `EvidenceAssigner`, `PromptTemplateService`, `DigestData`, `.BuildLayout`, `TextRankExtractor`, `.GenerateAsync`, `PromptInterpreter`, `StorageService`, `.RunInteractiveLoopAsync`, `SpaceflightNewsFetcher.cs`, `UkParliamentFetcher.cs`, `.ExtractProfile`, `SemanticScholarClient`, `ConversationSentinel`, `TesseractOcrEngine`, `WikipediaFetcher.cs`, `UrlFixerService`, `QueryNerContext`, `GifMotionAnalyzer`, `DoomWriter.Models`, `LucidRAG.Decomposer.Models`, `QueryFeatures`, `AcademicPatterns`?**
+  _High betweenness centrality (0.051) - this node is a cross-community bridge._
+- **Why does `IEmbeddingService` connect `.GroupIntoLines` to `CorpusService`, `AnalysisContext`, `ApiKeyService`, `ProfileAwareEntityExtractor`, `LlmClientAdapter`, `.ComputeProfileWithExplainAsync`, `CommandBootstrap`, `CachingEmbeddingService`, `RagSummarizer`, `.Extract`, `StructuralAnalyzer`, `ContextCompressor`, `TableProcessingService`, `IEmbeddingService`, `RetrievalBenchmarks`, `IEntityGraphStore`, `DocumentSignals`, `.LoadAllExemplars`, `SignalPanelViewModel`, `EntityGraphService`, `.CreateAsync`, `Task`, `DocSummarizerConfig`, `Models.cs`, `StopwordLists`, `CommunityDetectionService`, `DocSummarizerInitializer`, `.ScoreItemsAsync`, `DocumentSummarizer`, `SentinelService`, `BertSummarizer`, `.ProcessDocumentAsync`, `BertRagSummarizer`, `AutocompleteService`, `PromptInterpreter`, `.ProcessInteractiveCommandAsync`, `ToolUseAnalyzer`, `SemanticClusterAnalyzer`, `EntityMatcher`, `ConversationSentinel`, `PersonalCorpusService`, `SourceRouterTests`, `DoomScrollerTools`, `ResearchChatService`, `OllamaService`, `.ExecuteAsync`, `QueryNerContext`, `QueryNode`, `HotPathBenchmarks`?**
   _High betweenness centrality (0.045) - this node is a cross-community bridge._
-- **Why does `DoomSummarizer.Services` connect `DoomSummarizer.Services` to `.ClassifyAsync`, `TextRecognizerService`, `BenchmarkCommand.cs`, `.ComputeProfileWithExplainAsync`, `CommandBootstrap`, `RedditCommentsFetcher.cs`, `LucidRAG.Entities`, `LucidRAG.UltraResearch`, `ContentItem.cs`, `QueryTypeDetector`, `ContextCompressor`, `EvidenceCorpus`, `.ReadAsync`, `IEmbeddingService`, `LucidRAG.UltraResearch.Waves`, `DoomConfig`, `EntityGraphService`, `.CreateAsync`, `OllamaService.cs`, `UkPoliceFetcher.cs`, `Task`, `PromptTemplateServiceTests`, `.BuildCorpus`, `UkEnvironmentFetcher.cs`, `StopwordLists`, `StackOverflowFetcher`, `.ScoreItemsAsync`, `.Fuse`, `UltraResearchModelsTests`, `.AnalyzeAsync`, `DoomSummarizer.Models.LongFormGeneration`, `StorageService`, `UsgsEarthquakeFetcher.cs`, `PromptTemplateService`, `DigestData`, `Mostlylucid.Summarizer.Core.Analysis`, `DuckDbVectorStore`, `SentinelSourceMapper`, `TextRankExtractor`, `StorageService`, `PromptInterpreter`, `.RunInteractiveLoopAsync`, `SpaceflightNewsFetcher.cs`, `UkParliamentFetcher.cs`, `.ExtractProfile`, `CommonSettings`, `.CrawlAsync`, `SemanticScholarClient`, `ConversationSentinel`, `WikipediaFetcher.cs`, `.AnalyzeAsync`, `UrlFixerService`, `PromptSalienceIndex`, `SourceFilterSet`, `DoomWriter.Models`, `LucidRAG.Decomposer.Models`, `QueryFeatures`, `AcademicPatterns`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
-- **What connects `name`, `version`, `description` to the rest of the system?**
-  _4790 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `crg-session-start.sh script`, `crg-update.sh script`, `C:\Users\10686661\AppData\Local\Programs\Python\Python314\python.exe` to the rest of the system?**
+  _4984 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `mermaid-parser-bundle.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.0017289994151913743 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0017310865637729322 - nodes in this community are weakly interconnected._
 - **Should `d3.v7.min.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.009108653220559532 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.008535653186765187 - nodes in this community are weakly interconnected._
 - **Should `d3.v7.min.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.009461940403897754 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.011356843992827256 - nodes in this community are weakly interconnected._

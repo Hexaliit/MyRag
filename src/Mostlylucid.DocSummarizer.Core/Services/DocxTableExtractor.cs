@@ -65,9 +65,10 @@ public class DocxTableExtractor : ITableExtractor
                 {
                     var extractedTable = ExtractTable(table, filePath, tableNumber, options);
 
-                    if (extractedTable != null &&
-                        extractedTable.RowCount >= options.MinRows &&
-                        extractedTable.ColumnCount >= options.MinColumns)
+                    if (extractedTable != null
+                       // && extractedTable.RowCount >= options.MinRows
+                        // && extractedTable.ColumnCount >= options.MinColumns
+                        )
                     {
                         extractedTables.Add(extractedTable);
                         tableNumber++;
