@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using Markdig.Extensions.Tables;
 using Mostlylucid.DocSummarizer.Models;
 
 namespace Mostlylucid.DocSummarizer.Services;
@@ -327,24 +328,25 @@ public record ParsedDocument(
 }
 
 /// <summary>
-///     A parsed section of a document
-/// </summary>
-public record ParsedSection(string Heading, int Level)
-{
-    public List<string> Paragraphs { get; } = new();
-    public List<SentenceInfo> Sentences { get; } = new();
-    public List<CodeBlockInfo> CodeBlocks { get; } = new();
-    public List<string> ListItems { get; } = new();
-    public List<string> Quotes { get; } = new();
-
-    /// <summary>
-    ///     Get all text content from this section
+    ///     A parsed section of a document
     /// </summary>
-    public string GetFullText()
+    public record ParsedSection(string Heading, int Level)
     {
-        return string.Join("\n\n", Paragraphs);
+        public List<string> Paragraphs { get; } = new();
+        public List<SentenceInfo> Sentences { get; } = new();
+        public List<CodeBlockInfo> CodeBlocks { get; } = new();
+        public List<string> ListItems { get; } = new();
+        public List<string> Quotes { get; } = new();
+        public List<TableInfo> Tables { get; } = new();
+
+        /// <summary>
+        ///     Get all text content from this section
+        /// </summary>
+        public string GetFullText()
+        {
+            return string.Join("\n\n", Paragraphs);
+        }
     }
-}
 
 /// <summary>
 ///     Information about a single sentence for BERT extraction
@@ -388,6 +390,11 @@ public class SentenceInfo
 }
 
 /// <summary>
-///     Code block information
+    ///     Code block information
+    /// </summary>
+    public record CodeBlockInfo(string Language, string Code);
+
+/// <summary>
+///     Table information with surrounding context
 /// </summary>
-public record CodeBlockInfo(string Language, string Code);
+public record TableInfo(string Markdown, string? Caption = null, string? Explanation = null);

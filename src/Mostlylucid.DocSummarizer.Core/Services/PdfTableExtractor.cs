@@ -122,7 +122,7 @@ public class PdfTableExtractor : ITableExtractor
         foreach (var region in tableRegions)
             try
             {
-                var table = BuildTableFromRegion(region, sourcePath, pageNumber, globalTableNumber, options);
+                var table = BuildTableFromRegion(region, rows, sourcePath, pageNumber, globalTableNumber, options);
 
                 if (table != null &&
                     table.RowCount >= options.MinRows &&
@@ -209,6 +209,7 @@ public class PdfTableExtractor : ITableExtractor
 
     private ExtractedTable? BuildTableFromRegion(
         List<List<Word>> region,
+        List<List<Word>> allPageRows,
         string sourcePath,
         int pageNumber,
         int tableNumber,
@@ -245,6 +246,12 @@ public class PdfTableExtractor : ITableExtractor
         List<string>? columnNames = null;
         if (hasHeader && tableRows.Count > 0) columnNames = tableRows[0].Select(c => c.Text ?? "").ToList();
 
+        // Extract caption: text appearing immediately above the table region
+        var caption = ExtractCaptionAboveTable(region, allPageRows);
+
+        // Extract explanation: text appearing immediately below the table region
+        var explanation = ExtractExplanationBelowTable(region, allPageRows);
+
         var tableId = $"{Path.GetFileNameWithoutExtension(sourcePath)}_table_{tableNumber}";
 
         return new ExtractedTable
@@ -257,6 +264,8 @@ public class PdfTableExtractor : ITableExtractor
             Rows = tableRows,
             HasHeader = hasHeader,
             ColumnNames = columnNames,
+            Caption = caption,
+            Explanation = explanation,
             Confidence = 0.6, // Lower confidence for heuristic extraction
             ExtractionMethod = Name,
             Metadata = new Dictionary<string, object>
@@ -298,6 +307,61 @@ public class PdfTableExtractor : ITableExtractor
         columns.Add((currentStart, xCoords.Last() + columnTolerance));
 
         return columns;
+    }
+
+    private static string? ExtractCaptionAboveTable(List<List<Word>> tableRegion, List<List<Word>> allPageRows)
+    {
+        if (tableRegion.Count == 0 || allPageRows.Count == 0) return null;
+
+        // Find the Y-coordinate of the first row in the table region
+        var tableTopY = tableRegion.First().First().BoundingBox.Bottom;
+
+        // Find rows that are above the table (Y < tableTopY)
+        var captionRows = new List<string>();
+        foreach (var row in allPageRows)
+        {
+            if (row.Count == 0) continue;
+            var rowY = row.First().BoundingBox.Bottom;
+            if (rowY < tableTopY)
+            {
+                var rowText = string.Join(" ", row.Select(w => w.Text)).Trim();
+                if (!string.IsNullOrEmpty(rowText))
+                    captionRows.Add(rowText);
+            }
+        }
+
+        // Take the last non-empty row above the table as the caption (closest to table)
+        if (captionRows.Count == 0) return null;
+
+        // Return the closest row above the table as the caption
+        return captionRows.Last();
+    }
+
+    private static string? ExtractExplanationBelowTable(List<List<Word>> tableRegion, List<List<Word>> allPageRows)
+    {
+        if (tableRegion.Count == 0 || allPageRows.Count == 0) return null;
+
+        // Find the Y-coordinate of the last row in the table region
+        var tableBottomY = tableRegion.Last().First().BoundingBox.Bottom;
+
+        // Find rows that are below the table (Y > tableBottomY)
+        var explanationRows = new List<string>();
+        foreach (var row in allPageRows)
+        {
+            if (row.Count == 0) continue;
+            var rowY = row.First().BoundingBox.Bottom;
+            if (rowY > tableBottomY)
+            {
+                var rowText = string.Join(" ", row.Select(w => w.Text)).Trim();
+                if (!string.IsNullOrEmpty(rowText))
+                    explanationRows.Add(rowText);
+            }
+        }
+
+        // Take the first non-empty row below the table as the explanation (closest to table)
+        if (explanationRows.Count == 0) return null;
+
+        return explanationRows.First();
     }
 
     private static bool DetectHeader(List<List<TableCell>> rows)

@@ -13,6 +13,16 @@ public class ExtractedTable
     public required string Id { get; init; }
 
     /// <summary>
+    ///     Caption/title text appearing above the table (e.g., "جدول 4-5-1- امتياز ارزيابي مدرسين")
+    /// </summary>
+    public string? Caption { get; init; }
+
+    /// <summary>
+    ///     Explanation text appearing below the table
+    /// </summary>
+    public string? Explanation { get; init; }
+
+    /// <summary>
     ///     Source document path
     /// </summary>
     public required string SourcePath { get; init; }

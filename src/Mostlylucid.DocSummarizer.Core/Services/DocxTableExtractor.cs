@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.DocSummarizer.Core.Models;
@@ -6,6 +7,7 @@ using OpenXmlTableCell = DocumentFormat.OpenXml.Wordprocessing.TableCell;
 using OpenXmlTable = DocumentFormat.OpenXml.Wordprocessing.Table;
 using OpenXmlTableRow = DocumentFormat.OpenXml.Wordprocessing.TableRow;
 using OpenXmlParagraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
+using OpenXmlBody = DocumentFormat.OpenXml.Wordprocessing.Body;
 
 namespace Mostlylucid.DocSummarizer.Core.Services;
 
@@ -63,7 +65,7 @@ public class DocxTableExtractor : ITableExtractor
             foreach (var table in tables)
                 try
                 {
-                    var extractedTable = ExtractTable(table, filePath, tableNumber, options);
+                    var extractedTable = ExtractTable(table, filePath, tableNumber, options, body);
 
                     if (extractedTable != null
                        // && extractedTable.RowCount >= options.MinRows
@@ -110,7 +112,8 @@ public class DocxTableExtractor : ITableExtractor
         OpenXmlTable table,
         string sourcePath,
         int tableNumber,
-        TableExtractionOptions options)
+        TableExtractionOptions options,
+        OpenXmlBody body)
     {
         var rows = new List<List<TableCell>>();
 
@@ -136,6 +139,12 @@ public class DocxTableExtractor : ITableExtractor
         List<string>? columnNames = null;
         if (hasHeader && rows.Count > 0) columnNames = rows[0].Select(c => c.Text ?? "").ToList();
 
+        // Extract caption: paragraph immediately before the table
+        var caption = ExtractParagraphBeforeElement(table, body);
+
+        // Extract explanation: paragraph immediately after the table
+        var explanation = ExtractParagraphAfterElement(table, body);
+
         var tableId = $"{Path.GetFileNameWithoutExtension(sourcePath)}_table_{tableNumber}";
 
         return new ExtractedTable
@@ -148,6 +157,8 @@ public class DocxTableExtractor : ITableExtractor
             Rows = rows,
             HasHeader = hasHeader,
             ColumnNames = columnNames,
+            Caption = caption,
+            Explanation = explanation,
             Confidence = EstimateConfidence(rows),
             ExtractionMethod = Name,
             Metadata = new Dictionary<string, object>
@@ -156,6 +167,66 @@ public class DocxTableExtractor : ITableExtractor
                 ["columnCount"] = rows.FirstOrDefault()?.Count ?? 0
             }
         };
+    }
+
+    private static string? ExtractParagraphBeforeElement(OpenXmlElement element, OpenXmlBody body)
+    {
+        // Find the previous sibling that is a paragraph
+        var previous = element.PreviousSibling<OpenXmlParagraph>();
+        if (previous != null)
+        {
+            var text = previous.InnerText?.Trim();
+            if (!string.IsNullOrEmpty(text))
+                return text;
+        }
+
+        // If no direct paragraph sibling, search backwards through all siblings
+        var allChildren = body.ChildElements.ToList();
+        var elementIndex = allChildren.IndexOf(element);
+        for (var i = elementIndex - 1; i >= 0; i--)
+        {
+            if (allChildren[i] is OpenXmlParagraph para)
+            {
+                var text = para.InnerText?.Trim();
+                if (!string.IsNullOrEmpty(text))
+                    return text;
+            }
+            // Stop if we hit another table
+            if (allChildren[i] is OpenXmlTable)
+                break;
+        }
+
+        return null;
+    }
+
+    private static string? ExtractParagraphAfterElement(OpenXmlElement element, OpenXmlBody body)
+    {
+        // Find the next sibling that is a paragraph
+        var next = element.NextSibling<OpenXmlParagraph>();
+        if (next != null)
+        {
+            var text = next.InnerText?.Trim();
+            if (!string.IsNullOrEmpty(text))
+                return text;
+        }
+
+        // If no direct paragraph sibling, search forward through all siblings
+        var allChildren = body.ChildElements.ToList();
+        var elementIndex = allChildren.IndexOf(element);
+        for (var i = elementIndex + 1; i < allChildren.Count; i++)
+        {
+            if (allChildren[i] is OpenXmlParagraph para)
+            {
+                var text = para.InnerText?.Trim();
+                if (!string.IsNullOrEmpty(text))
+                    return text;
+            }
+            // Stop if we hit another table
+            if (allChildren[i] is OpenXmlTable)
+                break;
+        }
+
+        return null;
     }
 
     private static string GetCellText(OpenXmlTableCell cell)

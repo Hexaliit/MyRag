@@ -111,7 +111,9 @@ public class TableProcessingService
             CollectionId = collectionId,
             ContentType = "table",
             Source = sourceFilePath,
-            Title = $"{Path.GetFileNameWithoutExtension(sourceFilePath)} - Table {table.TableNumber}",
+            Title = !string.IsNullOrWhiteSpace(table.Caption)
+                ? $"{Path.GetFileNameWithoutExtension(sourceFilePath)} - {table.Caption}"
+                : $"{Path.GetFileNameWithoutExtension(sourceFilePath)} - Table {table.TableNumber}",
             Summary = GenerateTableSummary(table),
             TextContent = GenerateTableTextRepresentation(table),
             ContentConfidence = table.Confidence ?? 1.0,
@@ -263,11 +265,15 @@ public class TableProcessingService
 
     /// <summary>
     ///     Generate text representation of table for embedding
-    ///     Format: "Table from {source} on page {page}: {title}\nColumns: {col1}, {col2}, ...\nData: {preview}"
+    ///     Format: "{caption}\nTable from {source} on page {page}\nColumns: {col1}, {col2}, ...\nData: {rows}\n{explanation}"
     /// </summary>
     private string GenerateTableTextRepresentation(ExtractedTable table)
     {
         var sb = new StringBuilder();
+
+        // Caption (title appearing above the table)
+        if (!string.IsNullOrWhiteSpace(table.Caption))
+            sb.AppendLine(table.Caption);
 
         // Source information
         sb.AppendLine($"Table from {Path.GetFileName(table.SourcePath)} on page {table.PageOrSection}");
@@ -276,7 +282,7 @@ public class TableProcessingService
         if (table.HasHeader && table.ColumnNames != null && table.ColumnNames.Count > 0)
             sb.AppendLine($"Columns: {string.Join(", ", table.ColumnNames)}");
 
-        // Data preview (first few rows)
+        // Data rows
         if (table.Rows.Count > 0)
         {
             foreach (var row in table.Rows)
@@ -285,6 +291,10 @@ public class TableProcessingService
                 sb.AppendLine(rowText);
             }
         }
+
+        // Explanation (text appearing below the table)
+        if (!string.IsNullOrWhiteSpace(table.Explanation))
+            sb.AppendLine(table.Explanation);
 
         return sb.ToString();
     }
