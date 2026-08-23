@@ -4,10 +4,10 @@
     var totalSegments = ViewBag.TotalSegments as int? ?? 0;
 }
 
-<div class="flex w-full h-full" x-data="ragApp()">
+<div class="flex w-full flex-1 min-h-0" x-data="ragApp()">
     <!-- Left Sidebar: Filters (Explorer) or Document Selection (Chat) -->
-    <aside class="bg-base-100 border-r border-base-300 flex flex-col transition-all duration-200"
-           :class="sidebarMode === 'explorer' ? 'w-64' : 'w-80'">
+<aside class="bg-base-100 border-r border-base-300 flex flex-col min-h-0 overflow-hidden transition-all duration-200"
+       :class="sidebarMode === 'explorer' ? 'w-64' : 'w-80'">
         <!-- Collection Selector (shared between modes) -->
         @await Html.PartialAsync("_SidebarCollectionSelector")
 
@@ -15,10 +15,10 @@
         @await Html.PartialAsync("_SidebarModeToggle")
 
         <!-- Swappable Sidebar Content -->
-        <div id="sidebar-content" class="flex-1 flex flex-col overflow-hidden">
+        <div id="sidebar-content" class="flex-1 flex flex-col overflow-hidden min-h-0">
             <!-- Chat Mode: Document selection for chat context -->
             <template x-if="sidebarMode === 'chat'">
-                <div class="flex flex-col h-full">
+                <div class="flex-1 flex flex-col min-h-0">
                     <!-- Communities Dropdown -->
                     @await Html.PartialAsync("_SidebarCommunitiesDropdown")
 
@@ -137,7 +137,7 @@
 
         <!-- CHAT MODE: Chat interface -->
         <template x-if="sidebarMode === 'chat'">
-            <div class="flex-1 flex flex-col">
+            <div class="flex-1 flex flex-col min-h-0">
                 <!-- Header with Mode Toggle -->
                 <div class="p-4 border-b border-base-300 flex items-center justify-between">
                     <h2 class="font-semibold flex items-center gap-2">
@@ -190,7 +190,7 @@
                 </div>
 
                 <!-- Content Area -->
-                <div class="flex-1 flex overflow-hidden min-h-0">
+                <div class="flex-1 flex flex-col overflow-hidden min-h-0">
                     <!-- Answer View -->
                     <template x-if="viewMode === 'answer'">
                         <div class="flex-1 flex flex-col min-h-0">

@@ -133,6 +133,35 @@ public class MarkdigDocumentParser
                     }
 
                     break;
+
+                case Table table:
+                    var tableMarkdown = ExtractTableMarkdown(table);
+                    if (!string.IsNullOrWhiteSpace(tableMarkdown))
+                    {
+                        // Extract caption from the paragraph immediately before this table
+                        var caption = ExtractCaptionFromPreviousParagraph(document, block);
+                        currentSection.Tables.Add(new TableInfo(tableMarkdown, caption));
+
+                        // Add table content as a sentence for search/retrieval
+                        var tableText = FlattenTableToText(table);
+                        if (!string.IsNullOrWhiteSpace(tableText))
+                        {
+                            var sentences = ExtractSentences(tableText);
+                            foreach (var sentence in sentences)
+                            {
+                                var info = new SentenceInfo(
+                                    sentenceIndex++,
+                                    sentence,
+                                    currentSection.Heading,
+                                    currentSection.Level,
+                                    sections.Count);
+                                currentSection.Sentences.Add(info);
+                                allSentences.Add(info);
+                            }
+                        }
+                    }
+
+                    break;
             }
 
         // Add final section
@@ -278,6 +307,135 @@ public class MarkdigDocumentParser
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return words.Length > 0 ? words[^1] : "";
     }
+
+    /// <summary>
+    ///     Extract a Table back to markdown string representation
+    /// </summary>
+    private static string ExtractTableMarkdown(Table table)
+    {
+        var sb = new StringBuilder();
+        var isFirstRow = true;
+
+        for (var i = 0; i < table.Count; i++)
+        {
+            if (table[i] is not TableRow tableRow) continue;
+
+            var cells = new List<string>();
+            for (var j = 0; j < tableRow.Count; j++)
+            {
+                if (tableRow[j] is TableCell cell)
+                {
+                    var cellText = GetCellText(cell);
+                    cells.Add(cellText);
+                }
+                else
+                {
+                    cells.Add("");
+                }
+            }
+
+            if (cells.Count == 0) continue;
+
+            sb.Append("| ");
+            sb.Append(string.Join(" | ", cells));
+            sb.AppendLine(" |");
+
+            // After the first data row, add the delimiter row
+            if (isFirstRow)
+            {
+                sb.Append("| ");
+                sb.Append(string.Join(" | ", cells.Select(_ => "---")));
+                sb.AppendLine(" |");
+                isFirstRow = false;
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    ///     Flatten a Table to plain text for sentence extraction
+    /// </summary>
+    private static string FlattenTableToText(Table table)
+    {
+        var parts = new List<string>();
+
+        for (var i = 0; i < table.Count; i++)
+        {
+            if (table[i] is not TableRow tableRow) continue;
+
+            for (var j = 0; j < tableRow.Count; j++)
+            {
+                if (tableRow[j] is TableCell cell)
+                {
+                    var cellText = GetCellText(cell);
+                    if (!string.IsNullOrWhiteSpace(cellText))
+                        parts.Add(cellText);
+                }
+            }
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    ///     Get text from a TableCell (which is a ContainerBlock with ParagraphBlocks inside)
+    /// </summary>
+    private static string GetCellText(TableCell cell)
+    {
+        var sb = new StringBuilder();
+        foreach (var block in cell)
+        {
+            if (block is ParagraphBlock para)
+            {
+                var text = GetInlineText(para.Inline);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    if (sb.Length > 0) sb.Append(' ');
+                    sb.Append(text);
+                }
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    ///     Extract the paragraph text immediately before a table block as its caption
+    /// </summary>
+    private static string? ExtractCaptionFromPreviousParagraph(MarkdownDocument document, Block tableBlock)
+    {
+        // Find the index of the table block in the document's children
+        var children = document.ToList();
+        var tableIndex = -1;
+        for (var i = 0; i < children.Count; i++)
+        {
+            if (children[i] == tableBlock)
+            {
+                tableIndex = i;
+                break;
+            }
+        }
+
+        if (tableIndex <= 0) return null;
+
+        // Look backwards for the first paragraph block
+        for (var i = tableIndex - 1; i >= 0; i--)
+        {
+            if (children[i] is ParagraphBlock prevParagraph)
+            {
+                var text = GetInlineText(prevParagraph.Inline);
+                if (!string.IsNullOrWhiteSpace(text))
+                    return text;
+            }
+
+            // If we hit a heading or another non-paragraph block, stop looking
+            if (children[i] is HeadingBlock || children[i] is FencedCodeBlock || children[i] is ListBlock)
+                break;
+        }
+
+        return null;
+    }
 }
 
 /// <summary>
@@ -340,11 +498,17 @@ public record ParsedDocument(
         public List<TableInfo> Tables { get; } = new();
 
         /// <summary>
-        ///     Get all text content from this section
+        ///     Get all text content from this section (paragraphs + table captions)
         /// </summary>
         public string GetFullText()
         {
-            return string.Join("\n\n", Paragraphs);
+            var parts = new List<string>(Paragraphs);
+            foreach (var table in Tables)
+            {
+                if (!string.IsNullOrWhiteSpace(table.Caption))
+                    parts.Add(table.Caption);
+            }
+            return string.Join("\n\n", parts);
         }
     }
 
