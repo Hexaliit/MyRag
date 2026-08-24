@@ -148,6 +148,9 @@
         <Content Update="wwwroot\assets\vazirmatn\vazirmatn.css">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
+        <Content Update="wwwroot\css\chat-persian.css">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
         <Content Update="wwwroot\css\filepond-plugin-file-poster.min.css">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>

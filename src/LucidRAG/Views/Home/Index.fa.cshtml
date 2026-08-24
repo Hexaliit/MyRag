@@ -4,7 +4,7 @@
     var totalSegments = ViewBag.TotalSegments as int? ?? 0;
 }
 
-<div class="flex w-full flex-1 min-h-0"
+<div class="flex w-full h-0 flex-1 min-h-0"
      x-data="ragApp()"
      dir="rtl">
     <!-- Left Sidebar: Filters (Explorer) or Document Selection (Chat) -->
@@ -114,7 +114,7 @@
     </aside>
 
     <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col bg-base-100 relative overflow-y-auto"
+    <main class="flex-1 flex flex-col bg-base-100 relative overflow-hidden"
           @@dragover.prevent="if (!demoMode) isDragging = true"
           @@dragleave.prevent="isDragging = false"
           @@drop.prevent="handleDrop($event)">
@@ -700,7 +700,7 @@
                 </template>
 
                 <!-- Input -->
-                <div class="p-6 border-t border-base-300 bg-base-200/30">
+                <div class="shrink-0 p-6 border-t border-base-300 bg-base-200/30">
                     <!-- Selected documents indicator -->
                     <template x-if="selectedDocIds.size > 0">
                         <div class="max-w-4xl mx-auto mb-3 flex items-center gap-2 text-sm">

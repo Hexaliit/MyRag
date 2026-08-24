@@ -9,6 +9,7 @@ module.exports = {
     theme: {
         extend: {
             fontFamily: {
+                'sans': ['Vazirmatn', 'Tahoma', 'Arial', 'sans-serif'],
                 'brand': ['Raleway', 'sans-serif']
             }
         }

@@ -498,7 +498,7 @@ public class AgenticSearchService(
 
         if (ctx.Sources.Count == 0)
         {
-            var msg = "I don't have relevant information in the available documents to answer that question.";
+            var msg = "اطلاعات مرتبطی در اسناد موجود برای پاسخ به این سوال وجود ندارد.";
             await conversationService.AddMessageAsync(ctx.ConversationId, "assistant", msg, ct: ct);
             yield return new ChatStreamChunk("text", msg);
             yield return new ChatStreamChunk("done");
